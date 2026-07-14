@@ -1,12 +1,20 @@
-# src/services/auth-service/src/auth/utils/dependencies.py
+from typing import Generator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from src.auth.db.session import get_db
-from auth.models.user import User
-from auth.utils.tokens import decode_token
+from src.auth.db.session import SessionLocal, get_db
+from src.auth.models.user import User
+from src.auth.utils.tokens import decode_token
+from src.auth.config import settings
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+
+def get_db() -> Generator:
+    try:
+        db = SessionLocal()
+        yield db
+    finally:
+        db.close()
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
@@ -19,10 +27,10 @@ async def get_current_user(
     )
     try:
         payload = decode_token(token)
-        user_id: int = payload.get("sub")
+        user_id: int = int(payload.get("sub"))
         if user_id is None:
             raise credentials_exception
-    except ValueError:
+    except (ValueError, TypeError):
         raise credentials_exception
     
     user = db.query(User).filter(User.id == user_id).first()

@@ -1,9 +1,10 @@
+# src/services/auth-service/src/auth/utils/tokens.py
 from datetime import datetime, timedelta
 from typing import Optional, Union
 import jwt
 from jwt.exceptions import InvalidTokenError
 from pydantic import EmailStr
-from auth.config import settings
+from src.auth.config import settings
 
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"

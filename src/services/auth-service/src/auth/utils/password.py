@@ -1,7 +1,6 @@
 # src/services/auth-service/src/auth/utils/password.py
 from passlib.context import CryptContext
 
-# Using bcrypt for password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_password_hash(password: str) -> str:
