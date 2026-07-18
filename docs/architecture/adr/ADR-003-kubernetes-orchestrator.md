@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2024-01-29
+- Version: 1.0
 - Authors: Architecture Team
 - Decision Owner: Chief Architect
 - Supersedes: None
@@ -26,6 +27,15 @@ Managing containerized services at scale introduced challenges in service discov
 - Resource isolation and quota enforcement
 - Portability across multi-cloud and hybrid environments
 
+## Stakeholders
+- Platform engineering team
+- Application development teams across all domains
+- DevOps/SRE team
+- Security and compliance team
+- Operations team
+- Enterprise Architecture team
+- Product management
+
 ## Constraints
 - Compatibility with existing container images and registries
 - Integration with current monitoring, logging, and security tooling
@@ -38,6 +48,13 @@ Managing containerized services at scale introduced challenges in service discov
 - Operations team has sufficient maturity to manage Kubernetes clusters
 - Existing CI/CD pipelines can be adapted for Kubernetes
 - Network and storage infrastructure can support Kubernetes workloads
+
+## Architecture Principles Addressed
+- AP-002: Loose Coupling - Components should have minimal dependencies on each other
+- AP-003: Autonomy - Teams should be able to deploy and evolve their services independently
+- AP-004: Evolutionary Architecture - Architecture should evolve incrementally based on feedback
+- AP-009: Scalability - Systems should handle increased load through horizontal scaling
+- AP-006: Asynchronous Communication - Use async patterns for better scalability and resilience
 
 ## Quality Attributes Involved
 - Reliability
@@ -52,11 +69,18 @@ Managing containerized services at scale introduced challenges in service discov
 # Decision
 Select Kubernetes as the container orchestration platform for the QEOS platform to provide automated deployment, scaling, and management of containerized services across all domains.
 
+## Success Metrics / Evaluation Criteria
+- 99.9% application availability during normal operations
+- Ability to scale services horizontally based on CPU/memory utilization with <2 minute scaling delay
+- Mean time to recover (MTTR) from node failures < 5 minutes
+- 95% of deployments completed successfully without manual intervention
+- Resource utilization efficiency improvement of 30% over manual deployment processes
+
 ## Scope
 All containerized services within QEOS, including domain services, infrastructure services, and platform components packaged as containers.
 
-## Affected Domains
-All domains: Platform, Execution, Quality Intelligence Platform (QIP), Automation, Collaboration, Administration, Marketplace, and Integrations
+## Affected Components/Services/Domains
+Platform, Execution, Quality Intelligence Platform (QIP), Automation, Collaboration, Administration, Marketplace, and Integrations
 
 ## Implementation Boundaries
 - Services are packaged as Docker images
@@ -91,7 +115,7 @@ All domains: Platform, Execution, Quality Intelligence Platform (QIP), Automatio
 Not selected
 
 ### Reason
-Docker Swarm lacks the advanced capabilities, ecosystem breadth, and enterprise readiness required for QEOS’s complex scaling, security, and extensibility needs.
+Docker Swarm lacks the advanced capabilities, ecosystem breadth, and enterprise readiness required for QEOS's complex scaling, security, and extensibility needs.
 
 ## Apache Mesos
 ### Pros
@@ -113,7 +137,7 @@ Docker Swarm lacks the advanced capabilities, ecosystem breadth, and enterprise 
 Not selected
 
 ### Reason
-Although powerful, Mesos’ complexity and smaller ecosystem make it less suitable than Kubernetes, given Kubernetes’ extensive tooling, community support, and managed-service availability.
+Although powerful, Mesos' complexity and smaller ecosystem make it less suitable than Kubernetes, given Kubernetes' extensive tooling, community support, and managed-service availability.
 
 ## Nomad
 ### Pros
@@ -134,7 +158,7 @@ Although powerful, Mesos’ complexity and smaller ecosystem make it less suitab
 Not selected
 
 ### Reason
-Nomad’s simplicity sacrifices advanced container orchestration features essential for QEOS, such as sophisticated networking, storage options, and extensibility that Kubernetes provides natively.
+Nomad's simplicity sacrifices advanced container orchestration features essential for QEOS, such as sophisticated networking, storage options, and extensibility that Kubernetes provides natively.
 
 ## Managed Kubernetes Services (EKS, AKS, GKE)
 ### Pros
@@ -191,7 +215,7 @@ The choice to adopt Kubernetes as the orchestration platform is independent of t
 All containerized services: Platform Service, Execution Service, QIP Service, Automation Service, Collaboration Service, Administration Service, Marketplace Service, Integration Service, monitoring services, logging services, security services, and infrastructure services.
 
 ## Affected Domains
-All domains: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations
+Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations
 
 ## Deployment Implications
 - Deploy a Kubernetes cluster (self-managed or via managed service)
@@ -217,13 +241,13 @@ All domains: Platform, Execution, QIP, Automation, Collaboration, Administration
 - Plan disaster recovery and business continuity
 
 ## Migration Considerations
-**Phase 1**: Provision Kubernetes infrastructure (self-managed or managed)  
-**Phase 2**: Containerize services and set up CI/CD pipelines  
-**Phase 3**: Deploy core infrastructure services (monitoring, logging, etc.)  
-**Phase 4**: Migrate domain services to Kubernetes in incremental batches  
-**Phase 5**: Introduce service mesh for advanced traffic management  
-**Phase 6**: Adopt GitOps workflows for declarative cluster management  
-**Phase 7**: Enforce advanced security policies and compliance measures  
+**Phase 1**: Provision Kubernetes infrastructure (self-managed or managed)
+**Phase 2**: Containerize services and set up CI/CD pipelines
+**Phase 3**: Deploy core infrastructure services (monitoring, logging, etc.)
+**Phase 4**: Migrate domain services to Kubernetes in incremental batches
+**Phase 5**: Introduce service mesh for advanced traffic management
+**Phase 6**: Adopt GitOps workflows for declarative cluster management
+**Phase 7**: Enforce advanced security policies and compliance measures
 **Phase 8**: Optimize resource utilization and control costs
 
 ---
@@ -252,12 +276,19 @@ All domains: Platform, Execution, QIP, Automation, Collaboration, Administration
 
 ---
 
+# Change Log
+| Date | Version | Description |
+|------|---------|-------------|
+| 2024-01-29 | 1.0 | Initial version |
+
+---
+
 # References
 - Kubernetes Documentation
-- *Kubernetes Up & Running* — Kelsey Hightower et al.
-- *The Kubernetes Book* — Nigel Poulton
-- *Cloud Native Patterns* — Cornelia Davis
-- *Managing Kubernetes* — Brendan Burns et al.
+- Kubernetes Up & Running — Kelsey Hightower et al.
+- The Kubernetes Book — Nigel Poulton
+- Cloud Native Patterns — Cornelia Davis
+- Managing Kubernetes — Brendan Burns et al.
 
 ---
 

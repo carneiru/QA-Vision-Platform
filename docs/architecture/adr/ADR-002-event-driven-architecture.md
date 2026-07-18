@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2024-01-22
+- Version: 1.0
 - Authors: Architecture Team
 - Decision Owner: Chief Architect
 - Supersedes: None
@@ -12,30 +13,48 @@
 # Context
 
 ## Business Problem
-As the QEOS platform grew to support complex, cross‑domain workflows, we needed a mechanism to decouple services, enable asynchronous processing, and propagate real‑time events across the system. The original synchronous request‑response style created tight coupling, blocked threads, and limited scalability.
+As the QEOS platform grew to support complex, cross-domain workflows, we needed a mechanism to decouple services, enable asynchronous processing, and propagate real-time events across the system. The original synchronous request-response style created tight coupling, blocked threads, and limited scalability.
 
 ## Technical Problem
-Direct service‑to‑service calls introduced fragile dependencies, made evolution difficult, and hampered graceful load handling. Changes in one service frequently forced changes in its consumers, creating deployment bottlenecks.
+Direct service-to-service calls introduced fragile dependencies, made evolution difficult, and hampered graceful load handling. Changes in one service frequently forced changes in its consumers, creating deployment bottlenecks.
 
 ## Architectural Drivers
 - Loose coupling between services
-- Asynchronous, non‑blocking processing
-- Real‑time event propagation and reaction
-- Load‑leveling through buffering and queuing
+- Asynchronous, non-blocking processing
+- Real-time event propagation and reaction
+- Load-leveling through buffering and queuing
 - Audit trails and replayability of business facts
 - Support for eventual consistency where appropriate
+
+## Stakeholders
+- Platform engineering team
+- Application development teams across all domains
+- DevOps/SRE team
+- Security and compliance team
+- Data engineering team
+- Product management
+- Enterprise Architecture team
+- Operations team
 
 ## Constraints
 - Must retain existing synchronous APIs during migration
 - Preserve strong consistency where business rules require it
 - Conform to enterprise messaging standards
-- Team familiarity with event‑driven patterns
+- Team familiarity with event-driven patterns
 
 ## Assumptions
-- Teams will adopt event‑driven thinking and async practices
+- Teams will adopt event-driven thinking and async practices
 - Organization will invest in event infrastructure and tooling
 - Eventual consistency is acceptable for most business processes
 - Adequate monitoring and debugging tools exist for asynchronous systems
+
+## Architecture Principles Addressed
+- AP-002: Loose Coupling - Components should have minimal dependencies on each other
+- AP-006: Asynchronous Communication - Use async patterns for better scalability and resilience
+- AP-007: Fault Tolerance - Systems should gracefully handle failures
+- AP-008: Observability - Systems should provide sufficient visibility for monitoring and debugging
+- AP-009: Scalability - Systems should handle increased load through horizontal scaling
+- AP-010: Auditability - Business events should be captured for compliance and analysis
 
 ## Quality Attributes Involved
 - Scalability
@@ -48,20 +67,28 @@ Direct service‑to‑service calls introduced fragile dependencies, made evolut
 ---
 
 # Decision
-Adopt an Event‑Driven Architecture (EDA) using Apache Kafka as the event streaming backbone for the QEOS platform. This enables loose coupling, asynchronous processing, and real‑time event propagation between domains and services.
+Adopt an Event-Driven Architecture (EDA) using Apache Kafka as the event streaming backbone for the QEOS platform. This enables loose coupling, asynchronous processing, and real-time event propagation between domains and services.
+
+## Success Metrics / Evaluation Criteria
+- Reduction in synchronous service-to-service calls by 60% within 3 months
+- 99.9% successful event delivery rate with proper acknowledgments
+- Average event processing latency under 100ms for 95% of events
+- Ability to replay events for audit/recovery purposes with zero data loss
+- Reduction in deployment coupling dependencies by 70% within 4 months
+- Mean Time to Detect (MTTD) for issues reduced by 50% through event-based monitoring
 
 ## Scope
-All inter‑service communication within QEOS, especially cross‑domain interactions, workflow orchestration, and state changes that need to be observed by multiple parties.
+All inter-service communication within QEOS, especially cross-domain interactions, workflow orchestration, and state changes that need to be observed by multiple parties.
 
 ## Affected Domains
-All domains: Platform, Execution, Quality Intelligence Platform (QIP), Automation, Collaboration, Administration, Marketplace, and Integrations
+Platform, Execution, Quality Intelligence Platform (QIP), Automation, Collaboration, Administration, Marketplace, and Integrations
 
 ## Implementation Boundaries
 - Events are published to Kafka topics as immutable records of business facts
 - Services subscribe to topics relevant to their domain
 - Event schemas are versioned and governed via a schema registry
-- Dead‑letter queues handle unprocessable events
-- Retention policies align with data‑governance requirements
+- Dead-letter queues handle unprocessable events
+- Retention policies align with data-governance requirements
 
 ---
 
@@ -72,21 +99,21 @@ All domains: Platform, Execution, Quality Intelligence Platform (QIP), Automatio
 - Familiar to most teams
 - Immediate consistency
 - Straightforward debugging and tracing
-- Well‑understood tooling and patterns
+- Well-understood tooling and patterns
 
 ### Cons
 - Tight coupling between services
 - Blocking operations limit scalability and responsiveness
 - Failures can cascade
 - Adding consumers requires producer changes
-- No built‑in buffering or load leveling
+- No built-in buffering or load leveling
 - No inherent audit trail or replay capability
 
 ### Decision
 Not selected
 
 ### Rejected because
-Synchronous communication alone cannot satisfy the QEOS platform’s need for loose coupling, scalability, and real‑time propagation.
+Synchronous communication alone cannot satisfy the QEOS platform's need for loose coupling, scalability, and real-time propagation.
 
 ## Message Queues (RabbitMQ, AWS SQS, etc.)
 ### Pros
@@ -105,7 +132,7 @@ Synchronous communication alone cannot satisfy the QEOS platform’s need for lo
 Not selected
 
 ### Rejected because
-Message queues lack the throughput, replay, and broadcast capabilities required for QEOS’s event‑centric workloads.
+Message queues lack the throughput, replay, and broadcast capabilities required for QEOS's event-centric workloads.
 
 ---
 
@@ -114,8 +141,8 @@ Message queues lack the throughput, replay, and broadcast capabilities required 
 ## Positive
 - Loose coupling via implicit event contracts
 - Asynchronous processing improves resource utilization
-- Real‑time propagation enables reactive architectures
-- Built‑in buffering absorbs traffic spikes
+- Real-time propagation enables reactive architectures
+- Built-in buffering absorbs traffic spikes
 - Event replay supports debugging, auditing, and rebuilding read models
 - Horizontal scalability through Kafka partitioning
 - Multiple independent consumers per event
@@ -126,7 +153,7 @@ Message queues lack the throughput, replay, and broadcast capabilities required 
 - Need for idempotent consumer logic to handle duplicates
 - Eventual consistency may be insufficient for some transactions
 - Requires specialized monitoring and tooling for event streams
-- Learning curve for teams adopting event‑driven thinking
+- Learning curve for teams adopting event-driven thinking
 - Risk of event loss if misconfigured (mitigated with acknowledgments and replication)
 - Operational overhead for Kafka cluster management
 
@@ -135,17 +162,17 @@ Message queues lack the throughput, replay, and broadcast capabilities required 
 # Implementation
 
 ## Affected Services
-All services requiring asynchronous communication: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, Integration, and any domain‑specific services.
+All services requiring asynchronous communication: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, Integration, and any domain-specific services.
 
 ## Affected Domains
-All domains: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations
+Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations
 
 ## Deployment Implications
 - Deploy and administer a Kafka cluster
 - Provide producer/consumer client libraries for all services
 - Deploy a schema registry for versioning and validation
 - Implement monitoring and alerting for cluster health and consumer lag
-- Secure topics with encryption and access‑control lists
+- Secure topics with encryption and access-control lists
 
 ## Operational Considerations
 - Define partitioning strategy for scalability
@@ -153,16 +180,15 @@ All domains: Platform, Execution, QIP, Automation, Collaboration, Administration
 - Manage consumer groups and monitor lag
 - Govern schema evolution and maintain backward compatibility
 - Plan disaster recovery and backup procedures for Kafka
-- Tune performance and conduct capacity planning
 
 ## Migration Considerations
-**Phase 1**: Deploy Kafka infrastructure and create foundational topics  
-**Phase 2**: Identify domain events and define their schemas  
-**Phase 3**: Begin publishing events from existing services  
-**Phase 4**: Build event consumers for interested services  
-**Phase 5**: Gradually replace synchronous calls with event‑driven interactions  
-**Phase 6**: Apply event‑sourcing patterns where beneficial  
-**Phase 7**: Implement event‑driven sagas for long‑running workflows
+**Phase 1**: Deploy Kafka infrastructure and create foundational topics
+**Phase 2**: Identify domain events and define their schemas
+**Phase 3**: Begin publishing events from existing services
+**Phase 4**: Build event consumers for interested services
+**Phase 5**: Gradually replace synchronous calls with event-driven interactions
+**Phase 6**: Apply event-sourcing patterns where beneficial
+**Phase 7**: Implement event-driven sagas for long-running workflows
 
 ---
 
@@ -175,23 +201,30 @@ All domains: Platform, Execution, QIP, Automation, Collaboration, Administration
 | Increased system complexity | Invest in training, tooling, and establish a center of excellence |
 | Difficulty debugging asynchronous flows | Deploy distributed tracing, correlation IDs, and consider event sourcing |
 | Performance degradation under load | Tune partitioning, scale consumers, and perform capacity planning |
-| Data‑privacy and compliance concerns | Encrypt sensitive events, enforce access controls, retain audit logs |
+| Data-privacy and compliance concerns | Encrypt sensitive events, enforce access controls, retain audit logs |
 
 ---
 
 # Related Decisions
-- ADR-001: Adopt Domain‑Driven Design
+- ADR-001: Adopt Domain-Driven Design
 - ADR-004: Select Apache Kafka as Event Backbone
 - ADR-018: Event Sourcing and CQRS Patterns
 - ADR-019: Dead Letter Queue Handling
 
 ---
 
+# Change Log
+| Date | Version | Description |
+|------|---------|-------------|
+| 2024-01-22 | 1.0 | Initial version |
+
+---
+
 # References
 - Apache Kafka Documentation
-- Designing Event‑Driven Systems — Ben Stopford
+- Designing Event-Driven Systems — Ben Stopford
 - Enterprise Integration Patterns — Gregor Hohpe and Bobby Woolf
-- Kafka: The Definitative Guide — Gwen Shapira et al.
+- Kafka: The Definitive Guide — Gwen Shapira et al.
 
 ---
 

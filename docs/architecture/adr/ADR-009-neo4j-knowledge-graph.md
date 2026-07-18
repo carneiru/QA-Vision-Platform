@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2024-03-04
+- Version: 1.0
 - Authors: Architecture Team
 - Decision Owner: Chief Architect
 - Supersedes: None
@@ -47,6 +48,14 @@ Evaluating graph databases necessitated consideration of factors including nativ
 - Network and storage infrastructure can support Neo4j requirements
 - Data volume and growth projections for knowledge graphs align with Neo4j's capabilities
 
+## Architecture Principles Addressed
+- AP-001: Business Capability Alignment - Systems should be organized around business capabilities
+- AP-005: Ubiquitous Language - Common language should be shared between domain experts and developers
+- AP-006: Asynchronous Communication - Use async patterns for better scalability and resilience
+- AP-009: Scalability - Systems should handle increased load through horizontal scaling
+- AP-010: Auditability - Business events should be captured for compliance and analysis
+- AP-011: Performance - Systems should be responsive and performant under expected loads
+
 ## Quality Attributes Involved
 - Graph traversal performance
 - Data consistency
@@ -77,12 +86,6 @@ Primarily affects the Quality Intelligence Platform (QIP) and Collaboration doma
 - Security through authentication, authorization, and encryption
 - Backup and recovery strategies for graph data
 - Monitoring and alerting for database performance and health
-- Integration with application services through official Neo4j drivers
-- Use of connection pooling in services to efficiently manage database connections
-- Graph schema migrations using version-controlled migration tools
-- Integration with existing observability stacks (Prometheus, Grafana, ELK)
-- Visualization tools integration (Neo4j Bloom, custom solutions)
-- Graph data science capabilities for advanced analytics where needed
 
 ---
 
@@ -271,7 +274,7 @@ While TigerGraph offers excellent performance for specific graph analytics workl
 
 # Implementation
 
-## Affected Services
+## Affected Components/Services
 Knowledge Graph Service, Requirement Traceability Service, Test Impact Analysis Service, Root Cause Analysis Service, Quality Asset Dependency Graph Service, Collaboration Graph Service, Integration Impact Analysis Service, any service needing to store and query highly connected data
 
 ## Affected Domains
@@ -388,6 +391,17 @@ Primarily Quality Intelligence Platform (QIP) and Collaboration domains, with co
 - ADR-006: Select Python for AI/ML Services
 - ADR-008: Select PostgreSQL as Primary Relational Database
 - ADR-010: Select Qdrant for Vector Database
+- ADR-017: Bounded Context Map and Context Mapping
+- ADR-018: Event Sourcing and CQRS Patterns
+- ADR-019: Dead Letter Queue Handling
+- ADR-020: Service Mesh Adoption
+
+---
+
+# Change Log
+| Date | Version | Description |
+|------|---------|-------------|
+| 2024-03-04 | 1.0 | Initial version |
 
 ---
 

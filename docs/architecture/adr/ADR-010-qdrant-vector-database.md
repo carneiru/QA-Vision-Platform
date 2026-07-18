@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2024-03-11
+- Version: 1.0
 - Authors: Architecture Team
 - Decision Owner: Chief Architect
 - Supersedes: None
@@ -9,15 +10,15 @@
 
 ---
 
-## Context
+# Context
 
-### Business Problem
+## Business Problem
 As the QEOS platform incorporates AI-powered features such as semantic search, recommendation systems, similarity matching, and retrieval-augmented generation (RAG), we require a purpose-built vector database to efficiently store, index, and query high-dimensional vector embeddings. Traditional databases lack optimization for vector similarity search at scale, necessitating a solution capable of handling the computational demands of nearest neighbor search in vector spaces.
 
-### Technical Problem
+## Technical Problem
 Evaluating vector databases requires assessing search performance, scalability, indexing algorithms, distance metric support, metadata filtering capabilities, operational complexity, ecosystem maturity, and integration capabilities. We need a database that can manage millions of vectors with low-latency similarity search while delivering enterprise-grade reliability and features.
 
-### Architectural Drivers
+## Architectural Drivers
 - High-performance approximate nearest neighbor (ANN) search capability
 - Scalability for large vector datasets
 - Support for multiple distance metrics (cosine, Euclidean, dot product, etc.)
@@ -29,7 +30,7 @@ Evaluating vector databases requires assessing search performance, scalability, 
 - Support for cloud-native deployment patterns (Kubernetes, Docker)
 - Cost-effectiveness for vector storage and search operations
 
-### Constraints
+## Constraints
 - Integration with AI/ML services and microservices architecture
 - Deployability in our containerized environment (Docker/Kubernetes)
 - Interoperability with services written in Go, Python, and Node.js
@@ -40,7 +41,7 @@ Evaluating vector databases requires assessing search performance, scalability, 
 - Performance requirements for various vector search workloads
 - Support for our chosen embedding models and dimensions
 
-### Assumptions
+## Assumptions
 - Organization will invest in Qdrant expertise and tooling
 - Existing infrastructure supports Qdrant deployment requirements
 - Sufficient learning resources and training are available for teams
@@ -50,7 +51,15 @@ Evaluating vector databases requires assessing search performance, scalability, 
 - Data volume and growth projections for vector embeddings align with Qdrant's capabilities
 - Selected embedding models (sentence-transformers, OpenAI, etc.) produce compatible vectors
 
-### Quality Attributes Involved
+## Architecture Principles Addressed
+- AP-001: Business Capability Alignment - Systems should be organized around business capabilities
+- AP-005: Ubiquitous Language - Common language should be shared between domain experts and developers
+- AP-006: Asynchronous Communication - Use async patterns for better scalability and resilience
+- AP-009: Scalability - Systems should handle increased load through horizontal scaling
+- AP-010: Auditability - Business events should be captured for compliance and analysis
+- AP-011: Performance - Systems should be responsive and performant under expected loads
+
+## Quality Attributes Involved
 - Search performance and latency
 - Scalability
 - Search accuracy and relevancy
@@ -60,16 +69,16 @@ Evaluating vector databases requires assessing search performance, scalability, 
 
 ---
 
-## Decision
+# Decision
 Select Qdrant 1.7+ as the purpose-built vector database for the QEOS platform's vector storage and similarity search needs due to its high-performance ANN search algorithms, rich metadata filtering capabilities, horizontal scalability, and strong consistency guarantees.
 
-### Scope
+## Scope
 This decision applies to all vector storage and similarity search needs within the QEOS platform, including semantic search over documentation, code search, recommendation systems, retrieval-augmented generation (RAG), similarity-based duplicate detection, clustering of quality assets, and any other use case requiring efficient vector similarity search.
 
-### Affected Domains
+## Affected Domains
 Primarily affects the Quality Intelligence Platform (QIP) domain, with consumption by other domains: Platform, Execution, Automation, Collaboration, Administration, Marketplace, and Integrations.
 
-### Implementation Boundaries
+## Implementation Boundaries
 - Minimum Qdrant version 1.7+ for all deployments
 - Utilize Qdrant's distributed mode for horizontal scaling and high availability (where applicable)
 - Support for multiple distance metrics (cosine, Euclidean, dot product, Manhattan, etc.)
@@ -91,10 +100,10 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 
 ---
 
-## Alternatives Considered
+# Alternatives Considered
 
-### Pinecone
-**Pros**
+## Pinecone
+### Pros
 - Managed service reduces operational overhead
 - High-performance vector search
 - Easy-to-use API and intuitive interface
@@ -103,7 +112,7 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Pay-as-you-go pricing model
 - Integrated with popular ML frameworks and tools
 
-**Cons**
+### Cons
 - Vendor lock-in to Pinecone ecosystem
 - Less control over configuration and tuning compared to self-managed
 - Potential cost at scale compared to self-managed open-source solutions
@@ -114,11 +123,14 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Limited support for advanced quantization and compression techniques
 - Less flexibility in indexing algorithm selection and tuning
 
-**Decision**: Not selected for primary decision (addressed separately)
-**Reason**: While managed vector services like Pinecone may be used in specific contexts, the fundamental decision to adopt a vector database is separate from deployment model choice. This ADR focuses on technology selection, not self-managed versus managed services. Additionally, Qdrant offers more flexibility, open-source accessibility, and enterprise features aligning with our long-term platform strategy.
+### Decision
+Not selected for primary decision (addressed separately)
 
-### Milvus
-**Pros**
+### Rejected because
+While managed vector services like Pinecone may be used in specific contexts, the fundamental decision to adopt a vector database is separate from deployment model choice. This ADR focuses on technology selection, not self-managed versus managed services. Additionally, Qdrant offers more flexibility, open-source accessibility, and enterprise features aligning with our long-term platform strategy.
+
+## Milvus
+### Pros
 - Open-source and freely available
 - High-performance vector search with multiple indexing options
 - Good scalability and distribution model
@@ -126,22 +138,24 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Support for multiple distance metrics
 - Integration with popular AI/ML ecosystems
 
-**Cons**
+### Cons
 - More complex setup and administration compared to Qdrant
 - Higher resource consumption for similar workloads
 - Less intuitive API and documentation
 - Fewer managed service offerings from cloud providers
-- Less mature tooling for administration and monitoring
 - Less enterprise-ready compared to Qdrant
 - More complex distributed mode setup and management
 - Limited support for hybrid searches compared to Qdrant
 - Less straightforward deployment and operational model
 
-**Decision**: Not selected
-**Reason**: While Milvus offers excellent vector search performance, its complexity and operational overhead make it less suitable than Qdrant for our needs, particularly regarding operational simplicity, ease of deployment, and enterprise readiness.
+### Decision
+Not selected
 
-### Weaviate
-**Pros**
+### Rejected because
+While Milvus offers excellent vector search performance, its complexity and operational overhead make it less suitable than Qdrant for our needs, particularly regarding operational simplicity, ease of deployment, and enterprise readiness.
+
+## Weaviate
+### Pros
 - Open-source and freely available
 - Combines vector search with knowledge graph capabilities
 - GraphQL-based API for flexible querying
@@ -150,7 +164,7 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Support for multiple distance metrics
 - Modular architecture allowing feature extension
 
-**Cons**
+### Cons
 - More complex due to hybrid vector-knowledge graph nature
 - Vector search performance not as strong as purpose-built vector databases
 - Higher resource consumption for vector search workloads
@@ -160,11 +174,14 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Fewer enterprise-grade features compared to Qdrant
 - Less operational maturity for large-scale vector search workloads
 
-**Decision**: Not selected
-**Reason**: While Weaviate offers interesting hybrid capabilities, its vector search performance and ecosystem maturity do not match Qdrant's focus on being a premier purpose-built vector database, which is what we need for our vector search workloads.
+### Decision
+Not selected
 
-### FAISS (Facebook AI Similarity Search)
-**Pros**
+### Rejected because
+While Weaviate offers interesting hybrid capabilities, its vector search performance and ecosystem maturity do not match Qdrant's focus on being a premier purpose-built vector database, which is what we need for our vector search workloads.
+
+## FAISS (Facebook AI Similarity Search)
+### Pros
 - Extremely high-performance vector search
 - Developed by Facebook AI Research
 - Multiple indexing algorithms (HNSW, IVF, PQ, etc.)
@@ -172,7 +189,7 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Batch processing capabilities for high throughput
 - Integration with popular ML frameworks (PyTorch, TensorFlow)
 
-**Cons**
+### Cons
 - Primarily a library rather than a full-featured database
 - Limited persistence and durability features
 - Lack of built-in horizontal scaling and distribution
@@ -183,11 +200,14 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Not designed as a primary vector database for enterprise workloads
 - Requires significant custom development for production use
 
-**Decision**: Not selected
-**Reason**: While FAISS offers unmatched vector search performance, its lack of database features (persistence, scaling, API, filtering) makes it unsuitable for serving as the primary vector database for the QEOS platform, where we need a complete solution with operational features.
+### Decision
+Not selected
 
-### Elasticsearch with Dense Vector Support
-**Pros**
+### Rejected because
+While FAISS offers unmatched vector search performance, its lack of database features (persistence, scaling, API, filtering) makes it unsuitable for serving as the primary vector database for the QEOS platform, where we need a complete solution with operational features.
+
+## Elasticsearch with Dense Vector Support
+### Pros
 - Familiar technology for teams already using Elasticsearch
 - Combines vector search with full-text search and analytics
 - Mature ecosystem and extensive tooling
@@ -196,7 +216,7 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Support for multiple distance metrics
 - Rich querying capabilities beyond vector search
 
-**Cons**
+### Cons
 - Vector search performance not as strong as purpose-built vector databases
 - Higher resource consumption for vector search workloads
 - Less efficient indexing algorithms for vectors compared to purpose-built solutions
@@ -206,18 +226,21 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Vector features feel bolted-on rather than native
 - Less straightforward deployment and operational model for vector use cases
 
-**Decision**: Not selected
-**Reason**: While Elasticsearch offers versatility, its vector search performance and specialization do not match Qdrant's focus on being a premier purpose-built vector database, which is what we need for our vector search workloads.
+### Decision
+Not selected
 
-### Redis with RedisAI/vector support
-**Pros**
+### Rejected because
+While Elasticsearch offers versatility, its vector search performance and specialization do not match Qdrant's focus on being a premier purpose-built vector database, which is what we need for our vector search workloads.
+
+## Redis with RedisAI/vector support
+### Pros
 - Extremely fast performance for simple vector operations
 - Simple deployment and operational model
 - Integrated with Redis ecosystem
 - Low latency for basic vector queries
 - Good for caching and real-time vector operations
 
-**Cons**
+### Cons
 - Limited to in-memory datasets (though Redis on Flash extends this)
 - Less suitable for large, persistent vector collections
 - Fewer advanced vector features and algorithms
@@ -228,14 +251,17 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Not designed as a primary vector database for enterprise workloads
 - Vector support feels like an add-on rather than core functionality
 
-**Decision**: Not selected
-**Reason**: While Redis offers excellent performance for certain use cases, its limitations in persistence, transactional guarantees, and advanced vector features make it unsuitable for serving as the primary vector database for the QEOS platform.
+### Decision
+Not selected
+
+### Rejected because
+While Redis offers excellent performance for certain use cases, its limitations in persistence, transactional guarantees, and advanced vector features make it unsuitable for serving as the primary vector database for the QEOS platform.
 
 ---
 
-## Consequences
+# Consequences
 
-### Positive
+## Positive
 - High-performance approximate nearest neighbor (ANN) search using state-of-the-art algorithms (HNSW, IVF, etc.)
 - Rich metadata filtering capabilities alongside vector search
 - Horizontal scalability through sharding and replication
@@ -258,7 +284,7 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 - Support for both synchronous and asynchronous API operations
 - Extensibility through custom plugins and extension points
 
-### Negative
+## Negative
 - Can be more complex to administer than simpler databases
 - Requires careful tuning for optimal performance in certain workloads
 - Memory consumption can be high for large vector collections without quantization
@@ -273,15 +299,15 @@ Primarily affects the Quality Intelligence Platform (QIP) domain, with consumpti
 
 ---
 
-## Implementation
+# Implementation
 
-### Affected Services
+## Affected Components/Services
 Vector Search Service, Semantic Search Service, Recommendation Service, RAG (Retrieval Augmented Generation) Service, Code Search Service, Duplicate Detection Service, Clustering Service, Embedding Management Service, any service that needs to store and query vector embeddings
 
-### Affected Domains
+## Affected Domains
 Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platform, Execution, Automation, Collaboration, Administration, Marketplace, and Integrations domains
 
-### Deployment Implications
+## Deployment Implications
 - Qdrant cluster deployment (single instance for dev/test, distributed cluster for prod)
 - Persistent volumes for vector storage in Kubernetes environments
 - StatefulSets for managing Qdrant cluster members
@@ -326,7 +352,7 @@ Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platf
 - Hot standby and failover configurations for high availability
 - Read replica configuration for scaling read workloads (where applicable)
 
-### Operational Considerations
+## Operational Considerations
 - Connection pool sizing and monitoring
 - Query performance monitoring and slow query logging
 - Index usage monitoring and optimization
@@ -360,7 +386,7 @@ Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platf
 - Log retention and archiving policies
 - Audit trails for vector operations and administrative actions
 
-### Migration Considerations
+## Migration Considerations
 - Phase 1: Establish Qdrant infrastructure and tooling standards
 - Phase 2: Design initial vector schema based on embedding models and dimensions (vector size, distance metric)
 - Phase 3: Implement connection pooling and security standards
@@ -384,7 +410,7 @@ Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platf
 
 ---
 
-## Risks
+# Risks
 
 | Risk | Mitigation |
 |------|------------|
@@ -406,7 +432,7 @@ Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platf
 
 ---
 
-## Related Decisions
+# Related Decisions
 - ADR-001: Adopt Domain-Driven Design
 - ADR-002: Adopt Event-Driven Architecture
 - ADR-003: Select Kubernetes as Container Orchestrator
@@ -416,10 +442,21 @@ Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platf
 - ADR-007: Select React/TypeScript for Frontend Applications
 - ADR-008: Select PostgreSQL as Primary Relational Database
 - ADR-009: Select Neo4j for Knowledge Graph Storage
+- ADR-017: Bounded Context Map and Context Mapping
+- ADR-018: Event Sourcing and CQRS Patterns
+- ADR-019: Dead Letter Queue Handling
+- ADR-020: Service Mesh Adoption
 
 ---
 
-## References
+# Change Log
+| Date | Version | Description |
+|------|---------|-------------|
+| 2024-03-11 | 1.0 | Initial version |
+
+---
+
+# References
 - Qdrant Documentation
 - Qdrant GitHub Repository
 - Qdrant Docker Images
@@ -455,5 +492,5 @@ Primarily Quality Intelligence Platform (QIP) domain, with consumption by: Platf
 
 ---
 
-## Review
+# Review
 Biennial vector database technology review or when evaluating alternative vector database solutions

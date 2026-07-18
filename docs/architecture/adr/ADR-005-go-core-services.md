@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2024-02-12
+- Version: 1.0
 - Authors: Architecture Team
 - Decision Owner: Chief Architect
 - Supersedes: None
@@ -12,20 +13,20 @@
 # Context
 
 ## Business Problem
-Building foundational infrastructure services for the QEOS platform (service discovery, configuration management, API gateway, monitoring agents, etc.) required a language delivering high performance, efficient concurrency, fast start‑up, and minimal resource footprint. These services constitute the platform backbone and must be reliable, efficient, and operable at scale.
+Building foundational infrastructure services for the QEOS platform (service discovery, configuration management, API gateway, monitoring agents, etc.) required a language delivering high performance, efficient concurrency, fast start-up, and minimal resource footprint. These services constitute the platform backbone and must be reliable, efficient, and operable at scale.
 
 ## Technical Problem
-Infrastructure services demand different traits than typical business logic: they must handle high request volumes with low latency, use system resources efficiently, start quickly for scaling, and exhibit predictable behavior. Many traditional languages lack built‑in concurrency or introduce runtime overhead that hinders high‑performance infrastructure components.
+Infrastructure services demand different traits than typical business logic: they must handle high request volumes with low latency, use system resources efficiently, start quickly for scaling, and exhibit predictable behavior. Many traditional languages lack built-in concurrency or introduce runtime overhead that hinders high-performance infrastructure components.
 
 ## Architectural Drivers
 - High performance and low latency for infrastructure services
 - Efficient concurrency and parallelism
-- Fast start‑up and shut‑down for scalable deployment
+- Fast start-up and shut-down for scalable deployment
 - Minimal memory and CPU footprint
 - Robust standard library for networking and system programming
 - Strong tooling for building, testing, and debugging
 - Static binaries simplifying deployment and containerization
-- Vibrant ecosystem for cloud‑native and infrastructure development
+- Vibrant ecosystem for cloud-native and infrastructure development
 
 ## Constraints
 - Must integrate with the existing technology stack and protocols
@@ -33,14 +34,22 @@ Infrastructure services demand different traits than typical business logic: the
 - Interoperable with services written in other languages (Python, Node.js)
 - Must meet enterprise security standards
 - Team familiarity or willingness to adopt Go
-- Long‑term language viability and community support
+- Long-term language viability and community support
 
 ## Assumptions
 - Organization will invest in Go expertise for infrastructure teams
 - Existing build and deployment pipelines can accommodate Go
 - Sufficient learning resources and training exist for teams
 - The Go ecosystem supplies necessary libraries for infrastructure requirements
-- Long‑term support and evolution of Go are assured
+- Long-term support and evolution of Go are assured
+
+## Architecture Principles Addressed
+- AP-002: Loose Coupling - Components should have minimal dependencies on each other
+- AP-003: Autonomy - Teams should be able to deploy and evolve their services independently
+- AP-004: Evolutionary Architecture - Architecture should evolve incrementally based on feedback
+- AP-006: Asynchronous Communication - Use async patterns for better scalability and resilience
+- AP-009: Scalability - Systems should handle increased load through horizontal scaling
+- AP-011: Performance - Systems should be responsive and performant under expected loads
 
 ## Quality Attributes Involved
 - Performance
@@ -53,18 +62,18 @@ Infrastructure services demand different traits than typical business logic: the
 ---
 
 # Decision
-Select Go 1.20+ as the primary language for core infrastructure services in the QEOS platform because of its superior performance, built‑in concurrency model, fast compilation, and suitability for cloud‑native infrastructure components.
+Select Go 1.20+ as the primary language for core infrastructure services in the QEOS platform because of its superior performance, built-in concurrency model, fast compilation, and suitability for cloud-native infrastructure components.
 
 ## Scope
-Applies to all infrastructure services forming the foundational layer of QEOS, including but not limited to: service discovery, configuration management, API gateway, service mesh sidecars, logging agents, metrics collectors, health‑check services, and platform APIs.
+Applies to all infrastructure services forming the foundational layer of QEOS, including but not limited to: service discovery, configuration management, API gateway, service mesh sidecars, logging agents, metrics collectors, health-check services, and platform APIs.
 
 ## Affected Domains
-Primarily the Platform domain; however, infrastructure services are utilized by all domains: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations.
+Primarily the Platform domain; however, infrastructure services are utilized by all domains: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations
 
 ## Implementation Boundaries
 - Write infrastructure services in Go using standard project layout
 - Manage dependencies with Go modules
-- Produce minimal container images via Docker multi‑stage builds
+- Produce minimal container images via Docker multi-stage builds
 - Integrate with Kubernetes using client-go and custom controllers
 - Use the Go standard library for HTTP, JSON, and concurrency primitives
 - Follow Go best practices for error handling, testing, and logging
@@ -76,81 +85,93 @@ Primarily the Platform domain; however, infrastructure services are utilized by 
 # Alternatives Considered
 
 ## Java/Spring Boot
-**Pros**
+### Pros
 - Mature ecosystem with extensive libraries
 - Excellent tooling (IDEs, profilers, debuggers)
-- Strong JIT‑optimized performance
+- Strong JIT-optimized performance
 - Widely adopted in enterprise settings
-- Rich enterprise‑integration ecosystem
+- Rich enterprise-integration ecosystem
 
-**Cons**
+### Cons
 - Higher memory footprint than Go
-- Slower start‑up affecting scaling responsiveness
+- Slower start-up affecting scaling responsiveness
 - More complex deployment (requires JVM tuning)
-- Garbage‑collection pauses can affect latency
+- Garbage-collection pauses can affect latency
 - Verbose syntax and boilerplate code
 - Longer build times compared to Go
 
-**Decision**: Not selected  
-**Reason**: Although Java excels for business applications, its higher resource footprint, slower start‑up, and JVM complexity make it less ideal for lightweight infrastructure services where efficiency and fast start‑up are critical.
+### Decision
+Not selected
+
+### Reason
+Although Java excels for business applications, its higher resource footprint, slower start-up, and JVM complexity make it less ideal for lightweight infrastructure services where efficiency and fast start-up are critical.
 
 ## Node.js/JavaScript
-**Pros**
-- Effective for I/O‑bound workloads
+### Pros
+- Effective for I/O-bound workloads
 - Large npm ecosystem
 - Familiar to many web developers
 - Good asynchronous performance
-- Enables a single language across front‑end and back‑end
+- Enables a single language across front-end and back-end
 
-**Cons**
-- Single‑threaded nature limits CPU‑bound performance
+### Cons
+- Single-threaded nature limits CPU-bound performance
 - Callback or promise chains can complicate code
-- Less suited for CPU‑intensive infrastructure tasks
+- Less suited for CPU-intensive infrastructure tasks
 - Memory usage can increase unexpectedly
-- Less mature tooling for systems‑level programming
+- Less mature tooling for systems-level programming
 - Lack of static typing without TypeScript (adds complexity)
 
-**Decision**: Not selected  
-**Reason**: Node.js’s event‑driven, single‑threaded model is suboptimal for infrastructure services that may require CPU‑intensive processing or true parallelism for peak performance.
+### Decision
+Not selected
+
+### Reason
+Node.js's event-driven, single-threaded model is suboptimal for infrastructure services that may require CPU-intensive processing or true parallelism for peak performance.
 
 ## Rust
-**Pros**
+### Pros
 - Memory safety without garbage collection
 - Performance comparable to C/C++
 - Strong concurrency model via ownership
 - Growing ecosystem for systems programming
-- Zero‑cost abstractions
+- Zero-cost abstractions
 - Excellent tooling (Cargo, Clippy, Rustfmt)
 
-**Cons**
+### Cons
 - Steeper learning curve than Go
 - Longer compile times
-- Smaller ecosystem for cloud‑native infrastructure
+- Smaller ecosystem for cloud-native infrastructure
 - More complex error handling
 - Less mature tooling for distributed systems
-- Smaller community focused on cloud‑native compared to Go
+- Smaller community focused on cloud-native compared to Go
 
-**Decision**: Not selected  
-**Reason**: While Rust provides outstanding performance and safety, its steeper learning curve and longer development cycles make it less suitable for rapid infrastructure development than Go, which offers an excellent balance of performance, simplicity, and productivity.
+### Decision
+Not selected
+
+### Reason
+While Rust provides outstanding performance and safety, its steeper learning curve and longer development cycles make it less suitable for rapid infrastructure development than Go, which offers an excellent balance of performance, simplicity, and productivity.
 
 ## Python
-**Pros**
+### Pros
 - Ideal for rapid development and prototyping
 - Vast library and framework ecosystem
 - Simple, readable syntax
 - Strong community and enterprise adoption
 - Effective for scripting and automation
 
-**Cons**
+### Cons
 - Interpreted nature results in higher resource consumption
 - Global Interpreter Lock (GIL) restricts true parallelism
 - Higher latency than compiled languages
-- Unsuitable for high‑performance, low‑latency services
+- Unsuitable for high-performance, low-latency services
 - Runtime errors that compiled languages would catch earlier
 - Packaging and distribution can be complex
 
-**Decision**: Not selected  
-**Reason**: Python’s performance characteristics and GIL limitation render it unsuitable for high‑performance infrastructure services where efficiency and concurrency are paramount, despite its strengths elsewhere.
+### Decision
+Not selected
+
+### Reason
+Python's performance characteristics and GIL limitation render it unsuitable for high-performance infrastructure services where efficiency and concurrency are paramount, despite its strengths elsewhere.
 
 ---
 
@@ -158,15 +179,15 @@ Primarily the Platform domain; however, infrastructure services are utilized by 
 
 ## Positive
 - High performance with low latency and minimal resource usage
-- Excellent built‑in concurrency through goroutines and channels
-- Fast compilation and start‑up enabling rapid scaling
+- Excellent built-in concurrency through goroutines and channels
+- Fast compilation and start-up enabling rapid scaling
 - Single static binary simplifies deployment and containerization
 - Strong standard library reduces external dependencies
 - Superb tooling (gofmt, go vet, golint, delve) enhances code quality
-- Expanding cloud‑native ecosystem (Kubernetes, Prometheus, etc.)
+- Expanding cloud-native ecosystem (Kubernetes, Prometheus, etc.)
 - Strong backward compatibility across Go releases
-- Straightforward cross‑compilation for multiple architectures
-- Garbage collector with low‑latency modes available
+- Straightforward cross-compilation for multiple architectures
+- Garbage collector with low-latency modes available
 - Integrated testing and benchmarking support
 - Simple dependency management via Go modules
 
@@ -175,8 +196,8 @@ Primarily the Platform domain; however, infrastructure services are utilized by 
 - Error handling can be verbose (though improving in recent versions)
 - Generics introduced in Go 1.18 (our minimum 1.20 mitigates this)
 - Younger ecosystem compared to Java or .NET for certain enterprise features
-- Limited support for functional‑programming paradigms
-- No built‑in GUI framework (irrelevant for backend services)
+- Limited support for functional-programming paradigms
+- No built-in GUI framework (irrelevant for backend services)
 - Dependency management can be challenging for complex dependency trees
 
 ---
@@ -184,15 +205,15 @@ Primarily the Platform domain; however, infrastructure services are utilized by 
 # Implementation
 
 ## Affected Services
-Core infrastructure services: Service Discovery (Consul or custom), Configuration Service, API Gateway (Kong, custom, or Envoy), Service Mesh Sidecars, Logging Agent (custom Fluent Bit), Metrics Collector (Prometheus exporters), Health‑Check Service, Platform API, Authentication Service, Rate‑Limiting Service, Configuration Store, Feature‑Flag Service
+Core infrastructure services: Service Discovery (Consul or custom), Configuration Service, API Gateway (Kong, custom, or Envoy), Service Mesh Sidecars, Logging Agent (custom Fluent Bit), Metrics Collector (Prometheus exporters), Health-Check Service, Platform API, Authentication Service, Rate-Limiting Service, Configuration Store, Feature-Flag Service
 
 ## Affected Domains
 Primarily Platform; however, infrastructure services are used by all domains: Platform, Execution, QIP, Automation, Collaboration, Administration, Marketplace, and Integrations
 
 ## Deployment Implications
-- Produce minimal production images via Docker multi‑stage builds
+- Produce minimal production images via Docker multi-stage builds
 - Base images: distroless or Alpine to reduce attack surface
-- Run containers as non‑root users for security
+- Run containers as non-root users for security
 - Define liveness and readiness probes for Kubernetes integration
 - Specify resource requests and limits for QoS in Kubernetes
 - Employ the sidecar pattern to extend functionality (Istio/Linkerd compatible)
@@ -206,7 +227,7 @@ Primarily Platform; however, infrastructure services are used by all domains: Pl
 - Emit logs to stdout/stderr for centralized aggregation
 - Expose metrics in Prometheus format on standard endpoints
 - Propagate distributed tracing context (OpenTelemetry/Jaeger)
-- Provide health‑check endpoints for liveness and readiness profiling
+- Provide health-check endpoints for liveness and readiness profiling
 - Expose version information for operational metrics
 - Use structured JSON logging to simplify log aggregation
 - Monitor error rates and configure alerts
@@ -214,18 +235,18 @@ Primarily Platform; however, infrastructure services are used by all domains: Pl
 - Observe resource utilization (CPU, memory, goroutine count)
 - Scan container images for vulnerabilities (Trivy, Clair)
 - Regularly update dependencies and conduct vulnerability scanning
-- Follow Go‑version upgrade guidelines to maintain compatibility
+- Follow Go-version upgrade guidelines to maintain compatibility
 
 ## Migration Considerations
-**Phase 1**: Establish Go development environment and codify tooling standards  
-**Phase 2**: Develop shared libraries and reusable patterns for infrastructure services  
-**Phase 3**: Rewrite existing critical infrastructure services in Go  
-**Phase 4**: Create service templates and scaffolding to accelerate new service creation  
-**Phase 5**: Implement observability instrumentation (metrics, logging, tracing)  
-**Phase 6**: Produce base Docker images and corresponding Kubernetes manifests  
-**Phase 7**: Set up CI/CD pipelines for Go services  
-**Phase 8**: Conduct performance testing and tune as needed  
-**Phase 9**: Formalize code‑review standards and enshrine best practices  
+**Phase 1**: Establish Go development environment and codify tooling standards
+**Phase 2**: Develop shared libraries and reusable patterns for infrastructure services
+**Phase 3**: Rewrite existing critical infrastructure services in Go
+**Phase 4**: Create service templates and scaffolding to accelerate new service creation
+**Phase 5**: Implement observability instrumentation (metrics, logging, tracing)
+**Phase 6**: Produce base Docker images and corresponding Kubernetes manifests
+**Phase 7**: Set up CI/CD pipelines for Go services
+**Phase 8**: Conduct performance testing and tune as needed
+**Phase 9**: Formalize code-review standards and enshrine best practices
 **Phase 10**: Plan ongoing Go version upgrades and dependency management
 
 ---
@@ -234,38 +255,39 @@ Primarily Platform; however, infrastructure services are used by all domains: Pl
 
 | Risk | Mitigation |
 |------|------------|
-| Team learning curve for Go | Deliver training, mentoring, and pair‑programming opportunities |
+| Team learning curve for Go | Deliver training, mentoring, and pair-programming opportunities |
 | Limited availability of experienced Go developers | Fund training programs; prioritize aptitude and growth potential over existing experience |
-| Ecosystem gaps for specific infrastructure needs | Contribute to relevant open‑source projects; develop internal libraries when necessary |
+| Ecosystem gaps for specific infrastructure needs | Contribute to relevant open-source projects; develop internal libraries when necessary |
 | Dependency management complexity | Use Go modules, maintain an internal proxy, schedule regular dependency updates |
 | Performance regressions in new Go releases | Include performance tests in CI; pin versions when stability is critical |
 | Production debugging challenges | Enhance tooling (delve, pprof); embed comprehensive logging |
 | Cultural resistance from teams accustomed to other languages | Demonstrate advantages via pilot projects; provide ample support and documentation |
-| Maintenance of forked or customized dependencies | Submit changes upstream when possible; maintain a clear fork strategy if needed |
+| Maintenance of forked or customized dependencies | Submit changes upstream; evaluate long-term maintenance overhead |
 
 ---
 
 # Related Decisions
-- ADR-001: Adopt Domain‑Driven Design
-- ADR-002: Adopt Event‑Driven Architecture
 - ADR-003: Select Kubernetes as Container Orchestrator
-- ADR-004: Select Apache Kafka as Event Backbone
 - ADR-006: Select Python for AI/ML Services
-- ADR-007: Select React/TypeScript for Frontend Applications
-- ADR-020: Service Mesh Adoption (Istio/Linkerd)
-- ADR-021: API Gateway Pattern Implementation
+- ADR-007: Select React/TypeScript for Frontend
+- ADR-023: Infrastructure as Code Adoption
+
+---
+
+# Change Log
+| Date | Version | Description |
+|------|---------|-------------|
+| 2024-02-12 | 1.0 | Initial version |
 
 ---
 
 # References
-- The Go Programming Language Documentation
-- Effective Go — Official Golang Documentation
-- Go in Action — William Kennedy et al.
-- Go Web Programming — Sau Sheong Chang
-- Building Microservices with Go — Kevin Hoffman
-- Cloud Native Go — Kevin Hoffman et al.
+- The Go Programming Language Specification
+- Effective Go — The Go Team
+- Go in Action — William Kennedy et al.
+- Go Web Programming — Sau Sheong Chang
 
 ---
 
 # Review
-Biennial technology stack review or when evaluating alternative languages for infrastructure development
+Annual architecture review or when evaluating changes to the infrastructure services technology stack

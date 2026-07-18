@@ -20,11 +20,17 @@
 ## Architectural Drivers
 [List of factors driving this architectural decision]
 
+## Stakeholders
+[List of stakeholders affected by or involved in this decision - e.g., development teams, operations, security, compliance, product management]
+
 ## Constraints
 [List of constraints that must be considered]
 
 ## Assumptions
 [List of assumptions made]
+
+## Architecture Principles
+[Reference to specific architectural principles this decision aligns with or establishes - e.g., "Loose Coupling", "API-First", "Domain-Driven Design"]
 
 ## Quality Attributes Involved
 [List of quality attributes affected (e.g., performance, scalability, security)]
@@ -34,6 +40,9 @@
 # Decision
 
 [Clear statement of the decision]
+
+## Success Metrics / Evaluation Criteria
+[Measurable criteria to evaluate the success of this decision - e.g., "Reduce deployment time by 50%", "Achieve 99.9% uptime", "Reduce mean time to recovery (MTTR) by 30%"]
 
 ## Scope
 [Description of what this decision applies to]
@@ -107,6 +116,13 @@ Selected | Not Selected
 # Related Decisions
 - [ADR-XXX: Related ADR Title]
 - [Repeat as needed]
+
+---
+
+# Change Log
+| Date | Version | Description |
+|------|---------|-------------|
+| YYYY-MM-DD | 1.0 | Initial version |
 
 ---
 
