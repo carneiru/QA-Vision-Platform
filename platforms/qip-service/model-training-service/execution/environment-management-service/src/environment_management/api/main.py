@@ -1,0 +1,18 @@
+"""
+Environment Management API Main Module
+"""
+from fastapi import FastAPI
+from src.environment_management.api.v1.router import api_router
+
+app = FastAPI(
+    title="Environment Management Service",
+    description="Provisions and manages test environments and infrastructure",
+    version="1.0.0"
+)
+
+app.include_router(api_router, prefix="/api/v1")
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "environment-management"}

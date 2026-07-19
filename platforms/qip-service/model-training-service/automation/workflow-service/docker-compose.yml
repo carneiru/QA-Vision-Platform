@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  workflow-designer:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://database:27017/workflow_designer_db
+    depends_on:
+      - database
+
+  database:
+    image: mongo:5.0
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=workflow_designer_db
+
+volumes:
+  mongo_data:
