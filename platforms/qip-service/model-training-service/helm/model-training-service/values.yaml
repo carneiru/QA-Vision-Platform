@@ -52,6 +52,23 @@ redis:
 kafka:
   bootstrapServers: kafka:9092
 
+# HTTP client resilience settings (for resilient service-to-service communication)
+httpClient:
+  timeout: 30.0
+  maxRetries: 3
+  backoffFactor: 0.5
+  circuitBreakerFailureThreshold: 5
+  circuitBreakerRecoveryTimeout: 30
+
+# Jaeger tracing configuration
+jaeger:
+  enabled: true
+  host: jaeger
+  port: 6831
+  samplerType: const
+  samplerParam: 1
+  # Other Jaeger options can be added as needed
+
 # Service configuration
 service:
   title: Model Training Service

@@ -44,6 +44,24 @@ spec:
               value: "redis://{{ .values.redis.host }}:{{ .values.redis.port }}/0"
             - name: KAFKA_BOOTSTRAP_SERVERS
               value: "{{ .Values.kafka.bootstrapServers }}"
+            - name: HTTP_CLIENT_TIMEOUT
+              value: "{{ .Values.httpClient.timeout }}"
+            - name: HTTP_CLIENT_MAX_RETRIES
+              value: "{{ .Values.httpClient.maxRetries }}"
+            - name: HTTP_CLIENT_BACKOFF_FACTOR
+              value: "{{ .Values.httpClient.backoffFactor }}"
+            - name: HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD
+              value: "{{ .Values.httpClient.circuitBreakerFailureThreshold }}"
+            - name: HTTP_CIRCUIT_BREAKER_RECOVERY_TIMEOUT
+              value: "{{ .Values.httpClient.circuitBreakerRecoveryTimeout }}"
+            - name: JAEGER_AGENT_HOST
+              value: "{{ .Values.jaeger.host }}"
+            - name: JAEGER_AGENT_PORT
+              value: "{{ .Values.jaeger.port }}"
+            - name: JAEGER_SAMPLER_TYPE
+              value: "{{ .Values.jaeger.samplerType }}"
+            - name: JAEGER_SAMPLER_PARAM
+              value: "{{ .Values.jaeger.samplerParam }}"
           resources:
             {{- toYaml .Values.resources | indent 12 }}
           livenessProbe:

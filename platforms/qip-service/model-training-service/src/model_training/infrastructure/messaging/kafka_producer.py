@@ -5,6 +5,7 @@ from typing import Dict, Any
 from kafka import KafkaProducer
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
+from opentelemetry.propagators import get_global_textmap
 
 from model_training.config import settings
 from model_training.config_dir.tracing import setup_tracing
@@ -43,11 +44,20 @@ class KafkaProducerWrapper:
             if "name" in model_data:
                 span.set_attribute("messaging.message_payload", str(model_data["name"])[:100])  # Truncate if too long
 
+            # Prepare headers with trace context
+            headers = []
+            propagator = get_global_textmap()
+            carrier = {}
+            propagator.inject(carrier)
+            for key, value in carrier.items():
+                headers.append((key.encode('utf-8'), str(value).encode('utf-8')))
+
             # Send message
             future = self.producer.send(
                 settings.MODEL_TRAINING_TOPIC,
                 value=model_data,
-                key=str(model_data.get("id", ""))
+                key=str(model_data.get("id", "")),
+                headers=headers if headers else None
             )
 
             # Wait for confirmation
@@ -79,11 +89,20 @@ class KafkaProducerWrapper:
             if "name" in model_data:
                 span.set_attribute("messaging.message_payload", str(model_data["name"])[:100])
 
+            # Prepare headers with trace context
+            headers = []
+            propagator = get_global_textmap()
+            carrier = {}
+            propagator.inject(carrier)
+            for key, value in carrier.items():
+                headers.append((key.encode('utf-8'), str(value).encode('utf-8')))
+
             # Send message
             future = self.producer.send(
                 settings.MODEL_TRAINED_TOPIC,
                 value=model_data,
-                key=str(model_data.get("id", ""))
+                key=str(model_data.get("id", "")),
+                headers=headers if headers else None
             )
 
             # Wait for confirmation
@@ -115,11 +134,20 @@ class KafkaProducerWrapper:
             if "model_id" in evaluation_data:
                 span.set_attribute("messaging.message.model_id", str(evaluation_data["model_id"]))
 
+            # Prepare headers with trace context
+            headers = []
+            propagator = get_global_textmap()
+            carrier = {}
+            propagator.inject(carrier)
+            for key, value in carrier.items():
+                headers.append((key.encode('utf-8'), str(value).encode('utf-8')))
+
             # Send message
             future = self.producer.send(
                 settings.MODEL_EVALUATION_TOPIC,
                 value=evaluation_data,
-                key=str(evaluation_data.get("id", ""))
+                key=str(evaluation_data.get("id", "")),
+                headers=headers if headers else None
             )
 
             # Wait for confirmation

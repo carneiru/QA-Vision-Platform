@@ -1,0 +1,68 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spspselinux
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPSPSelinux
+      validation:
+        openAPIV3Schema:
+          properties:
+            seLinuxOptions:
+              properties:
+                level:
+                  type: string
+                role:
+                  type: string
+                type:
+                  type: string
+                user:
+                  type: string
+              type: object
+            exemption:
+              items:
+                type: string
+              type: array
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spspselinux
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not has_valid_se_linux(container.securityContext)
+          not is_exempt(container.name)
+          msg := sprintf("Container %v has invalid or missing seLinuxOptions", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not has_valid_se_linux(container.securityContext)
+          not is_exempt(container.name)
+          msg := sprintf("Init container %v has invalid or missing seLinuxOptions", [container.name])
+        }
+
+        has_valid_se_linux(ctx) {
+          ctx.seLinuxOptions
+          ctx.seLinuxOptions.user != ""
+          ctx.seLinuxOptions.role != ""
+          ctx.seLinuxOptions.type != ""
+          ctx.seLinuxOptions.level != ""
+        }
+
+        is_exempt(containerName) {
+          exemption := input.parameters.exemption[_]
+          exemption == containerName
+        }
+
+        # Optional: enforce specific seLinuxOptions if provided
+        must_have_se_linux_level {
+          level := input.parameters.seLinuxOptions.level
+          level != ""
+        }
+
+        must_have_se_linux_level {
+          not input.parameters.seLinuxOptions.level
+        }

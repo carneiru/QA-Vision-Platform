@@ -1,0 +1,35 @@
+version: 2
+updates:
+  # Maintain dependencies for Python
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+    # Allow bumping to the latest version, including betas and release candidates
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    # Ignore some dependencies if needed (customize as needed)
+    ignore:
+      - dependency-name: "pip"
+        versions: [">=24.0"]  # Example: keep pip at a specific version if needed
+    commit-message:
+      # Prefix all commit messages with "deps:"
+      prefix: "deps"
+      # Include the dependency name in the commit message
+      include: "scope"
+    # Automatically create pull requests for version updates
+    pull-request-branch-name:
+      # Separate branches for each dependency update
+      separator: "-"
+    # Automatically close stale pull requests
+    open-pull-requests-limit: 10
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+

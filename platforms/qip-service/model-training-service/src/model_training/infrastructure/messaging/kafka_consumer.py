@@ -6,6 +6,8 @@ from typing import Callable, Dict, Any
 from kafka import KafkaConsumer
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind
+from opentelemetry.propagators import get_global_textmap
+from opentelemetry.context import attach, set_value, set_parent
 
 from model_training.config import settings
 from model_training.config_dir.tracing import setup_tracing
@@ -43,10 +45,23 @@ class KafkaConsumerWrapper:
         """
         try:
             for message in self.consumer:
-                # Create a span for each message
+                # Extract trace context from message headers
+                ctx = None
+                if message.headers:
+                    try:
+                        headers_dict = {k: v.decode('utf-8') if isinstance(v, bytes) else v
+                                      for k, v in message.headers}
+                        propagator = get_global_textmap()
+                        ctx = propagator.extract(carrier=headers_dict)
+                    except Exception as e:
+                        logger.warning(f"Failed to extract trace context from headers: {e}")
+                        ctx = None
+
+                # Create a span for each message with extracted context as parent
                 with self.tracer.start_as_current_span(
                     f"consume_message_{message.topic}",
-                    kind=SpanKind.CONSUMER
+                    kind=SpanKind.CONSUMER,
+                    context=ctx
                 ) as span:
                     # Add message attributes
                     span.set_attribute("messaging.system", "kafka")

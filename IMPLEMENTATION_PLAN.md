@@ -14,7 +14,7 @@ The target architecture is defined in the Architecture Blueprint v1.0.
 ## Migration Strategy
 
 ### 6.1 Phase-Based Approach
-Migration follows a domain-by-domain strangler fig pattern with zero-downtime cutover:
+Migration follows a domain-by-domains strangler fig pattern with zero-downtime cutover:
 
 - **Phase 0: Foundation** (Completed) - Establish target structure, move validated services
 - **Phase 1: Core Platform & Intelligence** (Months 1-2) - Platform services + intelligence core
@@ -50,8 +50,9 @@ For services with existing data:
 1. ✅ Create target directory structure
 2. ✅ Move Auth Service to `/platforms/auth-service/`
 3. ✅ Move AI Engine components to `/intelligence/ai-engine/`
-4. Establish shared foundations (logging, config, base models)
-5. Set up common infrastructure (logging, monitoring, config)
+4. ✅ Establish shared foundations and common infrastructure (logging, config, base models, monitoring)
+   - Includes setup of shared logging, configuration management, base domain models
+   - Includes setup of monitoring stack (Prometheus, Grafana), distributed tracing (Jaeger), and centralized logging
 
 ## Phase 1: Core Platform & Intelligence (Months 1-2)
 1. Complete Platform services:
@@ -60,7 +61,7 @@ For services with existing data:
    - User/Team Services
    - Billing/Subscription Service
 2. Enhance Intelligence core:
-   - Observability collector and storage
+   - Observability collector and storage (builds upon monitoring/tracing setup from Phase 0)
    - Knowledge repository and management
    - Basic analytics capabilities
 3. Begin critical Integrations:
@@ -94,7 +95,7 @@ For services with existing data:
 1. ✅ Created domain directory structure
 2. ✅ Moved Auth Service to `/platforms/auth-service/`
 3. ✅ Moved AI Engine to `/intelligence/ai-engine/`
-4. ✅ Established shared foundations structure
+4. ✅ Established shared foundations and common infrastructure (logging, config, base models, monitoring)
 
 ## Verification Checkpoint
 After completing Phase 0, verify:

@@ -1,0 +1,59 @@
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: k8spspselinux
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sPSPSelinux
+      validation:
+        # Schema for the `parameters` field
+        openAPIV3Schema:
+          properties:
+            seLinuxOptions:
+              type: object
+              properties:
+                user:
+                  type: string
+                role:
+                  type: string
+                type:
+                  type: string
+                level:
+                  type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8spspselinux
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not valid_se_linux(container.securityContext)
+          not exempt_container(container.name)
+          msg := sprintf("Container %v has invalid or missing seLinuxOptions", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not valid_se_linux(container.securityContext)
+          not exempt_container(container.name)
+          msg := sprintf("Init container %v has invalid or missing seLinuxOptions", [container.name])
+        }
+
+        valid_se_linux(sc) {
+          se := seLinuxOptions
+          se.user != ""
+          se.role != ""
+          se.type != ""
+          se.level != ""
+          sec := security_context
+          sec.seLinuxOptions == se
+        }
+
+        security_context := input.parameters.seLinuxOptions
+
+        exemption(containerName) {
+          exemption := input.parameters.exemption[_]
+          exemption == containerName
+        }

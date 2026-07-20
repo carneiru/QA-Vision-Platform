@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     MODEL_TRAINED_TOPIC: str = "model-trained-events"
     MODEL_EVALUATION_TOPIC: str = "model-evaluation-requests"
 
+    # HTTP client settings (for resilient service-to-service communication)
+    HTTP_CLIENT_TIMEOUT: float = Field(default=30.0, env="HTTP_CLIENT_TIMEOUT")
+    HTTP_CLIENT_MAX_RETRIES: int = Field(default=3, env="HTTP_CLIENT_MAX_RETRIES")
+    HTTP_CLIENT_BACKOFF_FACTOR: float = Field(default=0.5, env="HTTP_CLIENT_BACKOFF_FACTOR")
+    HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = Field(default=5, env="HTTP_CIRCUIT_BREAKER_FAILURE_THRESHOLD")
+    HTTP_CIRCUIT_BREAKER_RECOVERY_TIMEOUT: int = Field(default=30, env="HTTP_CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
+
     model_config = {
         "env_file": ".env",
         "case_sensitive": True
