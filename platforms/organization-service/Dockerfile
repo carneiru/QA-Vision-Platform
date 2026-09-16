@@ -20,4 +20,4 @@ COPY src/ ./src
 EXPOSE 8000
 
 # Command to run the application
-CMD ["python", "src/organization/main.py"]
+CMD ["uvicorn", "src.organization.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

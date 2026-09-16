@@ -1,29 +1,27 @@
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from fastapi.testclient import TestClient
 from src.organization.db.base import Base
 from src.organization.db.session import get_db
-from src.organization.main import app
-from fastapi.testclient import TestClient
-import os
+from src.organization.api.main import app
 
-# Use test database
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-)
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@pytest.fixture(scope="session")
+
+@pytest.fixture(scope="function")
 def db():
     Base.metadata.create_all(bind=engine)
+    session = TestingSessionLocal()
     try:
-        db = TestingSessionLocal()
-        yield db
+        yield session
     finally:
-        db.close()
-    Base.metadata.drop_all(bind=engine)
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+
 
 @pytest.fixture(scope="function")
 def client(db):
@@ -31,8 +29,8 @@ def client(db):
         try:
             yield db
         finally:
-            db.close()
-    
+            pass
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
