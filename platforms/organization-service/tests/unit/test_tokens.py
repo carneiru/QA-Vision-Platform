@@ -1,13 +1,13 @@
 import jwt
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from src.organization.core.config import settings
 from src.organization.utils.tokens import decode_token
 
 
 def test_decode_token_returns_payload():
     token = jwt.encode(
-        {"sub": "42", "exp": datetime.utcnow() + timedelta(minutes=5)},
+        {"sub": "42", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM,
     )
@@ -17,7 +17,7 @@ def test_decode_token_returns_payload():
 
 def test_decode_token_rejects_bad_signature():
     token = jwt.encode(
-        {"sub": "42", "exp": datetime.utcnow() + timedelta(minutes=5)},
+        {"sub": "42", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
         "wrong-secret",
         algorithm=settings.ALGORITHM,
     )
@@ -27,7 +27,7 @@ def test_decode_token_rejects_bad_signature():
 
 def test_decode_token_rejects_expired():
     token = jwt.encode(
-        {"sub": "42", "exp": datetime.utcnow() - timedelta(minutes=5)},
+        {"sub": "42", "exp": datetime.now(timezone.utc) - timedelta(minutes=5)},
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM,
     )
