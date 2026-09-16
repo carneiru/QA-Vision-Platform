@@ -696,13 +696,13 @@ git commit -m "feat(organization-service): add Organization and OrganizationMemb
 ```python
 # tests/integration/test_organizations_endpoints.py
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from src.organization.core.config import settings
 
 
 def _token(user_id: int) -> str:
     return jwt.encode(
-        {"sub": str(user_id), "exp": datetime.utcnow() + timedelta(minutes=5)},
+        {"sub": str(user_id), "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM,
     )
@@ -811,7 +811,7 @@ class OrganizationOut(BaseModel):
 
 ```python
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from src.organization.models.organization import Organization
 from src.organization.models.member import OrganizationMember
@@ -858,7 +858,7 @@ def soft_delete_organization(db: Session, org_id: int) -> bool:
     org = get_organization(db, org_id)
     if org is None:
         return False
-    org.deleted_at = datetime.utcnow()
+    org.deleted_at = datetime.now(timezone.utc)
     db.commit()
     return True
 ```
@@ -1065,13 +1065,13 @@ git commit -m "feat(organization-service): add auth-service client for member us
 import jwt
 import respx
 import httpx
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from src.organization.core.config import settings
 
 
 def _token(user_id: int) -> str:
     return jwt.encode(
-        {"sub": str(user_id), "exp": datetime.utcnow() + timedelta(minutes=5)},
+        {"sub": str(user_id), "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
         settings.SECRET_KEY,
         algorithm=settings.ALGORITHM,
     )
