@@ -13,12 +13,14 @@ def add_member(
     org_id: int,
     payload: MemberCreate,
     db: Session = Depends(get_db),
-    _role: str = Depends(require_org_role("owner", "admin")),
+    granter_role: str = Depends(require_org_role("owner", "admin")),
 ):
     try:
-        member = member_service.add_member(db, org_id, payload.user_id, payload.role)
+        member = member_service.add_member(db, org_id, payload.user_id, payload.role, granter_role)
     except AuthServiceUnavailable as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     return member

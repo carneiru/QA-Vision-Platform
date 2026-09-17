@@ -96,3 +96,106 @@ def test_owner_can_remove_member(client):
 
     response = client.delete(f"/api/v1/organizations/{org_id}/members/{member_id}", headers=_auth(1))
     assert response.status_code == 204
+
+
+@respx.mock
+def test_admin_can_add_member_with_member_role(client):
+    org_id = _make_org(client, owner_id=1)
+
+    # Add user 2 as admin
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/2").mock(return_value=httpx.Response(200, json={"id": 2}))
+    admin_response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 2, "role": "admin"},
+        headers=_auth(1),
+    )
+    assert admin_response.status_code == 201
+
+    # Admin (user 2) should be able to add user 3 with role "member"
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/3").mock(return_value=httpx.Response(200, json={"id": 3}))
+    response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 3, "role": "member"},
+        headers=_auth(2),
+    )
+    assert response.status_code == 201
+    assert response.json()["user_id"] == 3
+    assert response.json()["role"] == "member"
+
+
+@respx.mock
+def test_admin_cannot_add_member_with_admin_role(client):
+    org_id = _make_org(client, owner_id=1)
+
+    # Add user 2 as admin
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/2").mock(return_value=httpx.Response(200, json={"id": 2}))
+    admin_response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 2, "role": "admin"},
+        headers=_auth(1),
+    )
+    assert admin_response.status_code == 201
+
+    # Admin (user 2) should NOT be able to add user 3 with role "admin"
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/3").mock(return_value=httpx.Response(200, json={"id": 3}))
+    response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 3, "role": "admin"},
+        headers=_auth(2),
+    )
+    assert response.status_code == 403
+
+
+@respx.mock
+def test_admin_cannot_add_member_with_owner_role(client):
+    org_id = _make_org(client, owner_id=1)
+
+    # Add user 2 as admin
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/2").mock(return_value=httpx.Response(200, json={"id": 2}))
+    admin_response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 2, "role": "admin"},
+        headers=_auth(1),
+    )
+    assert admin_response.status_code == 201
+
+    # Admin (user 2) should NOT be able to add user 3 with role "owner"
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/3").mock(return_value=httpx.Response(200, json={"id": 3}))
+    response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 3, "role": "owner"},
+        headers=_auth(2),
+    )
+    assert response.status_code == 403
+
+
+@respx.mock
+def test_owner_can_add_member_with_admin_role(client):
+    org_id = _make_org(client, owner_id=1)
+
+    # Owner (user 1) should be able to add user 2 with role "admin"
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/2").mock(return_value=httpx.Response(200, json={"id": 2}))
+    response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 2, "role": "admin"},
+        headers=_auth(1),
+    )
+    assert response.status_code == 201
+    assert response.json()["user_id"] == 2
+    assert response.json()["role"] == "admin"
+
+
+@respx.mock
+def test_owner_can_add_member_with_owner_role(client):
+    org_id = _make_org(client, owner_id=1)
+
+    # Owner (user 1) should be able to add user 2 with role "owner"
+    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/2").mock(return_value=httpx.Response(200, json={"id": 2}))
+    response = client.post(
+        f"/api/v1/organizations/{org_id}/members",
+        json={"user_id": 2, "role": "owner"},
+        headers=_auth(1),
+    )
+    assert response.status_code == 201
+    assert response.json()["user_id"] == 2
+    assert response.json()["role"] == "owner"

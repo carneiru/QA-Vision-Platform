@@ -17,9 +17,11 @@ def get_role(db: Session, org_id: int, user_id: int) -> Optional[str]:
     return member.role if member else None
 
 
-def add_member(db: Session, org_id: int, user_id: int, role: str) -> OrganizationMember:
+def add_member(db: Session, org_id: int, user_id: int, role: str, granter_role: str) -> OrganizationMember:
     if role not in OrganizationMember.ROLES:
         raise ValueError(f"invalid role: {role}")
+    if role in ("owner", "admin") and granter_role != "owner":
+        raise PermissionError(f"only an owner can grant the '{role}' role")
     if not user_exists(user_id):
         raise ValueError("user not found")
 
