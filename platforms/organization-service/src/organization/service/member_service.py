@@ -17,11 +17,28 @@ def get_role(db: Session, org_id: int, user_id: int) -> Optional[str]:
     return member.role if member else None
 
 
-def add_member(db: Session, org_id: int, user_id: int, role: str, granter_role: str) -> OrganizationMember:
+def _assert_can_grant_role(granter_role: str, target_role: str) -> None:
+    """Only an owner may grant, or remove a member holding, an owner/admin-tier role.
+
+    Shared by add_member (granting), remove_member (removing a privileged member is as much
+    a takeover as granting the role), and invitation_service.create_invitation (checked once,
+    against the inviter's role, at invite-creation time -- accept_invitation does not call
+    this again, see _create_member_row below).
+    """
+    if target_role in ("owner", "admin") and granter_role != "owner":
+        raise PermissionError(f"only an owner can grant or remove the '{target_role}' role")
+
+
+def _create_member_row(db: Session, org_id: int, user_id: int, role: str) -> OrganizationMember:
+    """The mechanism only -- no grant-policy check.
+
+    add_member calls _assert_can_grant_role first, then this. invitation_service.accept_invitation
+    calls this directly: the policy was already checked once, against the inviter's role, when the
+    invitation was created -- re-checking it here against the ACCEPTER's role (who has none yet)
+    would be wrong, not just redundant.
+    """
     if role not in OrganizationMember.ROLES:
         raise ValueError(f"invalid role: {role}")
-    if role in ("owner", "admin") and granter_role != "owner":
-        raise PermissionError(f"only an owner can grant the '{role}' role")
     if not user_exists(user_id):
         raise ValueError("user not found")
 
@@ -38,6 +55,11 @@ def add_member(db: Session, org_id: int, user_id: int, role: str, granter_role: 
     db.commit()
     db.refresh(member)
     return member
+
+
+def add_member(db: Session, org_id: int, user_id: int, role: str, granter_role: str) -> OrganizationMember:
+    _assert_can_grant_role(granter_role, role)
+    return _create_member_row(db, org_id, user_id, role)
 
 
 def list_members(db: Session, org_id: int) -> list[OrganizationMember]:
@@ -57,9 +79,7 @@ def remove_member(db: Session, org_id: int, member_id: int, granter_role: str) -
     if member is None:
         return False
 
-    # removing a privileged member is as much a takeover as granting the role, so it needs the same guard
-    if member.role in ("owner", "admin") and granter_role != "owner":
-        raise PermissionError(f"only an owner can remove a member with the '{member.role}' role")
+    _assert_can_grant_role(granter_role, member.role)
 
     if member.role == "owner":
         owner_count = (
