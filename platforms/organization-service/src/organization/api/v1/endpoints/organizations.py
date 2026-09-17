@@ -13,9 +13,12 @@ def create_organization(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ):
-    org = organization_service.create_organization(
-        db, name=payload.name, slug=payload.slug, plan_tier=payload.plan_tier, owner_user_id=user_id
-    )
+    try:
+        org = organization_service.create_organization(
+            db, name=payload.name, slug=payload.slug, plan_tier=payload.plan_tier, owner_user_id=user_id
+        )
+    except organization_service.OrganizationAlreadyExists as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
     return org
 
 

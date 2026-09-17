@@ -59,6 +59,22 @@ def test_update_organization(client):
     assert update.json()["plan_tier"] == "pro"
 
 
+def test_create_organization_duplicate_slug_returns_409(client):
+    response = client.post(
+        "/api/v1/organizations",
+        json={"name": "Delta", "slug": "delta", "plan_tier": "free"},
+        headers=_auth(3),
+    )
+    assert response.status_code == 201
+
+    duplicate = client.post(
+        "/api/v1/organizations",
+        json={"name": "Delta Two", "slug": "delta", "plan_tier": "free"},
+        headers=_auth(3),
+    )
+    assert duplicate.status_code == 409
+
+
 def test_delete_organization_soft_deletes(client):
     create = client.post(
         "/api/v1/organizations",
