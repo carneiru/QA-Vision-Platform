@@ -6,6 +6,8 @@ class AuthServiceUnavailable(Exception):
     """Raised when auth-service cannot be reached to validate a user_id."""
 
 
+# Known limitation: this assumes auth-service returns 404 for a nonexistent user id, which it does not
+# currently do cleanly; fixing it requires changes in platforms/auth-service and is a documented follow-up.
 def user_exists(user_id: int) -> bool:
     headers = {"Authorization": f"Bearer {settings.AUTH_SERVICE_TOKEN}"} if settings.AUTH_SERVICE_TOKEN else {}
     try:

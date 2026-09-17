@@ -46,7 +46,11 @@ def update_organization(db: Session, org_id: int, **fields) -> Optional[Organiza
     for key, value in fields.items():
         if value is not None:
             setattr(org, key, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise OrganizationAlreadyExists("Organization with that name or slug already exists")
     db.refresh(org)
     return org
 

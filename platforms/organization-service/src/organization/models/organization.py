@@ -1,10 +1,12 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, CheckConstraint
 from sqlalchemy.sql import func
 from src.organization.db.base import Base
 
 
 class Organization(Base):
     __tablename__ = "organizations"
+
+    PLAN_TIERS = ("free", "pro", "enterprise", "enterprise_plus")
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, unique=True)
@@ -13,3 +15,9 @@ class Organization(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "plan_tier IN ('free','pro','enterprise','enterprise_plus')", name="chk_plan_tier"
+        ),
+    )

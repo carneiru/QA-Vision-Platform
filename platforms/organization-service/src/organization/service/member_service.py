@@ -48,7 +48,7 @@ def list_members(db: Session, org_id: int) -> list[OrganizationMember]:
     )
 
 
-def remove_member(db: Session, org_id: int, member_id: int) -> bool:
+def remove_member(db: Session, org_id: int, member_id: int, granter_role: str) -> bool:
     member = (
         db.query(OrganizationMember)
         .filter(OrganizationMember.id == member_id, OrganizationMember.organization_id == org_id)
@@ -56,6 +56,24 @@ def remove_member(db: Session, org_id: int, member_id: int) -> bool:
     )
     if member is None:
         return False
+
+    # removing a privileged member is as much a takeover as granting the role, so it needs the same guard
+    if member.role in ("owner", "admin") and granter_role != "owner":
+        raise PermissionError(f"only an owner can remove a member with the '{member.role}' role")
+
+    if member.role == "owner":
+        owner_count = (
+            db.query(OrganizationMember)
+            .filter(
+                OrganizationMember.organization_id == org_id,
+                OrganizationMember.role == "owner",
+                OrganizationMember.status == "active",
+            )
+            .count()
+        )
+        if owner_count <= 1:
+            raise ValueError("cannot remove the last owner")
+
     db.delete(member)
     db.commit()
     return True

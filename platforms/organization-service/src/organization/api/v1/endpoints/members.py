@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from src.organization.api.deps import get_db, get_current_user_id, require_org_role
+from src.organization.api.deps import get_db, require_org_role
+from src.organization.models.member import OrganizationMember
 from src.organization.schemas.member import MemberCreate, MemberOut
 from src.organization.service import member_service
 from src.organization.utils.auth_client import AuthServiceUnavailable
@@ -30,11 +31,9 @@ def add_member(
 def list_members(
     org_id: int,
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
+    # any member role may list; require_org_role also 404s on a soft-deleted org
+    _role: str = Depends(require_org_role(*OrganizationMember.ROLES)),
 ):
-    role = member_service.get_role(db, org_id, user_id)
-    if role is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this organization")
     return member_service.list_members(db, org_id)
 
 
@@ -43,8 +42,13 @@ def remove_member(
     org_id: int,
     member_id: int,
     db: Session = Depends(get_db),
-    _role: str = Depends(require_org_role("owner", "admin")),
+    granter_role: str = Depends(require_org_role("owner", "admin")),
 ):
-    removed = member_service.remove_member(db, org_id, member_id)
+    try:
+        removed = member_service.remove_member(db, org_id, member_id, granter_role)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     if not removed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Member not found")

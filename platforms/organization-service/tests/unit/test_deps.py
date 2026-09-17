@@ -38,6 +38,16 @@ def test_expired_token_returns_401():
     assert response.status_code == 401
 
 
+def test_refresh_token_returns_401():
+    refresh = jwt.encode(
+        {"sub": "7", "token_type": "refresh", "exp": datetime.now(timezone.utc) + timedelta(days=7)},
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    response = client.get("/whoami", headers={"Authorization": f"Bearer {refresh}"})
+    assert response.status_code == 401
+
+
 def test_non_integer_sub_returns_401():
     bad = jwt.encode({"sub": "not-a-number", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     response = client.get("/whoami", headers={"Authorization": f"Bearer {bad}"})

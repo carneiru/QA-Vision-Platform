@@ -23,13 +23,18 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
 
 
 def require_org_role(*roles: str):
-    from src.organization.service.member_service import get_role  # local import avoids a service->deps->service cycle
+    # local imports avoid a service->deps->service cycle
+    from src.organization.service.member_service import get_role
+    from src.organization.service.organization_service import get_organization
 
     def dependency(
         org_id: int,
         db: Session = Depends(get_db),
         user_id: int = Depends(get_current_user_id),
     ) -> str:
+        # get_organization filters out soft-deleted orgs, so a deleted org is invisible to every guarded route
+        if get_organization(db, org_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
         role = get_role(db, org_id, user_id)
         if role is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this organization")

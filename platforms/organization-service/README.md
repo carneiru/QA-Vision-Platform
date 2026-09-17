@@ -9,6 +9,10 @@ Manages organizations (tenants) and their memberships for QA Vision Platform.
   `owner`, `admin`, `member`, `viewer`, `billing_manager`
 - Validates member `user_id`s against auth-service over HTTP before adding them
 
+Known limitation: the `user_id` existence check assumes auth-service returns `404` for an
+unknown user id, which it does not yet do cleanly — resolving it requires a change in
+auth-service and is tracked as a follow-up.
+
 ## Auth model
 
 This service does not issue tokens. It trusts JWTs signed by auth-service

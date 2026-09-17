@@ -25,6 +25,21 @@ def test_decode_token_rejects_bad_signature():
         decode_token(token)
 
 
+def test_decode_token_rejects_refresh_token():
+    """auth-service refresh tokens share the signing key and `sub`; only `token_type` differs."""
+    token = jwt.encode(
+        {
+            "sub": "42",
+            "token_type": "refresh",
+            "exp": datetime.now(timezone.utc) + timedelta(days=7),
+        },
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    with pytest.raises(ValueError):
+        decode_token(token)
+
+
 def test_decode_token_rejects_expired():
     token = jwt.encode(
         {"sub": "42", "exp": datetime.now(timezone.utc) - timedelta(minutes=5)},
