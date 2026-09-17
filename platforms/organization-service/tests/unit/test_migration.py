@@ -33,10 +33,13 @@ def migrated_engine(tmp_path):
 def test_migration_creates_model_tables(migrated_engine):
     tables = set(inspect(migrated_engine).get_table_names())
     assert "alembic_version" in tables
+    # guards against a vacuous pass if Base.metadata ever loses its registrations
+    assert {"organizations", "organization_members"} <= set(Base.metadata.tables)
     assert set(Base.metadata.tables) <= tables
 
 
 def test_migration_columns_match_models(migrated_engine):
+    assert Base.metadata.tables, "no models registered on Base.metadata"
     inspector = inspect(migrated_engine)
     for table_name, table in Base.metadata.tables.items():
         migrated_columns = {col["name"] for col in inspector.get_columns(table_name)}
