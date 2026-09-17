@@ -1,5 +1,6 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy.orm import Session
 from src.organization.db.session import get_db
 from src.organization.utils.tokens import decode_token
 
@@ -21,4 +22,22 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
         raise credentials_exception
 
 
-__all__ = ["get_db", "get_current_user_id"]
+def require_org_role(*roles: str):
+    from src.organization.service.member_service import get_role  # local import avoids a service->deps->service cycle
+
+    def dependency(
+        org_id: int,
+        db: Session = Depends(get_db),
+        user_id: int = Depends(get_current_user_id),
+    ) -> str:
+        role = get_role(db, org_id, user_id)
+        if role is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this organization")
+        if role not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+        return role
+
+    return dependency
+
+
+__all__ = ["get_db", "get_current_user_id", "require_org_role"]
