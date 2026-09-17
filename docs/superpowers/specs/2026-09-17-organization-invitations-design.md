@@ -23,7 +23,7 @@ src/organization/
   models/invitation.py          # OrganizationInvitation
   schemas/invitation.py          # InvitationCreate, InvitationOut
   service/invitation_service.py  # create/list/revoke/accept_invitation
-  service/member_service.py      # MODIFIED: extract _can_grant_role() helper, reuse in invitation_service
+  service/member_service.py      # MODIFIED: split into _assert_can_grant_role() + _create_member_row(), both reused by invitation_service
   api/v1/endpoints/invitations.py  # org-scoped: create/list/revoke
   api/v1/endpoints/invitation_accept.py  # top-level: accept by token
   api/v1/api.py                  # MODIFIED: wire both new routers
@@ -52,16 +52,24 @@ No uniqueness constraint on `(organization_id, email)` — a second invite to an
 - `POST /organizations/{org_id}/invitations` — create. Gated `require_org_role("owner", "admin")`. Enforces the same "only an owner may invite as owner/admin" rule `add_member` already enforces (see below) — 403 if an admin tries to invite someone as `owner`/`admin`.
 - `GET /organizations/{org_id}/invitations` — list pending (not accepted, not expired) invitations for the org. Same role gate as create.
 - `DELETE /organizations/{org_id}/invitations/{invitation_id}` — revoke (hard delete the row). Same role gate.
-- `POST /api/v1/invitations/{token}/accept` — **top-level, not org-nested.** The accepter isn't a member yet and may not know the `org_id`; the token alone resolves it. Requires only a valid JWT (`get_current_user_id`), no org role check. Internally: validate token (exists, not expired, not already accepted) → call the existing `member_service.add_member(db, org.id, user_id, invitation.role)` (inherits its atomicity and "already a member" duplicate check for free) → set `accepted_at`.
+- `POST /api/v1/invitations/{token}/accept` — **top-level, not org-nested.** The accepter isn't a member yet and may not know the `org_id`; the token alone resolves it. Requires only a valid JWT (`get_current_user_id`), no org role check. Internally: validate token (exists, not expired, not already accepted) → create the member row (see Security Integration below for exactly which function it calls and why) → set `accepted_at`.
 
 ## Security Integration — Reuse, Don't Duplicate
 
-`member_service.add_member` currently has this inline (from the earlier privilege-escalation fix):
+**Self-review finding (fixed before implementation):** the obvious approach — accept just calls the existing `add_member(db, org_id, user_id, role, granter_role)` — doesn't fit. `add_member`'s current signature requires a `granter_role` because it enforces "only an owner may grant owner/admin." At accept time there is no granter — the invitee is adding themselves — and that policy check was already correctly applied once, against the *inviter's* role, when the invitation was created. Calling `add_member` as-is would force either a wrong re-check (blocking a legitimate accept, or requiring a fake `granter_role="owner"` passed in — which would silently defeat the whole policy for a specially-crafted case later) or an awkward bypass flag bolted onto a security-critical function.
+
+**Fix: split policy from mechanism.** `member_service.py` currently has, inline in `add_member`:
 ```python
 if role in ("owner", "admin") and granter_role != "owner":
     raise PermissionError(...)
 ```
-This check gets extracted into a small shared helper (e.g. `member_service._assert_can_grant_role(granter_role, target_role)`) that both `add_member` and `invitation_service.create_invitation` call. Duplicating this policy inline in two places is exactly the kind of drift the final review already caught once this session (the 409-message drift across the revert/restore cycle) — one function, one place to get it right.
+Refactor into:
+- `_assert_can_grant_role(granter_role: str, target_role: str) -> None` — the policy check, extracted as its own function. Called by `add_member` (with the caller's resolved role) and by `invitation_service.create_invitation` (with the inviter's resolved role) — each enforces the policy once, against the actual granter in its own flow.
+- `_create_member_row(db, org_id, user_id, role) -> OrganizationMember` — the mechanism only: role-format validation, `user_exists` check, duplicate-membership check, insert, commit, refresh. No policy check inside it.
+- `add_member(db, org_id, user_id, role, granter_role)` becomes: `_assert_can_grant_role(granter_role, role)` → `_create_member_row(...)`.
+- `invitation_service.accept_invitation` calls `_create_member_row(...)` directly — it inherits the duplicate-membership check for free, and correctly does NOT re-run (or bypass) a grant-policy check that already happened once, at invite-creation time, in `create_invitation`.
+
+This is the same "one function, one place to get it right" principle the design already called for — refined after re-reading the actual current `add_member` implementation (`platforms/organization-service/src/organization/service/member_service.py:20-38`) rather than the earlier description of it from memory.
 
 ## Error Handling
 
@@ -72,7 +80,7 @@ This check gets extracted into a small shared helper (e.g. `member_service._asse
 
 ## Testing
 
-Same `tests/unit` + `tests/integration` split as the rest of the service. Real HTTP requests through `TestClient` (no calling service functions directly, per the pattern this service's reviews have consistently required). Cases: create (success, 403 non-owner-granting-owner, 422 bad role), list (only pending shown), revoke, accept (success — member created with correct role; 404 expired; 404 already-accepted; 404 nonexistent token; 404 org soft-deleted); and one test proving `_assert_can_grant_role` is genuinely shared (not copy-pasted) between `add_member` and `create_invitation`.
+Same `tests/unit` + `tests/integration` split as the rest of the service. Real HTTP requests through `TestClient` (no calling service functions directly, per the pattern this service's reviews have consistently required). Cases: create (success, 403 non-owner-granting-owner, 422 bad role), list (only pending shown), revoke, accept (success — member created with correct role; 404 expired; 404 already-accepted; 404 nonexistent token; 404 org soft-deleted; **accepting an owner/admin-role invite created by a legitimate owner succeeds even though the accepter is not, themselves, an owner** — proves the split-out policy/mechanism refactor works, not just that it compiles); and one test proving `_assert_can_grant_role` is genuinely shared (not copy-pasted) between `add_member` and `create_invitation`.
 
 ## Out of Scope
 
