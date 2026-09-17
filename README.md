@@ -45,7 +45,7 @@ The first phase of the platform implements a robust authentication service with 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd qa-ai-dashboard
+   cd QA-Vision-Platform
    ```
 
 2. **Environment Configuration**
@@ -105,7 +105,7 @@ pytest
 ## Project Structure
 
 ```
-qa-ai-dashboard/
+QA-Vision-Platform/
 ├── src/
 │   └── services/
 │       └── auth-service/           # Authentication Service (Phase 1)
