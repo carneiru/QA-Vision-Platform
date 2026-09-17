@@ -10,7 +10,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from src.organization.db.base import Base
-from src.organization.models import Organization, OrganizationMember  # noqa: F401  registers tables
+from src.organization.models import Organization, OrganizationMember, OrganizationInvitation  # noqa: F401  registers tables
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 
@@ -68,5 +68,17 @@ def test_migration_enforces_member_role_check(migrated_engine):
                 text(
                     "INSERT INTO organization_members (organization_id, user_id, role, status)"
                     " VALUES (1, 1, 'sysadmin', 'active')"
+                )
+            )
+
+
+def test_migration_enforces_invitation_role_check(migrated_engine):
+    with pytest.raises(IntegrityError):
+        with migrated_engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO organization_invitations"
+                    " (organization_id, email, role, invited_by_user_id, token, expires_at)"
+                    " VALUES (1, 'x@y.test', 'sysadmin', 1, 'tok', '2026-01-01T00:00:00+00:00')"
                 )
             )
