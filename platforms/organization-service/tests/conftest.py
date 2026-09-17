@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from src.organization.db.base import Base
 from src.organization.db.session import get_db
 from src.organization.api.main import app
+from src.organization.models import Organization, OrganizationMember  # noqa: F401
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
