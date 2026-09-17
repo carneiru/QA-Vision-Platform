@@ -13,8 +13,10 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code and the migration tooling, so `alembic upgrade head` can run from the image
 COPY src/ ./src
+COPY alembic/ ./alembic
+COPY alembic.ini ./alembic.ini
 
 # Expose port
 EXPOSE 8000

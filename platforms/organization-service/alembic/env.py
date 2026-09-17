@@ -4,10 +4,14 @@ from alembic import context
 import os
 import sys
 
-# Add the src directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add the project root to the path so "src.organization...." resolves the same way the app does.
+# Importing Base by any other path would build a second, empty MetaData and make autogenerate
+# believe every table should be dropped.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from organization.db.base import Base  # noqa
+from src.organization.core.config import settings  # noqa: E402
+from src.organization.db.base import Base  # noqa: E402
+import src.organization.models  # noqa: F401,E402  registers Organization/OrganizationMember on Base.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,9 +21,14 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Prefer the runtime settings (which read .env) over the hardcoded alembic.ini URL.
+# A URL passed in explicitly (e.g. by the migration test) still wins.
+if not config.get_main_option("sqlalchemy.url", None):
+    # escape '%' so ConfigParser does not try to interpolate it out of a password
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
 target_metadata = Base.metadata
 
 
