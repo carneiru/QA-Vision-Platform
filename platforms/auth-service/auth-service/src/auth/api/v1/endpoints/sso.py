@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from src.auth.api import deps
 import logging
@@ -30,11 +31,24 @@ def _link_or_create_user(db: Session, google_data: dict, email: str, provider: s
             full_name=google_data.get("full_name"),
             password=None,  # SSO user -- no password
         )
-        user = UserService.create_user(db, user_in)
+        # One transaction. These used to be two commits, so a failure on the link left a
+        # committed passwordless user with no link -- and since SSO no longer auto-links to
+        # an existing account, that orphan answers 409 for its own address forever. A
+        # transient database error would have locked an address out permanently.
+        user = UserService.create_user(db, user_in, commit=False)
         db.add(OAuthAccount(
             user_id=user.id, provider=provider, provider_user_id=provider_user_id,
         ))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Another request created this identity between our lookup and our commit.
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This Google account is already linked",
+            )
+        db.refresh(user)
         return user
 
     # An account holds this address. A verified Google email proves control of the mailbox,

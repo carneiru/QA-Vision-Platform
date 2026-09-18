@@ -248,3 +248,38 @@ def test_sso_account_cannot_gain_a_password_from_a_bearer_token(client, db, goog
 
     again = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
     assert again.status_code == 200, again.text
+
+
+def test_a_failed_link_write_leaves_no_orphan_account(client, db, google_key):
+    """The user and its OAuth link used to be two separate commits, so a failure on the
+    second left a committed passwordless user with no link. Now that SSO never auto-links to
+    an existing account, such an orphan answers 409 for its own address forever -- a
+    transient database error would lock an address out permanently.
+
+    The failure is injected at the link insert specifically. Replacing the OAuthAccount class
+    instead would also break the lookup queries that run first, so the endpoint would fail
+    before creating anything and the test would pass against the broken code too.
+    """
+    real_add = db.add
+
+    def failing_add(instance, *args, **kwargs):
+        if isinstance(instance, OAuthAccount):
+            raise RuntimeError("simulated failure writing the link")
+        return real_add(instance, *args, **kwargs)
+
+    db.add = failing_add
+    try:
+        client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    except RuntimeError:
+        pass  # TestClient re-raises; the endpoint failing is the point
+    finally:
+        db.add = real_add
+
+    db.rollback()
+    assert db.query(User).filter(User.email == "person@example.com").first() is None, (
+        "a half-completed SSO signup must not leave the address claimed"
+    )
+
+    # the address still works afterwards
+    retry = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert retry.status_code == 200, retry.text

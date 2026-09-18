@@ -24,7 +24,15 @@ class UserService:
         return db.query(User).offset(skip).limit(limit).all()
 
     @staticmethod
-    def create_user(db: Session, user_in: UserCreate) -> User:
+    def create_user(db: Session, user_in: UserCreate, commit: bool = True) -> User:
+        """Create a user.
+
+        `commit=False` flushes instead, so the caller can write related rows in the same
+        transaction. SSO needs that: it creates a user and an OAuthAccount, and committing
+        the user first meant a failure on the link left a committed passwordless row with no
+        link -- which, now that SSO never auto-links to an existing account, permanently
+        answers 409 for that address. A transient database error would lock an address out.
+        """
         # Check if user already exists
         existing_user = db.query(User).filter(User.email == user_in.email).first()
         if existing_user:
@@ -44,8 +52,13 @@ class UserService:
         )
         db.add(user)
         try:
-            db.commit()
-            db.refresh(user)
+            if commit:
+                db.commit()
+                db.refresh(user)
+            else:
+                # Assigns the primary key the caller needs for its foreign key, without
+                # ending the transaction.
+                db.flush()
         except IntegrityError:
             db.rollback()
             raise HTTPException(
