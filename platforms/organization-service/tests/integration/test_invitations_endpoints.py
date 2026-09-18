@@ -259,6 +259,21 @@ def test_accept_into_soft_deleted_org_returns_404(client):
     assert response.status_code == 404
 
 
+def test_create_invitation_rejects_malformed_email(client):
+    """Pins EmailStr on the invited address. Without this, a revert to a plain `str` would
+    break no test, and the address is the whole point of the row (a future notification
+    service reads it)."""
+    org_id = _make_org(client, owner_id=1)
+
+    for bad_email in ["a@b", "   ", "not-an-email"]:
+        response = client.post(
+            f"/api/v1/organizations/{org_id}/invitations",
+            json={"email": bad_email, "role": "member"},
+            headers=_auth(1),
+        )
+        assert response.status_code == 422, f"expected 422 for {bad_email!r}"
+
+
 def test_list_does_not_expose_tokens(client):
     """The raw token is returned ONLY by create. Exposing it to every admin via list would
     let an admin hand a pending owner-role invite to an account they control and mint an

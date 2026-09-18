@@ -31,7 +31,7 @@ Follows the same layering already established in `organization-service`: model â
 ```
 src/organization/
   models/invitation.py          # OrganizationInvitation
-  schemas/invitation.py          # InvitationCreate, InvitationOut
+  schemas/invitation.py          # InvitationCreate, InvitationOut (create only, carries token), InvitationSummary (list, no token)
   service/invitation_service.py  # create/list/revoke/accept_invitation
   service/member_service.py      # MODIFIED: split into _assert_can_grant_role() + _create_member_row(), both reused by invitation_service
   api/v1/endpoints/invitations.py  # org-scoped: create/list/revoke
