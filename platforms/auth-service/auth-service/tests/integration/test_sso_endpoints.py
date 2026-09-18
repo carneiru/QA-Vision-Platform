@@ -17,6 +17,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from src.auth.config import settings
+from src.auth.models.oauth import OAuthAccount
 from src.auth.models.user import User
 from src.auth.service import sso_service
 
@@ -138,6 +139,43 @@ def test_unverified_email_is_rejected(client, db, google_key, email_verified):
 
     assert response.status_code != 200
     assert db.query(User).filter(User.email == "person@example.com").first() is None
+
+
+# --- account linking --------------------------------------------------------------------
+
+def test_google_does_not_take_over_a_password_account(client, db, google_key):
+    """Pre-registration takeover: someone registers the victim's address with a password
+    before the victim ever signs up. When the victim then arrives via Google, linking on a
+    matching email alone would hand them the attacker's account, password and all."""
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "person@example.com",
+            "password": "attackerpassword1",
+            "full_name": "Squatter",
+        },
+    )
+    assert registered.status_code == 200, registered.text
+
+    response = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+
+    assert response.status_code == 409, response.text
+    assert "access_token" not in response.json()
+    assert db.query(OAuthAccount).count() == 0, "no link may be created for a password account"
+
+
+def test_a_different_google_identity_cannot_claim_a_linked_account(client, db, google_key):
+    """A recycled or aliased mailbox presenting a new Google `sub` must not displace the
+    identity already linked to the account."""
+    first = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert first.status_code == 200
+
+    impostor = _id_token(google_key, sub="google-user-2")
+    response = client.post("/api/v1/sso/google", json={"credential": impostor})
+
+    assert response.status_code == 409, response.text
+    links = db.query(OAuthAccount).all()
+    assert [link.provider_user_id for link in links] == ["google-user-1"]
 
 
 # --- guards that do not reach verification ---------------------------------------------

@@ -62,19 +62,44 @@ def google_login(
     user = UserService.get_user_by_email(db, email)
     
     if user:
-        # User exists, check if OAuth account exists
-        oauth_account = db.query(OAuthAccount).filter(
+        # A verified Google email proves control of the mailbox, not ownership of whatever
+        # local account happens to share that address. Linking on email alone is a
+        # pre-registration takeover: an attacker registers victim@corp.com with a password
+        # before the victim ever signs up, the victim then arrives via Google, gets attached
+        # to that row, and the attacker keeps password access to everything they do there.
+        existing_link = db.query(OAuthAccount).filter(
             OAuthAccount.user_id == user.id,
             OAuthAccount.provider == provider,
-            OAuthAccount.provider_user_id == provider_user_id
         ).first()
-        
-        if not oauth_account:
-            # Link existing account to OAuth
+
+        if existing_link:
+            if existing_link.provider_user_id != provider_user_id:
+                # Same address, different Google identity -- a recycled or aliased mailbox.
+                # Whoever is already linked keeps the account.
+                logger.warning(
+                    "Google sub mismatch for user %s: linked %s, presented %s",
+                    user.id, existing_link.provider_user_id, provider_user_id,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This account is linked to a different Google identity",
+                )
+        elif user.hashed_password is not None:
+            # There is a password on this account, so it has an owner who is not necessarily
+            # the caller. Auto-linking is only safe for a passwordless row, which has no
+            # independent credential to hijack.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "An account with this email already exists. Sign in with your password "
+                    "to link Google to it."
+                ),
+            )
+        else:
             oauth_account = OAuthAccount(
                 user_id=user.id,
                 provider=provider,
-                provider_user_id=provider_user_id
+                provider_user_id=provider_user_id,
             )
             db.add(oauth_account)
             db.commit()
