@@ -201,3 +201,26 @@ def test_changing_email_to_a_taken_address_is_a_client_error(client):
         headers={"Authorization": f"Bearer {second['access_token']}"},
     )
     assert response.status_code == 400, response.text
+
+
+def test_registration_ignores_privileged_fields_in_the_body(client):
+    """UserBase carried is_superuser, so /auth/register accepted it. Nothing copied it into
+    the model, which made this a trap rather than a hole -- one line away from being an
+    escalation at signup."""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "sneaky@example.com",
+            "password": "securepassword123",
+            "is_superuser": True,
+            "is_active": True,
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["is_superuser"] is False
+
+    tokens = _login(client, "sneaky@example.com")
+    listing = client.get(
+        "/api/v1/users/", headers={"Authorization": f"Bearer {tokens['access_token']}"}
+    )
+    assert listing.status_code == 403

@@ -4,13 +4,15 @@ from typing import Optional, List
 from datetime import datetime
 
 class UserBase(BaseModel):
+    # Shared by input and output schemas, so it carries no privileged field. is_active and
+    # is_superuser live on the response models below. They were here, which meant
+    # POST /auth/register accepted {"is_superuser": true} in its body -- harmless only
+    # because create_user happens not to copy it, one line away from being an escalation.
     email: EmailStr
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     department: Optional[str] = None
     job_title: Optional[str] = None
-    is_active: bool = True
-    is_superuser: bool = False
 
 class UserCreate(UserBase):
     # Optional because SSO creates users with no password at all (the column is nullable for
@@ -55,6 +57,8 @@ class UserSelfUpdate(BaseModel):
 class UserInDB(UserBase):
     id: int
     hashed_password: str
+    is_active: bool = True
+    is_superuser: bool = False
     tenant_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -64,6 +68,8 @@ class UserInDB(UserBase):
 
 class User(UserBase):
     id: int
+    is_active: bool = True
+    is_superuser: bool = False
     tenant_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
