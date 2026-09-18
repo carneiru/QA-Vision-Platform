@@ -1,44 +1,43 @@
 # Authentication Service
 
-A secure authentication service for the QA Vision platform implementing email/password authentication, JWT-based session management with refresh token rotation, and foundational SSO integrations.
+Authentication for the QA Vision platform: email/password accounts, JWT access tokens with revocable database-backed refresh tokens, and Google SSO.
 
 ## Overview
 
 This service provides core authentication and authorization functionality for the QA Vision platform. It implements industry-standard security practices including:
 - Secure user registration and authentication with bcrypt password hashing
-- JWT-based access tokens (configurable expiry, default 8 hours) 
-- Refresh token rotation to prevent replay attacks
-- Foundational SSO framework with Google ID token validation implemented
+- JWT access tokens (configurable expiry, default 8 hours)
+- Opaque refresh tokens stored server-side, rotated on use and revocable on logout
+- Google SSO with full ID token verification against Google's JWKS
 - Role-based access control with superuser privileges for administrative functions
 - Pydantic-based request/response validation and OpenAPI documentation
 
 ## Current Implementation Status
 
-### ✅ Fully Implemented Features
-- **Email/Password Authentication**: User registration, login, logout with JWT tokens
-- **Token Management**: Access tokens (8-hour expiry) and refresh tokens (30-day expiry) with automatic rotation
-- **Password Reset Framework**: Endpoints present (require email/SMTP integration for production)
-- **SSO Framework**: Google ID token validation fully implemented (GitHub/Azure placeholders for future implementation)
-- **User Management**: Current user profile retrieval and update (self-service)
-- **Administrative Functions**: Superuser-only endpoints for user listing and management
-- **Security**: Bcrypt password hashing, JWT signing, token revocation, CORS protection
-- **Testing**: Comprehensive unit and integration test suite
-- **Documentation**: Auto-generated OpenAPI/Swagger documentation
+### ✅ Implemented and tested
+- **Email/Password Authentication**: registration, login, logout
+- **Token Management**: JWT access tokens (8-hour expiry) and opaque database-backed refresh tokens (30-day expiry) with rotation on use and server-side revocation
+- **Google SSO**: ID tokens verified against Google's JWKS (RS256 signature, audience, issuer, expiry, verified email)
+- **User Management**: self-service profile read and update, restricted to non-privileged fields
+- **Administrative Functions**: superuser-only user listing
+- **Security**: bcrypt password hashing, CORS configuration, cross-user isolation on every identity-resolving path
+- **Testing**: 30 unit and integration tests, including the SSO verification path against a locally generated signing key
+- **Documentation**: auto-generated OpenAPI/Swagger
 - **Deployment**: Dockerfile and docker-compose configuration
 
-### 🔧 Framework Ready (Requires External Services)
-- **Email/SMTP Integration**: Password reset endpoints implemented but require SMTP configuration
-- **GitHub SSO**: Endpoint present but requires GitHub OAuth implementation
-- **Azure AD SSO**: Endpoint present but requires Azure AD implementation
-- **Account Lockout**: Framework present but requires configuration/enabling
-- **HTTP-Only Cookies**: Ready for implementation if switching from bearer tokens to cookies
+### ⛔ Not implemented — these endpoints return 501
+- **Password Reset** (`/forgot-password`, `/reset-password`): no reset-token model, no mail transport. Both previously returned success without doing anything.
+- **GitHub SSO**: requires an OAuth code exchange that does not exist
+- **Azure AD SSO**: requires an Azure AD code exchange that does not exist
 
-### 📝 Planned Enhancements
+### 📝 Not built
+- **Linking Google to an existing password account**: refused with 409. Doing it safely needs an authenticated link endpoint; see SSO Security below.
+- **Account lockout**: no failed-attempt tracking exists anywhere in this service
+- **Redis token blacklisting**: a Redis URL is configurable, but nothing reads it
+- **HTTP-only cookie sessions**: bearer tokens only
 - Rate limiting on authentication endpoints
-- Enhanced account lockout mechanisms
-- Production-grade email templates for password reset
 - Additional SSO providers (SAML, etc.)
-- Multi-factor authentication (MFA) support
+- Multi-factor authentication (MFA)
 - Advanced session management (device tracking, concurrent session limits)
 
 ## Getting Started
@@ -133,12 +132,12 @@ Copy `.env.example` to `.env` and configure as needed:
 ### SSO Provider Configuration
 - `GOOGLE_CLIENT_ID`: Google OAuth Client ID
 - `GOOGLE_CLIENT_SECRET`: Google OAuth Client Secret
-- `GITHUB_CLIENT_ID`: GitHub OAuth Client ID
-- `GITHUB_CLIENT_SECRET`: GitHub OAuth Client Secret
-- `AZURE_TENANT_ID`: Azure AD Tenant ID
-- `AZURE_CLIENT_ID`: Azure AD Client ID
-- `AZURE_CLIENT_SECRET`: Azure AD Client Secret
-- `SAML_SETTINGS`: SAML configuration (JSON object)
+
+The settings below are accepted by the config module but nothing reads them yet — the
+providers they configure return 501:
+- `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+- `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
+- `SAML_SETTINGS`
 
 ### CORS Configuration
 - `BACKEND_CORS_ORIGINS`: List of allowed origins (default: ["http://localhost:3000", "http://localhost:8000"])
@@ -150,19 +149,21 @@ Copy `.env.example` to `.env` and configure as needed:
 - `POST /api/v1/auth/login` - Login with email/password (returns access & refresh tokens)
 - `POST /api/v1/auth/refresh-token` - Refresh access token using refresh token
 - `POST /api/v1/auth/logout` - Logout by revoking refresh token
-- `POST /api/v1/auth/forgot-password` - Initiate password reset (requires SMTP config)
-- `POST /api/v1/auth/reset-password` - Complete password reset with token
+- `POST /api/v1/auth/forgot-password` - **501, not implemented**
+- `POST /api/v1/auth/reset-password` - **501, not implemented**
 
 ### SSO Authentication
-- `POST /api/v1/auth/sso/google` - Authenticate with Google ID token (IMPLEMENTED)
-- `POST /api/v1/auth/sso/github` - Authenticate with GitHub (PLACEHOLDER - requires implementation)
-- `POST /api/v1/auth/sso/azure` - Authenticate with Azure AD (PLACEHOLDER - requires implementation)
+- `POST /api/v1/sso/google` - Authenticate with a Google ID token
+- `POST /api/v1/sso/github` - **501, not implemented**
+- `POST /api/v1/sso/azure` - **501, not implemented**
 
 ### User Management
-- `GET /api/v1/auth/users/me` - Get current user's profile
-- `PUT /api/v1/auth/users/me` - Update current user's profile
-- `GET /api/v1/auth/users/` - List all users (SUPERUSER ONLY)
-- `GET /api/v1/auth/users/{user_id}` - Get specific user by ID (SUPERUSER ONLY)
+- `GET /api/v1/users/me` - Get current user's profile
+- `PUT /api/v1/users/me` - Update current user's profile. Accepts `UserSelfUpdate` only: email, password, full_name, avatar_url, department, job_title. `is_active` and `is_superuser` are not settable here.
+- `GET /api/v1/users/` - List all users (SUPERUSER ONLY)
+- `GET /api/v1/users/{user_id}` - Get a user by id (own account, or any account for a superuser)
+
+There is no endpoint that grants superuser. The flag is set directly in the database.
 
 ## Security Implementation Details
 
@@ -173,10 +174,10 @@ Copy `.env.example` to `.env` and configure as needed:
 
 ### Token Management
 - Access tokens: JWT signed with HMAC-SHA256, configurable expiration (default 8h)
-- Refresh tokens: JWT signed with HMAC-SHA256, longer expiration (default 30d)
-- Refresh token rotation: On each use, old token revoked and new token issued
-- Token revocation: Server-side tracking enables immediate revocation on logout
-- Optional Redis integration for token blacklisting/database synchronization
+- Refresh tokens: opaque 32-byte random strings (`secrets.token_urlsafe`) stored in `refresh_tokens`, default 30d. They are not JWTs — being database rows is what makes revocation immediate and rotation meaningful.
+- Refresh token rotation: on each use the presented token is revoked and a new one issued
+- Expiry is enforced on verification, not only at issuance
+- Logout revokes only a token belonging to the caller, so knowing someone else's token value does not let you end their session
 
 ### Request Validation
 - All input validated using Pydantic models
@@ -184,11 +185,10 @@ Copy `.env.example` to `.env` and configure as needed:
 - Automatic 422 responses for malformed requests with detailed error messages
 
 ### SSO Security
-- Google ID token validation using cryptographic signature verification
-- Email domain validation to prevent account takeover attempts
-- Account linking: SSO accounts can be linked to existing email/password users
-- Just-in-time provisioning: New users created on first SSO login if email doesn't exist
-- OAuth account linking prevents duplicate accounts for same user across providers
+- Google ID tokens are verified against Google's published JWKS: RS256 signature, `aud` matching `GOOGLE_CLIENT_ID`, issuer in Google's set, `exp`, and `email_verified` being boolean `true`
+- With no `GOOGLE_CLIENT_ID` configured the endpoint returns 503 rather than verifying without an audience, which would accept ID tokens minted for any other Google application
+- Just-in-time provisioning: a first-time Google user is created with no password
+- **Account linking is restricted.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address. Google is auto-linked only to a passwordless row. An account that has a password returns 409, as does an account already linked to a different Google `sub`. Linking Google to an existing password account requires an authenticated link endpoint, which is not built.
 
 ### Administrative Controls
 - Superuser-only endpoints protected by role-based checks

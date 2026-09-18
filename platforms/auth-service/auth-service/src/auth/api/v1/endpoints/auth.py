@@ -112,33 +112,26 @@ def logout_user(
     return {"message": "Successfully logged out"}
 
 
+# Password reset is not implemented. There is no reset-token model, no issuance, no
+# validation and no mail transport. Both handlers used to return success anyway:
+# /forgot-password promised a link it never sent, and /reset-password answered "Password has
+# been reset successfully" without touching the password. That is the worse half -- a user
+# told their password was reset stops treating the old one as live, and an operator reading
+# the endpoint list believes account recovery exists. They now fail honestly, the same way
+# the GitHub and Azure SSO handlers do.
+
+
 @router.post("/forgot-password")
-def initiate_password_reset(
-    *,
-    db: Session = Depends(deps.get_db),
-    request: PasswordResetRequest
-):
-    """
-    Initiate password reset process.
-    """
-    user = UserService.get_user_by_email(db, request.email)
-    if user:
-        # In a real application, we would send an email here
-        # For now, we just return a success message to avoid revealing whether an email exists
-        pass
-    # Always return the same message to prevent email enumeration
-    return {"message": "If the email exists in our system, you will receive a password reset link"}
+def initiate_password_reset(request: PasswordResetRequest):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Password reset is not implemented",
+    )
 
 
 @router.post("/reset-password")
-def reset_password(
-    *,
-    db: Session = Depends(deps.get_db),
-    request: PasswordResetConfirm
-):
-    """
-    Reset password using reset token.
-    """
-    # In a real application, we would validate the token and reset the password
-    # For now, we just return a success message
-    return {"message": "Password has been reset successfully"}
+def reset_password(request: PasswordResetConfirm):
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Password reset is not implemented",
+    )
