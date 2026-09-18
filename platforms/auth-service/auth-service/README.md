@@ -188,7 +188,10 @@ There is no endpoint that grants superuser. The flag is set directly in the data
 - Google ID tokens are verified against Google's published JWKS: RS256 signature, `aud` matching `GOOGLE_CLIENT_ID`, issuer in Google's set, `exp`, and `email_verified` being boolean `true`
 - With no `GOOGLE_CLIENT_ID` configured the endpoint returns 503 rather than verifying without an audience, which would accept ID tokens minted for any other Google application
 - Just-in-time provisioning: a first-time Google user is created with no password
-- **Account linking is restricted.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address. Google is auto-linked only to a passwordless row. An account that has a password returns 409, as does an account already linked to a different Google `sub`. Linking Google to an existing password account requires an authenticated link endpoint, which is not built.
+- **Identity is the Google `sub`, not the email.** A returning user is resolved through the `(provider, provider_user_id)` link, so a Google account whose address changed still reaches its own account, and the new address is not written back.
+- **Account linking is restricted.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address. Google is auto-linked only to a passwordless row with no existing link for the provider. An account that has a password returns 409, as does an account already linked to a different Google `sub`. Linking Google to an existing password account needs an authenticated link endpoint, which is not built — password users cannot currently adopt SSO.
+
+**Known limitation:** email addresses are never verified, at registration or on change. Someone can therefore register or switch to an address they do not control and, because of the 409 above, block its real owner from signing in with Google. This is strictly safer than the account takeover it replaced, but closing it properly needs email verification plus the link endpoint.
 
 ### Administrative Controls
 - Superuser-only endpoints protected by role-based checks

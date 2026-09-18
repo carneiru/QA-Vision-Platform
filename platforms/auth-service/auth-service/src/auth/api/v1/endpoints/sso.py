@@ -16,6 +16,70 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _link_or_create_user(db: Session, google_data: dict, email: str, provider: str,
+                         provider_user_id: str):
+    """Resolve a Google identity that is not yet linked to any account.
+
+    Reached only when no OAuthAccount matches this provider and `sub`.
+    """
+    user = UserService.get_user_by_email(db, email)
+
+    if user is None:
+        user_in = UserCreate(
+            email=email,
+            full_name=google_data.get("full_name"),
+            password=None,  # SSO user -- no password
+        )
+        user = UserService.create_user(db, user_in)
+        db.add(OAuthAccount(
+            user_id=user.id, provider=provider, provider_user_id=provider_user_id,
+        ))
+        db.commit()
+        return user
+
+    # An account holds this address. A verified Google email proves control of the mailbox,
+    # not ownership of whatever local account happens to share it. Linking on email alone is
+    # a pre-registration takeover: an attacker registers victim@corp.com with a password
+    # before the victim ever signs up, the victim then arrives via Google, gets attached to
+    # that row, and the attacker keeps password access to everything they do there.
+    existing_link = db.query(OAuthAccount).filter(
+        OAuthAccount.user_id == user.id,
+        OAuthAccount.provider == provider,
+    ).order_by(OAuthAccount.id).first()
+
+    if existing_link:
+        # Same address, a different Google identity -- a recycled or aliased mailbox.
+        # Whoever is already linked keeps the account.
+        logger.warning(
+            "Google sub mismatch for user %s: linked %s, presented %s",
+            user.id, existing_link.provider_user_id, provider_user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This account is linked to a different Google identity",
+        )
+
+    if user.hashed_password is not None:
+        # There is a password on this account, so it has an owner who is not necessarily the
+        # caller. Auto-linking is only safe for a passwordless row, which has no independent
+        # credential to hijack. Adopting SSO on a password account needs an authenticated
+        # link endpoint; until that exists this says so rather than describing a flow the
+        # service does not offer.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "An account with this email already exists. Linking Google to an existing "
+                "password account is not supported yet."
+            ),
+        )
+
+    db.add(OAuthAccount(
+        user_id=user.id, provider=provider, provider_user_id=provider_user_id,
+    ))
+    db.commit()
+    return user
+
+
 @router.post("/google", response_model=Token)
 def google_login(
     *,
@@ -58,68 +122,28 @@ def google_login(
     provider = google_data["provider"]
     provider_user_id = google_data["provider_user_id"]
     
-    # Try to find existing user by email
-    user = UserService.get_user_by_email(db, email)
-    
-    if user:
-        # A verified Google email proves control of the mailbox, not ownership of whatever
-        # local account happens to share that address. Linking on email alone is a
-        # pre-registration takeover: an attacker registers victim@corp.com with a password
-        # before the victim ever signs up, the victim then arrives via Google, gets attached
-        # to that row, and the attacker keeps password access to everything they do there.
-        existing_link = db.query(OAuthAccount).filter(
-            OAuthAccount.user_id == user.id,
-            OAuthAccount.provider == provider,
-        ).first()
+    # Resolve by the provider identity first. (provider, provider_user_id) is UNIQUE, so the
+    # Google `sub` is the actual identity key here; the email is a mutable attribute of it.
+    # Looking up by email first meant a user whose Google address had changed fell through to
+    # the create branch, which committed a new user row and only then hit uix_provider_user
+    # -- a 500 with an orphaned account left behind.
+    linked = db.query(OAuthAccount).filter(
+        OAuthAccount.provider == provider,
+        OAuthAccount.provider_user_id == provider_user_id,
+    ).first()
 
-        if existing_link:
-            if existing_link.provider_user_id != provider_user_id:
-                # Same address, different Google identity -- a recycled or aliased mailbox.
-                # Whoever is already linked keeps the account.
-                logger.warning(
-                    "Google sub mismatch for user %s: linked %s, presented %s",
-                    user.id, existing_link.provider_user_id, provider_user_id,
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="This account is linked to a different Google identity",
-                )
-        elif user.hashed_password is not None:
-            # There is a password on this account, so it has an owner who is not necessarily
-            # the caller. Auto-linking is only safe for a passwordless row, which has no
-            # independent credential to hijack.
+    if linked:
+        # Known identity. The address on the token may have changed since; that does not
+        # matter, and is deliberately not written back onto the account.
+        user = UserService.get_user_by_id(db, linked.user_id)
+        if not user:
+            logger.error("OAuth link %s points at missing user %s", linked.id, linked.user_id)
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "An account with this email already exists. Sign in with your password "
-                    "to link Google to it."
-                ),
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Account is in an inconsistent state",
             )
-        else:
-            oauth_account = OAuthAccount(
-                user_id=user.id,
-                provider=provider,
-                provider_user_id=provider_user_id,
-            )
-            db.add(oauth_account)
-            db.commit()
     else:
-        # Create new user
-        user_in = UserCreate(
-            email=email,
-            full_name=google_data.get("full_name"),
-            password=None  # SSO user - no password
-        )
-        user = UserService.create_user(db, user_in)
-        
-        # Create OAuth account link
-        oauth_account = OAuthAccount(
-            user_id=user.id,
-            provider=provider,
-            provider_user_id=provider_user_id
-        )
-        db.add(oauth_account)
-        db.commit()
+        user = _link_or_create_user(db, google_data, email, provider, provider_user_id)
     
     # Password login refuses a deactivated account; SSO did not, so disabling someone left
     # them a working way in for as long as their Google account existed.

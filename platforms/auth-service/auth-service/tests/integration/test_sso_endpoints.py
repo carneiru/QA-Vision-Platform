@@ -242,3 +242,18 @@ def test_sso_user_who_sets_a_password_keeps_google_access(client, db, google_key
 
     again = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
     assert again.status_code == 200, again.text
+
+
+def test_google_account_whose_email_changed_still_logs_in(client, db, google_key):
+    """Identity is the Google `sub`, not the address. Looking up by email first meant a
+    changed address fell through to the create branch, which committed a new user and only
+    then violated uix_provider_user -- a 500 leaving an orphaned account behind."""
+    first = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert first.status_code == 200
+
+    renamed = _id_token(google_key, email="person.new@example.com")
+    again = client.post("/api/v1/sso/google", json={"credential": renamed})
+
+    assert again.status_code == 200, again.text
+    assert db.query(User).count() == 1, "no second account may be created for the same sub"
+    assert db.query(OAuthAccount).count() == 1

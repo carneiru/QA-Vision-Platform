@@ -224,3 +224,20 @@ def test_registration_ignores_privileged_fields_in_the_body(client):
         "/api/v1/users/", headers={"Authorization": f"Bearer {tokens['access_token']}"}
     )
     assert listing.status_code == 403
+
+
+def test_null_password_is_a_client_error_not_a_crash(client):
+    """`password` is Optional, so an explicit null passed validation and reached
+    get_password_hash(None), which raises."""
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+
+    response = client.put(
+        "/api/v1/users/me",
+        json={"password": None, "current_password": "securepassword123"},
+        headers={"Authorization": f"Bearer {first['access_token']}"},
+    )
+    assert response.status_code == 400, response.text
+
+    # the account is unchanged and still usable
+    assert _login(client, "first@example.com")["access_token"]
