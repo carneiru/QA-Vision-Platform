@@ -12,22 +12,22 @@ The first phase of the platform implements a robust authentication service with 
 
 ### Features
 - **Email/Password Authentication** - Secure user registration and login with bcrypt password hashing
-- **JWT Token Management** - Access tokens (8-day expiry) and refresh tokens (30-day expiry) for stateless authentication
-- **Refresh Token Rotation** - Automatic rotation to prevent replay attacks
-- **SSO Framework** - Plug-and-play support for Google, GitHub, and Azure AD (placeholders implemented)
-- **Role-Based Access Control** - Admin-only endpoints for user management
-- **Multi-tenancy Support** - Tenant-aware user model for SaaS deployments
-- **Comprehensive API** - RESTful endpoints with OpenAPI 3.3.3.0 documentation
-- **Full Test Coverage** - Unit and integration tests for all critical functionality
-- **Dockerized Deployment** - Easy setup with PostgreSQL database
+- **Token Management** - JWT access tokens (default 8 days) and opaque refresh tokens stored in the database (30 days)
+- **Refresh Token Rotation** - The presented refresh token is revoked and replaced on each use
+- **Google SSO** - ID tokens verified against Google's JWKS. GitHub and Azure AD return 501; they were previously mocks that accepted any input.
+- **Role-Based Access Control** - Superuser-only endpoints for user listing
+- **Multi-tenancy Support** - The user model carries a nullable `tenant_id`; authoritative membership lives in organization-service
+- **API** - RESTful endpoints with auto-generated OpenAPI documentation
+- **Tests** - 30 unit and integration tests covering authentication, SSO verification and cross-user isolation
+- **Dockerized Deployment** - Docker Compose setup with PostgreSQL
 
 ### Technology Stack
 - **Language**: Python 3.9
 - **Framework**: FastAPI
 - **Database**: PostgreSQL with SQLAlchemy ORM
 - **Migrations**: Alembic
-- **Authentication**: PyJWT, python-jose, passlib[bcrypt]
-- **SSO**: Authlib (framework ready)
+- **Authentication**: PyJWT (including `PyJWKClient` for Google's signing keys), passlib[bcrypt]
+- **SSO**: Google ID token verification via PyJWT. Authlib and python-jose are in `requirements.txt` but unused.
 - **Validation**: Pydantic
 - **Containerization**: Docker & Docker Compose
 - **Testing**: Pytest
@@ -50,13 +50,13 @@ The first phase of the platform implements a robust authentication service with 
 
 2. **Environment Configuration**
    ```bash
-   cp src/services/auth-service/.env.example src/services/auth-service/.env
+   cp platforms/auth-service/auth-service/.env.example platforms/auth-service/auth-service/.env
    # Edit .env with your configuration values
    ```
 
 3. **Install Dependencies (Development)**
    ```bash
-   cd src/services/auth-service
+   cd platforms/auth-service/auth-service
    pip install -r requirements.txt
    ```
 
@@ -104,41 +104,51 @@ pytest
 
 ## Project Structure
 
+Services are grouped by domain at the repository root. Only the two under
+`platforms/` are implemented; the other domain directories hold scaffolding
+generated from the auth-service template and are not running services yet.
+
 ```
 QA-Vision-Platform/
-├── src/
-│   └── services/
-│       └── auth-service/           # Authentication Service (Phase 1)
-│           ├── src/
-│           │   └── auth/           # Python package
-│           │       ├── api/        # FastAPI endpoints
-│           │       ├── core/       # Configuration
-│           │       ├── db/         # Database models & session
-│           │       ├── models/     # SQLAlchemy models
-│           │       ├── schemas/    # Pydantic validation models
-│           │       ├── service/    # Business logic layer
-│           │       └── utils/      # Security utilities (password, tokens)
-│           ├── tests/              # Test suite
-│           ├── alembic/            # Database migrations
-│           ├── Dockerfile
-│           ├── docker-compose.yml
-│           ├── requirements.txt
-│           ├── .env.example        # Example environment file
-│           └── .gitignore
-├── docs/                           # Architecture and design documents
-├── ai-engine/                      # Future AI Engine service (Phase 6)
-└── TODO.md                         # Implementation progress tracking
+├── platforms/
+│   ├── auth-service/auth-service/  # Authentication (implemented)
+│   │   ├── src/auth/
+│   │   │   ├── api/                # FastAPI endpoints
+│   │   │   ├── db/                 # Session and declarative base
+│   │   │   ├── models/             # SQLAlchemy models
+│   │   │   ├── schemas/            # Pydantic validation models
+│   │   │   ├── service/            # Business logic layer
+│   │   │   ├── utils/              # Password and token helpers
+│   │   │   └── config.py           # Settings
+│   │   ├── tests/                  # Test suite
+│   │   ├── alembic/                # Database migrations
+│   │   └── requirements.txt
+│   └── organization-service/       # Organizations, members, invitations (implemented)
+├── intelligence/                   # Planned: AI analysis services
+├── execution/                      # Planned: test execution services
+├── integrations/                   # Planned: third-party connectors
+├── collaboration/                  # Planned
+├── administration/                 # Planned
+├── automation/                     # Planned
+├── marketplace/                    # Planned
+└── docs/                           # Architecture, specs and implementation plans
 ```
 
 ## Security Features
-- Passwords hashed with bcrypt (work factor 12)
-- JWT tokens signed with HS256 algorithm
-- Automatic refresh token rotation
-- Account protection against brute force (configurable)
-- SQL injection prevention via ORM
+- Passwords hashed with bcrypt
+- Access tokens signed with HS256; refresh tokens are opaque and revocable server-side
+- Refresh token rotation on every use, with expiry enforced at verification
+- Google ID tokens verified by signature, audience, issuer, expiry and verified-email claim
+- SQL injection prevention via the ORM
 - Input validation via Pydantic models
-- CORS protection
+- CORS configuration
 - Environment-based configuration (no hardcoded secrets)
+
+Not present, despite earlier claims here: brute-force protection or account
+lockout (no failed-attempt tracking exists), Redis token blacklisting (the URL
+is configurable and unused), and password reset (both endpoints return 501).
+Access tokens are not revocable — logging out revokes the refresh token, but an
+already-issued access token remains valid until it expires.
 
 ## Future Phases
 
