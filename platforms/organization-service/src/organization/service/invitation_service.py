@@ -1,6 +1,6 @@
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from src.organization.models.invitation import OrganizationInvitation
 from src.organization.models.member import OrganizationMember
@@ -76,17 +76,50 @@ def accept_invitation(db: Session, token: str, user_id: int) -> OrganizationMemb
     invitation = db.query(OrganizationInvitation).filter(OrganizationInvitation.token == token).first()
     if invitation is None:
         raise InvitationNotUsable("invitation not found")
-    if invitation.accepted_at is not None:
-        raise InvitationNotUsable("invitation already accepted")
+    # Expiry must be checked BEFORE the invitation is claimed below: an expired invite
+    # must never be marked accepted just because someone tried to use it.
     if _as_aware_utc(invitation.expires_at) <= datetime.now(timezone.utc):
         raise InvitationNotUsable("invitation expired")
     if get_organization(db, invitation.organization_id) is None:
         raise InvitationNotUsable("organization not found")
 
+    organization_id = invitation.organization_id
+    role = invitation.role
+
+    # Single-use is enforced here, at the database, as a conditional UPDATE rather than
+    # a read-then-write check: two concurrent accepts (different user_ids) racing past an
+    # in-memory "accepted_at is None" check could otherwise both succeed, since
+    # uq_org_member does not stop two different users from joining the same invite.
+    # Only one request's UPDATE can match a still-unaccepted row.
+    claimed = (
+        db.query(OrganizationInvitation)
+        .filter(
+            OrganizationInvitation.token == token,
+            OrganizationInvitation.accepted_at.is_(None),
+        )
+        .update({"accepted_at": datetime.now(timezone.utc)})
+    )
+    if not claimed:
+        raise InvitationNotUsable("invitation not found or already accepted")
+
     # No _assert_can_grant_role call here on purpose: the grant policy was already
     # enforced once, against the INVITER's role, inside create_invitation above.
-    member = _create_member_row(db, invitation.organization_id, user_id, invitation.role)
+    # _create_member_row's own commit() is what persists the accepted_at claim above --
+    # both land in one transaction, so a crash between "claimed" and "member created" is
+    # no longer possible: either both happen or (via rollback below) neither does.
+    try:
+        member = _create_member_row(db, organization_id, user_id, role)
+    except IntegrityError:
+        # Same user double-clicking accept: two concurrent requests both pass
+        # _create_member_row's existing-membership SELECT, and the second INSERT trips
+        # uq_org_member. Convert to the same ValueError the duplicate-membership check
+        # already raises, so the endpoint maps it to a clean 422 instead of a 500.
+        db.rollback()
+        raise ValueError("already a member")
+    except ValueError:
+        # Leaves the claim un-persisted too: nothing was committed, so the invitation
+        # stays usable/pending for a later, valid accept.
+        db.rollback()
+        raise
 
-    invitation.accepted_at = datetime.now(timezone.utc)
-    db.commit()
     return member

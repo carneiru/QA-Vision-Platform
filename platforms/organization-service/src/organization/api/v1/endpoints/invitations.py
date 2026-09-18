@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.organization.api.deps import get_db, get_current_user_id, require_org_role
-from src.organization.schemas.invitation import InvitationCreate, InvitationOut
+from src.organization.schemas.invitation import InvitationCreate, InvitationOut, InvitationSummary
 from src.organization.service import invitation_service
 
 router = APIRouter()
@@ -29,7 +29,7 @@ def create_invitation(
     return invitation
 
 
-@router.get("", response_model=list[InvitationOut])
+@router.get("", response_model=list[InvitationSummary])
 def list_invitations(
     org_id: int,
     db: Session = Depends(get_db),

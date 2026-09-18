@@ -34,7 +34,7 @@ def test_migration_creates_model_tables(migrated_engine):
     tables = set(inspect(migrated_engine).get_table_names())
     assert "alembic_version" in tables
     # guards against a vacuous pass if Base.metadata ever loses its registrations
-    assert {"organizations", "organization_members"} <= set(Base.metadata.tables)
+    assert {"organizations", "organization_members", "organization_invitations"} <= set(Base.metadata.tables)
     assert set(Base.metadata.tables) <= tables
 
 

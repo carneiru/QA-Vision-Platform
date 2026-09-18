@@ -26,7 +26,10 @@ def upgrade() -> None:
         sa.Column("email", sa.String(255), nullable=False),
         sa.Column("role", sa.String(50), nullable=False),
         sa.Column("invited_by_user_id", sa.Integer(), nullable=False),
-        sa.Column("token", sa.String(255), nullable=False, unique=True),
+        # uniqueness comes from the unique index created below, matching the model's
+        # unique=True/index=True; declaring it here too would add a second, redundant
+        # unique index on Postgres plus a constraint the model never declares
+        sa.Column("token", sa.String(255), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),

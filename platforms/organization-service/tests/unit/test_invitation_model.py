@@ -11,7 +11,7 @@ def test_create_invitation(db):
 
     invitation = OrganizationInvitation(
         organization_id=org.id,
-        email="new@acme.test",
+        email="new@example.com",
         role="member",
         invited_by_user_id=1,
         token="abc123",
@@ -23,5 +23,5 @@ def test_create_invitation(db):
 
     assert invitation.id is not None
     assert invitation.accepted_at is None
-    assert invitation.email == "new@acme.test"
+    assert invitation.email == "new@example.com"
     assert invitation.role == "member"

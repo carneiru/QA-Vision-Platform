@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from src.organization.core.config import settings  # noqa: E402
 from src.organization.db.base import Base  # noqa: E402
-import src.organization.models  # noqa: F401,E402  registers Organization/OrganizationMember on Base.metadata
+import src.organization.models  # noqa: F401,E402  registers every model on Base.metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
