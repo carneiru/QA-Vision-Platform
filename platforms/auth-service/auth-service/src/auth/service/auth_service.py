@@ -58,11 +58,12 @@ class AuthService:
         return db_token
     
     @staticmethod
-    def revoke_refresh_token(db: Session, token: str, user_id: int = None) -> bool:
+    def revoke_refresh_token(db: Session, token: str, user_id: Optional[int]) -> bool:
+        # user_id is required rather than defaulting: passing None is the unscoped form,
+        # which rotation legitimately needs (it already located the row by value), but a
+        # caller must state that intent instead of getting it by forgetting an argument.
         query = db.query(RefreshToken).filter(RefreshToken.token == token)
         if user_id is not None:
-            # Logout passes this so a caller cannot revoke a session belonging to someone
-            # else purely by learning its token value.
             query = query.filter(RefreshToken.user_id == user_id)
         db_token = query.first()
         if db_token:

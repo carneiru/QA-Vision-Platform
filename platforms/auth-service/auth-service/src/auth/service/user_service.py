@@ -67,7 +67,7 @@ class UserService:
         return user
 
     @staticmethod
-    def update_user(db: Session, user_id: int, user_in: UserUpdate) -> User:
+    def update_user(db: Session, user_id: int, user_in: UserUpdate, allow_privileged: bool = False) -> User:
         user = UserService.get_user_by_id(db, user_id)
         if not user:
             raise HTTPException(
@@ -78,6 +78,13 @@ class UserService:
         update_data = user_in.dict(exclude_unset=True)
         if "password" in update_data:
             update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+
+        # Defence in depth behind UserSelfUpdate: this loop setattr's whatever it is handed,
+        # so a caller passing a schema that carries is_superuser would escalate silently.
+        # Privileged fields must be opted into explicitly by an admin-only caller.
+        if not allow_privileged:
+            for privileged in ("is_superuser", "is_active"):
+                update_data.pop(privileged, None)
 
         for field, value in update_data.items():
             setattr(user, field, value)

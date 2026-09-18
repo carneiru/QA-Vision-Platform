@@ -5,7 +5,7 @@ from src.auth.api import deps
 from src.auth.service.user_service import UserService
 # UserInDB carries hashed_password; aliasing it as the response model leaked every user's
 # bcrypt hash through /users/me, /users/ and /users/{id}. User is the public shape.
-from src.auth.schemas.user import UserCreate, UserUpdate, User
+from src.auth.schemas.user import UserSelfUpdate, User
 from src.auth.models.user import User as UserModel
 
 router = APIRouter()
@@ -39,7 +39,7 @@ def read_user_me(
 def update_user_me(
     *,
     db: Session = Depends(deps.get_db),
-    user_in: UserUpdate,
+    user_in: UserSelfUpdate,
     current_user: UserModel = Depends(deps.get_current_active_user),
 ):
     """

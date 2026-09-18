@@ -128,7 +128,6 @@ def test_unverified_email_is_rejected(client, db, google_key, email_verified):
     token = _id_token(google_key, **claims) if claims else _id_token(google_key)
     if not claims:
         # rebuild without the claim entirely
-        import copy
         token = pyjwt.encode(
             {k: v for k, v in pyjwt.decode(token, options={"verify_signature": False}).items()
              if k != "email_verified"},

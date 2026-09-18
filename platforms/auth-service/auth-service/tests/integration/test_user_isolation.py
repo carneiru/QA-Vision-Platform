@@ -77,6 +77,44 @@ def test_user_responses_never_include_password_hashes(client):
     assert "hashed_password" not in me.json()
 
 
+def test_user_cannot_promote_themselves_to_superuser(client):
+    """PUT /users/me accepted the full UserUpdate and setattr'd whatever arrived, so any
+    user could send {"is_superuser": true} and then read /users/."""
+    _register(client, "first@example.com")
+    _register(client, "second@example.com")
+    second = _login(client, "second@example.com")
+    auth = {"Authorization": f"Bearer {second['access_token']}"}
+
+    # listing users is superuser-only, and must stay that way
+    assert client.get("/api/v1/users/", headers=auth).status_code == 403
+
+    response = client.put(
+        "/api/v1/users/me", json={"is_superuser": True, "full_name": "Sneaky"}, headers=auth
+    )
+    # the request may be accepted, but the privileged field must not take effect
+    assert response.status_code in (200, 422)
+    if response.status_code == 200:
+        assert response.json().get("is_superuser") is not True
+
+    assert client.get("/api/v1/users/", headers=auth).status_code == 403, (
+        "self-update must not grant superuser"
+    )
+
+
+def test_user_cannot_deactivate_another_account_via_self_update(client):
+    """is_active is equally privileged -- flipping it is a self-inflicted lockout at best
+    and a tampering vector at worst."""
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+    auth = {"Authorization": f"Bearer {first['access_token']}"}
+
+    response = client.put("/api/v1/users/me", json={"is_active": False}, headers=auth)
+    assert response.status_code in (200, 422)
+
+    # still active: able to log in again
+    assert _login(client, "first@example.com")["access_token"]
+
+
 def test_logout_cannot_revoke_another_users_session(client):
     _register(client, "first@example.com")
     _register(client, "second@example.com")

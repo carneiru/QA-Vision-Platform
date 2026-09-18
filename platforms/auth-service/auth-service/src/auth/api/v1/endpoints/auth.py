@@ -79,7 +79,7 @@ def refresh_access_token(
         )
     
     # Revoke old refresh token
-    AuthService.revoke_refresh_token(db, request.refresh_token)
+    AuthService.revoke_refresh_token(db, request.refresh_token, user_id=db_token.user_id)
     
     # Issue new tokens
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)

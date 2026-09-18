@@ -35,6 +35,17 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None
 
+class UserSelfUpdate(BaseModel):
+    # What a user may change about their own account. Deliberately excludes is_active and
+    # is_superuser: PUT /users/me accepted the full UserUpdate, and update_user setattr'd
+    # whatever arrived, so any user could POST {"is_superuser": true} and promote themselves.
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    department: Optional[str] = None
+    job_title: Optional[str] = None
+
 class UserInDB(UserBase):
     id: int
     hashed_password: str
