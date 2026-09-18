@@ -21,6 +21,12 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
 
+class RefreshTokenRequest(BaseModel):
+    # /auth/refresh-token and /auth/logout previously declared `refresh_token: str` as a bare
+    # parameter, which FastAPI reads as a QUERY parameter -- so a JSON body could never
+    # satisfy them and both always returned 422.
+    refresh_token: str
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 

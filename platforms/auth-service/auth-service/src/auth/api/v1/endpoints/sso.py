@@ -1,16 +1,94 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from src.auth.api import deps
-from src.auth.service.sso_service import SSOService
+import logging
+from src.auth.service.sso_service import SSOService, SSOConfigurationError
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
-from src.auth.schemas.auth import GoogleLoginRequest, GitHubLoginRequest, AzureLoginRequest, Token
-from src.auth.models.user import User
+from src.auth.schemas.auth import GoogleLoginRequest, Token
+from src.auth.schemas.user import UserCreate  # used when SSO creates a first-time user
 from src.auth.models.oauth import OAuthAccount
 from src.auth.config import settings
 from datetime import timedelta
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+def _link_or_create_user(db: Session, google_data: dict, email: str, provider: str,
+                         provider_user_id: str):
+    """Resolve a Google identity that is not yet linked to any account.
+
+    Reached only when no OAuthAccount matches this provider and `sub`.
+    """
+    user = UserService.get_user_by_email(db, email)
+
+    if user is None:
+        user_in = UserCreate(
+            email=email,
+            full_name=google_data.get("full_name"),
+            password=None,  # SSO user -- no password
+        )
+        # One transaction. These used to be two commits, so a failure on the link left a
+        # committed passwordless user with no link -- and since SSO no longer auto-links to
+        # an existing account, that orphan answers 409 for its own address forever. A
+        # transient database error would have locked an address out permanently.
+        user = UserService.create_user(db, user_in, commit=False)
+        db.add(OAuthAccount(
+            user_id=user.id, provider=provider, provider_user_id=provider_user_id,
+        ))
+        try:
+            db.commit()
+        except IntegrityError:
+            # Another request created this identity between our lookup and our commit.
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="This Google account is already linked",
+            )
+        db.refresh(user)
+        return user
+
+    # An account holds this address. A verified Google email proves control of the mailbox,
+    # not ownership of whatever local account happens to share it. Linking on email alone is
+    # a pre-registration takeover: an attacker registers victim@corp.com with a password
+    # before the victim ever signs up, the victim then arrives via Google, gets attached to
+    # that row, and the attacker keeps password access to everything they do there.
+    existing_link = db.query(OAuthAccount).filter(
+        OAuthAccount.user_id == user.id,
+        OAuthAccount.provider == provider,
+    ).order_by(OAuthAccount.id).first()
+
+    if existing_link:
+        # Same address, a different Google identity -- a recycled or aliased mailbox.
+        # Whoever is already linked keeps the account.
+        logger.warning(
+            "Google sub mismatch for user %s: linked %s, presented %s",
+            user.id, existing_link.provider_user_id, provider_user_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This account is linked to a different Google identity",
+        )
+
+    # An unlinked account already holds this address, and nothing here proves the caller owns
+    # it. This used to auto-link when the row had no password, on the reasoning that a
+    # passwordless row has no credential to hijack. That reasoning was wrong: a passwordless,
+    # unlinked row is exactly what pre-provisioning produces -- an administrator seeds
+    # ceo@corp.com ahead of time, possibly with is_superuser set -- and auto-linking handed
+    # that account to whoever presented a Google token for the address first. Every producer
+    # of such a row is either that seeding or a half-failed create, so there is no legitimate
+    # case left to serve. Adopting SSO on an existing account needs an authenticated link
+    # endpoint, which is not built.
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "An account with this email already exists. Linking Google to an existing "
+            "account is not supported yet."
+        ),
+    )
 
 
 @router.post("/google", response_model=Token)
@@ -29,10 +107,19 @@ def google_login(
     google_data = None
     try:
         google_data = asyncio.run(SSOService.validate_google_token(request.credential))
-    except Exception as e:
+    except SSOConfigurationError:
+        # Our misconfiguration, not the caller's bad input.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google SSO is not configured",
+        )
+    except Exception:
+        # Deliberately opaque: the underlying text carries JWKS URLs and internal state, and
+        # this endpoint answers unauthenticated callers.
+        logger.warning("Google ID token verification failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid Google token: {str(e)}"
+            detail="Invalid Google token",
         )
     
     if not google_data:
@@ -46,218 +133,68 @@ def google_login(
     provider = google_data["provider"]
     provider_user_id = google_data["provider_user_id"]
     
-    # Try to find existing user by email
-    user = UserService.get_user_by_email(db, email)
-    
-    if user:
-        # User exists, check if OAuth account exists
-        oauth_account = db.query(OAuthAccount).filter(
-            OAuthAccount.user_id == user.id,
-            OAuthAccount.provider == provider,
-            OAuthAccount.provider_user_id == provider_user_id
-        ).first()
-        
-        if not oauth_account:
-            # Link existing account to OAuth
-            oauth_account = OAuthAccount(
-                user_id=user.id,
-                provider=provider,
-                provider_user_id=provider_user_id
+    # Resolve by the provider identity first. (provider, provider_user_id) is UNIQUE, so the
+    # Google `sub` is the actual identity key here; the email is a mutable attribute of it.
+    # Looking up by email first meant a user whose Google address had changed fell through to
+    # the create branch, which committed a new user row and only then hit uix_provider_user
+    # -- a 500 with an orphaned account left behind.
+    linked = db.query(OAuthAccount).filter(
+        OAuthAccount.provider == provider,
+        OAuthAccount.provider_user_id == provider_user_id,
+    ).first()
+
+    if linked:
+        # Known identity. The address on the token may have changed since; that does not
+        # matter, and is deliberately not written back onto the account.
+        user = UserService.get_user_by_id(db, linked.user_id)
+        if not user:
+            logger.error("OAuth link %s points at missing user %s", linked.id, linked.user_id)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Account is in an inconsistent state",
             )
-            db.add(oauth_account)
-            db.commit()
     else:
-        # Create new user
-        user_in = UserCreate(
-            email=email,
-            full_name=google_data.get("full_name"),
-            password=None  # SSO user - no password
-        )
-        user = UserService.create_user(db, user_in)
-        
-        # Create OAuth account link
-        oauth_account = OAuthAccount(
-            user_id=user.id,
-            provider=provider,
-            provider_user_id=provider_user_id
-        )
-        db.add(oauth_account)
-        db.commit()
+        user = _link_or_create_user(db, google_data, email, provider, provider_user_id)
     
+    # Password login refuses a deactivated account; SSO did not, so disabling someone left
+    # them a working way in for as long as their Google account existed.
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )
+
     # Generate tokens
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
-    refresh_token = AuthService.create_refresh_token_for_user(user)
+    refresh_token = AuthService.create_user_session(db, user).token
     
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer"
     }
+
+
+
+# GitHub and Azure SSO are not implemented. They previously called SSOService methods that
+# did not exist (validate_github_token / validate_azure_token vs. the service's
+# exchange_github_code / exchange_azure_code), and the GitHub handler additionally contained
+# a syntax error, so this module never imported. Rather than resurrect mock handlers that
+# returned hardcoded identities, both now fail honestly until real OAuth exchanges are built.
 
 
 @router.post("/github", response_model=Token)
-def github_login(
-    *,
-    db: Session = Depends(deps.get_db),
-    .get_db),
-    request: GitHubLoginRequest
-):
-    """
-    Authenticate with GitHub OAuth token.
-    """
-    # Import here to avoid circular imports
-    import asyncio
-    
-    # Validate GitHub token
-    github_data = None
-    try:
-        github_data = asyncio.run(SSOService.validate_github_token(request.code))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid GitHub token: {str(e)}"
-        )
-    
-    if not github_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid GitHub token"
-        )
-    
-    # Check if user exists with this email/provider
-    email = github_data["email"]
-    provider = github_data["provider"]
-    provider_user_id = github_data["provider_user_id"]
-    
-    # Try to find existing user by email
-    user = UserService.get_user_by_email(db, email)
-    
-    if user:
-        # User exists, check if OAuth account exists
-        oauth_account = db.query(OAuthAccount).filter(
-            OAuthAccount.user_id == user.id,
-            OAuthAccount.provider == provider,
-            OAuthAccount.provider_user_id == provider_user_id
-        ).first()
-        
-        if not oauth_account:
-            # Link existing account to OAuth
-            oauth_account = OAuthAccount(
-                user_id=user.id,
-                provider=provider,
-                provider_user_id=provider_user_id
-            )
-            db.add(oauth_account)
-            db.commit()
-    else:
-        # Create new user
-        user_in = UserCreate(
-            email=email,
-            full_name=github_data.get("full_name"),
-            password=None  # SSO user - no password
-        )
-        user = UserService.create_user(db, user_in)
-        
-        # Create OAuth account link
-        oauth_account = OAuthAccount(
-            user_id=user.id,
-            provider=provider,
-            provider_user_id=provider_user_id
-        )
-        db.add(oauth_account)
-        db.commit()
-    
-    # Generate tokens
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
-    refresh_token = AuthService.create_refresh_token_for_user(user)
-    
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+def github_login():
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="GitHub SSO is not implemented",
+    )
 
 
 @router.post("/azure", response_model=Token)
-def azure_login(
-    *,
-    db: Session = Depends(deps.get_db),
-    request: AzureLoginRequest
-):
-    """
-    Authenticate with Azure AD token.
-    """
-    # Import here to avoid circular imports
-    import asyncio
-    
-    # Validate Azure token
-    azure_data = None
-    try:
-        azure_data = asyncio.run(SSOService.validate_azure_token(request.code, request.tenant_id))
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid Azure token: {str(e)}"
-        )
-    
-    if not azure_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Azure token"
-        )
-    
-    # Check if user exists with this email/provider
-    email = azure_data["email"]
-    provider = azure_data["provider"]
-    provider_user_id = azure_data["provider_user_id"]
-    
-    # Try to find existing user by email
-    user = UserService.get_user_by_email(db, email)
-    
-    if user:
-        # User exists, check if OAuth account exists
-        oauth_account = db.query(OAuthAccount).filter(
-            OAuthAccount.user_id == user.id,
-            OAuthAccount.provider == provider,
-            OAuthAccount.provider_user_id == provider_user_id
-        ).first()
-        
-        if not oauth_account:
-            # Link existing account to OAuth
-            oauth_account = OAuthAccount(
-                user_id=user.id,
-                provider=provider,
-                provider_user_id=provider_user_id
-            )
-            db.add(oauth_account)
-            db.commit()
-    else:
-        # Create new user
-        user_in = UserCreate(
-            email=email,
-            full_name=azure_data.get("full_name"),
-            password=None  # SSO user - no password
-        )
-        user = UserService.create_user(db, user_in)
-        
-        # Create OAuth account link
-        oauth_account = OAuthAccount(
-            user_id=user.id,
-            provider=provider,
-            provider_user_id=provider_user_id
-        )
-        db.add(oauth_account)
-        db.commit()
-    
-    # Generate tokens
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
-    refresh_token = AuthService.create_refresh_token_for_user(user)
-    
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+def azure_login():
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Azure SSO is not implemented",
+    )

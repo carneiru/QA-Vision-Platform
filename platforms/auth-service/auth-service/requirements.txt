@@ -3,9 +3,13 @@ uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# passlib 1.7.4 predates bcrypt 4.1+ and misreads its version, failing every hash with a
+# bogus "password cannot be longer than 72 bytes". Pin bcrypt until passlib is replaced.
+bcrypt==4.0.1
 python-dotenv==1.0.0
 email-validator==2.1.1
 pydantic[email]==2.7.0
+pydantic-settings==2.2.1
 SQLAlchemy==2.0.29
 psycopg2-binary==2.9.9
 alembic==1.13.1
@@ -15,3 +19,6 @@ cryptography==42.0.0
 python3-saml
 Authlib==1.2.1
 requests==2.31.0
+# Test dependencies (the suite could not run without these; matches organization-service)
+pytest==8.1.1
+httpx==0.27.0

@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from src.auth.api.v1.api import api_router
-from src.auth.core.config import settings
+from src.auth.config import settings
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 

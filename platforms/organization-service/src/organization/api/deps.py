@@ -1,46 +1,48 @@
-from typing import Generator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from src.organization.db.session import SessionLocal, get_db
-from src.organization.models.user import User
+from src.organization.db.session import get_db
 from src.organization.utils.tokens import decode_token
-from src.organization.config import settings
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
-def get_db() -> Generator:
-    try:
-        db = SessionLocal()
-        yield db
-    finally:
-        db.close()
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
-) -> User:
+def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if token is None:
+        raise credentials_exception
     try:
         payload = decode_token(token)
-        user_id: int = int(payload.get("sub"))
-        if user_id is None:
-            raise credentials_exception
-    except (ValueError, TypeError):
+        return int(payload["sub"])
+    except (ValueError, KeyError, TypeError):
         raise credentials_exception
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise credentials_exception
-    return user
 
-async def get_current_active_user(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
+
+def require_org_role(*roles: str):
+    # local imports avoid a service->deps->service cycle
+    from src.organization.service.member_service import get_role
+    from src.organization.service.organization_service import get_organization
+
+    def dependency(
+        org_id: int,
+        db: Session = Depends(get_db),
+        user_id: int = Depends(get_current_user_id),
+    ) -> str:
+        # get_organization filters out soft-deleted orgs, so a deleted org is invisible to every guarded route
+        if get_organization(db, org_id) is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+        role = get_role(db, org_id, user_id)
+        if role is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not a member of this organization")
+        if role not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+        return role
+
+    return dependency
+
+
+__all__ = ["get_db", "get_current_user_id", "require_org_role"]

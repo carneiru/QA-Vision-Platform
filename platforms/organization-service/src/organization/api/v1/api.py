@@ -1,10 +1,10 @@
 from fastapi import APIRouter
-from .endpoints import auth, users, sso
+from src.organization.api.v1.endpoints import organizations, members, invitations, invitation_accept
 
 api_router = APIRouter()
-
-api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
-api_router.include_router(users.router, prefix="/users", tags=["users"])
-api_router.include_router(sso.router, prefix="/sso", tags=["sso"])
+api_router.include_router(organizations.router, prefix="/organizations", tags=["organizations"])
+api_router.include_router(members.router, prefix="/organizations/{org_id}/members", tags=["members"])
+api_router.include_router(invitations.router, prefix="/organizations/{org_id}/invitations", tags=["invitations"])
+api_router.include_router(invitation_accept.router, prefix="/invitations", tags=["invitations"])
 
 __all__ = ["api_router"]

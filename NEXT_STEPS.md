@@ -1,46 +1,49 @@
 # Immediate Next Steps for QA Vision Architecture Evolution
 
-## Phase 0: Foundation Setup (Start Now)
+**Corrected 2026-09-17:** this checklist had gone stale — several items below were marked incomplete despite already being done (directory reorg), and the Organization Service line described a design that shipped somewhat differently in practice. Checkboxes below reflect actual verified repo state, not prior assumptions. See `ARCHITECTURE_EVOLUTION_SUMMARY.md` for the corresponding, also-corrected service-status summary.
+
+## Phase 0: Foundation Setup
 
 ### 1. Create Domain Directory Structure
-- [ ] Create top-level domain directories:
+- [x] Create top-level domain directories:
   - platforms/
   - integrations/
   - execution/
   - intelligence/
   - collaboration/
   - administration/
-  - shared/
+  - [ ] shared/ — directory does **not** exist; still not done (see #3 below, also still not done)
 
 ### 2. Reorganize Existing Code
-- [ ] Move `src/services/auth-service/` → `platforms/auth-service/`
-- [ ] Move `ai-engine/` → `intelligence/ai-engine/`
-- [ ] Update all internal imports and references
+- [x] Move `src/services/auth-service/` → `platforms/auth-service/`
+- [x] Move `ai-engine/` → `intelligence/ai-engine/`
+- [x] Update all internal imports and references (auth-service builds and runs from its new location)
 
 ### 3. Establish Shared Foundations
 - [ ] Create `shared/logging.py` (consolidate existing logging config)
 - [ ] Create `shared/config.py` (consolidate existing config)
 - [ ] Create `shared/exceptions.py` (consolidate existing exceptions)
 - [ ] Create `shared/database.py` (consolidate existing DB setup)
-- [ ] Create `shared/models/base.py` with:
-  - BaseModel with id, created_at, updated_at
-  - TenantAwareModel with tenant_id
-  - AuditableModel with created_by, updated_by
+- [ ] Create `shared/models/base.py` with BaseModel/TenantAwareModel/AuditableModel
+
+None of this exists. Every real service so far (auth-service, organization-service) has independently reimplemented its own config/db/base-model boilerplate rather than sharing it — worth doing before a third real service is built, to avoid a third copy of the same code.
 
 ### 4. Update Authentication Service for Platform Domain
-- [ ] Ensure User model has tenant_id for multi-tenancy
-- [ ] Verify all Auth Service endpoints work with new structure
-- [ ] Test authentication flows with reorganized code
+- [x] User model has `tenant_id` (`platforms/auth-service/auth-service/src/auth/models/user.py`)
+- [x] Auth Service endpoints work from the new structure (tests pass)
+- [x] Authentication flows tested (auth-service's own test suite)
 
 ## Phase 1: Platform Completion (Weeks 1-4)
 
-### 1. Organization Service (platforms/organization-service/)
-- [ ] Create Organization model (id, name, slug, created_at, etc.)
-- [ ] Create Team model (id, name, organization_id, etc.)
-- [ ] Implement basic CRUD operations for organizations and teams
-- [ ] Add organization-scoping to authentication middleware
-- [ ] Create API endpoints for organization/team management
-- [ ] Write unit and integration tests
+### 1. Organization Service (platforms/organization-service/) — ✅ DONE (2026-09-16/17, differs from this checklist's original shape)
+- [x] Organization model (id, name, slug, plan_tier, created_at, updated_at, deleted_at for soft-delete)
+- [x] Membership implemented as `OrganizationMember` (role/status per user per org) rather than a separate `Team` entity — same underlying need (who belongs to an org and with what permissions), different shape than originally sketched here
+- [x] CRUD operations for organizations and memberships
+- [x] Organization-scoping enforced via a `require_org_role` FastAPI dependency (404 not-a-member / 403 wrong-role)
+- [x] API endpoints for organization + membership management
+- [x] Unit and integration tests (51, all passing)
+- [ ] Invitation system — **specced, not yet built**: `docs/superpowers/specs/2026-09-17-organization-invitations-design.md`
+- [ ] Per-org SSO/MFA/session settings — not yet even specced
 
 ### 2. Project Service (projects/project-service/)
 - [ ] Create Project model (with organization_id)

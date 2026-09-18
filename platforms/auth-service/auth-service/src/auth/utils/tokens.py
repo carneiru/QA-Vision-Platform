@@ -21,12 +21,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def create_refresh_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "token_type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+# create_refresh_token (JWT-based) was removed: refresh tokens are opaque, revocable rows
+# issued by AuthService.create_user_session. Reintroducing a JWT variant would silently
+# bring back unstored, unrevocable refresh tokens.
 
 def decode_token(token: str) -> dict:
     try:
