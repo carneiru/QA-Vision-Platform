@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from src.auth.models.user import User
 from src.auth.models.session import RefreshToken
-from src.auth.utils.tokens import create_access_token, create_refresh_token, decode_token
+from src.auth.utils.tokens import create_access_token, decode_token
 from src.auth.utils.security import verify_password
 from src.auth.service.user_service import UserService
 from src.auth.config import settings
@@ -19,10 +19,6 @@ class AuthService:
         return create_access_token(
             data={"sub": str(user.id)}, expires_delta=expires_delta
         )
-    
-    @staticmethod
-    def create_refresh_token_for_user(user: User) -> str:
-        return create_refresh_token(data={"sub": str(user.id)})
     
     @staticmethod
     def create_user_session(db: Session, user: User, user_agent: str = None, ip_address: str = None) -> RefreshToken:
@@ -62,8 +58,13 @@ class AuthService:
         return db_token
     
     @staticmethod
-    def revoke_refresh_token(db: Session, token: str) -> bool:
-        db_token = db.query(RefreshToken).filter(RefreshToken.token == token).first()
+    def revoke_refresh_token(db: Session, token: str, user_id: int = None) -> bool:
+        query = db.query(RefreshToken).filter(RefreshToken.token == token)
+        if user_id is not None:
+            # Logout passes this so a caller cannot revoke a session belonging to someone
+            # else purely by learning its token value.
+            query = query.filter(RefreshToken.user_id == user_id)
+        db_token = query.first()
         if db_token:
             db_token.is_revoked = True
             db.commit()

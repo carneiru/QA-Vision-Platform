@@ -12,7 +12,12 @@ class UserService:
 
     @staticmethod
     def get_user_by_id(db: Session, user_id: int) -> User:
-        return db.query(User).filter(user_id == user_id).first()
+        # This read `filter(user_id == user_id)` -- a Python tautology evaluating to True,
+        # so SQLAlchemy emitted `WHERE true` and returned the FIRST user row for every id.
+        # /auth/refresh-token resolved identities through here, so any user could refresh
+        # into an access token for users.id == 1, and PUT /users/me could overwrite that
+        # account (password included).
+        return db.query(User).filter(User.id == user_id).first()
 
     @staticmethod
     def get_users(db: Session, skip: int = 0, limit: int = 100) -> list:
@@ -31,7 +36,9 @@ class UserService:
         # Create new user
         user = User(
             email=user_in.email,
-            hashed_password=get_password_hash(user_in.password),
+            # SSO-created users have no password; the column is nullable for exactly that.
+            # Hashing None raises, which made every first-time SSO login fail.
+            hashed_password=get_password_hash(user_in.password) if user_in.password else None,
             full_name=user_in.full_name,
             is_active=True
         )

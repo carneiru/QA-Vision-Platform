@@ -51,16 +51,22 @@ class SSOService:
             signing_key.key,
             algorithms=["RS256"],
             audience=settings.GOOGLE_CLIENT_ID,
-            issuer=list(GOOGLE_ISSUERS),
             options={"require": ["exp", "iss", "aud", "sub"]},
         )
+
+        # Checked here rather than via jwt.decode(issuer=...): PyJWT 2.8.0 compares iss with
+        # a plain !=, so passing the two-element tuple Google actually uses rejected every
+        # real token. Accepting a list only landed in PyJWT 2.10.
+        if claims.get("iss") not in GOOGLE_ISSUERS:
+            raise ValueError(f"unexpected issuer: {claims.get('iss')!r}")
 
         if not claims.get("email"):
             raise ValueError("Google ID token carries no email claim")
 
-        # Google sets email_verified=False for addresses it has not confirmed; accepting
-        # those would let someone claim an address they do not control.
-        if claims.get("email_verified") is False:
+        # Require an explicit boolean true. Checking `is False` let an absent claim -- or a
+        # string "false", which some Google surfaces have emitted -- through, which defeats
+        # the point: an unverified address is one the caller may not control.
+        if claims.get("email_verified") is not True:
             raise ValueError("Google ID token's email is not verified")
 
         return {

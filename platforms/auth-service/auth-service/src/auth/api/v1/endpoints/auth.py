@@ -5,7 +5,7 @@ from src.auth.api import deps
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
 from src.auth.schemas.auth import LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest
-from src.auth.schemas.user import UserCreate, User
+from src.auth.schemas.user import UserCreate, RegisterRequest, User
 from src.auth.config import settings
 
 router = APIRouter()
@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.post("/register", response_model=User)
 def register_user(
-    user_in: UserCreate,
+    user_in: RegisterRequest,
     db: Session = Depends(deps.get_db)
 ):
     """
@@ -103,7 +103,7 @@ def logout_user(
     """
     Logout user by revoking refresh token.
     """
-    success = AuthService.revoke_refresh_token(db, request.refresh_token)
+    success = AuthService.revoke_refresh_token(db, request.refresh_token, user_id=current_user.id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

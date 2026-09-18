@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from src.auth.api import deps
 from src.auth.service.user_service import UserService
-from src.auth.schemas.user import UserCreate, UserUpdate, UserInDB as User
+# UserInDB carries hashed_password; aliasing it as the response model leaked every user's
+# bcrypt hash through /users/me, /users/ and /users/{id}. User is the public shape.
+from src.auth.schemas.user import UserCreate, UserUpdate, User
 from src.auth.models.user import User as UserModel
 
 router = APIRouter()

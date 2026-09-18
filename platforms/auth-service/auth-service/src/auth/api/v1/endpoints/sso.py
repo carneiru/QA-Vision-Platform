@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.auth.api import deps
-from src.auth.service.sso_service import SSOService
+import logging
+from src.auth.service.sso_service import SSOService, SSOConfigurationError
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
-from src.auth.schemas.auth import GoogleLoginRequest, GitHubLoginRequest, AzureLoginRequest, Token
-from src.auth.models.user import User
+from src.auth.schemas.auth import GoogleLoginRequest, Token
+from src.auth.schemas.user import UserCreate  # used when SSO creates a first-time user
 from src.auth.models.oauth import OAuthAccount
 from src.auth.config import settings
 from datetime import timedelta
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -29,10 +32,19 @@ def google_login(
     google_data = None
     try:
         google_data = asyncio.run(SSOService.validate_google_token(request.credential))
-    except Exception as e:
+    except SSOConfigurationError:
+        # Our misconfiguration, not the caller's bad input.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google SSO is not configured",
+        )
+    except Exception:
+        # Deliberately opaque: the underlying text carries JWKS URLs and internal state, and
+        # this endpoint answers unauthenticated callers.
+        logger.warning("Google ID token verification failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid Google token: {str(e)}"
+            detail="Invalid Google token",
         )
     
     if not google_data:
