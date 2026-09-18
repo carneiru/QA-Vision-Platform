@@ -90,7 +90,17 @@ class UserService:
             setattr(user, field, value)
 
         db.add(user)
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # email is UNIQUE. Updating to an address another account already holds raised
+            # this straight out of the endpoint as a 500 -- create_user has always caught it,
+            # update_user never did.
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
         db.refresh(user)
         return user
 

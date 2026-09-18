@@ -134,3 +134,70 @@ def test_logout_cannot_revoke_another_users_session(client):
         "/api/v1/auth/refresh-token", json={"refresh_token": first["refresh_token"]}
     )
     assert refreshed.status_code == 200
+
+
+def test_password_change_requires_the_current_password(client):
+    """A stolen access token is a bearer credential with a multi-day life. Without this
+    check, a minute's use of one is enough to replace the password and own the account."""
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+    auth = {"Authorization": f"Bearer {first['access_token']}"}
+
+    refused = client.put(
+        "/api/v1/users/me", json={"password": "attackerchosen1"}, headers=auth
+    )
+    assert refused.status_code == 400, refused.text
+
+    wrong = client.put(
+        "/api/v1/users/me",
+        json={"password": "attackerchosen1", "current_password": "notmypassword"},
+        headers=auth,
+    )
+    assert wrong.status_code == 400, wrong.text
+
+    # the original password still works
+    assert _login(client, "first@example.com")["access_token"]
+
+
+def test_password_change_revokes_existing_sessions(client):
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+    stolen_refresh = first["refresh_token"]
+
+    changed = client.put(
+        "/api/v1/users/me",
+        json={"password": "brandnewpassword1", "current_password": "securepassword123"},
+        headers={"Authorization": f"Bearer {first['access_token']}"},
+    )
+    assert changed.status_code == 200, changed.text
+
+    reused = client.post(
+        "/api/v1/auth/refresh-token", json={"refresh_token": stolen_refresh}
+    )
+    assert reused.status_code == 401, "sessions must not outlive the password they were issued under"
+
+
+def test_short_password_is_refused_on_self_update(client):
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+
+    response = client.put(
+        "/api/v1/users/me",
+        json={"password": "x", "current_password": "securepassword123"},
+        headers={"Authorization": f"Bearer {first['access_token']}"},
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_changing_email_to_a_taken_address_is_a_client_error(client):
+    """The UNIQUE constraint surfaced as an uncaught IntegrityError, so this was a 500."""
+    _register(client, "first@example.com")
+    _register(client, "second@example.com")
+    second = _login(client, "second@example.com")
+
+    response = client.put(
+        "/api/v1/users/me",
+        json={"email": "first@example.com"},
+        headers={"Authorization": f"Bearer {second['access_token']}"},
+    )
+    assert response.status_code == 400, response.text

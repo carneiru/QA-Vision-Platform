@@ -40,7 +40,13 @@ class UserSelfUpdate(BaseModel):
     # is_superuser: PUT /users/me accepted the full UserUpdate, and update_user setattr'd
     # whatever arrived, so any user could POST {"is_superuser": true} and promote themselves.
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    # Same floor registration enforces. Without it this route accepted a one-character
+    # password, which is a way to downgrade an account's credential rather than change it.
+    password: Optional[str] = Field(None, min_length=8)
+    # Required when `password` is set. A stolen access token is bearer-only and lives for
+    # days; without this, holding one for a minute is enough to take the account permanently
+    # by replacing the password the real owner logs in with.
+    current_password: Optional[str] = None
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     department: Optional[str] = None

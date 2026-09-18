@@ -209,3 +209,36 @@ def test_unimplemented_providers_report_501(client, provider):
     response = client.post(f"/api/v1/sso/{provider}", json={"code": "irrelevant"})
 
     assert response.status_code == 501
+
+
+def test_deactivated_user_cannot_log_in_through_google(client, db, google_key):
+    """Password login refuses an inactive account. SSO did not, so deactivating someone
+    left their Google route open."""
+    first = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert first.status_code == 200
+
+    user = db.query(User).filter(User.email == "person@example.com").first()
+    user.is_active = False
+    db.commit()
+
+    again = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+
+    assert again.status_code != 200, again.text
+    assert "access_token" not in again.json()
+
+
+def test_sso_user_who_sets_a_password_keeps_google_access(client, db, google_key):
+    """The 409 for password accounts must not strand an SSO user who adds a password: the
+    existing link is checked before the password is."""
+    first = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert first.status_code == 200
+
+    added = client.put(
+        "/api/v1/users/me",
+        json={"password": "chosenpassword1"},
+        headers={"Authorization": f"Bearer {first.json()['access_token']}"},
+    )
+    assert added.status_code == 200, added.text
+
+    again = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert again.status_code == 200, again.text

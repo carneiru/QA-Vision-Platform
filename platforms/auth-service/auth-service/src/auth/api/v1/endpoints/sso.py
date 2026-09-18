@@ -121,6 +121,14 @@ def google_login(
         db.add(oauth_account)
         db.commit()
     
+    # Password login refuses a deactivated account; SSO did not, so disabling someone left
+    # them a working way in for as long as their Google account existed.
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user",
+        )
+
     # Generate tokens
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
