@@ -30,7 +30,7 @@ def test_register_and_login(client):
     
     # Use access token to get user info
     response = client.get(
-        "/api/v1/auth/users/me",
+        "/api/v1/users/me",
         headers={"Authorization": f"Bearer {token_data['access_token']}"}
     )
     assert response.status_code == 200

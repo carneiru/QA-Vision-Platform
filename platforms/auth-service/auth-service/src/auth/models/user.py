@@ -13,8 +13,11 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    # Tenant ID for multi-tenancy
-    tenant_id = Column(Integer, nullable=False, index=True)
+    # Tenant ID for multi-tenancy. Nullable: a user exists before belonging to any
+    # organization (registration precedes org creation), and nothing in this service ever
+    # assigned a value, so NOT NULL made user creation structurally impossible. Authoritative
+    # membership now lives in organization-service's organization_members table.
+    tenant_id = Column(Integer, nullable=True, index=True)
 
     # Profile information
     avatar_url = Column(String(500), nullable=True)

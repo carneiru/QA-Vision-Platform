@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
 from src.auth.models.user import User
@@ -29,10 +29,12 @@ class AuthService:
         # Generate a secure random token
         refresh_token = secrets.token_urlsafe(32)
         
-        # Create refresh token record
+        # Create refresh token record. expires_at is NOT NULL and was never populated, so
+        # every session insert failed its constraint.
         db_token = RefreshToken(
             token=refresh_token,
             user_id=user.id,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
             user_agent=user_agent,
             ip_address=ip_address
         )
@@ -48,6 +50,14 @@ class AuthService:
             RefreshToken.is_revoked == False
         ).first()
         if not db_token:
+            return None
+        # Expiry was stored but never checked, so a refresh token would have been accepted
+        # forever. SQLite returns naive datetimes for timezone-aware columns; normalize
+        # before comparing.
+        expires_at = db_token.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
             return None
         return db_token
     

@@ -2,7 +2,7 @@ from src.auth.api.main import app
 
 if __name__ == "__main__":
     import uvicorn
-    from src.auth.core.config import settings
+    from src.auth.config import settings
     uvicorn.run(
         app, 
         host="0.0.0.0", 

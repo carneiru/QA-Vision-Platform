@@ -1,5 +1,6 @@
+from fastapi import HTTPException
 from src.auth.service.user_service import UserService
-from auth.schemas.user import UserCreate
+from src.auth.schemas.user import UserCreate
 
 def test_create_user(db):
     user_in = UserCreate(
@@ -25,8 +26,9 @@ def test_duplicate_email(db):
     try:
         UserService.create_user(db, user_in)
         assert False, "Should have raised HTTPException"
-    except Exception as e:
-        assert "Email already registered" in str(e)
+    except HTTPException as e:
+        # str(HTTPException) is empty in current FastAPI; assert on .detail instead
+        assert "Email already registered" in e.detail
 
 def test_authenticate_user(db):
     user_in = UserCreate(

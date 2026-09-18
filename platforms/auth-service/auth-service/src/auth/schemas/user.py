@@ -28,7 +28,7 @@ class UserUpdate(BaseModel):
 class UserInDB(UserBase):
     id: int
     hashed_password: str
-    tenant_id: int
+    tenant_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -37,7 +37,7 @@ class UserInDB(UserBase):
 
 class User(UserBase):
     id: int
-    tenant_id: int
+    tenant_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

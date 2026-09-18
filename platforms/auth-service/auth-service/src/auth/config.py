@@ -43,9 +43,11 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
     ALGORITHM: str = "HS256"
 
-    # Superuser
-    FIRST_SUPERUSER: str
-    FIRST_SUPERUSER_PASSWORD: str
+    # Superuser. Optional: nothing in this service reads these today, and making them
+    # required meant Settings() raised on import, so the app could not start at all.
+    # No default password is supplied on purpose -- a baked-in one would be worse than absent.
+    FIRST_SUPERUSER: Optional[str] = None
+    FIRST_SUPERUSER_PASSWORD: Optional[str] = None
 
     # Email (for notifications)
     SMTP_TLS: bool = True

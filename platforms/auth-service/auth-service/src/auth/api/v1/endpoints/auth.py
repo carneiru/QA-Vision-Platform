@@ -4,7 +4,7 @@ from datetime import timedelta
 from src.auth.api import deps
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
-from src.auth.schemas.auth import LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm
+from src.auth.schemas.auth import LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest
 from src.auth.schemas.user import UserCreate, User
 from src.auth.config import settings
 
@@ -44,7 +44,7 @@ def login_access_token(
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
-    refresh_token = AuthService.create_refresh_token_for_user(user)
+    refresh_token = AuthService.create_user_session(db, user).token
     
     return {
         "access_token": access_token,
@@ -57,12 +57,12 @@ def login_access_token(
 def refresh_access_token(
     *,
     db: Session = Depends(deps.get_db),
-    refresh_token: str
+    request: RefreshTokenRequest
 ):
     """
     Refresh access token using refresh token.
     """
-    db_token = AuthService.verify_refresh_token(db, refresh_token)
+    db_token = AuthService.verify_refresh_token(db, request.refresh_token)
     if not db_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -79,12 +79,12 @@ def refresh_access_token(
         )
     
     # Revoke old refresh token
-    AuthService.revoke_refresh_token(db, refresh_token)
+    AuthService.revoke_refresh_token(db, request.refresh_token)
     
     # Issue new tokens
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
-    new_refresh_token = AuthService.create_refresh_token_for_user(user)
+    new_refresh_token = AuthService.create_user_session(db, user).token
     
     return {
         "access_token": access_token,
@@ -97,13 +97,13 @@ def refresh_access_token(
 def logout_user(
     *,
     db: Session = Depends(deps.get_db),
-    refresh_token: str,
+    request: RefreshTokenRequest,
     current_user: dict = Depends(deps.get_current_active_user)
 ):
     """
     Logout user by revoking refresh token.
     """
-    success = AuthService.revoke_refresh_token(db, refresh_token)
+    success = AuthService.revoke_refresh_token(db, request.refresh_token)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

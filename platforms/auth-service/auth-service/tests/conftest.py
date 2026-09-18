@@ -15,15 +15,18 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def db():
+    # Function-scoped with a fresh schema per test. It was session-scoped, so every test
+    # inherited rows from the previous one -- three unit tests each create test@example.com
+    # and only the first could succeed.
     Base.metadata.create_all(bind=engine)
+    session = TestingSessionLocal()
     try:
-        db = TestingSessionLocal()
-        yield db
+        yield session
     finally:
-        db.close()
-    Base.metadata.drop_all(bind=engine)
+        session.close()
+        Base.metadata.drop_all(bind=engine)
 
 @pytest.fixture(scope="function")
 def client(db):
