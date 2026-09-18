@@ -58,6 +58,44 @@ class AuthService:
         return db_token
     
     @staticmethod
+    def claim_refresh_token(db: Session, token: str):
+        """Atomically consume a refresh token for rotation.
+
+        Returns (row_or_None, outcome) where outcome is one of "claimed", "replayed",
+        "expired" or "unknown".
+
+        Rotation used to be verify-then-revoke across two statements, so two concurrent uses
+        of one token could both pass verification and each be issued a live chain. The
+        revocation here is a conditional UPDATE: exactly one caller can move a row from
+        not-revoked to revoked, and whoever loses that race is told the token was replayed.
+
+        "replayed" is reported separately because it is not an ordinary failure. A token that
+        exists but is already revoked means someone is presenting a token that was rotated
+        out -- the signature of a stolen token being used alongside its owner's. The caller
+        decides what to do about it; this returns the fact.
+        """
+        db_token = db.query(RefreshToken).filter(RefreshToken.token == token).first()
+        if db_token is None:
+            return None, "unknown"
+        if db_token.is_revoked:
+            return db_token, "replayed"
+
+        expires_at = db_token.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= datetime.now(timezone.utc):
+            return db_token, "expired"
+
+        claimed = db.query(RefreshToken).filter(
+            RefreshToken.token == token,
+            RefreshToken.is_revoked == False,
+        ).update({RefreshToken.is_revoked: True}, synchronize_session=False)
+        db.commit()
+        if claimed != 1:
+            return db_token, "replayed"
+        return db_token, "claimed"
+
+    @staticmethod
     def revoke_refresh_token(db: Session, token: str, user_id: Optional[int]) -> bool:
         # user_id is required rather than defaulting: passing None is the unscoped form,
         # which rotation legitimately needs (it already located the row by value), but a

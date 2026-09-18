@@ -39,7 +39,13 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    # 60 minutes, was 8 days. Nothing can revoke an access token -- get_current_user decodes
+    # the JWT and loads the user, with no database check against revocation -- so this value
+    # IS the revocation delay. Logging out, changing a password or deactivating an account
+    # all left a captured token able to read and modify the account for the rest of those 8
+    # days. Refresh tokens are the long-lived, revocable half of the pair; the access token
+    # should be short enough that its irrevocability stops mattering.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
     ALGORITHM: str = "HS256"
 

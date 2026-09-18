@@ -12,7 +12,7 @@ The first phase of the platform implements a robust authentication service with 
 
 ### Features
 - **Email/Password Authentication** - Secure user registration and login with bcrypt password hashing
-- **Token Management** - JWT access tokens (default 8 days) and opaque refresh tokens stored in the database (30 days)
+- **Token Management** - JWT access tokens (default 60 minutes) and opaque refresh tokens stored in the database (30 days), rotated on use with replay detection
 - **Refresh Token Rotation** - The presented refresh token is revoked and replaced on each use
 - **Google SSO** - ID tokens verified against Google's JWKS. GitHub and Azure AD return 501; they were previously mocks that accepted any input.
 - **Role-Based Access Control** - Superuser-only endpoints for user listing

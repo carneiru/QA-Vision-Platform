@@ -59,25 +59,22 @@ def _link_or_create_user(db: Session, google_data: dict, email: str, provider: s
             detail="This account is linked to a different Google identity",
         )
 
-    if user.hashed_password is not None:
-        # There is a password on this account, so it has an owner who is not necessarily the
-        # caller. Auto-linking is only safe for a passwordless row, which has no independent
-        # credential to hijack. Adopting SSO on a password account needs an authenticated
-        # link endpoint; until that exists this says so rather than describing a flow the
-        # service does not offer.
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "An account with this email already exists. Linking Google to an existing "
-                "password account is not supported yet."
-            ),
-        )
-
-    db.add(OAuthAccount(
-        user_id=user.id, provider=provider, provider_user_id=provider_user_id,
-    ))
-    db.commit()
-    return user
+    # An unlinked account already holds this address, and nothing here proves the caller owns
+    # it. This used to auto-link when the row had no password, on the reasoning that a
+    # passwordless row has no credential to hijack. That reasoning was wrong: a passwordless,
+    # unlinked row is exactly what pre-provisioning produces -- an administrator seeds
+    # ceo@corp.com ahead of time, possibly with is_superuser set -- and auto-linking handed
+    # that account to whoever presented a Google token for the address first. Every producer
+    # of such a row is either that seeding or a half-failed create, so there is no legitimate
+    # case left to serve. Adopting SSO on an existing account needs an authenticated link
+    # endpoint, which is not built.
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail=(
+            "An account with this email already exists. Linking Google to an existing "
+            "account is not supported yet."
+        ),
+    )
 
 
 @router.post("/google", response_model=Token)

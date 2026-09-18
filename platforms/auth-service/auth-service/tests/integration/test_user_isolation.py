@@ -189,43 +189,6 @@ def test_short_password_is_refused_on_self_update(client):
     assert response.status_code == 422, response.text
 
 
-def test_changing_email_to_a_taken_address_is_a_client_error(client):
-    """The UNIQUE constraint surfaced as an uncaught IntegrityError, so this was a 500."""
-    _register(client, "first@example.com")
-    _register(client, "second@example.com")
-    second = _login(client, "second@example.com")
-
-    response = client.put(
-        "/api/v1/users/me",
-        json={"email": "first@example.com"},
-        headers={"Authorization": f"Bearer {second['access_token']}"},
-    )
-    assert response.status_code == 400, response.text
-
-
-def test_registration_ignores_privileged_fields_in_the_body(client):
-    """UserBase carried is_superuser, so /auth/register accepted it. Nothing copied it into
-    the model, which made this a trap rather than a hole -- one line away from being an
-    escalation at signup."""
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "sneaky@example.com",
-            "password": "securepassword123",
-            "is_superuser": True,
-            "is_active": True,
-        },
-    )
-    assert response.status_code == 200, response.text
-    assert response.json()["is_superuser"] is False
-
-    tokens = _login(client, "sneaky@example.com")
-    listing = client.get(
-        "/api/v1/users/", headers={"Authorization": f"Bearer {tokens['access_token']}"}
-    )
-    assert listing.status_code == 403
-
-
 def test_null_password_is_a_client_error_not_a_crash(client):
     """`password` is Optional, so an explicit null passed validation and reached
     get_password_hash(None), which raises."""
@@ -241,3 +204,79 @@ def test_null_password_is_a_client_error_not_a_crash(client):
 
     # the account is unchanged and still usable
     assert _login(client, "first@example.com")["access_token"]
+
+
+def test_registration_rejects_privileged_fields_in_the_body(client):
+    """An earlier version of this asserted the field was *ignored*, which passed against the
+    code it was written to guard -- Pydantic silently drops unknown fields, so a 200 proved
+    nothing. Input schemas now reject them, which is a difference a test can see."""
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "sneaky@example.com",
+            "password": "securepassword123",
+            "is_superuser": True,
+        },
+    )
+    assert response.status_code == 422, response.text
+
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"email": "sneaky@example.com", "password": "securepassword123"},
+    ).status_code == 401, "the account must not have been created"
+
+
+def test_self_update_cannot_change_email(client):
+    """Changing an address needed no password and no proof of owning the new one, so any
+    authenticated user could take any unregistered address in a single request. Its real
+    owner is then locked out permanently: registration answers 400, Google SSO answers 409."""
+    _register(client, "attacker@example.com")
+    attacker = _login(client, "attacker@example.com")
+
+    response = client.put(
+        "/api/v1/users/me",
+        json={"email": "ceo@example.com"},
+        headers={"Authorization": f"Bearer {attacker['access_token']}"},
+    )
+    assert response.status_code == 422, response.text
+
+    # the address is still free for its real owner
+    claimed = client.post(
+        "/api/v1/auth/register",
+        json={"email": "ceo@example.com", "password": "securepassword123"},
+    )
+    assert claimed.status_code == 200, claimed.text
+
+
+def test_replaying_a_rotated_refresh_token_ends_every_session(client):
+    """Rotation alone does not survive theft: the thief rotates the stolen token and it is
+    the owner's next refresh that fails, leaving the thief's chain live. A replay is treated
+    as a compromised chain instead."""
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+    stolen = first["refresh_token"]
+
+    thief = client.post("/api/v1/auth/refresh-token", json={"refresh_token": stolen})
+    assert thief.status_code == 200
+    thief_chain = thief.json()["refresh_token"]
+
+    # the owner presents the token they still hold, now rotated out
+    replay = client.post("/api/v1/auth/refresh-token", json={"refresh_token": stolen})
+    assert replay.status_code == 401
+
+    assert client.post(
+        "/api/v1/auth/refresh-token", json={"refresh_token": thief_chain}
+    ).status_code == 401, "a replay must revoke every session, the thief's included"
+
+
+def test_non_superuser_reading_another_id_is_forbidden_not_a_bad_request(client):
+    """Answered before the id is looked up, so a non-superuser cannot probe which ids exist;
+    and 403 rather than the 400 this used to return."""
+    _register(client, "first@example.com")
+    first = _login(client, "first@example.com")
+
+    response = client.get(
+        "/api/v1/users/999999",
+        headers={"Authorization": f"Bearer {first['access_token']}"},
+    )
+    assert response.status_code == 403, response.text

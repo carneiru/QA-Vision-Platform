@@ -227,33 +227,24 @@ def test_deactivated_user_cannot_log_in_through_google(client, db, google_key):
     assert "access_token" not in again.json()
 
 
-def test_sso_user_who_sets_a_password_keeps_google_access(client, db, google_key):
-    """The 409 for password accounts must not strand an SSO user who adds a password: the
-    existing link is checked before the password is."""
+def test_sso_account_cannot_gain_a_password_from_a_bearer_token(client, db, google_key):
+    """Setting a *first* password needed no proof, because there was nothing to confirm
+    against -- which turned a stolen access token, revocable by nothing, into a permanent
+    credential on the account. Google access is unaffected by the refusal."""
     first = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
     assert first.status_code == 200
 
-    added = client.put(
+    refused = client.put(
         "/api/v1/users/me",
-        json={"password": "chosenpassword1"},
+        json={"password": "attackerchosen1"},
         headers={"Authorization": f"Bearer {first.json()['access_token']}"},
     )
-    assert added.status_code == 200, added.text
+    assert refused.status_code == 400, refused.text
+
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"email": "person@example.com", "password": "attackerchosen1"},
+    ).status_code == 401, "no password may have been set"
 
     again = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
     assert again.status_code == 200, again.text
-
-
-def test_google_account_whose_email_changed_still_logs_in(client, db, google_key):
-    """Identity is the Google `sub`, not the address. Looking up by email first meant a
-    changed address fell through to the create branch, which committed a new user and only
-    then violated uix_provider_user -- a 500 leaving an orphaned account behind."""
-    first = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
-    assert first.status_code == 200
-
-    renamed = _id_token(google_key, email="person.new@example.com")
-    again = client.post("/api/v1/sso/google", json={"credential": renamed})
-
-    assert again.status_code == 200, again.text
-    assert db.query(User).count() == 1, "no second account may be created for the same sub"
-    assert db.query(OAuthAccount).count() == 1

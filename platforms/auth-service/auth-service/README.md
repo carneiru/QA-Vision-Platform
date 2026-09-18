@@ -6,7 +6,7 @@ Authentication for the QA Vision platform: email/password accounts, JWT access t
 
 This service provides core authentication and authorization functionality for the QA Vision platform. It implements industry-standard security practices including:
 - Secure user registration and authentication with bcrypt password hashing
-- JWT access tokens (configurable expiry, default 8 hours)
+- JWT access tokens (configurable, default 60 minutes)
 - Opaque refresh tokens stored server-side, rotated on use and revocable on logout
 - Google SSO with full ID token verification against Google's JWKS
 - Role-based access control with superuser privileges for administrative functions
@@ -16,7 +16,7 @@ This service provides core authentication and authorization functionality for th
 
 ### ✅ Implemented and tested
 - **Email/Password Authentication**: registration, login, logout
-- **Token Management**: JWT access tokens (8-hour expiry) and opaque database-backed refresh tokens (30-day expiry) with rotation on use and server-side revocation
+- **Token Management**: JWT access tokens (60 minutes) and opaque database-backed refresh tokens (30 days) with rotation on use, replay detection, and server-side revocation
 - **Google SSO**: ID tokens verified against Google's JWKS (RS256 signature, audience, issuer, expiry, verified email)
 - **User Management**: self-service profile read and update, restricted to non-privileged fields
 - **Administrative Functions**: superuser-only user listing
@@ -104,7 +104,7 @@ Copy `.env.example` to `.env` and configure as needed:
 
 ### Security Settings
 - `SECRET_KEY`: Secret key for JWT signing (REQUIRED - change in production!)
-- `ACCESS_TOKEN_EXPIRE_MINUTES`: Access token lifetime in minutes (default: 480 = 8 hours)
+- `ACCESS_TOKEN_EXPIRE_MINUTES`: Access token lifetime in minutes (default: 60). Nothing can revoke an access token, so this value is the revocation delay — logout, a password change and deactivation all leave an already-issued token working until it expires. It previously defaulted to 8 days.
 - `REFRESH_TOKEN_EXPIRE_DAYS`: Refresh token lifetime in days (default: 30)
 - `ALGORITHM`: JWT signing algorithm (default: "HS256")
 
@@ -159,7 +159,7 @@ providers they configure return 501:
 
 ### User Management
 - `GET /api/v1/users/me` - Get current user's profile
-- `PUT /api/v1/users/me` - Update current user's profile. Accepts `UserSelfUpdate` only: email, password, full_name, avatar_url, department, job_title. `is_active` and `is_superuser` are not settable here.
+- `PUT /api/v1/users/me` - Update current user's profile. Accepts `UserSelfUpdate` only: password (with `current_password`), full_name, avatar_url, department, job_title. Unknown fields are rejected with 422 rather than silently ignored, so `email`, `is_active` and `is_superuser` all fail loudly. Changing a password revokes every session; an SSO account cannot gain a password here.
 - `GET /api/v1/users/` - List all users (SUPERUSER ONLY)
 - `GET /api/v1/users/{user_id}` - Get a user by id (own account, or any account for a superuser)
 
@@ -189,9 +189,9 @@ There is no endpoint that grants superuser. The flag is set directly in the data
 - With no `GOOGLE_CLIENT_ID` configured the endpoint returns 503 rather than verifying without an audience, which would accept ID tokens minted for any other Google application
 - Just-in-time provisioning: a first-time Google user is created with no password
 - **Identity is the Google `sub`, not the email.** A returning user is resolved through the `(provider, provider_user_id)` link, so a Google account whose address changed still reaches its own account, and the new address is not written back.
-- **Account linking is restricted.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address. Google is auto-linked only to a passwordless row with no existing link for the provider. An account that has a password returns 409, as does an account already linked to a different Google `sub`. Linking Google to an existing password account needs an authenticated link endpoint, which is not built — password users cannot currently adopt SSO.
+- **Google is never linked to an account that already exists.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address, so only a first-time address creates an account; any address already held returns 409. An earlier version auto-linked when the existing row had no password, reasoning that there was no credential to hijack — but a passwordless unlinked row is exactly what pre-provisioning produces, so that handed a seeded account (possibly a superuser) to whoever presented a Google token for the address first. Adopting SSO on an existing account needs an authenticated link endpoint, which is not built.
 
-**Known limitation:** email addresses are never verified, at registration or on change. Someone can therefore register or switch to an address they do not control and, because of the 409 above, block its real owner from signing in with Google. This is strictly safer than the account takeover it replaced, but closing it properly needs email verification plus the link endpoint.
+**Known limitation:** email addresses are never verified. Self-service email changes are therefore not accepted at all (422) — allowing them let any authenticated user take any unregistered address in one request and lock out its real owner, since registration then answers 400 and Google SSO answers 409. Registration can still squat an unregistered address, which the same 409 turns into a lockout. Closing that needs address verification at registration, plus the link endpoint.
 
 ### Administrative Controls
 - Superuser-only endpoints protected by role-based checks
