@@ -2,11 +2,22 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from src.auth.api.v1.api import api_router
 from src.auth.config import settings
+from src.auth.db.session import SessionLocal
+from src.auth.service.bootstrap import bootstrap_first_superuser
 
 app = FastAPI(
     title=settings.APP_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
+
+
+@app.on_event("startup")
+def _bootstrap_first_superuser() -> None:
+    db = SessionLocal()
+    try:
+        bootstrap_first_superuser(db)
+    finally:
+        db.close()
 
 # Set all CORS enabled origins
 if settings.BACKEND_CORS_ORIGINS:
