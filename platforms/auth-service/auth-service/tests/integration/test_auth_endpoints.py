@@ -161,6 +161,12 @@ def test_resend_verification_declines_when_multiple_attempts_exist(client, db):
     # order by id (strictly monotonic) rather than created_at: created_at has only
     # second resolution in SQLite, and both registrations above can land in the same
     # second, making a created_at-only ordering ambiguous about which row is the victim's.
+    attacker_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == "ambiguous@example.com"
+    ).order_by(PendingRegistration.id.asc()).first()
+    attacker_id = attacker_pending.id
+    attacker_token = attacker_pending.token
+
     victim_pending = db.query(PendingRegistration).filter(
         PendingRegistration.email == "ambiguous@example.com"
     ).order_by(PendingRegistration.id.desc()).first()
@@ -177,6 +183,14 @@ def test_resend_verification_declines_when_multiple_attempts_exist(client, db):
         PendingRegistration.id == victim_id
     ).first()
     assert victim_pending.token == victim_token, "resend must not act when ambiguous"
+
+    attacker_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.id == attacker_id
+    ).first()
+    assert attacker_pending.token == attacker_token, (
+        "resend must not rotate the attacker's older row either -- a regression to "
+        "oldest-wins would rotate exactly this row and this assertion is what catches it"
+    )
 
     # the victim's OWN original link still works, entirely unaffected
     verified = client.get(f"/api/v1/auth/verify-email?token={victim_token}")
