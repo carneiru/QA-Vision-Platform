@@ -15,7 +15,7 @@ This service provides core authentication and authorization functionality for th
 ## Current Implementation Status
 
 ### ✅ Implemented and tested
-- **Email/Password Authentication**: registration, login, logout
+- **Email/Password Authentication**: registration (gated on email verification), login, logout
 - **Token Management**: JWT access tokens (60 minutes) and opaque database-backed refresh tokens (30 days) with rotation on use, replay detection, and server-side revocation
 - **Google SSO**: ID tokens verified against Google's JWKS (RS256 signature, audience, issuer, expiry, verified email)
 - **User Management**: self-service profile read and update, restricted to non-privileged fields
@@ -31,7 +31,8 @@ This service provides core authentication and authorization functionality for th
 - **Azure AD SSO**: requires an Azure AD code exchange that does not exist
 
 ### 📝 Not built
-- **Registration can still squat an unregistered address** (no email verification), which the SSO 409 turns into a lockout the same way. Linking Google to an existing account is now built (see SSO Security below); email verification at registration is not.
+- **Registering an address now requires proving control of it.** `/auth/register` no longer creates an account -- it creates an expiring, unclaimed record and emails a link. Nothing is reserved until that link is used, so an attacker who never verifies has claimed nothing: a later registration or Google SSO for that address proceeds normally.
+- **Response-timing side channel on registration and resend.** `/auth/register` and `/auth/resend-verification` return identical response bodies regardless of whether an email is already registered, but the branch that does real work (hashing, a commit, sending mail) is measurably slower than the branch that does nothing — a network-timing side channel could still distinguish states that the response content cannot. Not defended against; this spec's threat model is lockout prevention, not timing-safe enumeration resistance.
 - **Account lockout**: no failed-attempt tracking exists anywhere in this service
 - **Redis token blacklisting**: a Redis URL is configurable, but nothing reads it
 - **HTTP-only cookie sessions**: bearer tokens only
@@ -120,7 +121,7 @@ Copy `.env.example` to `.env` and configure as needed:
 - `REDIS_PORT`: Redis port (default: 6379)
 - `REDIS_DB`: Redis database number (default: 0)
 
-### SMTP Configuration (For Password Reset Emails)
+### SMTP Configuration (For Email Verification)
 - `SMTP_TLS`: Enable TLS (default: True)
 - `SMTP_PORT`: SMTP port (default: 587)
 - `SMTP_HOST`: SMTP hostname
@@ -128,6 +129,10 @@ Copy `.env.example` to `.env` and configure as needed:
 - `SMTP_PASSWORD`: SMTP password
 - `EMAILS_FROM_EMAIL`: Sender email address
 - `EMAILS_FROM_NAME`: Sender name
+- `EMAIL_VERIFICATION_EXPIRE_HOURS`: hours a registration's verification link stays valid (default: 24)
+- `BASE_URL`: base URL used to build the verification link in the email (default: `http://localhost:8000`)
+
+When `SMTP_HOST` is unset (the default), verification links are logged rather than emailed -- this keeps registration usable in development and tests without a real mail server. Configure `SMTP_HOST` to send real email. Password reset does not use these settings: it returns 501 and sends nothing.
 
 ### SSO Provider Configuration
 - `GOOGLE_CLIENT_ID`: Google OAuth Client ID
@@ -145,7 +150,9 @@ providers they configure return 501:
 ## API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/register` - Register new user account
+- `POST /api/v1/auth/register` - Begin registration. Creates an unclaimed, expiring pending record and emails a verification link -- returns `202`, not a user. The address is not reserved until verified.
+- `GET /api/v1/auth/verify-email?token=...` - Complete registration: creates the account and returns `Token` (auto-login). `400` if the token is invalid or expired; `409` if the address was claimed by another path (e.g. Google SSO) in the meantime.
+- `POST /api/v1/auth/resend-verification` - Resend the verification link. Always answers identically regardless of whether the address has a pending registration, a completed account, or neither.
 - `POST /api/v1/auth/login` - Login with email/password (returns access & refresh tokens)
 - `POST /api/v1/auth/refresh-token` - Refresh access token using refresh token
 - `POST /api/v1/auth/logout` - Logout by revoking refresh token
@@ -192,7 +199,7 @@ There is no endpoint that grants superuser through the API. It is either bootstr
 - **Identity is the Google `sub`, not the email.** A returning user is resolved through the `(provider, provider_user_id)` link, so a Google account whose address changed still reaches its own account, and the new address is not written back.
 - **Google is never linked to an account that already exists.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address, so only a first-time address creates an account; any address already held returns 409. An earlier version auto-linked when the existing row had no password, reasoning that there was no credential to hijack — but a passwordless unlinked row is exactly what pre-provisioning produces, so that handed a seeded account (possibly a superuser) to whoever presented a Google token for the address first. Adopting SSO on an existing account now has its own endpoint: `POST /users/me/link/google` (authenticated). It requires `current_password` when the account has one -- an access token can be a short-lived, stolen bearer credential, and linking a new, durable login method to an account is exactly the kind of change that must not be reachable by holding one for a minute; the same reasoning as the password-change guard. Refuses (409) if the Google identity is already linked to a different account, or if the caller already has a Google link (at most one per user).
 
-**Known limitation:** email addresses are never verified. Self-service email changes are therefore not accepted at all (422) — allowing them let any authenticated user take any unregistered address in one request and lock out its real owner, since registration then answers 400 and Google SSO answers 409. Registration can still squat an unregistered address, which the same 409 turns into a lockout. Closing that needs address verification at registration, plus the link endpoint.
+**Remaining limitation:** self-service email *changes* on `PUT /users/me` are still not accepted at all (422). Verifying a new address the same way registration now does is not built, so allowing changes would reopen the address-squatting problem registration itself no longer has — see Email Verification below.
 
 ### Administrative Controls
 - Superuser-only endpoints protected by role-based checks
@@ -342,10 +349,11 @@ pip list --outdated --format=freeze | grep -v '^\-e' | cut -d = -f 1 | xargs -n1
 - Check system clock synchronization (token validation is time-sensitive)
 - Review OAuth consent screen configuration in Google Cloud Console
 
-**Email/Password Reset Issues**
+**Email Verification Issues**
 - Verify SMTP server connectivity and credentials
 - Check `EMAILS_FROM_EMAIL` and `EMAILS_FROM_NAME` settings
 - Test email delivery independently of application
+- With `SMTP_HOST` unset, verification links are logged instead -- check application logs at INFO level rather than a mail server
 
 ### Log Analysis
 - Application logs startup configuration and connection status
