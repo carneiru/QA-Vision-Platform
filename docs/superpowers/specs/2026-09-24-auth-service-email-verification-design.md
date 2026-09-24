@@ -57,32 +57,43 @@ another's. Closing the permanent-lockout hole (below) introduced a worse one.
   link. The already-existing race guard (a real `User` already exists → `409`, stale row
   deleted) is unchanged.
 - `POST /auth/resend-verification` must decide *which* row to act on now that more than one
-  can exist. It selects the **oldest still-unexpired** row for the address
-  (`ORDER BY created_at ASC` filtered to `expires_at > now`, first match) rather than the
-  newest. This is what actually closes the exploit: the victim's original attempt is always
-  older than anything an attacker registers afterward, so resend keeps serving the
-  *original* registrant's link, not whichever attempt happened most recently — a later
-  attacker registration never displaces it. If no unexpired row exists, resend answers with
-  its existing generic message exactly as when no pending registration exists at all
-  (unchanged enumeration-prevention behavior).
+  can exist. **First attempt at this amendment picked the oldest still-unexpired row** —
+  wrong, and caught by the security review of the fix itself: "oldest wins" only closes the
+  exploit when the victim registers *before* any attacker does. If an attacker registers
+  *first* — exactly the pre-registration squat the spec's Problem section is about — their
+  row **is** the oldest, permanently, and resend would immediately hand the victim's own
+  recovery action a working link for the attacker's password, with no timing requirement at
+  all, indistinguishable from the original flaw. Proven live by that review.
 
-Why this closes the exploit without the multi-row ambiguity becoming a new problem: the
-victim's own original link (T1) is **never touched** by the attacker's later registration —
-there is no rotation to kill it. The victim does not need to resend at all in the ordinary
-case; they can simply click the link they already have. If they do resend (link lost,
-expired confusion, etc.), the oldest-first rule hands them back their own attempt, not the
-attacker's.
+  **Corrected:** resend counts the address's unexpired rows. Exactly one → act on it
+  normally (rotate its token and expiry, send the link), unchanged from before. Zero → the
+  existing generic no-op response. **More than one → decline: the same generic response,
+  nothing rotated, nothing sent.** Which attempt is legitimate is unknowable from this
+  endpoint alone once more than one exists, so it does not guess by any ordering —
+  registration order included. This removes "the victim registered first" as a load-bearing
+  assumption entirely.
+
+Why this closes the exploit without needing an ordering assumption: the victim's own
+original link (T1) is **never touched** by anything an attacker's separate registration
+does — there is no rotation to kill it, in either registration order. The victim does not
+need to resend at all in the ordinary case; they can simply click the link they already
+have. Resend is a convenience for a lost or expired link, and refusing it under ambiguity
+costs that convenience in the narrow case where an attacker's attempt happens to coexist —
+not correctness or safety, in either direction.
 
 **Residual limitation, stated rather than left implicit:** if the victim's original row
-expires (24h) *and* they never click it *and* an attacker's row for the same address is
-still live, a subsequent resend now has nothing older to serve and would mail the
-attacker's link. This requires the attacker to sustain the attempt across the victim's full
-expiry window and the victim to never act on their own original link in that time — a much
-narrower window than the original flaw (which was exploitable immediately, with no timing
-requirement at all). Closing this residual completely would mean resend refusing to act
-once any row for the address it did *not* just verify has ever existed, which is a stronger
-and more complex guarantee than this amendment provides; noted as a follow-up, not fixed
-here.
+expires (24h) unused, and by then no *other* unexpired row exists for the address either,
+resend has nothing to act on — ordinary, harmless, matches "no pending registration exists."
+The residual that matters: if the victim's row expires unused *while exactly one attacker
+row is still live*, resend now finds exactly one unexpired row (the attacker's) and — no
+longer being told to decline, since there is no ambiguity, only one candidate — serves it.
+This requires the attacker to sustain a live attempt across the victim's full expiry window
+and the victim to never act on their own original link in that time, in **either**
+registration order — the ordering-dependent, no-timing-required version proven by the
+review is closed. Closing this narrower residual completely would mean resend refusing to
+act for an address that has ever had more than one registration attempt, permanently, which
+is a stronger and more complex guarantee than this amendment provides; noted as a
+follow-up, not fixed here.
 
 **Migration:** `pending_registrations` has never been applied to a real database (this
 branch is unmerged and unpushed; the prior review confirmed no reachable DB exists in this
