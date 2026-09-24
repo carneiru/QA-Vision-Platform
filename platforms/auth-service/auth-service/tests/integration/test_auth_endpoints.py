@@ -40,67 +40,107 @@ def test_register_verify_and_login(client, db):
     assert user_info["full_name"] == "Test User"
 
 
-def test_registering_twice_rotates_the_pending_token(client, db):
+def test_registering_twice_creates_independent_rows(client, db):
+    """Rotating a second attempt into the first used to let one caller's password
+    silently replace another's, while the verification link kept going to the same
+    mailbox -- see the spec's Amendment. Two attempts must coexist, and neither's token
+    is invalidated by the other existing."""
     client.post(
         "/api/v1/auth/register",
-        json={"email": "rotate@example.com", "password": "securepassword123"},
+        json={"email": "twice@example.com", "password": "firstpassword1"},
     )
     first_pending = db.query(PendingRegistration).filter(
-        PendingRegistration.email == "rotate@example.com"
+        PendingRegistration.email == "twice@example.com"
     ).first()
     first_token = first_pending.token
 
     client.post(
         "/api/v1/auth/register",
-        json={"email": "rotate@example.com", "password": "securepassword123"},
+        json={"email": "twice@example.com", "password": "secondpassword1"},
     )
     assert db.query(PendingRegistration).filter(
-        PendingRegistration.email == "rotate@example.com"
-    ).count() == 1, "a second registration must rotate, not duplicate"
+        PendingRegistration.email == "twice@example.com"
+    ).count() == 2, "a second registration must create an independent row, not replace the first"
 
-    stale = client.get(f"/api/v1/auth/verify-email?token={first_token}")
-    assert stale.status_code == 400, stale.text
+    # the first token is still independently valid, and still verifies with the FIRST
+    # attempt's password -- not the second's
+    verified = client.get(f"/api/v1/auth/verify-email?token={first_token}")
+    assert verified.status_code == 200, verified.text
+
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"email": "twice@example.com", "password": "firstpassword1"},
+    ).status_code == 200, "the winning account must use the FIRST attempt's password"
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"email": "twice@example.com", "password": "secondpassword1"},
+    ).status_code == 401, "the second attempt's password must never take effect"
 
 
-def test_register_commit_race_returns_a_clean_400(client, db, monkeypatch):
-    """Two concurrent POST /auth/register for the same address can both pass the
-    existing-pending check before either commits -- the loser's INSERT then violates
-    PendingRegistration.email's UNIQUE constraint. Without a guard on register_user's
-    commit, that would 500 instead of failing gracefully. A true race can't be produced in
-    a single-threaded test, so it's simulated directly: a conflicting row is inserted first,
-    then the existing-pending lookup is patched to miss it (as it would under a genuine
-    race), forcing the final commit itself to be what fails."""
-    racer = PendingRegistration(
-        email="racer@example.com",
-        hashed_password="irrelevant",
-        token="irrelevant-token",
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-    )
-    db.add(racer)
-    db.commit()
-
-    original_query = db.query
-
-    def query_missing_the_race(model, *args, **kwargs):
-        if model is PendingRegistration:
-            class _EmptyQuery:
-                def filter(self, *a, **k):
-                    return self
-
-                def first(self):
-                    return None
-
-            return _EmptyQuery()
-        return original_query(model, *args, **kwargs)
-
-    monkeypatch.setattr(db, "query", query_missing_the_race)
-
-    response = client.post(
+def test_verifying_the_first_attempt_deletes_the_second(client, db):
+    client.post(
         "/api/v1/auth/register",
-        json={"email": "racer@example.com", "password": "securepassword123"},
+        json={"email": "cleanup@example.com", "password": "firstpassword1"},
     )
-    assert response.status_code == 400, response.text
-    assert response.json()["detail"] == "Email already registered"
+    first_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == "cleanup@example.com"
+    ).first()
+    first_token = first_pending.token
+
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "cleanup@example.com", "password": "secondpassword1"},
+    )
+    assert db.query(PendingRegistration).filter(
+        PendingRegistration.email == "cleanup@example.com"
+    ).count() == 2
+
+    verified = client.get(f"/api/v1/auth/verify-email?token={first_token}")
+    assert verified.status_code == 200, verified.text
+
+    assert db.query(PendingRegistration).filter(
+        PendingRegistration.email == "cleanup@example.com"
+    ).count() == 0, "the losing attempt must be cleaned up, not left independently clickable"
+
+
+def test_resend_verification_serves_the_oldest_attempt_not_the_newest(client, db):
+    """This is the property that actually closes the credential-injection exploit: a
+    victim's own resend-verification must never hand back an attacker's later attempt."""
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "oldest@example.com", "password": "victimpassword1"},
+    )
+    victim_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == "oldest@example.com"
+    ).first()
+    victim_id = victim_pending.id
+    victim_token = victim_pending.token
+
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "oldest@example.com", "password": "attackerpassword1"},
+    )
+
+    resend = client.post(
+        "/api/v1/auth/resend-verification", json={"email": "oldest@example.com"}
+    )
+    assert resend.status_code == 200, resend.text
+
+    # re-query rather than db.refresh(victim_pending): the shared `db` session is closed by
+    # the app's get_db dependency teardown after every request above, detaching the
+    # previously-loaded instance -- refreshing a detached instance raises, a fresh query
+    # does not.
+    victim_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.id == victim_id
+    ).first()
+    assert victim_pending.token != victim_token, "the oldest row's token must be the one rotated"
+
+    verified = client.get(f"/api/v1/auth/verify-email?token={victim_pending.token}")
+    assert verified.status_code == 200, verified.text
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"email": "oldest@example.com", "password": "victimpassword1"},
+    ).status_code == 200, "resend must serve the original registrant's own attempt"
 
 
 def test_expired_verification_token_is_refused_and_releases_the_address(client, db):

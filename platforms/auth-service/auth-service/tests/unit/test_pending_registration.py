@@ -21,23 +21,3 @@ def test_pending_registration_round_trips_through_the_orm(db):
     assert fetched is not None
     assert fetched.token == "test-token-value"
     assert fetched.full_name == "A Person"
-
-
-def test_email_is_unique(db):
-    from sqlalchemy.exc import IntegrityError
-
-    db.add(PendingRegistration(
-        email="dup@example.com", hashed_password="x", token="token-a",
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
-    ))
-    db.commit()
-
-    db.add(PendingRegistration(
-        email="dup@example.com", hashed_password="y", token="token-b",
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
-    ))
-    try:
-        db.commit()
-        assert False, "expected an IntegrityError on duplicate email"
-    except IntegrityError:
-        db.rollback()

@@ -7,10 +7,12 @@ class PendingRegistration(Base):
     __tablename__ = "pending_registrations"
 
     id = Column(Integer, primary_key=True, index=True)
-    # UNIQUE: a second registration attempt for the same still-pending address rotates this
-    # row (deleted and replaced) rather than creating a competing one or erroring -- nothing
-    # is claimed yet, so refusing would only leak that someone already tried this address.
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    # NOT unique: a second registration attempt for the same address creates an
+    # independent row rather than rotating an existing one. Rotating in place let an
+    # unauthenticated attacker overwrite a pending row's PASSWORD while its verification
+    # link still reached the real mailbox -- see the spec's "Amendment: rotation allowed
+    # credential injection". `token` (below) is still the only thing that must be unique.
+    email = Column(String(255), index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     token = Column(String(255), unique=True, index=True, nullable=False)

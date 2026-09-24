@@ -32,22 +32,18 @@ def register_user(
     Begin registration. Creates a PendingRegistration rather than a User -- the address is
     not claimed until the verification link is used. See
     docs/superpowers/specs/2026-09-24-auth-service-email-verification-design.md.
+
+    Each attempt is its own independent row (email is not UNIQUE on this table). A prior
+    version rotated an existing pending row in place on a second attempt -- that let an
+    unauthenticated attacker overwrite a pending registration's PASSWORD while its
+    verification link kept going to the real mailbox. See the spec's "Amendment: rotation
+    allowed credential injection" for the exploit this closes.
     """
     if UserService.get_user_by_email(db, user_in.email) is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
         )
-
-    existing_pending = db.query(PendingRegistration).filter(
-        PendingRegistration.email == user_in.email
-    ).first()
-    if existing_pending is not None:
-        # Rotate rather than error: nothing is claimed yet, and erroring would leak that
-        # someone already tried this address. flush (not commit) so the DELETE is visible
-        # to the INSERT below within the same transaction, without ending it early.
-        db.delete(existing_pending)
-        db.flush()
 
     token = secrets.token_urlsafe(32)
     pending = PendingRegistration(
@@ -59,15 +55,7 @@ def register_user(
         + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS),
     )
     db.add(pending)
-    try:
-        db.commit()
-    except IntegrityError:
-        # Lost a race against a concurrent registration for the same address.
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
+    db.commit()
 
     verification_link = (
         f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={token}"
@@ -125,6 +113,14 @@ def verify_email(token: str, db: Session = Depends(deps.get_db)):
     )
     db.add(user)
     db.delete(pending)
+    # Every OTHER attempt for this address (an attacker's separate registration, or an
+    # earlier one the registrant abandoned) is now moot. Clean them up so none of them can
+    # be independently clicked later -- excluded by id since `pending` is already staged
+    # for deletion above and this must not touch that same row twice.
+    db.query(PendingRegistration).filter(
+        PendingRegistration.email == pending.email,
+        PendingRegistration.id != pending.id,
+    ).delete(synchronize_session=False)
     try:
         db.commit()
     except IntegrityError:
@@ -155,15 +151,36 @@ def resend_verification(request: ResendVerificationRequest, db: Session = Depend
     """
     Resend a verification link. Always answers the same way regardless of whether a
     pending registration exists, matching /forgot-password's enumeration-prevention.
+
+    Serves the OLDEST still-unexpired attempt for the address, never the newest. Since
+    registration no longer rotates (see the spec's Amendment), more than one attempt can
+    exist for one address at once; picking the newest would hand the mailbox owner a link
+    for whichever attempt happened most recently -- which could be an attacker's. Picking
+    the oldest means the original registrant's own attempt is always what gets resent,
+    since nothing an attacker registers afterward is ever older than it.
     """
-    pending = db.query(PendingRegistration).filter(
+    now = datetime.now(timezone.utc)
+    # Fetched and filtered in Python, not in the SQL WHERE clause: this codebase's other
+    # expiry checks (verify_refresh_token, claim_refresh_token, verify_email's own check)
+    # all normalize SQLite's naive datetimes in Python before comparing, because comparing
+    # a timezone-aware Python value against a SQLite column in the query itself is
+    # unreliable. Matching that pattern here rather than introducing a new one.
+    candidates = db.query(PendingRegistration).filter(
         PendingRegistration.email == request.email
-    ).first()
+    ).order_by(PendingRegistration.created_at.asc()).all()
+
+    pending = None
+    for candidate in candidates:
+        expires_at = candidate.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at > now:
+            pending = candidate
+            break
+
     if pending is not None:
         pending.token = secrets.token_urlsafe(32)
-        pending.expires_at = datetime.now(timezone.utc) + timedelta(
-            hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS
-        )
+        pending.expires_at = now + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS)
         db.commit()
         verification_link = (
             f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={pending.token}"

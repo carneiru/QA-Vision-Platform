@@ -8,6 +8,14 @@ Backs email verification at registration: POST /auth/register no longer creates 
 directly, it creates a row here. The address is not claimed by anyone until GET
 /auth/verify-email turns this row into a User -- see
 docs/superpowers/specs/2026-09-24-auth-service-email-verification-design.md.
+
+email is deliberately NOT unique: each registration attempt for an address is an
+independent row (see the spec's "Amendment: rotation allowed credential injection" --
+rotating a shared row in place let one caller's password silently replace another's while
+the verification link kept reaching the same mailbox). This migration originally created a
+UNIQUE constraint on email; it is amended in place rather than stacking a new revision that
+would create and immediately drop it, since this table has never been applied to a real
+database.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -29,14 +37,13 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()")),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("email"),
         sa.UniqueConstraint("token"),
     )
     op.create_index(
         op.f("ix_pending_registrations_id"), "pending_registrations", ["id"], unique=False
     )
     op.create_index(
-        op.f("ix_pending_registrations_email"), "pending_registrations", ["email"], unique=True
+        op.f("ix_pending_registrations_email"), "pending_registrations", ["email"], unique=False
     )
     op.create_index(
         op.f("ix_pending_registrations_token"), "pending_registrations", ["token"], unique=True
