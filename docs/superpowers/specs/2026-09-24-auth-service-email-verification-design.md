@@ -1,7 +1,118 @@
 # Email Verification for Password Registration — Design
 
 **Service:** `platforms/auth-service/auth-service`
-**Status:** approved for planning
+**Status:** approved for planning; **amended** — see "Amendment: rotation allowed credential
+injection" below. The amendment supersedes every mention of "rotate"/"rotation" elsewhere in
+this document; those sections are left as originally written, below the amendment, for
+the record of what was built first and why it had to change.
+
+## Amendment: rotation allowed credential injection
+
+The original design below rotated `PendingRegistration` in place: a second `/auth/register`
+for a still-pending address deleted the existing row and replaced it, keeping the *same*
+row identity (and hence the *same* verification link recipient) but overwriting its
+**password**. That was the flaw. The link proves the clicker controls the mailbox; it
+proves nothing about who last wrote the password into the row the link resolves to.
+
+Exploit, proven end-to-end against the built code by the final whole-branch review:
+1. Victim registers `v@corp.com` with their own password. Link T1 is mailed to them.
+2. Attacker — unauthenticated, needing only the address — registers `v@corp.com` again.
+   Rotation deletes the victim's row and replaces it with one holding the **attacker's**
+   password. A new link T2 is mailed to the victim's own mailbox (rotation doesn't change
+   where the email goes, only what completing it activates).
+3. Victim's link T1 is now dead (`400`).
+4. Victim's only offered recovery, `/auth/resend-verification`, rotates the token again but
+   **keeps the attacker's password** — it operates on "the pending row for this email,"
+   and after step 2 that row is the attacker's.
+5. Victim clicks the fresh link → `200`, account created, auto-logged in.
+6. The attacker's password logs in. The victim's own password does not, and they have no
+   recovery: password change needs `current_password` they don't know, and
+   `/forgot-password` is `501`.
+
+This did not exist before this feature: on `master`, `/auth/register` called
+`UserService.create_user`, which `400`s on an existing address and can never overwrite a
+password. There was no rotation and no path for one caller's credential to replace
+another's. Closing the permanent-lockout hole (below) introduced a worse one.
+
+**Fix: stop rotating. Each registration attempt is its own row.**
+
+- `PendingRegistration.email` is **no longer `UNIQUE`** — it is an ordinary indexed column.
+  Multiple rows may exist for one address at once; each is a self-contained attempt with
+  its own token, its own password, its own expiry.
+- `POST /auth/register` no longer looks up or deletes an existing pending row for the
+  address before inserting. It unconditionally creates a new one (after the unchanged check
+  that no real `User` already owns the address). This also means the `IntegrityError` guard
+  added around this insert during Task 3's fix loop is now dead code — nothing can violate
+  a `UNIQUE(email)` constraint that no longer exists, and `token`'s own uniqueness relies on
+  its 32-byte randomness the same way `RefreshToken.token` and the original
+  `PendingRegistration.token` always have, with no `IntegrityError` catch anywhere else in
+  this service defending against that collision. Remove the guard and the test written to
+  exercise it (`test_register_commit_race_returns_a_clean_400`); write a replacement proving
+  the actual fixed behavior instead (below).
+- `GET /auth/verify-email` completes registration using **only** the row the presented token
+  matches — a token from any other attempt for the same address is never consulted. On
+  success, it now also **deletes every other `PendingRegistration` row for that email**
+  (not just the one just consumed), so an attacker's now-moot attempt is cleaned up rather
+  than left to eventually be independently clickable by someone who has that specific
+  link. The already-existing race guard (a real `User` already exists → `409`, stale row
+  deleted) is unchanged.
+- `POST /auth/resend-verification` must decide *which* row to act on now that more than one
+  can exist. It selects the **oldest still-unexpired** row for the address
+  (`ORDER BY created_at ASC` filtered to `expires_at > now`, first match) rather than the
+  newest. This is what actually closes the exploit: the victim's original attempt is always
+  older than anything an attacker registers afterward, so resend keeps serving the
+  *original* registrant's link, not whichever attempt happened most recently — a later
+  attacker registration never displaces it. If no unexpired row exists, resend answers with
+  its existing generic message exactly as when no pending registration exists at all
+  (unchanged enumeration-prevention behavior).
+
+Why this closes the exploit without the multi-row ambiguity becoming a new problem: the
+victim's own original link (T1) is **never touched** by the attacker's later registration —
+there is no rotation to kill it. The victim does not need to resend at all in the ordinary
+case; they can simply click the link they already have. If they do resend (link lost,
+expired confusion, etc.), the oldest-first rule hands them back their own attempt, not the
+attacker's.
+
+**Residual limitation, stated rather than left implicit:** if the victim's original row
+expires (24h) *and* they never click it *and* an attacker's row for the same address is
+still live, a subsequent resend now has nothing older to serve and would mail the
+attacker's link. This requires the attacker to sustain the attempt across the victim's full
+expiry window and the victim to never act on their own original link in that time — a much
+narrower window than the original flaw (which was exploitable immediately, with no timing
+requirement at all). Closing this residual completely would mean resend refusing to act
+once any row for the address it did *not* just verify has ever existed, which is a stronger
+and more complex guarantee than this amendment provides; noted as a follow-up, not fixed
+here.
+
+**Migration:** `pending_registrations` has never been applied to a real database (this
+branch is unmerged and unpushed; the prior review confirmed no reachable DB exists in this
+environment). Amend migration `005` in place — drop the `UNIQUE` constraint and its unique
+index on `email`, keep a plain index for lookup — rather than stacking a new migration that
+would create a `UNIQUE` constraint and immediately drop it again in the next revision, which
+no real deployment ever needed to go through.
+
+**Testing added by this amendment:**
+- Register the same address twice with two *different* passwords, then verify using the
+  **first** attempt's token: the resulting account's password is the first attempt's, not
+  the second's, and the second attempt's own token independently still verifies (into a
+  `409`, since a `User` now exists — proving the second attempt was never capable of
+  overriding the first's outcome, only of independently existing alongside it).
+- After that same setup, call `/auth/resend-verification` for the address *before* either
+  token is used: assert the token it resends matches the **first** (oldest) attempt's
+  token, not the second's — this is the property that actually closes the exploit.
+- Confirm `verify-email` on the winning token deletes the *other* attempt's row too (query
+  `PendingRegistration` count for the address is `0` after verification, not `1`).
+- Replace `test_register_commit_race_returns_a_clean_400` (Task 3's fix-round test for the
+  now-removed `IntegrityError` guard) with a test proving two rapid, back-to-back
+  registrations for the same address both succeed as **independent** rows (assert
+  `PendingRegistration` count for the address is `2`, both tokens independently valid)
+  rather than one clobbering the other — the positive statement of what used to be guarded
+  defensively and no longer needs to be.
+
+---
+
+*Below this line: the design as originally written and built, before the amendment above.
+Read the amendment first — it changes the "rotate" behavior described throughout.*
 
 ## Problem
 

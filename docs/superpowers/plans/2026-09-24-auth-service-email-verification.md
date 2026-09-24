@@ -13,8 +13,14 @@
 ## Global Constraints
 
 - Opaque tokens only (`secrets.token_urlsafe(32)`), never JWTs — matches this service's existing refresh-token pattern.
-- `PendingRegistration.email` and `.token` are both `UNIQUE`.
-- A second `/auth/register` for a still-pending address **rotates** (delete + recreate), never errors.
+- `PendingRegistration.token` is `UNIQUE`. `.email` is **not** — amended after the final
+  whole-branch review found that rotating on email uniqueness let an unauthenticated
+  attacker overwrite a pending registration's password while its verification link still
+  reached the real mailbox. See the spec's "Amendment: rotation allowed credential
+  injection" section — this plan's tasks were executed against the pre-amendment design and
+  a follow-up fix (documented in the ledger) brought the code in line with the amendment.
+- A second `/auth/register` for a still-pending address creates an **independent** row —
+  it never touches, rotates, or deletes an earlier attempt for the same address.
 - `EmailSender` must never fail closed: when `SMTP_HOST` is unset (the default), log the link instead of raising or silently dropping it.
 - SSO (`sso.py`, `sso_service.py`) is not modified by this plan.
 - Every existing test that registers a user (18 call sites across `test_auth_endpoints.py`, `test_user_isolation.py`, `test_sso_endpoints.py`) must be updated to the new flow — the suite must be green at the end of every task from Task 3 onward.
