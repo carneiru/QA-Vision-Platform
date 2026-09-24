@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: str = ""
     EMAILS_FROM_NAME: str = ""
 
+    # Email verification (registration). BASE_URL has no other purpose in this service --
+    # it exists so the verification link in the email points somewhere real. Defaulting to
+    # localhost:8000 matches this service's own default port.
+    EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
+    BASE_URL: str = "http://localhost:8000"
+
     # SSO Providers
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
