@@ -103,9 +103,12 @@ def test_verifying_the_first_attempt_deletes_the_second(client, db):
     ).count() == 0, "the losing attempt must be cleaned up, not left independently clickable"
 
 
-def test_resend_verification_serves_the_oldest_attempt_not_the_newest(client, db):
-    """This is the property that actually closes the credential-injection exploit: a
-    victim's own resend-verification must never hand back an attacker's later attempt."""
+def test_resend_verification_declines_when_attacker_registers_after_victim(client, db):
+    """A first attempt at this fix served the oldest unexpired attempt on resend -- that
+    only closes the credential-injection exploit when the victim registers before any
+    attacker does (see the spec's corrected Amendment). Once a second, ambiguous attempt
+    exists for the address, resend must decline entirely rather than guess by any
+    ordering. The victim's own original link is untouched either way."""
     client.post(
         "/api/v1/auth/register",
         json={"email": "oldest@example.com", "password": "victimpassword1"},
@@ -133,14 +136,55 @@ def test_resend_verification_serves_the_oldest_attempt_not_the_newest(client, db
     victim_pending = db.query(PendingRegistration).filter(
         PendingRegistration.id == victim_id
     ).first()
-    assert victim_pending.token != victim_token, "the oldest row's token must be the one rotated"
+    assert victim_pending.token == victim_token, "resend must not rotate anything when ambiguous"
 
-    verified = client.get(f"/api/v1/auth/verify-email?token={victim_pending.token}")
+    verified = client.get(f"/api/v1/auth/verify-email?token={victim_token}")
     assert verified.status_code == 200, verified.text
     assert client.post(
         "/api/v1/auth/login",
         json={"email": "oldest@example.com", "password": "victimpassword1"},
-    ).status_code == 200, "resend must serve the original registrant's own attempt"
+    ).status_code == 200, "the victim's own original link and password must still work untouched"
+
+
+def test_resend_verification_declines_when_multiple_attempts_exist(client, db):
+    """The property that actually closes the credential-injection exploit for BOTH
+    registration orderings: resend must never guess which of several pending attempts is
+    legitimate. Covers the ordering the round-1 fix missed -- attacker registers FIRST."""
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "ambiguous@example.com", "password": "attackerpassword1"},
+    )
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "ambiguous@example.com", "password": "victimpassword1"},
+    )
+    # order by id (strictly monotonic) rather than created_at: created_at has only
+    # second resolution in SQLite, and both registrations above can land in the same
+    # second, making a created_at-only ordering ambiguous about which row is the victim's.
+    victim_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == "ambiguous@example.com"
+    ).order_by(PendingRegistration.id.desc()).first()
+    victim_id = victim_pending.id
+    victim_token = victim_pending.token
+
+    resend = client.post(
+        "/api/v1/auth/resend-verification", json={"email": "ambiguous@example.com"}
+    )
+    assert resend.status_code == 200, resend.text
+
+    # neither row's token was rotated -- nothing was sent to anyone
+    victim_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.id == victim_id
+    ).first()
+    assert victim_pending.token == victim_token, "resend must not act when ambiguous"
+
+    # the victim's OWN original link still works, entirely unaffected
+    verified = client.get(f"/api/v1/auth/verify-email?token={victim_token}")
+    assert verified.status_code == 200, verified.text
+    assert client.post(
+        "/api/v1/auth/login",
+        json={"email": "ambiguous@example.com", "password": "victimpassword1"},
+    ).status_code == 200, "the victim's own password must be the one that wins"
 
 
 def test_expired_verification_token_is_refused_and_releases_the_address(client, db):

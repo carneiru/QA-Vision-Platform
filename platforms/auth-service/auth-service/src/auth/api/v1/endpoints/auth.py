@@ -152,33 +152,38 @@ def resend_verification(request: ResendVerificationRequest, db: Session = Depend
     Resend a verification link. Always answers the same way regardless of whether a
     pending registration exists, matching /forgot-password's enumeration-prevention.
 
-    Serves the OLDEST still-unexpired attempt for the address, never the newest. Since
-    registration no longer rotates (see the spec's Amendment), more than one attempt can
-    exist for one address at once; picking the newest would hand the mailbox owner a link
-    for whichever attempt happened most recently -- which could be an attacker's. Picking
-    the oldest means the original registrant's own attempt is always what gets resent,
-    since nothing an attacker registers afterward is ever older than it.
+    Declines to act -- same generic response, nothing sent -- whenever more than one
+    unexpired attempt exists for the address. An earlier version served the oldest
+    unexpired row, which closes the credential-injection exploit only when the victim
+    registers before any attacker does; if an attacker registers FIRST (the pre-
+    registration squat this feature exists to stop), their row is the oldest permanently,
+    and resend would immediately hand the victim's own recovery action a working link for
+    the attacker's password, with no timing requirement at all. Declining under ambiguity
+    removes the registration-order assumption entirely. The victim's own original link is
+    unaffected by any of this -- verify-email is token-scoped and never touched by another
+    registration -- so this only costs the resend convenience in the narrow ambiguous case,
+    never correctness.
     """
     now = datetime.now(timezone.utc)
     # Fetched and filtered in Python, not in the SQL WHERE clause: this codebase's other
     # expiry checks (verify_refresh_token, claim_refresh_token, verify_email's own check)
-    # all normalize SQLite's naive datetimes in Python before comparing, because comparing
-    # a timezone-aware Python value against a SQLite column in the query itself is
-    # unreliable. Matching that pattern here rather than introducing a new one.
+    # all normalize SQLite's naive datetimes in Python before comparing.
     candidates = db.query(PendingRegistration).filter(
         PendingRegistration.email == request.email
-    ).order_by(PendingRegistration.created_at.asc()).all()
+    ).order_by(
+        PendingRegistration.created_at.asc(), PendingRegistration.id.asc()
+    ).all()
 
-    pending = None
+    unexpired = []
     for candidate in candidates:
         expires_at = candidate.expires_at
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if expires_at > now:
-            pending = candidate
-            break
+            unexpired.append(candidate)
 
-    if pending is not None:
+    if len(unexpired) == 1:
+        pending = unexpired[0]
         pending.token = secrets.token_urlsafe(32)
         pending.expires_at = now + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS)
         db.commit()
@@ -186,6 +191,9 @@ def resend_verification(request: ResendVerificationRequest, db: Session = Depend
             f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={pending.token}"
         )
         EmailSender.send_verification_email(request.email, verification_link)
+    # len(unexpired) == 0: nothing pending, same as today.
+    # len(unexpired) > 1: ambiguous. Decline silently -- each attempt's own original link
+    # still works unaffected; only this convenience path refuses.
 
     return {
         "message": "If a pending registration exists for this email, a new verification link has been sent"
