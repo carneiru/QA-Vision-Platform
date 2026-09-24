@@ -58,7 +58,15 @@ def register_user(
         + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS),
     )
     db.add(pending)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost a race against a concurrent registration for the same address.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
 
     verification_link = (
         f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={token}"

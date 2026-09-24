@@ -62,6 +62,47 @@ def test_registering_twice_rotates_the_pending_token(client, db):
     assert stale.status_code == 400, stale.text
 
 
+def test_register_commit_race_returns_a_clean_400(client, db, monkeypatch):
+    """Two concurrent POST /auth/register for the same address can both pass the
+    existing-pending check before either commits -- the loser's INSERT then violates
+    PendingRegistration.email's UNIQUE constraint. Without a guard on register_user's
+    commit, that would 500 instead of failing gracefully. A true race can't be produced in
+    a single-threaded test, so it's simulated directly: a conflicting row is inserted first,
+    then the existing-pending lookup is patched to miss it (as it would under a genuine
+    race), forcing the final commit itself to be what fails."""
+    racer = PendingRegistration(
+        email="racer@example.com",
+        hashed_password="irrelevant",
+        token="irrelevant-token",
+        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+    )
+    db.add(racer)
+    db.commit()
+
+    original_query = db.query
+
+    def query_missing_the_race(model, *args, **kwargs):
+        if model is PendingRegistration:
+            class _EmptyQuery:
+                def filter(self, *a, **k):
+                    return self
+
+                def first(self):
+                    return None
+
+            return _EmptyQuery()
+        return original_query(model, *args, **kwargs)
+
+    monkeypatch.setattr(db, "query", query_missing_the_race)
+
+    response = client.post(
+        "/api/v1/auth/register",
+        json={"email": "racer@example.com", "password": "securepassword123"},
+    )
+    assert response.status_code == 400, response.text
+    assert response.json()["detail"] == "Email already registered"
+
+
 def test_expired_verification_token_is_refused_and_releases_the_address(client, db):
     client.post(
         "/api/v1/auth/register",
