@@ -9,6 +9,14 @@ class LoginRequest(BaseModel):
 class GoogleLoginRequest(BaseModel):
     credential: str
 
+class LinkGoogleRequest(BaseModel):
+    credential: str
+    # Required to link Google to an account that already has a password: an authenticated
+    # bearer token can be short-lived and stolen, and linking a new, durable login method is
+    # exactly the kind of change that must not be reachable by holding one for a minute.
+    # Not required for a passwordless account, which has nothing to confirm against.
+    current_password: Optional[str] = None
+
 class GitHubLoginRequest(BaseModel):
     code: str
 

@@ -283,3 +283,115 @@ def test_a_failed_link_write_leaves_no_orphan_account(client, db, google_key):
     # the address still works afterwards
     retry = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
     assert retry.status_code == 200, retry.text
+
+
+# --- linking Google to an existing password account -------------------------------------
+
+def test_link_google_to_a_password_account(client, db, google_key):
+    """The remedy /sso/google's 409 for a password account points at, and previously did
+    not have. After linking, the same Google identity logs the account straight in."""
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={"email": "person@example.com", "password": "securepassword123"},
+    )
+    assert registered.status_code == 200, registered.text
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "person@example.com", "password": "securepassword123"},
+    )
+    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    linked = client.post(
+        "/api/v1/users/me/link/google",
+        json={"credential": _id_token(google_key), "current_password": "securepassword123"},
+        headers=auth,
+    )
+    assert linked.status_code == 200, linked.text
+    assert db.query(OAuthAccount).filter(OAuthAccount.user_id == linked.json()["id"]).count() == 1
+
+    sso_login = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
+    assert sso_login.status_code == 200, sso_login.text
+
+
+def test_link_google_requires_the_current_password(client, db, google_key):
+    """A stolen bearer token linking a new, durable login method to the account is exactly
+    the backdoor the password-change guard already exists to prevent; this is the same
+    class of mutation."""
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "person@example.com", "password": "securepassword123"},
+    )
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "person@example.com", "password": "securepassword123"},
+    )
+    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    missing = client.post(
+        "/api/v1/users/me/link/google",
+        json={"credential": _id_token(google_key)},
+        headers=auth,
+    )
+    assert missing.status_code == 400, missing.text
+
+    wrong = client.post(
+        "/api/v1/users/me/link/google",
+        json={"credential": _id_token(google_key), "current_password": "notmypassword"},
+        headers=auth,
+    )
+    assert wrong.status_code == 400, wrong.text
+    assert db.query(OAuthAccount).count() == 0
+
+
+def test_link_google_refuses_an_identity_linked_elsewhere(client, db, google_key):
+    client.post(
+        "/api/v1/sso/google", json={"credential": _id_token(google_key)}
+    )  # creates person@example.com via SSO, linked to google-user-1
+
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "other@example.com", "password": "securepassword123"},
+    )
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "other@example.com", "password": "securepassword123"},
+    )
+    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    response = client.post(
+        "/api/v1/users/me/link/google",
+        json={"credential": _id_token(google_key), "current_password": "securepassword123"},
+        headers=auth,
+    )
+    assert response.status_code == 409, response.text
+    assert db.query(OAuthAccount).count() == 1, "the existing link must be untouched"
+
+
+def test_link_google_refuses_a_second_link_on_the_same_account(client, db, google_key):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "person@example.com", "password": "securepassword123"},
+    )
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "person@example.com", "password": "securepassword123"},
+    )
+    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    first = client.post(
+        "/api/v1/users/me/link/google",
+        json={"credential": _id_token(google_key), "current_password": "securepassword123"},
+        headers=auth,
+    )
+    assert first.status_code == 200, first.text
+
+    second = client.post(
+        "/api/v1/users/me/link/google",
+        json={
+            "credential": _id_token(google_key, sub="google-user-2"),
+            "current_password": "securepassword123",
+        },
+        headers=auth,
+    )
+    assert second.status_code == 409, second.text
+    assert db.query(OAuthAccount).count() == 1

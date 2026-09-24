@@ -31,7 +31,7 @@ This service provides core authentication and authorization functionality for th
 - **Azure AD SSO**: requires an Azure AD code exchange that does not exist
 
 ### 📝 Not built
-- **Linking Google to an existing password account**: refused with 409. Doing it safely needs an authenticated link endpoint; see SSO Security below.
+- **Registration can still squat an unregistered address** (no email verification), which the SSO 409 turns into a lockout the same way. Linking Google to an existing account is now built (see SSO Security below); email verification at registration is not.
 - **Account lockout**: no failed-attempt tracking exists anywhere in this service
 - **Redis token blacklisting**: a Redis URL is configurable, but nothing reads it
 - **HTTP-only cookie sessions**: bearer tokens only
@@ -160,10 +160,11 @@ providers they configure return 501:
 ### User Management
 - `GET /api/v1/users/me` - Get current user's profile
 - `PUT /api/v1/users/me` - Update current user's profile. Accepts `UserSelfUpdate` only: password (with `current_password`), full_name, avatar_url, department, job_title. Unknown fields are rejected with 422 rather than silently ignored, so `email`, `is_active` and `is_superuser` all fail loudly. Changing a password revokes every session; an SSO account cannot gain a password here.
+- `POST /api/v1/users/me/link/google` - Link a Google identity to the current authenticated account. Requires `current_password` unless the account is passwordless. Refuses if that identity is linked elsewhere, or if the caller already has a Google link.
 - `GET /api/v1/users/` - List all users (SUPERUSER ONLY)
 - `GET /api/v1/users/{user_id}` - Get a user by id (own account, or any account for a superuser)
 
-There is no endpoint that grants superuser. The flag is set directly in the database.
+There is no endpoint that grants superuser through the API. It is either bootstrapped once at startup from `FIRST_SUPERUSER`/`FIRST_SUPERUSER_PASSWORD` (permanent no-op once any superuser exists) or set directly in the database.
 
 ## Security Implementation Details
 
@@ -189,7 +190,7 @@ There is no endpoint that grants superuser. The flag is set directly in the data
 - With no `GOOGLE_CLIENT_ID` configured the endpoint returns 503 rather than verifying without an audience, which would accept ID tokens minted for any other Google application
 - Just-in-time provisioning: a first-time Google user is created with no password
 - **Identity is the Google `sub`, not the email.** A returning user is resolved through the `(provider, provider_user_id)` link, so a Google account whose address changed still reaches its own account, and the new address is not written back.
-- **Google is never linked to an account that already exists.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address, so only a first-time address creates an account; any address already held returns 409. An earlier version auto-linked when the existing row had no password, reasoning that there was no credential to hijack — but a passwordless unlinked row is exactly what pre-provisioning produces, so that handed a seeded account (possibly a superuser) to whoever presented a Google token for the address first. Adopting SSO on an existing account needs an authenticated link endpoint, which is not built.
+- **Google is never linked to an account that already exists.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address, so only a first-time address creates an account; any address already held returns 409. An earlier version auto-linked when the existing row had no password, reasoning that there was no credential to hijack — but a passwordless unlinked row is exactly what pre-provisioning produces, so that handed a seeded account (possibly a superuser) to whoever presented a Google token for the address first. Adopting SSO on an existing account now has its own endpoint: `POST /users/me/link/google` (authenticated). It requires `current_password` when the account has one -- an access token can be a short-lived, stolen bearer credential, and linking a new, durable login method to an account is exactly the kind of change that must not be reachable by holding one for a minute; the same reasoning as the password-change guard. Refuses (409) if the Google identity is already linked to a different account, or if the caller already has a Google link (at most one per user).
 
 **Known limitation:** email addresses are never verified. Self-service email changes are therefore not accepted at all (422) — allowing them let any authenticated user take any unregistered address in one request and lock out its real owner, since registration then answers 400 and Google SSO answers 409. Registration can still squat an unregistered address, which the same 409 turns into a lockout. Closing that needs address verification at registration, plus the link endpoint.
 

@@ -17,6 +17,34 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def verify_google_credential(credential: str) -> dict:
+    """Verify a Google ID token, raising the same HTTPExceptions /sso/google raises.
+
+    Shared with the authenticated link endpoint in users.py so both call sites fail the
+    same way instead of drifting.
+    """
+    import asyncio
+
+    try:
+        google_data = asyncio.run(SSOService.validate_google_token(credential))
+    except SSOConfigurationError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Google SSO is not configured",
+        )
+    except Exception:
+        # Deliberately opaque: the underlying text carries JWKS URLs and internal state.
+        logger.warning("Google ID token verification failed", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Google token",
+        )
+
+    if not google_data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Google token")
+    return google_data
+
+
 def _link_or_create_user(db: Session, google_data: dict, email: str, provider: str,
                          provider_user_id: str):
     """Resolve a Google identity that is not yet linked to any account.
@@ -100,34 +128,8 @@ def google_login(
     """
     Authenticate with Google ID token.
     """
-    # Import here to avoid circular imports
-    import asyncio
-    
-    # Validate Google token
-    google_data = None
-    try:
-        google_data = asyncio.run(SSOService.validate_google_token(request.credential))
-    except SSOConfigurationError:
-        # Our misconfiguration, not the caller's bad input.
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google SSO is not configured",
-        )
-    except Exception:
-        # Deliberately opaque: the underlying text carries JWKS URLs and internal state, and
-        # this endpoint answers unauthenticated callers.
-        logger.warning("Google ID token verification failed", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Google token",
-        )
-    
-    if not google_data:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Google token"
-        )
-    
+    google_data = verify_google_credential(request.credential)
+
     # Check if user exists with this email/provider
     email = google_data["email"]
     provider = google_data["provider"]
