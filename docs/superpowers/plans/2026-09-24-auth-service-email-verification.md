@@ -1294,7 +1294,10 @@ to:
 
 - [ ] **Step 3: Replace the "Registration can still squat" limitation**
 
-Find this line (added when the SSO account-linking fix shipped):
+There are two places this same limitation is described; both are stale after this task and
+must be updated together, or the README contradicts itself.
+
+Find this line (in the "📝 Not built" summary section):
 ```
 - **Registration can still squat an unregistered address** (no email verification), which the SSO 409 turns into a lockout the same way. Linking Google to an existing account is now built (see SSO Security below); email verification at registration is not.
 ```
@@ -1303,22 +1306,77 @@ Replace it with:
 - **Registering an address now requires proving control of it.** `/auth/register` no longer creates an account -- it creates an expiring, unclaimed record and emails a link. Nothing is reserved until that link is used, so an attacker who never verifies has claimed nothing: a later registration or Google SSO for that address proceeds normally.
 ```
 
-- [ ] **Step 4: Add a mail delivery note near the SMTP settings**
-
-Immediately after the line documenting `EMAILS_FROM_NAME`, add:
+Find this paragraph (in the `### SSO Security` section, right after the account-linking
+bullet — it predates both this task and the account-linking endpoint, and describes both
+as still open):
 ```
+**Known limitation:** email addresses are never verified. Self-service email changes are therefore not accepted at all (422) — allowing them let any authenticated user take any unregistered address in one request and lock out its real owner, since registration then answers 400 and Google SSO answers 409. Registration can still squat an unregistered address, which the same 409 turns into a lockout. Closing that needs address verification at registration, plus the link endpoint.
+```
+Replace it with:
+```
+**Remaining limitation:** self-service email *changes* on `PUT /users/me` are still not accepted at all (422). Verifying a new address the same way registration now does is not built, so allowing changes would reopen the address-squatting problem registration itself no longer has — see Email Verification below.
+```
+
+- [ ] **Step 4: Fix the SMTP section header and add a mail delivery note**
+
+This section's header is now wrong in a way this task makes worse if left alone: password
+reset returns `501` and sends no mail at all, while email verification is the one real
+consumer of these settings.
+
+Find:
+```
+### SMTP Configuration (For Password Reset Emails)
+- `SMTP_TLS`: Enable TLS (default: True)
+- `SMTP_PORT`: SMTP port (default: 587)
+- `SMTP_HOST`: SMTP hostname
+- `SMTP_USER`: SMTP username
+- `SMTP_PASSWORD`: SMTP password
+- `EMAILS_FROM_EMAIL`: Sender email address
+- `EMAILS_FROM_NAME`: Sender name
+```
+Replace with:
+```
+### SMTP Configuration (For Email Verification)
+- `SMTP_TLS`: Enable TLS (default: True)
+- `SMTP_PORT`: SMTP port (default: 587)
+- `SMTP_HOST`: SMTP hostname
+- `SMTP_USER`: SMTP username
+- `SMTP_PASSWORD`: SMTP password
+- `EMAILS_FROM_EMAIL`: Sender email address
+- `EMAILS_FROM_NAME`: Sender name
 - `EMAIL_VERIFICATION_EXPIRE_HOURS`: hours a registration's verification link stays valid (default: 24)
 - `BASE_URL`: base URL used to build the verification link in the email (default: `http://localhost:8000`)
 
-When `SMTP_HOST` is unset (the default), verification links are logged rather than emailed -- this keeps registration usable in development and tests without a real mail server. Configure `SMTP_HOST` to send real email.
+When `SMTP_HOST` is unset (the default), verification links are logged rather than emailed -- this keeps registration usable in development and tests without a real mail server. Configure `SMTP_HOST` to send real email. Password reset does not use these settings: it returns 501 and sends nothing.
 ```
 
-- [ ] **Step 5: Run the full suite one last time**
+- [ ] **Step 5: Retitle the matching troubleshooting section**
+
+Same staleness, in the troubleshooting section further down: this heading and its advice
+are about SMTP connectivity, which now belongs to email verification, not password reset.
+
+Find:
+```
+**Email/Password Reset Issues**
+- Verify SMTP server connectivity and credentials
+- Check `EMAILS_FROM_EMAIL` and `EMAILS_FROM_NAME` settings
+- Test email delivery independently of application
+```
+Replace with:
+```
+**Email Verification Issues**
+- Verify SMTP server connectivity and credentials
+- Check `EMAILS_FROM_EMAIL` and `EMAILS_FROM_NAME` settings
+- Test email delivery independently of application
+- With `SMTP_HOST` unset, verification links are logged instead -- check application logs at INFO level rather than a mail server
+```
+
+- [ ] **Step 6: Run the full suite one last time**
 
 Run: `rm -f test.db && SECRET_KEY=test-secret .venv/Scripts/python.exe -m pytest tests/ -q`
 Expected: `58 passed`
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add platforms/auth-service/auth-service/README.md
