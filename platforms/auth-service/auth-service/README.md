@@ -21,7 +21,7 @@ This service provides core authentication and authorization functionality for th
 - **User Management**: self-service profile read and update, restricted to non-privileged fields
 - **Administrative Functions**: superuser-only user listing
 - **Security**: bcrypt password hashing, CORS configuration, cross-user isolation on every identity-resolving path
-- **Testing**: 30 unit and integration tests, including the SSO verification path against a locally generated signing key
+- **Testing**: 60 unit and integration tests, including the SSO verification path against a locally generated signing key
 - **Documentation**: auto-generated OpenAPI/Swagger
 - **Deployment**: Dockerfile and docker-compose configuration
 
@@ -32,7 +32,7 @@ This service provides core authentication and authorization functionality for th
 
 ### 📝 Not built
 - **Registering an address now requires proving control of it.** `/auth/register` no longer creates an account -- it creates an expiring, unclaimed record and emails a link. Nothing is reserved until that link is used, so an attacker who never verifies has claimed nothing: a later registration or Google SSO for that address proceeds normally.
-- **Response-timing side channel on registration and resend.** `/auth/register` and `/auth/resend-verification` return identical response bodies regardless of whether an email is already registered, but the branch that does real work (hashing, a commit, sending mail) is measurably slower than the branch that does nothing — a network-timing side channel could still distinguish states that the response content cannot. Not defended against; this spec's threat model is lockout prevention, not timing-safe enumeration resistance.
+- **Account-existence leaks on registration and resend.** `/auth/register` returns a different status and body for an address that already has a completed account (`400`) versus one that is pending or unknown (`202`) — a direct, not just timing-based, leak of whether an address is registered. `/auth/resend-verification` returns identical response bodies regardless of state, but the branch that does real work (hashing, a commit, sending mail) is measurably slower than the branch that does nothing, so a network-timing side channel can still distinguish states its response content cannot. Neither is defended against; this spec's threat model is lockout prevention, not enumeration resistance.
 - **Account lockout**: no failed-attempt tracking exists anywhere in this service
 - **Redis token blacklisting**: a Redis URL is configurable, but nothing reads it
 - **HTTP-only cookie sessions**: bearer tokens only
@@ -199,7 +199,7 @@ There is no endpoint that grants superuser through the API. It is either bootstr
 - **Identity is the Google `sub`, not the email.** A returning user is resolved through the `(provider, provider_user_id)` link, so a Google account whose address changed still reaches its own account, and the new address is not written back.
 - **Google is never linked to an account that already exists.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address, so only a first-time address creates an account; any address already held returns 409. An earlier version auto-linked when the existing row had no password, reasoning that there was no credential to hijack — but a passwordless unlinked row is exactly what pre-provisioning produces, so that handed a seeded account (possibly a superuser) to whoever presented a Google token for the address first. Adopting SSO on an existing account now has its own endpoint: `POST /users/me/link/google` (authenticated). It requires `current_password` when the account has one -- an access token can be a short-lived, stolen bearer credential, and linking a new, durable login method to an account is exactly the kind of change that must not be reachable by holding one for a minute; the same reasoning as the password-change guard. Refuses (409) if the Google identity is already linked to a different account, or if the caller already has a Google link (at most one per user).
 
-**Remaining limitation:** self-service email *changes* on `PUT /users/me` are still not accepted at all (422). Verifying a new address the same way registration now does is not built, so allowing changes would reopen the address-squatting problem registration itself no longer has — see Email Verification below.
+**Remaining limitation:** self-service email *changes* on `PUT /users/me` are still not accepted at all (422). Verifying a new address the same way registration now does is not built, so allowing changes would reopen the address-squatting problem registration itself no longer has.
 
 ### Administrative Controls
 - Superuser-only endpoints protected by role-based checks
