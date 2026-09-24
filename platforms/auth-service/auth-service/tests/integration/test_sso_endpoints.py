@@ -143,19 +143,11 @@ def test_unverified_email_is_rejected(client, db, google_key, email_verified):
 
 # --- account linking --------------------------------------------------------------------
 
-def test_google_does_not_take_over_a_password_account(client, db, google_key):
+def test_google_does_not_take_over_a_password_account(client, db, register_and_verify, google_key):
     """Pre-registration takeover: someone registers the victim's address with a password
     before the victim ever signs up. When the victim then arrives via Google, linking on a
     matching email alone would hand them the attacker's account, password and all."""
-    registered = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "person@example.com",
-            "password": "attackerpassword1",
-            "full_name": "Squatter",
-        },
-    )
-    assert registered.status_code == 200, registered.text
+    register_and_verify("person@example.com", password="attackerpassword1", full_name="Squatter")
 
     response = client.post("/api/v1/sso/google", json={"credential": _id_token(google_key)})
 
@@ -287,19 +279,11 @@ def test_a_failed_link_write_leaves_no_orphan_account(client, db, google_key):
 
 # --- linking Google to an existing password account -------------------------------------
 
-def test_link_google_to_a_password_account(client, db, google_key):
+def test_link_google_to_a_password_account(client, db, register_and_verify, google_key):
     """The remedy /sso/google's 409 for a password account points at, and previously did
     not have. After linking, the same Google identity logs the account straight in."""
-    registered = client.post(
-        "/api/v1/auth/register",
-        json={"email": "person@example.com", "password": "securepassword123"},
-    )
-    assert registered.status_code == 200, registered.text
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": "person@example.com", "password": "securepassword123"},
-    )
-    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    login = register_and_verify("person@example.com")
+    auth = {"Authorization": f"Bearer {login['access_token']}"}
 
     linked = client.post(
         "/api/v1/users/me/link/google",
@@ -313,19 +297,12 @@ def test_link_google_to_a_password_account(client, db, google_key):
     assert sso_login.status_code == 200, sso_login.text
 
 
-def test_link_google_requires_the_current_password(client, db, google_key):
+def test_link_google_requires_the_current_password(client, db, register_and_verify, google_key):
     """A stolen bearer token linking a new, durable login method to the account is exactly
     the backdoor the password-change guard already exists to prevent; this is the same
     class of mutation."""
-    client.post(
-        "/api/v1/auth/register",
-        json={"email": "person@example.com", "password": "securepassword123"},
-    )
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": "person@example.com", "password": "securepassword123"},
-    )
-    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    login = register_and_verify("person@example.com")
+    auth = {"Authorization": f"Bearer {login['access_token']}"}
 
     missing = client.post(
         "/api/v1/users/me/link/google",
@@ -343,20 +320,13 @@ def test_link_google_requires_the_current_password(client, db, google_key):
     assert db.query(OAuthAccount).count() == 0
 
 
-def test_link_google_refuses_an_identity_linked_elsewhere(client, db, google_key):
+def test_link_google_refuses_an_identity_linked_elsewhere(client, db, register_and_verify, google_key):
     client.post(
         "/api/v1/sso/google", json={"credential": _id_token(google_key)}
     )  # creates person@example.com via SSO, linked to google-user-1
 
-    client.post(
-        "/api/v1/auth/register",
-        json={"email": "other@example.com", "password": "securepassword123"},
-    )
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": "other@example.com", "password": "securepassword123"},
-    )
-    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    login = register_and_verify("other@example.com")
+    auth = {"Authorization": f"Bearer {login['access_token']}"}
 
     response = client.post(
         "/api/v1/users/me/link/google",
@@ -367,16 +337,9 @@ def test_link_google_refuses_an_identity_linked_elsewhere(client, db, google_key
     assert db.query(OAuthAccount).count() == 1, "the existing link must be untouched"
 
 
-def test_link_google_refuses_a_second_link_on_the_same_account(client, db, google_key):
-    client.post(
-        "/api/v1/auth/register",
-        json={"email": "person@example.com", "password": "securepassword123"},
-    )
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": "person@example.com", "password": "securepassword123"},
-    )
-    auth = {"Authorization": f"Bearer {login.json()['access_token']}"}
+def test_link_google_refuses_a_second_link_on_the_same_account(client, db, register_and_verify, google_key):
+    login = register_and_verify("person@example.com")
+    auth = {"Authorization": f"Bearer {login['access_token']}"}
 
     first = client.post(
         "/api/v1/users/me/link/google",

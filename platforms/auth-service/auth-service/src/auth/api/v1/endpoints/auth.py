@@ -1,12 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 import logging
+import secrets
 from src.auth.api import deps
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
-from src.auth.schemas.auth import LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest
-from src.auth.schemas.user import UserCreate, RegisterRequest, User
+from src.auth.service.email_sender import EmailSender
+from src.auth.schemas.auth import (
+    LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest,
+)
+from src.auth.schemas.user import RegisterRequest
+from src.auth.models.pending_registration import PendingRegistration
+from src.auth.models.user import User
+from src.auth.utils.password import get_password_hash
 from src.auth.config import settings
 
 logger = logging.getLogger(__name__)
@@ -14,16 +22,123 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-@router.post("/register", response_model=User)
+@router.post("/register", status_code=status.HTTP_202_ACCEPTED)
 def register_user(
     user_in: RegisterRequest,
     db: Session = Depends(deps.get_db)
 ):
     """
-    Create new user account.
+    Begin registration. Creates a PendingRegistration rather than a User -- the address is
+    not claimed until the verification link is used. See
+    docs/superpowers/specs/2026-09-24-auth-service-email-verification-design.md.
     """
-    user = UserService.create_user(db, user_in)
-    return user
+    if UserService.get_user_by_email(db, user_in.email) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
+
+    existing_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == user_in.email
+    ).first()
+    if existing_pending is not None:
+        # Rotate rather than error: nothing is claimed yet, and erroring would leak that
+        # someone already tried this address. flush (not commit) so the DELETE is visible
+        # to the INSERT below within the same transaction, without ending it early.
+        db.delete(existing_pending)
+        db.flush()
+
+    token = secrets.token_urlsafe(32)
+    pending = PendingRegistration(
+        email=user_in.email,
+        hashed_password=get_password_hash(user_in.password),
+        full_name=user_in.full_name,
+        token=token,
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS),
+    )
+    db.add(pending)
+    db.commit()
+
+    verification_link = (
+        f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={token}"
+    )
+    EmailSender.send_verification_email(user_in.email, verification_link)
+
+    return {"message": "Check your email to complete registration"}
+
+
+@router.get("/verify-email", response_model=Token)
+def verify_email(token: str, db: Session = Depends(deps.get_db)):
+    """
+    Complete registration: turn a valid, unexpired PendingRegistration into a User and
+    auto-login.
+    """
+    pending = db.query(PendingRegistration).filter(
+        PendingRegistration.token == token
+    ).first()
+    if pending is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token",
+        )
+
+    expires_at = pending.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= datetime.now(timezone.utc):
+        # Worthless once expired -- deleting it releases the address for a clean retry
+        # rather than leaving a dead row a future registration has to keep rotating past.
+        db.delete(pending)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token",
+        )
+
+    if UserService.get_user_by_email(db, pending.email) is not None:
+        # The address was claimed by another path -- most likely Google SSO, whose
+        # email_verified claim is already equivalent proof -- while this registration sat
+        # unverified. The stale attempt is discarded; the real account is untouched.
+        db.delete(pending)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This email is already registered",
+        )
+
+    user = User(
+        email=pending.email,
+        hashed_password=pending.hashed_password,
+        full_name=pending.full_name,
+        is_active=True,
+        is_superuser=False,
+    )
+    db.add(user)
+    db.delete(pending)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Lost a race against a concurrent claim of this email between the check above and
+        # this commit.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This email is already registered",
+        )
+    db.refresh(user)
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = AuthService.create_access_token_for_user(
+        user, expires_delta=access_token_expires
+    )
+    refresh_token = AuthService.create_user_session(db, user).token
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/login", response_model=Token)
