@@ -209,3 +209,48 @@ def test_password_reset_reports_not_implemented(client):
         json={"token": "anything", "password": "newpassword123"},
     )
     assert reset.status_code == 501, reset.text
+
+
+def test_resend_verification_rotates_the_token(client, db):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "resend@example.com", "password": "securepassword123"},
+    )
+    first_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == "resend@example.com"
+    ).first()
+    first_token = first_pending.token
+
+    response = client.post(
+        "/api/v1/auth/resend-verification", json={"email": "resend@example.com"}
+    )
+    assert response.status_code == 200, response.text
+
+    stale = client.get(f"/api/v1/auth/verify-email?token={first_token}")
+    assert stale.status_code == 400, stale.text
+
+    refreshed_pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == "resend@example.com"
+    ).first()
+    verified = client.get(f"/api/v1/auth/verify-email?token={refreshed_pending.token}")
+    assert verified.status_code == 200, verified.text
+
+
+def test_resend_verification_answers_identically_regardless_of_state(client, register_and_verify):
+    """Matches /forgot-password's enumeration-prevention: the same response for a pending
+    registration, a completed account, and an address nobody has ever used."""
+    register_and_verify("completed@example.com")
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "pending@example.com", "password": "securepassword123"},
+    )
+
+    responses = [
+        client.post("/api/v1/auth/resend-verification", json={"email": "pending@example.com"}),
+        client.post("/api/v1/auth/resend-verification", json={"email": "completed@example.com"}),
+        client.post("/api/v1/auth/resend-verification", json={"email": "nobody@example.com"}),
+    ]
+    bodies = {r.status_code for r in responses}
+    messages = {r.json()["message"] for r in responses}
+    assert bodies == {200}
+    assert len(messages) == 1

@@ -10,6 +10,7 @@ from src.auth.service.user_service import UserService
 from src.auth.service.email_sender import EmailSender
 from src.auth.schemas.auth import (
     LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest,
+    ResendVerificationRequest,
 )
 from src.auth.schemas.user import RegisterRequest
 from src.auth.models.pending_registration import PendingRegistration
@@ -146,6 +147,31 @@ def verify_email(token: str, db: Session = Depends(deps.get_db)):
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
+    }
+
+
+@router.post("/resend-verification")
+def resend_verification(request: ResendVerificationRequest, db: Session = Depends(deps.get_db)):
+    """
+    Resend a verification link. Always answers the same way regardless of whether a
+    pending registration exists, matching /forgot-password's enumeration-prevention.
+    """
+    pending = db.query(PendingRegistration).filter(
+        PendingRegistration.email == request.email
+    ).first()
+    if pending is not None:
+        pending.token = secrets.token_urlsafe(32)
+        pending.expires_at = datetime.now(timezone.utc) + timedelta(
+            hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS
+        )
+        db.commit()
+        verification_link = (
+            f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={pending.token}"
+        )
+        EmailSender.send_verification_email(request.email, verification_link)
+
+    return {
+        "message": "If a pending registration exists for this email, a new verification link has been sent"
     }
 
 
