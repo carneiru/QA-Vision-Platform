@@ -102,15 +102,21 @@ index on `email`, keep a plain index for lookup — rather than stacking a new m
 would create a `UNIQUE` constraint and immediately drop it again in the next revision, which
 no real deployment ever needed to go through.
 
-**Testing added by this amendment:**
+**Testing added by this amendment** (updated to match the corrected resend design above —
+an earlier version of this list still described "resend serves the oldest attempt" as the
+property that closes the exploit; that rule was itself found insufficient by the security
+review that verified this fix, for the ordering it names below, and superseded by
+decline-under-ambiguity):
 - Register the same address twice with two *different* passwords, then verify using the
   **first** attempt's token: the resulting account's password is the first attempt's, not
-  the second's, and the second attempt's own token independently still verifies (into a
-  `409`, since a `User` now exists — proving the second attempt was never capable of
-  overriding the first's outcome, only of independently existing alongside it).
+  the second's. The second attempt's own token, tried afterward, now returns `400` (its
+  row was deleted by `verify-email`'s sibling cleanup below) — not `409`, since there is no
+  longer a row for it to find.
 - After that same setup, call `/auth/resend-verification` for the address *before* either
-  token is used: assert the token it resends matches the **first** (oldest) attempt's
-  token, not the second's — this is the property that actually closes the exploit.
+  token is used: assert it **declines** — the same generic response, and neither row's
+  token or expiry changes. This, not "serves the oldest," is the property that actually
+  closes the exploit: it holds regardless of which attempt (attacker's or the real
+  registrant's) happens to be older.
 - Confirm `verify-email` on the winning token deletes the *other* attempt's row too (query
   `PendingRegistration` count for the address is `0` after verification, not `1`).
 - Replace `test_register_commit_race_returns_a_clean_400` (Task 3's fix-round test for the
