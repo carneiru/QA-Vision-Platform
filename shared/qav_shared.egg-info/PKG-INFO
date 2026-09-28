@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: qav-shared
+Version: 0.1.0
+Summary: Shared configuration and database wiring for QA Vision Platform services
+Requires-Python: >=3.11
+Requires-Dist: pydantic>=2.7
+Requires-Dist: pydantic-settings>=2.2
+Requires-Dist: sqlalchemy>=2.0

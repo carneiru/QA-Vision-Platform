@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qav-shared"
+version = "0.1.0"
+description = "Shared configuration and database wiring for QA Vision Platform services"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.2",
+    "sqlalchemy>=2.0",
+]
+
+# Declared explicitly rather than left to auto-discovery: with tests/ sitting beside
+# qav_shared/, setuptools' flat-layout discovery errors out rather than guessing.
+[tool.setuptools]
+packages = ["qav_shared"]
