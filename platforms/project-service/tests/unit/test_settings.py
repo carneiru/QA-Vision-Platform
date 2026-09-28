@@ -61,3 +61,10 @@ def test_view_ignores_keys_the_model_no_longer_defines():
     view = settings_view({"legacy_setting": 5, "notify_on_failure": True})
     assert view.notify_on_failure is True
     assert "legacy_setting" not in view.model_dump()
+
+
+def test_merge_drops_a_stale_key_the_model_no_longer_defines():
+    assert merge_settings({"legacy_setting": 5, "result_retention_days": 30}, {"notify_on_failure": True}) == {
+        "result_retention_days": 30,
+        "notify_on_failure": True,
+    }

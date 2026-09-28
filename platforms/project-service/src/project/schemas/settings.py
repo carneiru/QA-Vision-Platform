@@ -34,7 +34,7 @@ def merge_settings(stored: Optional[dict], patch: dict) -> dict:
     if unknown:
         raise ValueError(f"Unknown setting(s): {', '.join(sorted(unknown))}")
 
-    merged = dict(stored or {})
+    merged = {key: value for key, value in (stored or {}).items() if key in ProjectSettings.model_fields}
     for key, value in patch.items():
         if value is None:
             merged.pop(key, None)

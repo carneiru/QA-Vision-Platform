@@ -212,3 +212,16 @@ def test_project_with_a_stale_stored_setting_is_still_readable(client, auth, org
     response = client.get(f"/api/v1/projects/{project.id}", headers=auth())
     assert response.status_code == 200
     assert response.json()["settings"]["result_retention_days"] == 90
+
+
+def test_settings_patch_drops_a_stale_stored_setting(client, auth, org_role, make_project, db):
+    project = make_project()
+    project.settings = {"legacy_setting": 5}
+    db.commit()
+    org_role("member")
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/settings", json={"result_retention_days": 30}, headers=auth()
+    )
+    assert response.status_code == 200
+    db.refresh(project)
+    assert "legacy_setting" not in project.settings
