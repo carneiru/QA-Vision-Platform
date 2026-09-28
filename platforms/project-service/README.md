@@ -46,7 +46,7 @@ With Docker (organization-service running in its own stack on host port 8001):
 
 ```bash
 export SECRET_KEY=<same value as auth-service and organization-service>
-docker compose up --build
+docker compose up -d --build
 docker compose exec project-service alembic upgrade head  # first run, and after every pull that adds a migration
 ```
 

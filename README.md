@@ -103,6 +103,30 @@ Once the service is running, visit:
 pytest
 ```
 
+## Running the platform
+
+Everything — auth, organization and project services, one PostgreSQL, and the gateway — from the
+repository root:
+
+```bash
+export SECRET_KEY=<a long random value>        # required; shared by every service
+docker compose up -d --build --wait gateway
+curl -k https://localhost:8443/health          # {"status":"healthy"}
+```
+
+- All API calls go through `https://localhost:8443/api/v1/...` (see `gateway/README.md` for the
+  routes). The certificate is self-signed: use `curl -k`, or trust
+  `docker compose cp gateway:/etc/nginx/certs/tls.crt ./qav-localhost.crt` once.
+- Databases are created and migrated automatically on every `up`.
+- Inspect a database: `docker compose exec postgres psql -U postgres -d project_db`.
+- Stop: `docker compose down`. Wipe all data: `docker compose down --volumes`.
+- Ports: `GATEWAY_HTTPS_PORT` (default 8443) and `GATEWAY_HTTP_PORT` (default 8080) — set
+  either if the port is already taken on your machine.
+- Adding members to an organization needs `AUTH_SERVICE_TOKEN` set to a superuser's token (a
+  known limitation; see `TODO.md`).
+
+Each service's own `docker-compose.yml` under `platforms/` still works for developing it alone.
+
 ## Project Structure
 
 Services are grouped by domain at the repository root. Only the three under
@@ -112,6 +136,7 @@ generated from the auth-service template and are not running services yet.
 ```
 QA-Vision-Platform/
 ├── shared/                         # qav-shared: settings + DB session wiring used by services
+├── gateway/                        # NGINX gateway: routing, rate limits, TLS
 ├── platforms/
 │   ├── auth-service/auth-service/  # Authentication (implemented)
 │   │   ├── src/auth/
