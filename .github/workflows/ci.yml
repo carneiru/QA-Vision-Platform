@@ -39,9 +39,9 @@ jobs:
       # The services refuse to start without one; any value works for the test suites.
       SECRET_KEY: ci-test-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -79,7 +79,7 @@ jobs:
       # docker-compose.yml requires SECRET_KEY (`${SECRET_KEY:?...}`) and has no fallback.
       SECRET_KEY: ci-smoke-secret
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # --wait blocks until every service's healthcheck passes, and fails if any container
       # exits or never becomes healthy. That is what catches a broken image or entry point:
