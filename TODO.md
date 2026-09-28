@@ -179,8 +179,17 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Global search across TCs, suites and runs *(suggested)*
 - [ ] Personal dashboard: my suites, my recent failures *(suggested)*
 
-### G. Platform prerequisites for v2
-These are not features, but groups B, C, D and E cannot ship without them:
+### G. Built-in terminal
+A terminal in the browser (xterm.js over a WebSocket). An interactive shell is remote code
+execution by design, so this ships in three levels, each its own spec, and each level only
+after the one before it is proven:
+- [ ] **Level 1 — live output console (read-only):** stream a run's stdout/stderr as it happens, with ANSI colours, search, and download. No input. Low risk; reuses the run/job infrastructure from group B
+- [ ] **Level 2 — command console (allow-listed):** a terminal-style prompt that only accepts platform commands (`run suite smoke`, `rerun failed`, `git status`, `show config`), each mapped to an API call and bound by the same per-action permissions as the UI. No arbitrary shell
+- [ ] **Level 3 — full interactive shell:** a real PTY inside an ephemeral, per-user sandbox container (repo checked out, test toolchain installed), destroyed at session end. Requires: container isolation (gVisor/Firecracker class, no host mounts, no Docker socket), egress restrictions, CPU/memory/time limits, idle timeout, no platform secrets inside the sandbox, session recording to the audit log, and an explicit per-organization opt-in
+- Note: Level 3 means running customer code on QA Vision's own infrastructure — the exact surface group B's `workflow_dispatch` approach avoids. Build it only if Levels 1–2 leave a real gap.
+
+### H. Platform prerequisites for v2
+These are not features, but groups B, C, D, E and G cannot ship without them:
 - [ ] Frontend application (React/TypeScript, per the roadmap tech stack)
 - [ ] GitHub App integration — scoped repo access, workflow dispatch, secrets API — instead of personal access tokens
 - [ ] Artifact storage for screenshots, videos and traces (S3-compatible; MinIO for local development)
