@@ -1,0 +1,13 @@
+# The services build with the repository root as context (so they can COPY shared/).
+# Keep local environments, caches and VCS data out of that context.
+.git
+.superpowers
+**/.env
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info
+**/.pytest_cache
+**/test.db
+**/node_modules

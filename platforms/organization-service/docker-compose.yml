@@ -2,14 +2,18 @@ version: '3.8'
 
 services:
   organization-service:
-    build: .
+    # Context is the repo root so the image can COPY shared/ alongside this service.
+    build:
+      context: ../..
+      dockerfile: platforms/organization-service/Dockerfile
     # auth-service's own docker-compose already publishes host port 8000, so this service
     # is published on 8001 to avoid the collision when both stacks run side by side.
     ports:
       - "8001:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/organization_db
-      - SECRET_KEY=your-secret-key-here
+      # No fallback, and it must equal auth-service's SECRET_KEY so its JWTs verify here.
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY (same value as auth-service)}
       - ALGORITHM=HS256
       # auth-service runs in its own compose stack; override this to wherever it is actually
       # reachable (a shared external network, or host.docker.internal:8000 on Docker Desktop)

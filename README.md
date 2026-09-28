@@ -69,10 +69,11 @@ The first phase of the platform implements a robust authentication service with 
 5. **Run the Service**
    ```bash
    # Development mode
-   python src/auth/main.py
-   
-   # Or using Docker Compose
-   docker-compose up --build
+   uvicorn src.auth.api.main:app --reload
+
+   # Or using Docker Compose (SECRET_KEY is required and must match organization-service's)
+   export SECRET_KEY=<a long random value>
+   docker compose up --build
    ```
 
 ### Environment Variables
@@ -110,6 +111,7 @@ generated from the auth-service template and are not running services yet.
 
 ```
 QA-Vision-Platform/
+├── shared/                         # qav-shared: settings + DB session wiring used by services
 ├── platforms/
 │   ├── auth-service/auth-service/  # Authentication (implemented)
 │   │   ├── src/auth/
