@@ -128,5 +128,30 @@ services:
       project-migrate:
         condition: service_completed_successfully
 
+  gateway:
+    build: ./gateway
+    image: qa-vision/gateway:local
+    ports:
+      - "${GATEWAY_HTTPS_PORT:-8443}:443"
+      - "${GATEWAY_HTTP_PORT:-8080}:80"
+    environment:
+      # Must equal the published HTTPS port: the HTTP -> HTTPS redirect is built from it
+      GATEWAY_HTTPS_PORT: ${GATEWAY_HTTPS_PORT:-8443}
+    volumes:
+      - qav_gateway_certs:/etc/nginx/certs
+    healthcheck:
+      test: ["CMD", "curl", "-fsk", "https://localhost/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      organization-service:
+        condition: service_healthy
+      project-service:
+        condition: service_healthy
+
 volumes:
   qav_postgres_data:
+  qav_gateway_certs:

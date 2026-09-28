@@ -1,0 +1,204 @@
+# QA Vision gateway. Rendered by entrypoint.sh; only the HTTPS port variable is substituted.
+# Routing, limits and TLS are specified in docs/superpowers/specs/2026-09-28-api-gateway-design.md.
+
+worker_processes auto;
+error_log /dev/stderr warn;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    server_tokens off;
+    default_type application/json;
+    client_max_body_size 10m;
+
+    # The client's X-Request-ID if it sent one, else NGINX's own
+    map $http_x_request_id $req_id {
+        default $http_x_request_id;
+        ""      $request_id;
+    }
+
+    log_format json escape=json '{'
+        '"time":"$time_iso8601",'
+        '"request_id":"$req_id",'
+        '"remote_addr":"$remote_addr",'
+        '"method":"$request_method",'
+        '"uri":"$request_uri",'
+        '"status":$status,'
+        '"upstream":"$upstream_addr",'
+        '"upstream_response_time":"$upstream_response_time",'
+        '"request_time":$request_time,'
+        '"bytes_sent":$bytes_sent'
+    '}';
+    access_log /dev/stdout json;
+
+    # Keyed on the TCP peer, never on a header a client could set
+    limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
+    limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/s;
+    limit_req_status 429;
+
+    # Docker's embedded DNS; with `proxy_pass $upstream` a recreated container (new IP) is found
+    # within 10 s instead of the gateway returning 502 until it is restarted
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    # Overwritten, not appended: the gateway is the edge, so a client-supplied value is discarded
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID $req_id;
+    proxy_connect_timeout 3s;
+    proxy_read_timeout 30s;
+    # The services' own error responses (JSON) pass through untouched
+    proxy_intercept_errors off;
+
+    server {
+        listen 80;
+        server_name _;
+
+        location / {
+            return 301 https://$host:${GATEWAY_HTTPS_PORT}$request_uri;
+        }
+    }
+
+    server {
+        listen 443 ssl;
+        server_name _;
+
+        ssl_certificate     /etc/nginx/certs/tls.crt;
+        ssl_certificate_key /etc/nginx/certs/tls.key;
+        ssl_protocols       TLSv1.2 TLSv1.3;
+        # No HSTS: on localhost with a self-signed certificate it would force HTTPS for every
+        # localhost port in the browser.
+
+        add_header X-Request-ID $req_id always;
+
+        # NGINX's own errors as JSON. Each named location repeats X-Request-ID because an
+        # add_header inside a location replaces the server-level ones.
+        error_page 404 @not_found;
+        error_page 413 @too_large;
+        error_page 429 @too_many_requests;
+        error_page 502 @bad_gateway;
+        error_page 504 @gateway_timeout;
+
+        location @not_found {
+            add_header X-Request-ID $req_id always;
+            return 404 '{"detail":"Not Found"}';
+        }
+        location @too_large {
+            add_header X-Request-ID $req_id always;
+            return 413 '{"detail":"Request Entity Too Large"}';
+        }
+        location @too_many_requests {
+            add_header X-Request-ID $req_id always;
+            add_header Retry-After 1 always;
+            return 429 '{"detail":"Too Many Requests"}';
+        }
+        location @bad_gateway {
+            add_header X-Request-ID $req_id always;
+            return 502 '{"detail":"Bad Gateway"}';
+        }
+        location @gateway_timeout {
+            add_header X-Request-ID $req_id always;
+            return 504 '{"detail":"Gateway Timeout"}';
+        }
+
+        # ---- health (never rate-limited) ----
+        location = /health {
+            return 200 '{"status":"healthy"}';
+        }
+        location = /health/auth {
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream/health;
+        }
+        location = /health/organizations {
+            set $upstream http://organization-service:8000;
+            proxy_pass $upstream/health;
+        }
+        location = /health/projects {
+            set $upstream http://project-service:8000;
+            proxy_pass $upstream/health;
+        }
+
+        # ---- project-service ----
+        # A regex location wins over prefix locations, so this takes
+        # /api/v1/organizations/{id}/projects[...] away from organization-service below.
+        location ~ ^/api/v1/organizations/[0-9]+/projects(/|$) {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://project-service:8000;
+            proxy_pass $upstream;
+        }
+        location /api/v1/projects {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://project-service:8000;
+            proxy_pass $upstream;
+        }
+
+        # ---- organization-service ----
+        location /api/v1/organizations {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://organization-service:8000;
+            proxy_pass $upstream;
+        }
+        location /api/v1/invitations {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://organization-service:8000;
+            proxy_pass $upstream;
+        }
+
+        # ---- auth-service ----
+        # Endpoints that take a password or send an email get the stricter zone as well
+        location = /api/v1/auth/login {
+            limit_req zone=api burst=40 nodelay;
+            limit_req zone=auth burst=10 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location = /api/v1/auth/register {
+            limit_req zone=api burst=40 nodelay;
+            limit_req zone=auth burst=10 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location = /api/v1/auth/forgot-password {
+            limit_req zone=api burst=40 nodelay;
+            limit_req zone=auth burst=10 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location = /api/v1/auth/reset-password {
+            limit_req zone=api burst=40 nodelay;
+            limit_req zone=auth burst=10 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location = /api/v1/auth/resend-verification {
+            limit_req zone=api burst=40 nodelay;
+            limit_req zone=auth burst=10 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location /api/v1/auth {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location /api/v1/users {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+        location /api/v1/sso {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
+
+        # ---- everything else ----
+        location / {
+            return 404;
+        }
+    }
+}
