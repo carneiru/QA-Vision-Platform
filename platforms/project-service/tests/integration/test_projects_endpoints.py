@@ -202,3 +202,13 @@ def test_org_service_down_is_503(client, auth, org_role, make_project):
     project = make_project()
     org_role(exc=httpx.ConnectError("refused"))
     assert client.get(f"/api/v1/projects/{project.id}", headers=auth()).status_code == 503
+
+
+def test_project_with_a_stale_stored_setting_is_still_readable(client, auth, org_role, make_project, db):
+    project = make_project()
+    project.settings = {"legacy_setting": 5}
+    db.commit()
+    org_role("viewer")
+    response = client.get(f"/api/v1/projects/{project.id}", headers=auth())
+    assert response.status_code == 200
+    assert response.json()["settings"]["result_retention_days"] == 90

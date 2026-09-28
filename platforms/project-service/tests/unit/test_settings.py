@@ -55,3 +55,9 @@ def test_merge_does_not_mutate_the_stored_dict():
     stored = {"result_retention_days": 30}
     merge_settings(stored, {"result_retention_days": 60})
     assert stored == {"result_retention_days": 30}
+
+
+def test_view_ignores_keys_the_model_no_longer_defines():
+    view = settings_view({"legacy_setting": 5, "notify_on_failure": True})
+    assert view.notify_on_failure is True
+    assert "legacy_setting" not in view.model_dump()

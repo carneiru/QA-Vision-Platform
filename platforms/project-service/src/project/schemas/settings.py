@@ -13,8 +13,15 @@ class ProjectSettings(BaseModel):
 
 
 def settings_view(stored: Optional[dict]) -> ProjectSettings:
-    """The full settings, with defaults for every key that was never set."""
-    return ProjectSettings.model_validate(stored or {})
+    """The full settings, with defaults for every key that was never set.
+
+    Reads must never 500 over stored data they don't recognize: a setting removed in a later
+    version, or a manual DB edit, can leave an unknown key sitting in a row. Drop anything the
+    model no longer defines before validating -- `merge_settings` (the write/PATCH path) stays
+    strict and still rejects unknown keys with a 422.
+    """
+    known = {key: value for key, value in (stored or {}).items() if key in ProjectSettings.model_fields}
+    return ProjectSettings.model_validate(known)
 
 
 def merge_settings(stored: Optional[dict], patch: dict) -> dict:
