@@ -56,6 +56,7 @@ request.
 
 ```bash
 docker build -t qa-vision/gateway:local gateway && docker run --rm qa-vision/gateway:local nginx -t
-SECRET_KEY=dev docker compose up -d --build --wait gateway
+export SECRET_KEY=dev        # every docker compose command needs it, not just `up`
+docker compose up -d --build --wait gateway
 bash scripts/smoke_gateway.sh
 ```

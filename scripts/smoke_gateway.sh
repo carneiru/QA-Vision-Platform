@@ -4,6 +4,13 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
+# docker-compose.yml interpolates ${SECRET_KEY:?...} for EVERY compose command, including the
+# `exec` below, so without it nothing here can work -- say so instead of failing obscurely.
+if [ -z "${SECRET_KEY:-}" ]; then
+  echo "FAIL  SECRET_KEY is not set: export the same value the stack was started with"
+  exit 1
+fi
+
 HTTPS_PORT="${GATEWAY_HTTPS_PORT:-8443}"
 HTTP_PORT="${GATEWAY_HTTP_PORT:-8080}"
 BASE="https://localhost:${HTTPS_PORT}"
@@ -42,9 +49,9 @@ TOKEN="$(docker compose exec -T auth-service python -c '
 import datetime, os, jwt
 exp = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)
 print(jwt.encode({"sub": "999999", "exp": exp}, os.environ["SECRET_KEY"], algorithm="HS256"))
-' 2>/dev/null | tr -d '\r\n')"
+' 2>"$TMP/mint_err" | tr -d '\r\n')"
 if [ -z "$TOKEN" ]; then
-  echo "FAIL  could not mint a token inside auth-service (is the stack up?)"
+  echo "FAIL  could not mint a token inside auth-service: $(head -c 300 "$TMP/mint_err")"
   exit 1
 fi
 AUTH=(-H "Authorization: Bearer ${TOKEN}")
@@ -75,6 +82,15 @@ if grep -qi '^x-request-id: ' "$TMP/headers"; then pass "X-Request-ID on respons
 
 check "client X-Request-ID is echoed" 200 GET "$BASE/health" -H "X-Request-ID: smoke-123"
 if grep -qi '^x-request-id: smoke-123' "$TMP/headers"; then pass "X-Request-ID echo value"; else fail "X-Request-ID not echoed"; fi
+
+# A service's own trailing-slash redirect must send the client back through the gateway, on
+# HTTPS and the published port -- not to http://localhost/ (host port 80, no gateway there)
+check "service redirect (GET /api/v1/users -> /api/v1/users/)" 307 GET "$BASE/api/v1/users" "${AUTH[@]}"
+if grep -qi "^location: https://localhost:${HTTPS_PORT}/api/v1/users/" "$TMP/headers"; then
+  pass "service redirect stays on https://localhost:${HTTPS_PORT}"
+else
+  fail "service redirect points elsewhere: $(grep -i '^location' "$TMP/headers" 2>/dev/null)"
+fi
 
 redirect_status="$(curl -s -o /dev/null -D "$TMP/redirect" -w '%{http_code}' "http://localhost:${HTTP_PORT}/health")"
 if [ "$redirect_status" = 301 ] && grep -qi "^location: https://localhost:${HTTPS_PORT}/health" "$TMP/redirect"; then

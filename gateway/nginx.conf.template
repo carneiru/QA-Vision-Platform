@@ -53,6 +53,10 @@ http {
     proxy_read_timeout 30s;
     # The services' own error responses (JSON) pass through untouched
     proxy_intercept_errors off;
+    # The services build redirect URLs (e.g. FastAPI's trailing-slash 307) from what they see:
+    # plain http and a Host without the published port. Rewrite them back to the gateway's
+    # public address, or clients are sent to http://localhost/ where nothing listens.
+    proxy_redirect http://$host/ https://$host:${GATEWAY_HTTPS_PORT}/;
 
     server {
         listen 80;

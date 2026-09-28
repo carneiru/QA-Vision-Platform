@@ -109,7 +109,7 @@ Everything — auth, organization and project services, one PostgreSQL, and the 
 repository root:
 
 ```bash
-export SECRET_KEY=<a long random value>        # required; shared by every service
+export SECRET_KEY=<a long random value>        # required by EVERY docker compose command here
 docker compose up -d --build --wait gateway
 curl -k https://localhost:8443/health          # {"status":"healthy"}
 ```

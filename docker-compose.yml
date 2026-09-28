@@ -52,7 +52,10 @@ services:
     volumes:
       - qav_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # Over TCP, not the Unix socket: on a fresh volume the image first runs a temporary,
+      # socket-only server for initialisation, and a socket check can pass on that one --
+      # db-init (which connects over TCP) would then be refused.
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1"]
       interval: 3s
       timeout: 3s
       retries: 20
