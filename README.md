@@ -110,6 +110,7 @@ generated from the auth-service template and are not running services yet.
 
 ```
 QA-Vision-Platform/
+├── shared/                         # qav-shared: settings + DB session wiring used by services
 ├── platforms/
 │   ├── auth-service/auth-service/  # Authentication (implemented)
 │   │   ├── src/auth/
