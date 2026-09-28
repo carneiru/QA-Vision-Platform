@@ -16,16 +16,17 @@ The duplication is small in line count but has already produced real divergence:
 | | auth-service | organization-service |
 |---|---|---|
 | `database_url` return type | `PostgresDsn` | `str` |
-| DSN construction | `PostgresDsn.build(...)` — URL-encodes the password | f-string — **does not** encode |
+| DSN construction | `PostgresDsn.build(...)` — raises on `:` or `/` in the password instead of escaping it | f-string — **does not** encode |
 | `SECRET_KEY` | required, no default | defaults to the literal `"your-secret-key-here"` |
 | `db/base.py` | `Base = declarative_base()` | byte-identical |
 | `db/session.py` | engine + sessionmaker + `get_db` generator | near-identical |
 
 Three of those rows are defects, not merely inconsistencies:
 
-1. **organization-service cannot handle a password containing `@`, `/` or `:`.** Its
-   f-string produces a malformed URL where auth's `PostgresDsn.build` would have escaped
-   the value.
+1. **Neither service can handle a password containing `@`, `/` or `:`.**
+   organization-service's f-string produces a malformed URL, and auth-service's
+   `PostgresDsn.build` does no better: it raises `ValidationError: invalid port number`
+   on the same password instead of escaping it.
 2. **The return types are incompatible in a way that is one copy-paste from breaking.**
    `organization/alembic/env.py` line 28 calls `settings.database_url.replace("%", "%%")`
    — a `str` method. Run that same line against auth's `PostgresDsn` and it raises
@@ -106,7 +107,7 @@ latent surprise for whoever first deploys a container.
 
 ```python
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -147,14 +148,17 @@ class BaseServiceSettings(BaseSettings):
         auth-service returned PostgresDsn and organization-service returned str; unifying
         on str removes a trap rather than picking a favourite.
 
-        The components path escapes user and password. auth-service got this right via
-        PostgresDsn.build; organization-service's f-string did not, so any password
-        containing @, / or : produced a malformed URL there.
+        The components path escapes user and password. Neither service's original
+        components path was correct: organization-service's f-string didn't encode at
+        all, and auth-service's `PostgresDsn.build` raised on a password containing `:`
+        or `/` instead of escaping it. `quote(value, safe="")` is used rather than
+        `quote_plus` because `quote_plus` turns a space into `+`, which a URL parser
+        then decodes back as a literal `+` instead of a space -- corrupting the password.
         """
         if self.DATABASE_URL:
             return str(self.DATABASE_URL)
-        user = quote_plus(self.POSTGRES_USER)
-        password = quote_plus(self.POSTGRES_PASSWORD)
+        user = quote(self.POSTGRES_USER, safe="")
+        password = quote(self.POSTGRES_PASSWORD, safe="")
         return f"postgresql://{user}:{password}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
 ```
 
