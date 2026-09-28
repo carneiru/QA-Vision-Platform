@@ -122,6 +122,72 @@
 85. [ ] Add Docker support
 86. [ ] Integrate with all platform services
 
+## Next Version (v2) — Backlog
+
+Not scheduled. These move QA Vision from *observing* test runs (the roadmap's scope: a
+collector reports results from the customer's own CI) to also *authoring and running*
+them. Items marked *(suggested)* were added during review as natural companions to the
+requested ones. Each group needs its own design spec before implementation.
+
+### A. Test case management
+- [ ] Friendly UI to browse, create and edit test cases (TCs)
+- [ ] Create/add labels on TCs; filter and search by label
+- [ ] Create suites — static (hand-picked TCs)
+- [ ] Dynamic suites defined by a label query, e.g. `smoke AND checkout` *(suggested)*
+- [ ] TC versioning: who changed what, and when *(suggested)*
+- [ ] Import existing TCs from the repo (Gherkin `.feature` files, JUnit XML) *(suggested)*
+- [ ] Link TCs to requirements/tickets (Azure DevOps, Jira) *(suggested)*
+- [ ] Bulk actions: label, move, archive many TCs at once *(suggested)*
+
+### B. Test execution
+- [ ] Run a single TC, a selection ("bunch"), or a whole suite
+- [ ] Re-run only the failures from a previous run
+- [ ] First version triggers the customer's CI (GitHub Actions `workflow_dispatch`) rather than running tests on QA Vision's own infrastructure *(suggested — far smaller security surface than executing customer code)*
+- [ ] Live run progress and cancel a running job (see `specs/2026-07-13-qa-vision-realtime-features.md`) *(suggested)*
+- [ ] Run parameters: target environment, browser/device matrix *(suggested)*
+- [ ] Scheduled runs (nightly, per branch) *(suggested)*
+- [ ] Flaky-test quarantine: auto-retry policy and a quarantined list excluded from gating *(suggested — builds on Phase 4 flaky detection)*
+
+### C. Results, history and evidence
+- [ ] TC run history (pass/fail/duration over time) — already planned in roadmap Phases 2–3
+- [ ] View screenshots and screen recordings attached to a run
+- [ ] Playwright trace viewer and step-by-step logs per failed TC *(suggested)*
+- [ ] Compare two runs side by side *(suggested)*
+- [ ] Group failures by error signature, so one broken locator shows as one problem, not forty *(suggested)*
+- [ ] Shareable link to a failed run *(suggested)*
+- [ ] Failure notifications to Slack/Teams/email *(suggested)*
+
+### D. AI prompt chat
+- [ ] Create TCs from a prompt
+- [ ] Fix failing TCs from a prompt
+- [ ] Every AI change is delivered as a pull request or a reviewable diff, never committed directly *(suggested — keeps a human in the loop)*
+- [ ] Explain a failure from its logs and screenshots *(suggested)*
+- [ ] Turn manual TC steps into an automated test *(suggested)*
+- [ ] Ask questions about test data in plain language ("which tests failed most this week?") — roadmap Phase 6 *(suggested)*
+- Note: the roadmap defers "natural language test generation" past year one because predictive ML needs months of collected data. An assistant built on a hosted LLM does not depend on that data, so this group can be scheduled independently of Phase 6.
+
+### E. Repository configuration and secrets
+- [ ] Edit configuration files (`*.json`) — restricted to a configured config path only
+- [ ] Validate edits against a JSON schema and show a diff before saving; save as a PR *(suggested)*
+- [ ] Manage the repo's environment variables (the GitHub `.env`)
+- [ ] Store them as GitHub Actions secrets/variables through the GitHub API rather than committing a `.env` file; values write-only and masked in the UI *(suggested — a committed `.env` leaks its secrets to everyone with read access)*
+- [ ] Per-environment profiles (dev / staging / prod) *(suggested)*
+- [ ] Audit log of every config and secret change *(suggested)*
+
+### F. UX
+- [ ] Onboarding wizard: connect a repository, install the collector, first run *(suggested)*
+- [ ] Global search across TCs, suites and runs *(suggested)*
+- [ ] Personal dashboard: my suites, my recent failures *(suggested)*
+
+### G. Platform prerequisites for v2
+These are not features, but groups B, C, D and E cannot ship without them:
+- [ ] Frontend application (React/TypeScript, per the roadmap tech stack)
+- [ ] GitHub App integration — scoped repo access, workflow dispatch, secrets API — instead of personal access tokens
+- [ ] Artifact storage for screenshots, videos and traces (S3-compatible; MinIO for local development)
+- [ ] Job queue for runs and AI requests (Redis is already in the stack)
+- [ ] Secrets management (Vault or cloud equivalent) — brought forward from "prepare for" to required
+- [ ] Permissions per action: who may run tests, edit config, manage secrets, accept AI changes
+
 ## Completed Documentation (Reference)
 All architectural specifications and design documents from the initial brainstorming phase have been completed and serve as the foundation for implementation phases.
 
