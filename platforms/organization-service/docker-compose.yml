@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   organization-service:
     # Context is the repo root so the image can COPY shared/ alongside this service.
@@ -20,7 +18,16 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8000
       - AUTH_SERVICE_TOKEN=
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    # Lets `docker compose up --wait` (and CI's smoke test) block until the app actually
+    # serves requests. The slim image has no curl, so probe with Python's stdlib.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
 
   db:
     image: postgres:15
@@ -28,6 +35,11 @@ services:
       POSTGRES_DB: organization_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d organization_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:

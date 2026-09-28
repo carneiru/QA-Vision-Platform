@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+# A newer push to the same branch or PR makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One service failing must not hide the other's result.
+      fail-fast: false
+      matrix:
+        include:
+          # Adding a service is one more entry here. `extra_tests` runs additional suites
+          # from the same environment: the shared package has no venv of its own, and a
+          # service's requirements already install it plus pytest and psycopg2.
+          - service: organization-service
+            path: platforms/organization-service
+            extra_tests: ../../shared/tests
+          - service: auth-service
+            path: platforms/auth-service/auth-service
+            extra_tests: ""
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+    env:
+      # The services refuse to start without one; any value works for the test suites.
+      SECRET_KEY: ci-test-secret
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ${{ matrix.path }}/requirements.txt
+
+      # requirements.txt installs ../shared editable via a relative path, which is why
+      # this runs from the service directory.
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run service tests
+        run: python -m pytest tests/ -q
+
+      - name: Run extra suites
+        if: matrix.extra_tests != ''
+        run: python -m pytest ${{ matrix.extra_tests }} -q
+
+  smoke:
+    name: Container smoke test (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: organization-service
+            path: platforms/organization-service
+            port: 8001
+          - service: auth-service
+            path: platforms/auth-service/auth-service
+            port: 8000
+    defaults:
+      run:
+        working-directory: ${{ matrix.path }}
+    env:
+      # docker-compose.yml requires SECRET_KEY (`${SECRET_KEY:?...}`) and has no fallback.
+      SECRET_KEY: ci-smoke-secret
+    steps:
+      - uses: actions/checkout@v4
+
+      # --wait blocks until every service's healthcheck passes, and fails if any container
+      # exits or never becomes healthy. That is what catches a broken image or entry point:
+      # the unit tests import the app directly and never start the container.
+      - name: Build and start the stack
+        run: docker compose up --build --detach --wait --wait-timeout 180
+
+      - name: Check /health from the host
+        run: curl --fail --silent --show-error http://localhost:${{ matrix.port }}/health
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes
