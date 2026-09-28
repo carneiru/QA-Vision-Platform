@@ -47,7 +47,17 @@ With Docker (organization-service running in its own stack on host port 8001):
 ```bash
 export SECRET_KEY=<same value as auth-service and organization-service>
 docker compose up --build
+docker compose exec project-service alembic upgrade head  # first run, and after every pull that adds a migration
 ```
+
+## Known limitations
+
+- Response codes reveal whether a project id exists: a non-member gets 404 without organization-service
+  being contacted, while a member gets 404/503 only after it answers. Project ids are sequential and no
+  project data is exposed, so this is not treated as an information leak.
+- Each request holds its database connection open while it waits on organization-service (up to 3s) and,
+  when adding or re-verifying a repository, on the provider too (up to 3s more).
+- Any database integrity error on project create or rename is reported as a name/slug conflict (409).
 
 ## Tests
 

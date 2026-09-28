@@ -79,6 +79,8 @@
 48. [x] Create API documentation
 49. [x] Add Docker support
 50. [x] Integrate with Auth and Organization services
+50.1. [ ] Release the DB session before outbound HTTP calls (members/me, provider verification) so slow upstreams cannot exhaust the connection pool
+50.2. [ ] Map only uniqueness violations to 409 in project_service._commit; re-raise other IntegrityErrors
 
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
