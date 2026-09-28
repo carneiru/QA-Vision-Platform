@@ -78,8 +78,8 @@ This service provides core authentication and authorization functionality for th
 5. **Run the application**
    ```bash
    # Development mode
-   python src/auth/main.py
-   
+   uvicorn src.auth.api.main:app --reload
+
    # API will be available at http://localhost:8000
    # API documentation:
    # - Swagger UI: http://localhost:8000/api/v1/docs
@@ -89,7 +89,9 @@ This service provides core authentication and authorization functionality for th
 ### Docker Deployment
 
 ```bash
-docker-compose up --build
+# Required, no default; use the same value for organization-service
+export SECRET_KEY=<a long random value>
+docker compose up --build
 ```
 
 ## Environment Variables
@@ -262,13 +264,14 @@ pytest tests/test_user_service.py
 
 ### Development
 ```bash
-docker-compose up --build
+export SECRET_KEY=<a long random value>
+docker compose up --build
 ```
 
 ### Production
 ```bash
-# Build image
-docker build -t qtauth-service .
+# Build image -- the context is the repository root, so the image can COPY shared/
+docker build -f Dockerfile -t qtauth-service ../../..
 
 # Run container
 docker run -p 8000:8000 \
