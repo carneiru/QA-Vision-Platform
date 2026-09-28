@@ -64,3 +64,14 @@ def test_200_with_non_json_body_is_unavailable(http):
     ).mock(return_value=httpx.Response(200, text="<html>oops</html>"))
     with pytest.raises(org_client.OrgServiceUnavailable):
         org_client.get_my_role(7, "t")
+
+
+def test_a_trailing_slash_in_the_configured_url_does_not_double_up(http, monkeypatch):
+    from src.project.core.config import settings
+
+    monkeypatch.setattr(settings, "ORGANIZATION_SERVICE_URL", "http://orgs.test/")
+    route = http.get("http://orgs.test/api/v1/organizations/7/members/me", name="org-me-7-trailing-slash").mock(
+        return_value=httpx.Response(200, json={"role": "admin"})
+    )
+    assert org_client.get_my_role(7, "t") == "admin"
+    assert route.called

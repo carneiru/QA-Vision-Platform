@@ -24,7 +24,7 @@ class InvalidCredentials(Exception):
 
 
 def get_my_role(org_id: int, token: str) -> str:
-    url = f"{settings.ORGANIZATION_SERVICE_URL}/api/v1/organizations/{int(org_id)}/members/me"
+    url = f"{settings.ORGANIZATION_SERVICE_URL.rstrip('/')}/api/v1/organizations/{int(org_id)}/members/me"
     try:
         response = httpx.get(
             url,
