@@ -96,3 +96,22 @@ def test_rejection_message_names_the_supported_hosts():
 @pytest.mark.parametrize("raw, name", [("https://github.com/acme/.github", ".github"), ("https://github.com/acme/shop.io", "shop.io")])
 def test_names_with_dots_are_still_accepted(raw, name):
     assert parse_repo_url(raw).name == name
+
+
+def test_a_deep_gitlab_path_with_long_segments_is_rejected():
+    segments = ["g" * 20 for _ in range(20)]
+    raw = "https://gitlab.com/" + "/".join(segments)
+    with pytest.raises(ValueError, match="too long"):
+        parse_repo_url(raw)
+
+
+def test_a_256_character_github_name_is_rejected():
+    raw = f"https://github.com/acme/{'a' * 256}"
+    with pytest.raises(ValueError, match="too long"):
+        parse_repo_url(raw)
+
+
+def test_a_255_character_github_name_is_accepted():
+    name = "a" * 255
+    parsed = parse_repo_url(f"https://github.com/acme/{name}")
+    assert parsed.name == name

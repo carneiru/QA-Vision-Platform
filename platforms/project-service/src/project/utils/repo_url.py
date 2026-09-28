@@ -59,6 +59,8 @@ def parse_repo_url(raw: str) -> ParsedRepo:
             raise ValueError("The repository path contains characters that are not allowed")
 
     owner, name = "/".join(segments[:-1]), segments[-1]
+    if len(owner) > 255 or len(name) > 255:
+        raise ValueError("The repository path is too long")
     return ParsedRepo(
         provider=provider,
         owner=owner,
