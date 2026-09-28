@@ -20,3 +20,9 @@ class MemberOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MyRoleOut(BaseModel):
+    """Contract with project-service: exactly this one key. See the project-service design spec."""
+
+    role: str

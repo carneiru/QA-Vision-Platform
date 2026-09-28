@@ -1,0 +1,40 @@
+from sqlalchemy import JSON, Column, DateTime, Index, Integer, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.sql import func
+
+from src.project.db.base import Base
+
+# JSONB on PostgreSQL, plain JSON on SQLite (tests)
+SettingsJSON = JSON().with_variant(JSONB(), "postgresql")
+
+_LIVE = text("deleted_at IS NULL")
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id = Column(Integer, primary_key=True, index=True)
+    # No FK: organizations live in organization-service's database
+    organization_id = Column(Integer, nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    slug = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    # Only explicitly-set keys are stored; defaults come from schemas.settings.ProjectSettings.
+    # Always assign a new dict -- SQLAlchemy does not see in-place mutation of a JSON value.
+    settings = Column(SettingsJSON, nullable=False, default=dict)
+    created_by = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        # Unique among live projects only, so a deleted project's name and slug can be reused
+        Index(
+            "uq_project_org_name", "organization_id", "name",
+            unique=True, sqlite_where=_LIVE, postgresql_where=_LIVE,
+        ),
+        Index(
+            "uq_project_org_slug", "organization_id", "slug",
+            unique=True, sqlite_where=_LIVE, postgresql_where=_LIVE,
+        ),
+    )

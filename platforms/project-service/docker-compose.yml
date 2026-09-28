@@ -1,0 +1,48 @@
+services:
+  project-service:
+    # Context is the repo root so the image can COPY shared/ alongside this service.
+    build:
+      context: ../..
+      dockerfile: platforms/project-service/Dockerfile
+    # auth-service publishes 8000 and organization-service 8001
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/project_db
+      # No fallback, and it must equal auth-service's SECRET_KEY so its JWTs verify here.
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY (same value as auth-service)}
+      - ALGORITHM=HS256
+      # organization-service runs in its own compose stack, published on the host's 8001
+      - ORGANIZATION_SERVICE_URL=${ORGANIZATION_SERVICE_URL:-http://host.docker.internal:8001}
+    # Docker Desktop defines host.docker.internal itself; Linux (including CI runners) needs this
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: project_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d project_db"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # auth-service's compose publishes 5433 and organization-service's 5434
+      - "5435:5432"
+
+volumes:
+  postgres_data:

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.organization.api.deps import get_db, require_org_role
 from src.organization.models.member import OrganizationMember
-from src.organization.schemas.member import MemberCreate, MemberOut
+from src.organization.schemas.member import MemberCreate, MemberOut, MyRoleOut
 from src.organization.service import member_service
 from src.organization.utils.auth_client import AuthServiceUnavailable
 
@@ -35,6 +35,15 @@ def list_members(
     _role: str = Depends(require_org_role(*OrganizationMember.ROLES)),
 ):
     return member_service.list_members(db, org_id)
+
+
+@router.get("/me", response_model=MyRoleOut)
+def my_role(
+    org_id: int,
+    # require_org_role already 404s on a soft-deleted org and on anyone who is not an *active* member
+    role: str = Depends(require_org_role(*OrganizationMember.ROLES)),
+):
+    return {"role": role}
 
 
 @router.delete("/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
