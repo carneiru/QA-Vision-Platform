@@ -1,33 +1,23 @@
 """
 Configuration management for Auth Service
 """
-import os
 from typing import Optional
-from pydantic import PostgresDsn, RedisDsn, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from dotenv import load_dotenv
+from pydantic import RedisDsn
+from qav_shared.config import BaseServiceSettings
 
 # Load environment variables
 load_dotenv()
 
 
-class Settings(BaseSettings):
+class Settings(BaseServiceSettings):
     # Application
     APP_NAME: str = "Auth Service"
     APP_VERSION: str = "0.1.0"
-    DEBUG: bool = False
 
-    # API
-    API_V1_STR: str = "/api/v1"
-
-    # Database - Individual components (for backwards compatibility)
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
+    # Database
     POSTGRES_DB: str = "auth_db"
-
-    # Database - Full URL (optional, overrides individual components if set)
-    DATABASE_URL: Optional[PostgresDsn] = None
 
     # Redis - Individual components (for backwards compatibility)
     REDIS_HOST: str = "localhost"
@@ -38,7 +28,6 @@ class Settings(BaseSettings):
     REDIS_URL: Optional[RedisDsn] = None
 
     # Security
-    SECRET_KEY: str
     # 60 minutes, was 8 days. Nothing can revoke an access token -- get_current_user decodes
     # the JWT and loads the user, with no database check against revocation -- so this value
     # IS the revocation delay. Logging out, changing a password or deactivating an account
@@ -47,7 +36,6 @@ class Settings(BaseSettings):
     # should be short enough that its irrevocability stops mattering.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # 30 days
-    ALGORITHM: str = "HS256"
 
     # Superuser. Optional: nothing in this service reads these today, and making them
     # required meant Settings() raised on import, so the app could not start at all.
@@ -79,27 +67,6 @@ class Settings(BaseSettings):
     AZURE_CLIENT_ID: str = ""
     AZURE_CLIENT_SECRET: str = ""
     SAML_SETTINGS: str = "{}"
-
-    # CORS
-    BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
-
-    model_config = SettingsConfigDict(
-        case_sensitive=True,
-        env_file=".env"
-    )
-
-    @property
-    def database_url(self) -> PostgresDsn:
-        """Return database URL, either direct or constructed from components."""
-        if self.DATABASE_URL:
-            return self.DATABASE_URL
-        return PostgresDsn.build(
-            scheme="postgresql",
-            username=self.POSTGRES_USER,
-            password=self.POSTGRES_PASSWORD,
-            host=self.POSTGRES_SERVER,
-            path=f"/{self.POSTGRES_DB or ''}"
-        )
 
     @property
     def redis_url(self) -> RedisDsn:

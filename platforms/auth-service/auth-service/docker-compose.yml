@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   auth-service:
-    build: .
+    # Context is the repo root so the image can COPY shared/ alongside this service.
+    build:
+      context: ../../..
+      dockerfile: platforms/auth-service/auth-service/Dockerfile
     ports:
       - "8000:8000"
     environment:
