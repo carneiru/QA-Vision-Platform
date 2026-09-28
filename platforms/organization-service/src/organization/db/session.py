@@ -1,15 +1,6 @@
-from typing import Generator
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from qav_shared.db import make_get_db, make_session_factory
+
 from src.organization.core.config import settings
 
-engine = create_engine(settings.database_url)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def get_db() -> Generator:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+SessionLocal = make_session_factory(settings.database_url)
+get_db = make_get_db(SessionLocal)

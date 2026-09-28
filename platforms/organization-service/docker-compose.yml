@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   organization-service:
-    build: .
+    # Context is the repo root so the image can COPY shared/ alongside this service.
+    build:
+      context: ../..
+      dockerfile: platforms/organization-service/Dockerfile
     # auth-service's own docker-compose already publishes host port 8000, so this service
     # is published on 8001 to avoid the collision when both stacks run side by side.
     ports:
