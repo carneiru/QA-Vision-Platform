@@ -1,6 +1,5 @@
-from urllib.parse import quote_plus
-
 import pytest
+import sqlalchemy
 from pydantic import ValidationError
 
 from qav_shared.config import BaseServiceSettings
@@ -24,7 +23,8 @@ def test_explicit_database_url_wins_over_components():
     assert settings.database_url == "postgresql://someone:somewhere@dbhost/somedb"
 
 
-def test_database_url_is_built_from_components_when_unset():
+def test_database_url_is_built_from_components_when_unset(monkeypatch):
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     settings = _Settings(
         SECRET_KEY="x",
         POSTGRES_USER="svc",
@@ -35,20 +35,25 @@ def test_database_url_is_built_from_components_when_unset():
     assert settings.database_url == "postgresql://svc:pw@dbhost/svc_db"
 
 
-def test_database_url_escapes_password_special_characters():
-    """organization-service built this with a raw f-string, so a password containing @ or :
-    produced a URL that parses with the wrong host. The escaped form round-trips."""
+@pytest.mark.parametrize("pw", ["p@ss:w/rd", "a b+c", "100%x", "#?&="])
+def test_database_url_escapes_password_special_characters(monkeypatch, pw):
+    """organization-service built this with a raw f-string (no encoding at all), and
+    auth-service's PostgresDsn.build raised ValidationError on ':' or '/' rather than
+    escaping them. quote_plus is also wrong here: it turns a space into '+', which a URL
+    parser then decodes back as a literal '+' instead of a space, corrupting the password.
+    The escaped form must round-trip through a real URL parser."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     settings = _Settings(
         SECRET_KEY="x",
         POSTGRES_USER="svc",
-        POSTGRES_PASSWORD="p@ss:w/rd",
+        POSTGRES_PASSWORD=pw,
         POSTGRES_SERVER="dbhost",
         POSTGRES_DB="svc_db",
     )
-    assert quote_plus("p@ss:w/rd") in settings.database_url
-    assert "@dbhost/svc_db" in settings.database_url
-    # the raw password must not appear unescaped -- that is the bug being fixed
-    assert "p@ss:w/rd@" not in settings.database_url
+    parsed = sqlalchemy.engine.make_url(settings.database_url)
+    assert parsed.password == pw
+    assert parsed.host == "dbhost"
+    assert parsed.database == "svc_db"
 
 
 def test_database_url_is_always_a_str():

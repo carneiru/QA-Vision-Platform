@@ -1,6 +1,6 @@
 """Settings shared by every QA Vision Platform service."""
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote
 
 from pydantic import PostgresDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -40,12 +40,15 @@ class BaseServiceSettings(BaseSettings):
         AttributeError against a PostgresDsn object. auth-service returned PostgresDsn and
         organization-service returned str; unifying on str removes that trap.
 
-        The components path escapes user and password. auth-service got this right via
-        PostgresDsn.build; organization-service's f-string did not, so any password
-        containing @, / or : produced a malformed URL there.
+        The components path escapes user and password. Neither service's original
+        components path was correct: organization-service's f-string didn't encode at
+        all, and auth-service's `PostgresDsn.build` raised on a password containing `:`
+        or `/` instead of escaping it. `quote(value, safe="")` is used rather than
+        `quote_plus` because `quote_plus` turns a space into `+`, which a URL parser
+        then decodes back as a literal `+` instead of a space -- corrupting the password.
         """
         if self.DATABASE_URL:
             return str(self.DATABASE_URL)
-        user = quote_plus(self.POSTGRES_USER)
-        password = quote_plus(self.POSTGRES_PASSWORD)
+        user = quote(self.POSTGRES_USER, safe="")
+        password = quote(self.POSTGRES_PASSWORD, safe="")
         return f"postgresql://{user}:{password}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"

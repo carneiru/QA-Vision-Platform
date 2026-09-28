@@ -54,6 +54,9 @@ must be the repository root.
 
 ## Tests
 
+The suite needs `pytest` and `psycopg2` in addition to the package's own dependencies.
+The simplest way to run it is with a service venv that already has both, e.g. on Windows:
+
 ```bash
-cd shared && python -m pytest tests/ -v
+cd shared && ../platforms/organization-service/.venv/Scripts/python.exe -m pytest tests/ -v
 ```
