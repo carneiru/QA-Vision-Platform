@@ -55,7 +55,7 @@ def parse_repo_url(raw: str) -> ParsedRepo:
     if segments[-1].endswith(".git"):
         segments[-1] = segments[-1][: -len(".git")]
     for segment in segments:
-        if not segment or segment in (".", "..") or not _SEGMENT.match(segment):
+        if not segment or set(segment) == {"."} or not _SEGMENT.match(segment):
             raise ValueError("The repository path contains characters that are not allowed")
 
     owner, name = "/".join(segments[:-1]), segments[-1]

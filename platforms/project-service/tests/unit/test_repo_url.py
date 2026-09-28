@@ -72,6 +72,9 @@ def test_gitlab_forms(raw, owner, name):
         "https://github.com/",
         "https://github.com/../shop",
         "https://github.com/acme/..",
+        "https://github.com/acme/....git",
+        "https://github.com/.../shop",
+        "https://gitlab.com/acme/..../project",
         "https://github.com/acme/sh%2Fop",
         "https://github.com/ac me/shop",
         "https://github.com//shop",
@@ -88,3 +91,8 @@ def test_rejected_inputs(raw):
 def test_rejection_message_names_the_supported_hosts():
     with pytest.raises(ValueError, match="github.com and gitlab.com"):
         parse_repo_url("https://bitbucket.org/acme/shop")
+
+
+@pytest.mark.parametrize("raw, name", [("https://github.com/acme/.github", ".github"), ("https://github.com/acme/shop.io", "shop.io")])
+def test_names_with_dots_are_still_accepted(raw, name):
+    assert parse_repo_url(raw).name == name
