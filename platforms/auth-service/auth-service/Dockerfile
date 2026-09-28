@@ -23,4 +23,7 @@ COPY platforms/auth-service/auth-service/alembic.ini ./alembic.ini
 
 EXPOSE 8000
 
-CMD ["python", "src/auth/main.py"]
+# `python src/auth/main.py` put src/auth/ first on sys.path rather than the working
+# directory, so its own `from src.auth...` import failed with ModuleNotFoundError: the
+# container never started. uvicorn resolves the app from the working directory instead.
+CMD ["uvicorn", "src.auth.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
