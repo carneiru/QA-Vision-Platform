@@ -12,7 +12,8 @@ services:
       - "8001:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/organization_db
-      - SECRET_KEY=your-secret-key-here
+      # No fallback, and it must equal auth-service's SECRET_KEY so its JWTs verify here.
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY (same value as auth-service)}
       - ALGORITHM=HS256
       # auth-service runs in its own compose stack; override this to wherever it is actually
       # reachable (a shared external network, or host.docker.internal:8000 on Docker Desktop)

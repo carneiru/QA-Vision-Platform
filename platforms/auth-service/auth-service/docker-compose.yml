@@ -10,9 +10,13 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:password@db:5432/auth_db
-      - SECRET_KEY=your-secret-key-here
+      # No fallback: a placeholder here meant every stack signed tokens with a publicly known
+      # key. Export it (or put it in a .env beside this file) before `docker compose up`, and
+      # use the same value for organization-service, which verifies these tokens.
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY (shared with organization-service)}
       - ALGORITHM=HS256
-      - ACCESS_TOKEN_EXPIRE_MINUTES=30
+      # ACCESS_TOKEN_EXPIRE_MINUTES is deliberately not set here: it used to override the
+      # config's 60 with 30, so the container and the code disagreed about the revocation window.
     depends_on:
       - db
 
