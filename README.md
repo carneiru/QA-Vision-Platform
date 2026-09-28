@@ -105,7 +105,7 @@ pytest
 
 ## Project Structure
 
-Services are grouped by domain at the repository root. Only the two under
+Services are grouped by domain at the repository root. Only the three under
 `platforms/` are implemented; the other domain directories hold scaffolding
 generated from the auth-service template and are not running services yet.
 
@@ -125,7 +125,8 @@ QA-Vision-Platform/
 │   │   ├── tests/                  # Test suite
 │   │   ├── alembic/                # Database migrations
 │   │   └── requirements.txt
-│   └── organization-service/       # Organizations, members, invitations (implemented)
+│   ├── organization-service/       # Organizations, members, invitations (implemented)
+│   └── project-service/            # Projects, repositories, settings (implemented)
 ├── intelligence/                   # Planned: AI analysis services
 ├── execution/                      # Planned: test execution services
 ├── integrations/                   # Planned: third-party connectors

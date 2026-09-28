@@ -68,17 +68,17 @@
 39. [ ] Integrate with Auth Service for authentication and authorization
 
 ### Phase 3: Project Service
-40. [ ] Design project management data models
-41. [ ] Implement project creation, updating, archiving
-42. [ ] Create member and permission management within projects
-43. [ ] Implement project categorization and tagging系统
-44. [ ] Develop project templates and cloning functionality
-45. [ ] Create API endpoints for project management
-46. [ ] Implement integration with Organization service for access control
-47. [ ] Write comprehensive test suite
-48. [ ] Create API documentation
-49. [ ] Add Docker support
-50. [ ] Integrate with Auth and Organization services
+40. [x] Design project management data models
+41. [x] Implement project creation, updating, archiving
+42. [ ] Create member and permission management within projects *(deferred: access follows organization roles; see the project-service design spec)*
+43. [ ] Implement project categorization and tagging system *(not started)*
+44. [ ] Develop project templates and cloning functionality *(not started)*
+45. [x] Create API endpoints for project management
+46. [x] Implement integration with Organization service for access control
+47. [x] Write comprehensive test suite
+48. [x] Create API documentation
+49. [x] Add Docker support
+50. [x] Integrate with Auth and Organization services
 
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
