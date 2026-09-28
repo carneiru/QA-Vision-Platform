@@ -2,6 +2,7 @@
 # Keep local environments, caches and VCS data out of that context.
 .git
 .superpowers
+**/.env
 **/.venv
 **/venv
 **/__pycache__
