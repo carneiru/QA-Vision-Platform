@@ -32,6 +32,9 @@ jobs:
           - service: auth-service
             path: platforms/auth-service/auth-service
             extra_tests: ""
+          - service: project-service
+            path: platforms/project-service
+            extra_tests: ""
     defaults:
       run:
         working-directory: ${{ matrix.path }}
@@ -72,6 +75,9 @@ jobs:
           - service: auth-service
             path: platforms/auth-service/auth-service
             port: 8000
+          - service: project-service
+            path: platforms/project-service
+            port: 8002
     defaults:
       run:
         working-directory: ${{ matrix.path }}
