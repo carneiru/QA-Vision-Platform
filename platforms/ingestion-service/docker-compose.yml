@@ -1,0 +1,47 @@
+services:
+  ingestion-service:
+    # Context is the repo root so the image can COPY shared/ alongside this service.
+    build:
+      context: ../..
+      dockerfile: platforms/ingestion-service/Dockerfile
+    # auth 8000, organization 8001, project 8002
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@db:5432/ingestion_db
+      # No fallback, and it must equal auth-service's SECRET_KEY so its JWTs verify here.
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY (same value as auth-service)}
+      - ALGORITHM=HS256
+      # project-service runs in its own compose stack, published on the host's 8002
+      - PROJECT_SERVICE_URL=${PROJECT_SERVICE_URL:-http://host.docker.internal:8002}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ingestion_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ingestion_db -h 127.0.0.1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # auth 5433, organization 5434, project 5435
+      - "5436:5432"
+
+volumes:
+  postgres_data:

@@ -35,6 +35,9 @@ jobs:
           - service: project-service
             path: platforms/project-service
             extra_tests: ""
+          - service: ingestion-service
+            path: platforms/ingestion-service
+            extra_tests: ""
     defaults:
       run:
         working-directory: ${{ matrix.path }}
@@ -78,6 +81,9 @@ jobs:
           - service: project-service
             path: platforms/project-service
             port: 8002
+          - service: ingestion-service
+            path: platforms/ingestion-service
+            port: 8003
     defaults:
       run:
         working-directory: ${{ matrix.path }}
