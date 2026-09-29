@@ -96,3 +96,25 @@ def project_role(http):
         return route.mock(return_value=httpx.Response(status_code, json=payload))
 
     return _set
+
+
+@pytest.fixture
+def make_key(db):
+    """Insert an API key directly; returns (row, plaintext key)."""
+    from datetime import datetime, timezone
+
+    from src.ingestion.utils.keys import display_prefix, generate_key, hash_key
+
+    def _make(project_id=1, organization_id=10, name="ci", revoked=False):
+        key = generate_key()
+        row = ApiKey(
+            project_id=project_id, organization_id=organization_id, name=name,
+            key_prefix=display_prefix(key), key_hash=hash_key(key), created_by=1,
+            revoked_at=datetime.now(timezone.utc) if revoked else None,
+        )
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+        return row, key
+
+    return _make
