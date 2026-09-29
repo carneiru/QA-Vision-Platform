@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="com.example.CartTest" time="1,200.5" tests="3" errors="0" skipped="0" failures="1">
+  <properties>
+    <property name="java.version" value="21"/>
+  </properties>
+  <testcase name="addsItem" classname="com.example.CartTest" time="0.012"/>
+  <testcase name="flakyCheckout" classname="com.example.CartTest" time="0.300">
+    <flakyFailure message="timeout" type="java.lang.AssertionError">
+      <stackTrace>at com.example.CartTest.flakyCheckout(CartTest.java:40)</stackTrace>
+    </flakyFailure>
+  </testcase>
+  <testcase name="brokenTotal" classname="com.example.CartTest" time="0.050">
+    <failure message="expected 3 but was 2" type="org.opentest4j.AssertionFailedError">org.opentest4j.AssertionFailedError: expected 3 but was 2
+    at com.example.CartTest.brokenTotal(CartTest.java:55)</failure>
+    <rerunFailure message="expected 3 but was 2" type="org.opentest4j.AssertionFailedError">
+      <stackTrace>RERUN at com.example.CartTest.brokenTotal(CartTest.java:55)</stackTrace>
+    </rerunFailure>
+  </testcase>
+</testsuite>

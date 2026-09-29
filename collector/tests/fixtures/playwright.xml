@@ -1,0 +1,18 @@
+<testsuites id="" name="" tests="2" failures="1" skipped="0" errors="0" time="3.5">
+<testsuite name="login.spec.ts" timestamp="2026-09-29T09:58:00.000Z" hostname="chromium" tests="2" failures="1" skipped="0" time="3.4" errors="0">
+<testcase name="login › shows the form" classname="login.spec.ts" time="1.1">
+</testcase>
+<testcase name="login › rejects a bad password" classname="login.spec.ts" time="2.3">
+<failure message="login.spec.ts:12:5 rejects a bad password" type="FAILURE">
+<![CDATA[  login.spec.ts:12:5 › rejects a bad password
+
+    Error: expect(received).toBeVisible()]]>
+</failure>
+<system-out>
+<![CDATA[
+[[ATTACHMENT|test-results/login-rejects/test-failed-1.png]]
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>
