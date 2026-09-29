@@ -105,7 +105,7 @@ pytest
 
 ## Running the platform
 
-Everything — auth, organization and project services, one PostgreSQL, and the gateway — from the
+Everything — auth, organization, project and ingestion services, one PostgreSQL, and the gateway — from the
 repository root:
 
 ```bash
@@ -129,7 +129,7 @@ Each service's own `docker-compose.yml` under `platforms/` still works for devel
 
 ## Project Structure
 
-Services are grouped by domain at the repository root. Only the three under
+Services are grouped by domain at the repository root. Only the four under
 `platforms/` are implemented; the other domain directories hold scaffolding
 generated from the auth-service template and are not running services yet.
 
@@ -151,7 +151,8 @@ QA-Vision-Platform/
 │   │   ├── alembic/                # Database migrations
 │   │   └── requirements.txt
 │   ├── organization-service/       # Organizations, members, invitations (implemented)
-│   └── project-service/            # Projects, repositories, settings (implemented)
+│   ├── project-service/            # Projects, repositories, settings (implemented)
+│   └── ingestion-service/          # Test results from CI: API keys, uploads, runs (implemented)
 ├── intelligence/                   # Planned: AI analysis services
 ├── execution/                      # Planned: test execution services
 ├── integrations/                   # Planned: third-party connectors

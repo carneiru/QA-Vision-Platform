@@ -96,6 +96,19 @@
 - [ ] API docs through the gateway — *when a frontend or partner needs browsable docs*
 - [ ] WebSockets — *Phase 3, real-time features*
 
+### Ingestion (Phase 2, step 1)
+- [x] ingestion-service: project API keys, POST /collect/runs (validation, idempotency, truncation), run read API, Prometheus metrics
+- [x] In the root stack and behind the gateway; smoke-tested end to end
+
+### Ingestion follow-ups
+- [ ] Collector agent MVP (JUnit XML parser, uploader with retry) — *next spec*
+- [ ] Queue-based processing for 1000+ events/second — *Phase 2 exit criterion*
+- [ ] PII detection and redaction; retention policies
+- [ ] mTLS between agent and platform
+- [ ] Artifacts (screenshots, videos, traces, logs)
+- [ ] Per-test history endpoints (test_key is already indexed)
+- [ ] Revoke a project's API keys when the project is deleted
+
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
 52. [ ] Implement test case creation, versioning, and organization
