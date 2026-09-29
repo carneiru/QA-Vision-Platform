@@ -64,3 +64,35 @@ def http():
     """A respx router active for the test; any outgoing request without a route raises."""
     with respx.mock(assert_all_called=False) as router:
         yield router
+
+
+PROJECT_URL = "{base}/api/v1/projects/{project_id}"
+
+
+def project_body(project_id: int, organization_id: int, role: str) -> dict:
+    """The shape project-service's GET /projects/{id} returns (ProjectOut)."""
+    return {
+        "id": project_id, "organization_id": organization_id, "name": f"P{project_id}", "slug": f"p{project_id}",
+        "description": None,
+        "settings": {"result_retention_days": 90, "default_environment": None, "notify_on_failure": False},
+        "created_by": 1, "created_at": "2026-09-29T00:00:00Z", "updated_at": None, "my_role": role,
+    }
+
+
+@pytest.fixture
+def project_role(http):
+    """Mock project-service's GET /projects/{id} for one project; calling it again for the same
+    project replaces the answer (respx replaces routes that share a name)."""
+    import httpx
+
+    def _set(role="owner", project_id=1, organization_id=10, status_code=200, body=None, exc=None):
+        route = http.get(
+            PROJECT_URL.format(base=settings.PROJECT_SERVICE_URL, project_id=project_id),
+            name=f"project-{project_id}",
+        )
+        if exc is not None:
+            return route.mock(side_effect=exc)
+        payload = project_body(project_id, organization_id, role) if body is None else body
+        return route.mock(return_value=httpx.Response(status_code, json=payload))
+
+    return _set
