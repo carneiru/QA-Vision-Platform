@@ -1445,9 +1445,7 @@ def not_tls():
                 return
             with conn:
                 conn.recv(65536)
-                conn.sendall(b"HTTP/1.0 400 Bad Request
-
-")
+                conn.sendall(b"HTTP/1.0 400 Bad Request\r\n\r\n")
 
     threading.Thread(target=serve, daemon=True).start()
     yield f"https://127.0.0.1:{listener.getsockname()[1]}/api/v1/collect/runs"
