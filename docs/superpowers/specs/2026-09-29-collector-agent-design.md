@@ -88,7 +88,7 @@ A retried CI attempt (`GITHUB_RUN_ATTEMPT` 2) gets a new key on purpose: it is a
 ### Accepting files
 
 - Files larger than 50 MB are skipped with a warning.
-- Any file containing `<!DOCTYPE` or `<!ENTITY` is skipped: JUnit never needs one, and refusing them rules out entity-expansion attacks without a third-party XML library.
+- Any file that declares a `<!DOCTYPE` or `<!ENTITY` is skipped: JUnit never needs one, and refusing them rules out entity-expansion attacks without a third-party XML library. The declaration is caught by expat's own handler while parsing, so it is refused in any encoding (a byte search would miss a UTF-16 file).
 - Files that are not well-formed XML are skipped with a warning; the other files are still processed.
 - Root `<testsuites>` or `<testsuite>`; any other root element → skipped with a warning.
 
@@ -153,7 +153,7 @@ pytest from `collector/`; no network except a local test server.
 - **Payload** — merge across files, run-time derivation and clamping, `commit_sha` filtering, splitting by count and by size with the `-part-N` keys, empty input.
 - **Upload** — a real `http.server` on a local port in a thread: 201/200 success; retries on 503 and connection refused with the sleep function injected; `Retry-After`; no retry on 401/409/422; attempt budget and the 120 s time budget (clock injected); a timed-out POST retried with the same key; the key never appears in output or exceptions; the `http://` rule.
 - **CLI** — every exit code, `--dry-run` output, `--fail-on-error`, missing configuration.
-- **End to end** — the CI `gateway` job's smoke test installs `./collector`, writes a small JUnit file, and uploads it through the running stack with the key the smoke test created (`--ca-file` with the gateway's certificate); then reads the run back through the gateway and checks its counts.
+- **End to end** — the CI `gateway` job's smoke test runs the collector from `collector/src` (`python -m qav_collector`; installing it is covered by the `collector` job, which runs `pip install .` and the `qav-collector` entry point), writes a small JUnit file, and uploads it through the running stack with the key the smoke test created (`--ca-file` with the gateway's certificate); then reads the run back through the gateway and checks its counts.
 
 ## Packaging, CI, release
 
