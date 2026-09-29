@@ -8,11 +8,13 @@ Design: `docs/superpowers/specs/2026-09-28-api-gateway-design.md`.
 | Path | Service |
 |---|---|
 | `/api/v1/organizations/{id}/projects…` | project-service |
+| `/api/v1/projects/{id}/api-keys…`, `/api/v1/projects/{id}/runs…` | ingestion-service |
+| `/api/v1/runs…`, `/api/v1/collect…` | ingestion-service |
 | `/api/v1/projects…` | project-service |
 | `/api/v1/organizations…`, `/api/v1/invitations…` | organization-service |
 | `/api/v1/auth…`, `/api/v1/users…`, `/api/v1/sso…` | auth-service |
 | `/health` | the gateway itself |
-| `/health/auth`, `/health/organizations`, `/health/projects` | that service's `/health` |
+| `/health/auth`, `/health/organizations`, `/health/projects`, `/health/ingestion` | that service's `/health` |
 | anything else | `404 {"detail":"Not Found"}` |
 
 The first row is a regex location: NGINX checks regex locations before prefix ones, which is
@@ -24,6 +26,7 @@ what takes `/organizations/{id}/projects` away from organization-service.
   (burst 10) on `login`, `register`, `forgot-password`, `reset-password`, `resend-verification`.
   Over the limit: `429 {"detail":"Too Many Requests"}` with `Retry-After: 1`. Health routes are
   never limited.
+- `/api/v1/collect` has its own limit instead: 10 requests/s per IP (burst 20).
 - Request bodies up to 10 MB; upstream connect timeout 3 s, read timeout 30 s.
 - NGINX's own errors (404, 413, 429, 502, 504) are JSON; the services' errors pass through.
 

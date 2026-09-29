@@ -31,6 +31,11 @@ x-project-env: &project-env
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   ORGANIZATION_SERVICE_URL: http://organization-service:8000
 
+x-ingestion-env: &ingestion-env
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ingestion_db
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
+  PROJECT_SERVICE_URL: http://project-service:8000
+
 x-auth-build: &auth-build
   context: .
   dockerfile: platforms/auth-service/auth-service/Dockerfile
@@ -42,6 +47,10 @@ x-organization-build: &organization-build
 x-project-build: &project-build
   context: .
   dockerfile: platforms/project-service/Dockerfile
+
+x-ingestion-build: &ingestion-build
+  context: .
+  dockerfile: platforms/ingestion-service/Dockerfile
 
 services:
   postgres:
@@ -104,6 +113,16 @@ services:
       db-init:
         condition: service_completed_successfully
 
+  ingestion-migrate:
+    # Same image as ingestion-service, which builds it; never pulled from a registry
+    image: qa-vision/ingestion-service:local
+    pull_policy: never
+    environment: *ingestion-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
   auth-service:
     build: *auth-build
     image: qa-vision/auth-service:local
@@ -131,6 +150,15 @@ services:
       project-migrate:
         condition: service_completed_successfully
 
+  ingestion-service:
+    build: *ingestion-build
+    image: qa-vision/ingestion-service:local
+    environment: *ingestion-env
+    healthcheck: *app-healthcheck
+    depends_on:
+      ingestion-migrate:
+        condition: service_completed_successfully
+
   gateway:
     build: ./gateway
     image: qa-vision/gateway:local
@@ -153,6 +181,8 @@ services:
       organization-service:
         condition: service_healthy
       project-service:
+        condition: service_healthy
+      ingestion-service:
         condition: service_healthy
 
 volumes:
