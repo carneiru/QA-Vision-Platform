@@ -81,3 +81,34 @@ def test_too_many_results_are_rejected():
 def test_long_text_is_accepted_by_the_schema():
     # truncation is the service's job; the schema must not reject long text
     RunUpload.model_validate(body(results=[{"name": "t", "status": "failed", "details": "x" * 200_000}]))
+
+
+def test_a_run_longer_than_the_maximum_span_is_rejected():
+    # the run's duration_ms is an int32 column; a start years back would overflow it (500 on PostgreSQL)
+    with pytest.raises(ValidationError):
+        RunUpload.model_validate(body(run={"started_at": (NOW - timedelta(days=8)).isoformat()}))
+
+
+def test_a_long_but_plausible_run_is_accepted():
+    RunUpload.model_validate(body(run={"started_at": (NOW - timedelta(days=6)).isoformat()}))
+
+
+@pytest.mark.parametrize("field", ["message", "details"])
+@pytest.mark.parametrize("raw, cleaned", [("a\x00b", "a�b"), ("x\ud800y", "x�y"), ("\udfff", "�")])
+def test_nul_and_lone_surrogates_in_free_text_are_replaced_not_rejected(field, raw, cleaned):
+    # real stdout captured into JUnit output contains NUL bytes; PostgreSQL text cannot store them
+    upload = RunUpload.model_validate(body(results=[{"name": "t", "status": "failed", field: raw}]))
+    assert getattr(upload.results[0], field) == cleaned
+
+
+@pytest.mark.parametrize("field", ["name", "suite", "class_name", "file"])
+@pytest.mark.parametrize("bad", ["a\x00b", "x\ud800y"])
+def test_nul_or_lone_surrogate_in_a_result_identity_field_is_rejected(field, bad):
+    with pytest.raises(ValidationError):
+        RunUpload.model_validate(body(results=[{"name": "t", "status": "passed", field: bad}]))
+
+
+@pytest.mark.parametrize("field", ["branch", "environment", "agent_version"])
+def test_nul_in_run_metadata_is_rejected(field):
+    with pytest.raises(ValidationError):
+        RunUpload.model_validate(body(run={field: "a\x00b"}))

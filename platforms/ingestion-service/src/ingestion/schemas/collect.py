@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal, Optional
 
@@ -7,6 +8,24 @@ from src.ingestion.core.config import settings
 
 # A CI runner's clock can drift a little; a day ahead means a broken clock or a bad payload
 MAX_CLOCK_SKEW = timedelta(hours=1)
+# The run's duration_ms is stored as a 32-bit integer (max ~24.8 days); no CI job runs for a week
+MAX_RUN_SPAN = timedelta(days=7)
+
+# NUL cannot be stored in a PostgreSQL text column, and a lone UTF-16 surrogate cannot be encoded
+# as UTF-8; either one used to turn a valid-looking upload into a 500.
+_UNSTORABLE = re.compile("[\x00\ud800-\udfff]")
+
+
+def _replace_unstorable(value: Optional[str]) -> Optional[str]:
+    """Free text (captured output) is never rejected: replace what cannot be stored."""
+    return None if value is None else _UNSTORABLE.sub("�", value)
+
+
+def _reject_unstorable(value: Optional[str]) -> Optional[str]:
+    """Identity and metadata fields must be exact, so they are rejected rather than altered."""
+    if value is not None and _UNSTORABLE.search(value):
+        raise ValueError("must not contain NUL or unpaired surrogate characters")
+    return value
 
 
 def _text(max_length: int):
@@ -25,12 +44,18 @@ class RunIn(BaseModel):
     started_at: AwareDatetime
     finished_at: AwareDatetime
 
+    _no_unstorable = field_validator(
+        "ci_run_url", "commit_sha", "branch", "environment", "agent_version", mode="before"
+    )(_reject_unstorable)
+
     @model_validator(mode="after")
     def _times_make_sense(self):
         if self.finished_at < self.started_at:
             raise ValueError("finished_at must not be before started_at")
         if self.finished_at > datetime.now(timezone.utc) + MAX_CLOCK_SKEW:
             raise ValueError("finished_at is too far in the future")
+        if self.finished_at - self.started_at > MAX_RUN_SPAN:
+            raise ValueError("a run may not span more than 7 days")
         return self
 
 
@@ -46,6 +71,9 @@ class ResultIn(BaseModel):
     message: Optional[str] = None   # long text is truncated by the service, never rejected
     details: Optional[str] = None
     file: Optional[_text(1000)] = None
+
+    _no_unstorable = field_validator("suite", "class_name", "name", "file", mode="before")(_reject_unstorable)
+    _clean_text = field_validator("message", "details", mode="after")(_replace_unstorable)
 
     @field_validator("status")
     @classmethod
