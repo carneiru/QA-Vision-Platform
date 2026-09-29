@@ -59,21 +59,58 @@ AUTH=(-H "Authorization: Bearer ${TOKEN}")
 # ---- gateway and health ----
 check "gateway /health" 200 GET "$BASE/health"
 body_has "gateway /health body" '{"status":"healthy"}'
-for svc in auth organizations projects; do
+for svc in auth organizations projects ingestion; do
   check "/health/$svc reaches the service" 200 GET "$BASE/health/$svc"
 done
 
 # ---- one real call per routing rule ----
 check "/api/v1/users/me with a bad token -> auth-service" 401 GET "$BASE/api/v1/users/me" \
   -H "Authorization: Bearer not-a-token"
-check "/api/v1/organizations/1/members/me for a non-member -> organization-service" 404 GET \
-  "$BASE/api/v1/organizations/1/members/me" "${AUTH[@]}"
-check "/api/v1/organizations/1/projects -> project-service (overlap route)" 404 GET \
-  "$BASE/api/v1/organizations/1/projects" "${AUTH[@]}"
+check "/api/v1/organizations/999999/members/me for a non-member -> organization-service" 404 GET \
+  "$BASE/api/v1/organizations/999999/members/me" "${AUTH[@]}"
+check "/api/v1/organizations/999999/projects -> project-service (overlap route)" 404 GET \
+  "$BASE/api/v1/organizations/999999/projects" "${AUTH[@]}"
 body_has "... answered only after organization-service said 404 (shared network works)" \
   '"Organization not found"'
-check "/api/v1/projects/1 -> project-service" 404 GET "$BASE/api/v1/projects/1" "${AUTH[@]}"
+check "/api/v1/projects/999999 -> project-service" 404 GET "$BASE/api/v1/projects/999999" "${AUTH[@]}"
 body_has "... answered by project-service" '"Project not found"'
+
+# ---- ingestion: key -> upload -> replay -> read -> revoke, through the gateway ----
+# The smoke user creates its own organization and project, so it may manage an API key.
+# Unique names: the script must also pass when run again on the same volume.
+SUFFIX="$(date +%s)-$$"
+check "create an organization" 201 POST "$BASE/api/v1/organizations" "${AUTH[@]}" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"Smoke $SUFFIX\",\"slug\":\"smoke-$SUFFIX\",\"plan_tier\":\"free\"}"
+ORG_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+check "create a project" 201 POST "$BASE/api/v1/organizations/$ORG_ID/projects" "${AUTH[@]}" \
+  -H "Content-Type: application/json" -d "{\"name\":\"Smoke $SUFFIX\"}"
+PROJECT_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+check "create an API key -> ingestion-service (overlap route)" 201 POST \
+  "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}" -H "Content-Type: application/json" -d '{"name":"smoke"}'
+API_KEY="$(sed -n 's/.*"key":"\(qav_[^"]*\)".*/\1/p' "$TMP/body")"
+KEY_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+check "list API keys -> ingestion-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}"
+body_has "... listing hides the key" "\"key_prefix\""
+NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+RUN_BODY="{\"run\":{\"ci_provider\":\"local\",\"branch\":\"smoke\",\"started_at\":\"$NOW\",\"finished_at\":\"$NOW\"},\"results\":[{\"name\":\"passes\",\"status\":\"passed\"},{\"name\":\"fails\",\"status\":\"failed\",\"message\":\"boom\"}]}"
+check "upload a run -> /api/v1/collect" 201 POST "$BASE/api/v1/collect/runs" \
+  -H "Authorization: Bearer $API_KEY" -H "Idempotency-Key: smoke-$SUFFIX" -H "Content-Type: application/json" \
+  -d "$RUN_BODY"
+body_has "... counts computed by the server" '"failed":1'
+RUN_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+check "replay with the same Idempotency-Key" 200 POST "$BASE/api/v1/collect/runs" \
+  -H "Authorization: Bearer $API_KEY" -H "Idempotency-Key: smoke-$SUFFIX" -H "Content-Type: application/json" \
+  -d "$RUN_BODY"
+body_has "... returns the same run" "\"id\":$RUN_ID"
+check "list runs -> ingestion-service (overlap route)" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/runs" "${AUTH[@]}"
+body_has "... includes the run" "\"id\":$RUN_ID"
+check "read the run -> /api/v1/runs" 200 GET "$BASE/api/v1/runs/$RUN_ID?status=failed" "${AUTH[@]}"
+body_has "... with the failed result" '"name":"fails"'
+check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"
+check "a revoked key is rejected" 401 POST "$BASE/api/v1/collect/runs" \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$RUN_BODY"
+check "/metrics is not exposed through the gateway" 404 GET "$BASE/metrics"
 
 # ---- gateway behaviour ----
 check "unknown path" 404 GET "$BASE/no/such/path"
