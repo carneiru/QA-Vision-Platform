@@ -20,8 +20,9 @@ qav-collector upload "reports/**/*.xml"
 ```
 
 All matching files become **one run**. On GitHub Actions, GitLab CI and Jenkins the commit, branch
-and job URL are detected automatically, and a re-run of the same job replays the run it already
-stored instead of storing it twice.
+and job URL are detected automatically. If an upload is retried after the platform stored it but
+the answer was lost, the collector's Idempotency-Key makes the platform return the stored run
+instead of storing it twice.
 
 ### GitHub Actions
 

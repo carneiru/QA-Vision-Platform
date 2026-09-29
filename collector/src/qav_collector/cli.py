@@ -5,6 +5,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -19,6 +20,7 @@ from qav_collector.upload import ConfigError, UploadError, endpoint_for, make_co
 
 CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "other", "local")
 _TRUE = ("1", "true", "yes")
+_API_KEY = re.compile(r"^[\x21-\x7e]+$")
 
 
 class _UploadFailed(Exception):
@@ -115,6 +117,10 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
             raise ConfigError("QAV_URL is not set (or pass --url)")
         if not api_key:
             raise ConfigError("QAV_API_KEY is not set; the API key is read from the environment only")
+        if not _API_KEY.match(api_key):
+            # Checked here because http.client would otherwise reject the header with an error that
+            # quotes the key in a form the output scrubbing does not recognise
+            raise ConfigError("QAV_API_KEY must be printable ASCII without spaces; check the CI secret")
         endpoint = endpoint_for(url)
         context = make_context(pick(args.ca_file, "QAV_CA_FILE"))
 
@@ -155,10 +161,14 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         branch=pick(args.branch, "QAV_BRANCH", ci.branch),
         environment=pick(args.environment, "QAV_ENVIRONMENT"),
     )
-    # Outside CI there is nothing stable to derive a key from; a random one still makes the
-    # collector's own retries safe
-    key = sanitize_key(pick(args.idempotency_key, "QAV_IDEMPOTENCY_KEY", ci.idempotency_key) or "")
-    parts = build_parts(run, results, key or f"local-{uuid.uuid4()}")
+    key = sanitize_key(pick(args.idempotency_key, "QAV_IDEMPOTENCY_KEY") or "")
+    if not key:
+        # The CI identifiers name the job, but every leg of a matrix and every upload step in one
+        # job share them, and the server answers 409 when a key comes back with a different body
+        # (finished_at alone always differs). So each invocation adds its own random suffix: the
+        # collector's retries reuse the key, and a POST stored without an answer is replayed.
+        key = f"{ci.idempotency_key or 'local'}-{uuid.uuid4().hex[:12]}"
+    parts = build_parts(run, results, key)
 
     if args.dry_run:
         for part in parts:

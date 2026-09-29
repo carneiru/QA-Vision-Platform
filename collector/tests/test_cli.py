@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -92,7 +93,21 @@ def test_github_actions_metadata_and_key(platform, report):
     assert body["run"]["commit_sha"] == "a" * 40
     assert body["run"]["branch"] == "main"
     assert body["run"]["ci_run_url"] == "https://github.com/acme/shop/actions/runs/123"
-    assert platform.requests[0]["headers"]["Idempotency-Key"] == "gh-123-2-test"
+    assert re.fullmatch(r"gh-123-2-test-[0-9a-f]{12}", platform.requests[0]["headers"]["Idempotency-Key"])
+
+
+def test_matrix_legs_and_repeated_uploads_in_one_job_get_different_keys(platform, report):
+    # Every leg of a GitHub matrix (and every upload step in one job) sees the same run id, attempt
+    # and job id; the server answers 409 when one key comes with a different body, so a shared key
+    # would lose every upload after the first
+    platform.reply(201, RECEIPT)
+    platform.reply(201, dict(RECEIPT, id=43))
+
+    assert run(["upload", str(report)], env_for(platform, **GITHUB)) == 0
+    assert run(["upload", str(report)], env_for(platform, **GITHUB)) == 0
+    first, second = (r["headers"]["Idempotency-Key"] for r in platform.requests)
+    assert first != second
+    assert first.startswith("gh-123-2-test-") and second.startswith("gh-123-2-test-")
 
 
 def test_flags_beat_variables(platform, report):
@@ -205,6 +220,15 @@ def test_usage_errors_exit_2(capsys):
     assert run([], {}) == 2
     assert run(["upload"], {}) == 2
     assert run(["upload", "x.xml", "--ci-provider", "travis"], {}) == 2
+
+
+@pytest.mark.parametrize("bad_key", ["qav_first\nsecond", "qav_has xyzzy", "qav_café"])
+def test_an_unusable_api_key_is_a_configuration_error_and_is_never_printed(report, capsys, bad_key):
+    assert run(["upload", str(report)], {"QAV_URL": "https://qav.acme.test", "QAV_API_KEY": bad_key}) == 2
+    err = capsys.readouterr().err
+    assert "QAV_API_KEY" in err
+    for piece in bad_key.split():
+        assert piece not in err
 
 
 def test_version(capsys):

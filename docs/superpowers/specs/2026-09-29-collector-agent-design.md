@@ -79,9 +79,9 @@ One line per step on stderr, prefixed `qav:` — e.g. `qav: parsed 3 files, 412 
 | GitHub Actions | `GITHUB_ACTIONS=true` | `GITHUB_SHA` | `GITHUB_HEAD_REF` if set (pull requests), else `GITHUB_REF_NAME` | `GITHUB_SERVER_URL/GITHUB_REPOSITORY/actions/runs/GITHUB_RUN_ID` | `gh-GITHUB_RUN_ID-GITHUB_RUN_ATTEMPT-GITHUB_JOB` |
 | GitLab CI | `GITLAB_CI=true` | `CI_COMMIT_SHA` | `CI_COMMIT_REF_NAME` | `CI_JOB_URL` | `gl-CI_JOB_ID` |
 | Jenkins | `JENKINS_URL` set | `GIT_COMMIT` | `GIT_BRANCH` without a leading `origin/` | `BUILD_URL` | `jk-BUILD_TAG` |
-| none | — | — | — | — | `local-<random uuid4>`, new per invocation; `ci_provider` `local` |
+| none | — | — | — | — | `local`; `ci_provider` `local` |
 
-A retried CI attempt (`GITHUB_RUN_ATTEMPT` 2) gets a new key on purpose: it is a new execution. Outside CI the random key does not deduplicate across invocations, but it makes the collector's own retries safe: a POST that timed out after the server stored the run is replayed (200), not stored twice. Keys are reduced to printable ASCII and cut to 200 characters to leave room for the `-part-N` suffix.
+The key sent is that prefix plus `-` and 12 random hex characters, new for every invocation (`gh-123-2-test-3f9c0a1b2d4e`). The CI identifiers alone are not unique: every leg of a matrix and every upload step in one job share them, and since the server answers 409 when a key comes back with a different body (`finished_at` alone always differs), a shared key would lose every upload after the first. Deduplication therefore works within one invocation: the collector's own retries reuse the key, so a POST that timed out after the server stored the run is replayed (200), not stored twice. An explicit `--idempotency-key` / `QAV_IDEMPOTENCY_KEY` is used as given. *(Revised after the final review; the first version used the bare CI identifiers.)* Keys are reduced to printable ASCII and cut to 200 characters to leave room for the `-part-N` suffix.
 
 ## JUnit parsing
 
@@ -121,12 +121,12 @@ A retried CI attempt (`GITHUB_RUN_ATTEMPT` 2) gets a new key on purpose: it is a
 - `finished_at` = the collector's current time.
 - `started_at` is clamped into `[finished_at − 7 days, finished_at]` (the server rejects spans over 7 days and starts after the finish).
 - Metadata: `ci_provider`, `ci_run_url`, `commit_sha` (sent only if it matches `^[0-9a-fA-F]{7,40}$`), `branch`, `environment`, `agent_version` (`qav-collector/<version>`).
-- **Splitting:** more than 20,000 results → parts of 20,000. A part whose JSON is over 9 MB is halved again until it fits the gateway's 10 MB body limit. Each part is its own run; its `Idempotency-Key` is `<ci key>-part-<n>` (n from 1), so a retried job replays the same parts. With a single part the key has no suffix.
+- **Splitting:** more than 20,000 results → parts of 20,000. A part whose JSON is over 9 MB is halved again until it fits the gateway's 10 MB body limit. Each part is its own run; its `Idempotency-Key` is `<key>-part-<n>` (n from 1), so a retried POST of a part replays that part. With a single part the key has no suffix.
 - No results at all → `qav: no test results found`, exit 0, nothing sent.
 
 ## Upload
 
-`POST {url}/api/v1/collect/runs` with `Authorization: Bearer <key>`, `Content-Type: application/json`, `Idempotency-Key`, `User-Agent: qav-collector/<version>`; standard-library `urllib`, 30 s timeout per attempt; TLS verified with the system store, plus `--ca-file` if given. Parts are sent in order; the first part that ultimately fails stops the upload, and the message names the parts already stored (a re-run of the job replays them by key). Every request carries an `Idempotency-Key`, so retrying a POST can never store a run twice.
+`POST {url}/api/v1/collect/runs` with `Authorization: Bearer <key>`, `Content-Type: application/json`, `Idempotency-Key`, `User-Agent: qav-collector/<version>`; standard-library `urllib`, 30 s timeout per attempt; TLS verified with the system store, plus `--ca-file` if given. Parts are sent in order; the first part that ultimately fails stops the upload, and the message names the parts already stored. Every request carries an `Idempotency-Key`, so retrying a POST can never store a run twice.
 
 Time budget: no new attempt starts once 120 s have passed since a part's first attempt, so a dead platform delays the CI job by about 2 minutes per part at most (not 5 × 30 s plus the waits).
 

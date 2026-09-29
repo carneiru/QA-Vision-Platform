@@ -124,7 +124,8 @@ def _add_case(case: ET.Element, suite: str, parsed: ParsedFile) -> None:
         "class_name": (case.get("classname") or "")[:CLASS_NAME_LENGTH],
         "name": name[:NAME_LENGTH],
         "status": status,
-        "duration_ms": min(round(_seconds(case.get("time")) * 1000), MAX_DURATION_MS),
+        # Clamped before multiplying: a finite 1e306 s would become inf ms, which round() rejects
+        "duration_ms": round(min(_seconds(case.get("time")), MAX_DURATION_MS / 1000) * 1000),
     }
     file = case.get("file")
     if file:
@@ -161,7 +162,10 @@ def _timestamp(value: Optional[str]) -> Optional[datetime]:
         return None
     if stamp.tzinfo is None:
         stamp = stamp.replace(tzinfo=timezone.utc)
-    return stamp.astimezone(timezone.utc)
+    try:
+        return stamp.astimezone(timezone.utc)
+    except OverflowError:  # e.g. 0001-01-01T00:00:00+05:00 falls before datetime.min in UTC
+        return None
 
 
 def _first_line(text: str) -> str:

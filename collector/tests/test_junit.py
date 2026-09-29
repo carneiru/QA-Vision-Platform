@@ -132,6 +132,7 @@ def test_the_message_falls_back_to_the_first_line_of_the_text(tmp_path):
     ('time="nan"', 0),
     ('time="inf"', 0),
     ('time="1e12"', 2_147_483_647),
+    ('time="1e306"', 2_147_483_647),  # finite, but times 1000 it is inf
 ])
 def test_duration(tmp_path, time_attr, expected):
     xml = f'<testsuite><testcase name="t" {time_attr}/></testsuite>'
@@ -143,6 +144,8 @@ def test_duration(tmp_path, time_attr, expected):
     ("2026-09-29T12:00:00+02:00", datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc)),
     ("2026-09-29T10:00:00", datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc)),
     ("yesterday", None),
+    ("0001-01-01T00:00:00+05:00", None),  # before datetime.min once converted to UTC
+    ("9999-12-31T23:00:00-05:00", None),  # after datetime.max once converted to UTC
 ])
 def test_suite_timestamps(tmp_path, stamp, expected):
     parsed = parse_file(write(tmp_path, f'<testsuite timestamp="{stamp}"><testcase name="t"/></testsuite>'))
