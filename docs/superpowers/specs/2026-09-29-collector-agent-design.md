@@ -79,9 +79,9 @@ One line per step on stderr, prefixed `qav:` — e.g. `qav: parsed 3 files, 412 
 | GitHub Actions | `GITHUB_ACTIONS=true` | `GITHUB_SHA` | `GITHUB_HEAD_REF` if set (pull requests), else `GITHUB_REF_NAME` | `GITHUB_SERVER_URL/GITHUB_REPOSITORY/actions/runs/GITHUB_RUN_ID` | `gh-GITHUB_RUN_ID-GITHUB_RUN_ATTEMPT-GITHUB_JOB` |
 | GitLab CI | `GITLAB_CI=true` | `CI_COMMIT_SHA` | `CI_COMMIT_REF_NAME` | `CI_JOB_URL` | `gl-CI_JOB_ID` |
 | Jenkins | `JENKINS_URL` set | `GIT_COMMIT` | `GIT_BRANCH` without a leading `origin/` | `BUILD_URL` | `jk-BUILD_TAG` |
-| none | — | — | — | — | none (no deduplication), `ci_provider` `local` |
+| none | — | — | — | — | `local-<random uuid4>`, new per invocation; `ci_provider` `local` |
 
-A retried CI attempt (`GITHUB_RUN_ATTEMPT` 2) gets a new key on purpose: it is a new execution. Keys are reduced to printable ASCII and cut to 200 characters to leave room for the `-part-N` suffix.
+A retried CI attempt (`GITHUB_RUN_ATTEMPT` 2) gets a new key on purpose: it is a new execution. Outside CI the random key does not deduplicate across invocations, but it makes the collector's own retries safe: a POST that timed out after the server stored the run is replayed (200), not stored twice. Keys are reduced to printable ASCII and cut to 200 characters to leave room for the `-part-N` suffix.
 
 ## JUnit parsing
 
@@ -126,7 +126,9 @@ A retried CI attempt (`GITHUB_RUN_ATTEMPT` 2) gets a new key on purpose: it is a
 
 ## Upload
 
-`POST {url}/api/v1/collect/runs` with `Authorization: Bearer <key>`, `Content-Type: application/json`, `Idempotency-Key` when there is one, `User-Agent: qav-collector/<version>`; standard-library `urllib`, 30 s timeout per attempt; TLS verified with the system store, plus `--ca-file` if given. Parts are sent in order; the first part that ultimately fails stops the upload.
+`POST {url}/api/v1/collect/runs` with `Authorization: Bearer <key>`, `Content-Type: application/json`, `Idempotency-Key`, `User-Agent: qav-collector/<version>`; standard-library `urllib`, 30 s timeout per attempt; TLS verified with the system store, plus `--ca-file` if given. Parts are sent in order; the first part that ultimately fails stops the upload, and the message names the parts already stored (a re-run of the job replays them by key). Every request carries an `Idempotency-Key`, so retrying a POST can never store a run twice.
+
+Time budget: no new attempt starts once 120 s have passed since a part's first attempt, so a dead platform delays the CI job by about 2 minutes per part at most (not 5 × 30 s plus the waits).
 
 | Response | Action |
 |---|---|
@@ -149,7 +151,7 @@ pytest from `collector/`; no network except a local test server.
 - **Parser** — fixtures modelled on real output from pytest `--junitxml`, Maven Surefire (with `flakyFailure`/`rerunFailure`), Playwright's JUnit reporter and Cucumber-JS's JUnit formatter; plus root `<testsuite>`, nested suites, `error` vs `failure` precedence, `skipped` with and without a message, `time` as `"1,200.5"`/missing/garbage, timestamps with and without zones; skipped files: DOCTYPE, ENTITY, not well-formed, over 50 MB (size patched), wrong root.
 - **CI detection** — one test per provider with a fake environment, GitHub pull-request branch, Jenkins `origin/`, flag and variable precedence, key sanitising.
 - **Payload** — merge across files, run-time derivation and clamping, `commit_sha` filtering, splitting by count and by size with the `-part-N` keys, empty input.
-- **Upload** — a real `http.server` on a local port in a thread: 201/200 success; retries on 503 and connection refused with the sleep function injected; `Retry-After`; no retry on 401/409/422; attempt budget; the key never appears in output or exceptions; the `http://` rule.
+- **Upload** — a real `http.server` on a local port in a thread: 201/200 success; retries on 503 and connection refused with the sleep function injected; `Retry-After`; no retry on 401/409/422; attempt budget and the 120 s time budget (clock injected); a timed-out POST retried with the same key; the key never appears in output or exceptions; the `http://` rule.
 - **CLI** — every exit code, `--dry-run` output, `--fail-on-error`, missing configuration.
 - **End to end** — the CI `gateway` job's smoke test installs `./collector`, writes a small JUnit file, and uploads it through the running stack with the key the smoke test created (`--ca-file` with the gateway's certificate); then reads the run back through the gateway and checks its counts.
 
