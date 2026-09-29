@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qav-collector"
+dynamic = ["version"]
+description = "Uploads JUnit XML test results from CI to the QA Vision platform"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+qav-collector = "qav_collector.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "qav_collector.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

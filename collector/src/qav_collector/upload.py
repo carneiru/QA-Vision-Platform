@@ -1,0 +1,179 @@
+"""POST one part to /api/v1/collect/runs, retrying what is worth retrying."""
+from __future__ import annotations
+
+import http.client
+import json
+import math
+import random
+import ssl
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Callable, Mapping, Optional, Tuple
+
+from qav_collector import __version__
+from qav_collector.payload import Part
+
+COLLECT_PATH = "/api/v1/collect/runs"
+LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
+TIMEOUT_SECONDS = 30
+MAX_ATTEMPTS = 5
+BACKOFF_SECONDS = (1, 2, 4, 8)
+TIME_BUDGET_SECONDS = 120
+MAX_RETRY_AFTER_SECONDS = 10
+MAX_DETAIL_CHARS = 500
+
+
+class ConfigError(Exception):
+    """A setting that can never work."""
+
+
+class UploadError(Exception):
+    """The platform did not store the part."""
+
+
+def endpoint_for(url: str) -> str:
+    url = url.strip()
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        parts, host = None, None
+    secure = parts is not None and parts.scheme == "https" and bool(host)
+    local = parts is not None and parts.scheme == "http" and host in LOCAL_HOSTS
+    if not (secure or local):
+        raise ConfigError(f"QAV_URL must be an https:// URL (http:// only for localhost), got {url!r}")
+    return url.rstrip("/") + COLLECT_PATH
+
+
+def make_context(ca_file: Optional[str]) -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    if ca_file:
+        try:
+            context.load_verify_locations(cafile=ca_file)
+        except (OSError, ssl.SSLError) as exc:
+            raise ConfigError(f"cannot use --ca-file {ca_file}: {exc}") from None
+    return context
+
+
+def upload_part(
+    endpoint: str,
+    api_key: str,
+    part: Part,
+    context: Optional[ssl.SSLContext] = None,
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+    rand: Callable[[], float] = random.random,
+) -> Tuple[int, dict]:
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        # Always sent: a retried POST whose first attempt was stored is then replayed, not stored twice
+        "Idempotency-Key": part.idempotency_key,
+        "User-Agent": f"qav-collector/{__version__}",
+    }
+    started = clock()
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            status, body, response_headers = _send(endpoint, part.body, headers, context)
+        except (OSError, http.client.HTTPException) as exc:
+            if _is_tls_error(exc):
+                raise UploadError(
+                    f"TLS error talking to the platform ({_reason(exc)}); if it uses a private CA, pass --ca-file"
+                ) from None
+            problem, wait = f"cannot reach the platform ({_reason(exc)})", _backoff(attempt, rand)
+        else:
+            if status in (200, 201):
+                return status, _json(body)
+            if status == 429:
+                problem, wait = "the platform answered 429", _retry_after(response_headers)
+            elif status >= 500:
+                problem, wait = f"the platform answered {status}", _backoff(attempt, rand)
+            else:
+                raise UploadError(_explain(status, body, response_headers))
+        if attempt >= MAX_ATTEMPTS:
+            raise UploadError(f"{problem}; gave up after {attempt} attempts")
+        if clock() - started + wait > TIME_BUDGET_SECONDS:
+            raise UploadError(f"{problem}; gave up after {TIME_BUDGET_SECONDS} s")
+        sleep(wait)
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    # Following a redirect would re-send the Authorization header to wherever it points
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _send(
+    endpoint: str, body: bytes, headers: Mapping[str, str], context: Optional[ssl.SSLContext]
+) -> Tuple[int, bytes, Mapping[str, str]]:
+    # build_opener keeps the default ProxyHandler, so HTTPS_PROXY / NO_PROXY are honoured
+    opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), _NoRedirect)
+    request = urllib.request.Request(endpoint, data=body, headers=dict(headers), method="POST")
+    try:
+        with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
+            return response.status, response.read(), response.headers
+    except urllib.error.HTTPError as exc:
+        try:
+            return exc.code, exc.read(), exc.headers
+        finally:
+            exc.close()
+
+
+def _is_tls_error(exc: BaseException) -> bool:
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    # An EOF during the handshake is a dropped connection, worth retrying; the rest will not heal
+    return isinstance(reason, ssl.SSLError) and not isinstance(reason, ssl.SSLEOFError)
+
+
+def _reason(exc: BaseException) -> str:
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    return str(reason) or type(reason).__name__
+
+
+def _backoff(attempt: int, rand: Callable[[], float]) -> float:
+    base = BACKOFF_SECONDS[min(attempt, len(BACKOFF_SECONDS)) - 1]
+    return base * (1 + 0.25 * rand())
+
+
+def _retry_after(headers: Mapping[str, str]) -> float:
+    try:
+        seconds = float(headers.get("Retry-After") or "")
+    except ValueError:
+        return 1.0
+    if not math.isfinite(seconds) or seconds < 0:
+        return 1.0
+    return min(seconds, MAX_RETRY_AFTER_SECONDS)
+
+
+def _json(body: bytes) -> dict:
+    try:
+        value = json.loads(body)
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _explain(status: int, body: bytes, headers: Mapping[str, str]) -> str:
+    if status == 401:
+        return "the API key is invalid or revoked (401)"
+    if status == 409:
+        return "this Idempotency-Key was already used for different results (409)"
+    if 300 <= status < 400:
+        return f"the platform redirected to {headers.get('Location', '?')} ({status}); set QAV_URL to that address"
+    return f"the platform rejected the upload ({status}): {_detail(body)}"
+
+
+def _detail(body: bytes) -> str:
+    try:
+        detail = json.loads(body)["detail"]
+    except (ValueError, KeyError, TypeError):
+        text = body.decode("utf-8", errors="replace")
+    else:
+        text = detail if isinstance(detail, str) else json.dumps(detail)
+    return text[:MAX_DETAIL_CHARS]

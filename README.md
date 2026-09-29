@@ -137,6 +137,7 @@ generated from the auth-service template and are not running services yet.
 QA-Vision-Platform/
 ├── shared/                         # qav-shared: settings + DB session wiring used by services
 ├── gateway/                        # NGINX gateway: routing, rate limits, TLS
+├── collector/                      # qav-collector: uploads JUnit results from CI (see collector/README.md)
 ├── platforms/
 │   ├── auth-service/auth-service/  # Authentication (implemented)
 │   │   ├── src/auth/

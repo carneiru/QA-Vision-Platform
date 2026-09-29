@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<testsuite failures="1" skipped="1" name="cucumber-js" time="0.9" tests="3">
+  <testcase classname="Checkout" name="Pay with card" time="0.5"/>
+  <testcase classname="Checkout" name="Pay with voucher" time="0.3">
+    <failure type="AssertionError" message="expected paid"><![CDATA[Then the order is paid # steps.js:20
+AssertionError: expected paid]]></failure>
+  </testcase>
+  <testcase classname="Checkout" name="Pay later" time="0.1">
+    <skipped/>
+  </testcase>
+</testsuite>

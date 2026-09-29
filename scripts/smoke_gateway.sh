@@ -107,6 +107,49 @@ check "list runs -> ingestion-service (overlap route)" 200 GET "$BASE/api/v1/pro
 body_has "... includes the run" "\"id\":$RUN_ID"
 check "read the run -> /api/v1/runs" 200 GET "$BASE/api/v1/runs/$RUN_ID?status=failed" "${AUTH[@]}"
 body_has "... with the failed result" '"name":"fails"'
+
+# ---- the collector, end to end: JUnit file -> qav-collector -> gateway -> ingestion ----
+# Runs from collector/src, so nothing is installed; the CI collector job covers installing it.
+PY=""
+for candidate in python3 python; do
+  if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
+    PY="$candidate"
+    break
+  fi
+done
+if [ -z "$PY" ]; then
+  fail "collector: no Python 3.9+ found (tried python3, python)"
+else
+  # The gateway's self-signed certificate, so the collector verifies TLS instead of skipping it.
+  # The path goes through sh -c: Git Bash on Windows rewrites a bare /etc/... argument to C:/...
+  docker compose exec -T gateway sh -c 'cat /etc/nginx/certs/tls.crt' > "$TMP/gateway.crt"
+  [ -s "$TMP/gateway.crt" ] || fail "collector: could not read the gateway's certificate"
+  cat > "$TMP/junit.xml" <<'XML'
+<testsuites>
+  <testsuite name="smoke">
+    <testcase classname="smoke" name="passes" time="0.1"/>
+    <testcase classname="smoke" name="fails" time="0.2"><failure message="boom">boom</failure></testcase>
+    <testcase classname="smoke" name="skips"><skipped/></testcase>
+  </testsuite>
+</testsuites>
+XML
+  if (cd collector/src && QAV_URL="$BASE" QAV_API_KEY="$API_KEY" "$PY" -m qav_collector upload \
+        "$TMP/junit.xml" --ca-file "$TMP/gateway.crt" --branch smoke-collector --fail-on-error) \
+        2>"$TMP/collector_err"; then
+    pass "collector uploads a JUnit file through the gateway"
+  else
+    fail "collector upload: $(tail -c 400 "$TMP/collector_err")"
+  fi
+  if grep -qF -- "$API_KEY" "$TMP/collector_err"; then
+    fail "collector output contains the API key"
+  else
+    pass "collector output never shows the API key"
+  fi
+  COLLECTOR_RUN_ID="$(sed -n 's/.*uploaded run \([0-9][0-9]*\).*/\1/p' "$TMP/collector_err" | head -1)"
+  check "read the collector's run" 200 GET "$BASE/api/v1/runs/${COLLECTOR_RUN_ID:-0}" "${AUTH[@]}"
+  body_has "... with the collector's counts" '"total":3,"passed":1,"failed":1,"skipped":1,"errored":0'
+fi
+
 check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"
 check "a revoked key is rejected" 401 POST "$BASE/api/v1/collect/runs" \
   -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$RUN_BODY"

@@ -101,13 +101,46 @@
 - [x] In the root stack and behind the gateway; smoke-tested end to end
 
 ### Ingestion follow-ups
-- [ ] Collector agent MVP (JUnit XML parser, uploader with retry) — *next spec*
+- [x] Collector agent MVP (JUnit XML parser, uploader with retry) — `collector/`, see below
 - [ ] Queue-based processing for 1000+ events/second — *Phase 2 exit criterion*
 - [ ] PII detection and redaction; retention policies
 - [ ] mTLS between agent and platform
 - [ ] Artifacts (screenshots, videos, traces, logs)
 - [ ] Per-test history endpoints (test_key is already indexed)
 - [ ] Revoke a project's API keys when the project is deleted
+
+### Collector agent (Phase 2, step 2)
+- [x] `qav-collector upload`: JUnit XML (pytest, Surefire, Playwright, cucumber-js), one run per CI job
+- [x] GitHub Actions, GitLab CI and Jenkins detection; retry-safe Idempotency-Keys; parts past 20,000 results / 9 MB
+- [x] Retries with backoff and a 2-minute budget; HTTPS and verified TLS; the key never printed
+- [x] CI: tests on Python 3.9 and 3.12; end-to-end upload through the gateway in the smoke test
+- [ ] Tag `collector-v0.1.0` (maintainer)
+- [ ] Phase 2 exit criteria: agents on 3 CI platforms in real projects; 10k test executions ingested
+
+### Collector — nice to have
+Distribution
+- [ ] Publish to PyPI (trusted publishing from a tag): `pip install qav-collector`, `pipx run qav-collector`
+- [ ] A ready-made GitHub Action (`uses: …/qav-collector@v1`) and a GitLab CI component
+- [ ] A Jenkins shared-library step
+- [ ] A Docker image and a single-file (zipapp) build for runners without pip
+
+Formats
+- [ ] Cucumber JSON (features, scenarios, tags, steps) — needs ingestion fields for tags and steps
+- [ ] Playwright JSON (retries, attachments, projects/browsers)
+- [ ] TestNG XML, NUnit XML, xUnit.net XML, .NET TRX
+
+Richer data
+- [ ] Keep each retry attempt as its own result, so flaky tests become visible
+- [ ] Git metadata: commit author and message, pull-request number, base branch
+- [ ] Test ownership from CODEOWNERS
+- [ ] Artifact upload (screenshots, videos, traces) once ingestion accepts them
+
+Reliability and operations
+- [ ] Keep a failed upload on disk and `qav-collector retry` it later
+- [ ] Stream partial results during long runs instead of one upload at the end
+- [ ] `qav-collector check`: verify the URL, certificate and key without uploading
+- [ ] A `.qav.yml` config file as an alternative to flags and environment variables
+- [ ] Client certificates (mTLS) — roadmap Phase 2
 
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models

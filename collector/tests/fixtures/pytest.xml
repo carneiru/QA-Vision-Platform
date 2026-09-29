@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="pytest tests">
+  <testsuite name="pytest" errors="1" failures="1" skipped="1" tests="4" time="1.234" timestamp="2026-09-29T10:00:00.123456+01:00" hostname="runner">
+    <testcase classname="tests.test_math" name="test_add" time="0.001" />
+    <testcase classname="tests.test_math" name="test_div" time="0.002">
+      <failure message="assert 1 == 2">def test_div():
+&gt;       assert 1 == 2
+E       assert 1 == 2
+
+tests/test_math.py:8: AssertionError</failure>
+    </testcase>
+    <testcase classname="tests.test_math" name="test_skip" time="0.000">
+      <skipped type="pytest.skip" message="not on CI">tests/test_math.py:10: not on CI</skipped>
+    </testcase>
+    <testcase classname="tests.test_db" name="test_conn" time="0.500">
+      <error message="failed on setup with &quot;ConnectionError&quot;">conftest.py:5: ConnectionError</error>
+    </testcase>
+  </testsuite>
+</testsuites>
