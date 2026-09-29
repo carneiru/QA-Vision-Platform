@@ -1,0 +1,73 @@
+from datetime import datetime, timedelta, timezone
+from typing import Annotated, Literal, Optional
+
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+
+from src.ingestion.core.config import settings
+
+# A CI runner's clock can drift a little; a day ahead means a broken clock or a bad payload
+MAX_CLOCK_SKEW = timedelta(hours=1)
+
+
+def _text(max_length: int):
+    return Annotated[str, StringConstraints(max_length=max_length)]
+
+
+class RunIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ci_provider: Literal["github_actions", "gitlab_ci", "jenkins", "other", "local"]
+    ci_run_url: Optional[Annotated[str, StringConstraints(max_length=2048, pattern=r"^https?://\S+$")]] = None
+    commit_sha: Optional[Annotated[str, StringConstraints(pattern=r"^[0-9a-fA-F]{7,40}$")]] = None
+    branch: Optional[_text(255)] = None
+    environment: Optional[_text(100)] = None
+    agent_version: Optional[_text(50)] = None
+    started_at: AwareDatetime
+    finished_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def _times_make_sense(self):
+        if self.finished_at < self.started_at:
+            raise ValueError("finished_at must not be before started_at")
+        if self.finished_at > datetime.now(timezone.utc) + MAX_CLOCK_SKEW:
+            raise ValueError("finished_at is too far in the future")
+        return self
+
+
+class ResultIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    suite: _text(500) = ""
+    class_name: _text(500) = ""
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    # JUnit reports both "error" and "errored"; both are stored as errored
+    status: Literal["passed", "failed", "skipped", "errored", "error"]
+    duration_ms: int = Field(0, ge=0, le=2_147_483_647)
+    message: Optional[str] = None   # long text is truncated by the service, never rejected
+    details: Optional[str] = None
+    file: Optional[_text(1000)] = None
+
+    @field_validator("status")
+    @classmethod
+    def _normalise_status(cls, value: str) -> str:
+        return "errored" if value == "error" else value
+
+
+class RunUpload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run: RunIn
+    results: list[ResultIn] = Field(min_length=1, max_length=settings.MAX_RESULTS_PER_RUN)
+
+
+class RunReceipt(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    project_id: int
+    total: int
+    passed: int
+    failed: int
+    skipped: int
+    errored: int
+    created_at: datetime

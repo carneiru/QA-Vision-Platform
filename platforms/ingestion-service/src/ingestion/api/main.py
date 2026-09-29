@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.cors import CORSMiddleware
 
 from src.ingestion.api.v1.api import api_router
@@ -20,6 +22,14 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+
+@app.exception_handler(RequestValidationError)
+async def count_rejected_uploads(request: Request, exc: RequestValidationError):
+    # Count 422s on the upload endpoint; every other route keeps FastAPI's default behaviour
+    if request.url.path == f"{settings.API_V1_STR}/collect/runs":
+        metrics.REJECTED.labels(reason="validation").inc()
+    return await request_validation_exception_handler(request, exc)
 
 
 @app.get("/health")
