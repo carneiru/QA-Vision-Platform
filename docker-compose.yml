@@ -1,0 +1,160 @@
+# The whole platform on one host: `SECRET_KEY=... docker compose up -d --build --wait gateway`.
+# Each service's own docker-compose.yml under platforms/ still works for developing it alone;
+# this stack uses its own volumes and never touches theirs.
+name: qa-vision
+
+x-app-healthcheck: &app-healthcheck
+  # The slim images have no curl; probe with Python's stdlib
+  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+  interval: 5s
+  timeout: 5s
+  retries: 12
+  start_period: 10s
+
+# Each service and its -migrate job share one environment block, so they cannot drift apart.
+x-auth-env: &auth-env
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth_db
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
+  # Links in verification emails must point at the gateway, the only published entry point
+  BASE_URL: https://localhost:${GATEWAY_HTTPS_PORT:-8443}
+
+x-organization-env: &organization-env
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/organization_db
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
+  AUTH_SERVICE_URL: http://auth-service:8000
+  # Adding a member calls auth-service's GET /users/{id}, which needs a superuser token
+  # (known limitation, see TODO.md "Gateway follow-ups"). Empty means member-adds fail.
+  AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-}
+
+x-project-env: &project-env
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/project_db
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
+  ORGANIZATION_SERVICE_URL: http://organization-service:8000
+
+x-auth-build: &auth-build
+  context: .
+  dockerfile: platforms/auth-service/auth-service/Dockerfile
+
+x-organization-build: &organization-build
+  context: .
+  dockerfile: platforms/organization-service/Dockerfile
+
+x-project-build: &project-build
+  context: .
+  dockerfile: platforms/project-service/Dockerfile
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - qav_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Over TCP, not the Unix socket: on a fresh volume the image first runs a temporary,
+      # socket-only server for initialisation, and a socket check can pass on that one --
+      # db-init (which connects over TCP) would then be refused.
+      test: ["CMD-SHELL", "pg_isready -U postgres -h 127.0.0.1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    # No ports: inspect with `docker compose exec postgres psql -U postgres -d project_db`
+
+  db-init:
+    image: postgres:15
+    environment:
+      PGHOST: postgres
+      PGUSER: postgres
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - ./scripts/postgres-init.sh:/postgres-init.sh:ro
+    entrypoint: ["sh", "/postgres-init.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  auth-migrate:
+    # Same image as auth-service, which builds it; never pulled from a registry
+    image: qa-vision/auth-service:local
+    pull_policy: never
+    environment: *auth-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  organization-migrate:
+    # Same image as organization-service, which builds it; never pulled from a registry
+    image: qa-vision/organization-service:local
+    pull_policy: never
+    environment: *organization-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  project-migrate:
+    # Same image as project-service, which builds it; never pulled from a registry
+    image: qa-vision/project-service:local
+    pull_policy: never
+    environment: *project-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
+  auth-service:
+    build: *auth-build
+    image: qa-vision/auth-service:local
+    environment: *auth-env
+    healthcheck: *app-healthcheck
+    depends_on:
+      auth-migrate:
+        condition: service_completed_successfully
+
+  organization-service:
+    build: *organization-build
+    image: qa-vision/organization-service:local
+    environment: *organization-env
+    healthcheck: *app-healthcheck
+    depends_on:
+      organization-migrate:
+        condition: service_completed_successfully
+
+  project-service:
+    build: *project-build
+    image: qa-vision/project-service:local
+    environment: *project-env
+    healthcheck: *app-healthcheck
+    depends_on:
+      project-migrate:
+        condition: service_completed_successfully
+
+  gateway:
+    build: ./gateway
+    image: qa-vision/gateway:local
+    ports:
+      - "${GATEWAY_HTTPS_PORT:-8443}:443"
+      - "${GATEWAY_HTTP_PORT:-8080}:80"
+    environment:
+      # Must equal the published HTTPS port: the HTTP -> HTTPS redirect is built from it
+      GATEWAY_HTTPS_PORT: ${GATEWAY_HTTPS_PORT:-8443}
+    volumes:
+      - qav_gateway_certs:/etc/nginx/certs
+    healthcheck:
+      test: ["CMD", "curl", "-fsk", "https://localhost/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      organization-service:
+        condition: service_healthy
+      project-service:
+        condition: service_healthy
+
+volumes:
+  qav_postgres_data:
+  qav_gateway_certs:

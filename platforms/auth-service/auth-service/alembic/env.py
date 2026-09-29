@@ -4,10 +4,14 @@ from alembic import context
 import os
 import sys
 
-# Add the src directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+# The service root, so "src.auth...." resolves the same way the app does (settings), and the src
+# directory, which the existing Base import below relies on.
+SERVICE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, SERVICE_ROOT)
+sys.path.append(os.path.join(SERVICE_ROOT, "src"))
 
-from auth.db.base import Base  # noqa
+from src.auth.config import settings  # noqa: E402
+from auth.db.base import Base  # noqa: E402
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -17,9 +21,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# alembic.ini leaves the URL blank; take it from the runtime settings unless one was set
+# explicitly. Escape '%' so ConfigParser does not try to interpolate it out of a password.
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
 target_metadata = Base.metadata
 
 

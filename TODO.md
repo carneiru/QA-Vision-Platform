@@ -82,6 +82,20 @@
 50.1. [ ] Release the DB session before outbound HTTP calls (members/me, provider verification) so slow upstreams cannot exhaust the connection pool
 50.2. [ ] Map only uniqueness violations to 409 in project_service._commit; re-raise other IntegrityErrors
 
+### API Gateway and full stack
+- [x] NGINX gateway: routing, per-IP rate limits, self-signed TLS, JSON errors, request ids, JSON access log
+- [x] Repository-root docker-compose: one Postgres, db-init, per-service migration jobs, shared SECRET_KEY
+- [x] CI: full-stack smoke test through the gateway
+
+### Gateway follow-ups
+- [ ] Monitoring dashboards (Prometheus/Grafana) — *Phase 1, "Basic monitoring stack"*
+- [ ] Kubernetes ingress; real certificates — *Phase 1 infra, when a cluster exists*
+- [ ] Service-to-service token so organization-service can check users in auth-service — *soon: adding a member through the full stack needs a superuser `AUTH_SERVICE_TOKEN` until then*
+- [ ] Shared rate limits in Redis — *when more than one gateway instance runs*
+- [ ] JWT validation and per-user limits at the gateway — *when the gateway should reject bad tokens itself*
+- [ ] API docs through the gateway — *when a frontend or partner needs browsable docs*
+- [ ] WebSockets — *Phase 3, real-time features*
+
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
 52. [ ] Implement test case creation, versioning, and organization

@@ -103,3 +103,33 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down --volumes
+
+  gateway:
+    name: Gateway and full stack
+    runs-on: ubuntu-latest
+    env:
+      # docker-compose.yml requires SECRET_KEY and has no fallback
+      SECRET_KEY: ci-gateway-secret
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the NGINX configuration
+        run: |
+          docker build -t qa-vision/gateway:ci gateway
+          docker run --rm qa-vision/gateway:ci nginx -t
+
+      # Waiting on the gateway waits on everything it depends on: postgres, db-init, the three
+      # migrations and the three services. The one-shot jobs are not waited on themselves.
+      - name: Start the platform
+        run: docker compose up -d --build --wait --wait-timeout 300 gateway
+
+      - name: Smoke-test through the gateway
+        run: bash scripts/smoke_gateway.sh
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down
+        if: always()
+        run: docker compose down --volumes

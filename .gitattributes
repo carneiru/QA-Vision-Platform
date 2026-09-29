@@ -1,0 +1,4 @@
+# Shell scripts and the NGINX template are copied into Linux containers; a CRLF there turns
+# "#!/bin/sh" into "/bin/sh\r: not found". Force LF regardless of a contributor's autocrlf.
+*.sh                    text eol=lf
+*.template              text eol=lf
