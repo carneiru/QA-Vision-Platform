@@ -307,3 +307,36 @@ def test_same_commit_needs_a_second_run_of_that_commit(client, auth, project_rol
     seed(commit_sha="ddddddd", results=(("t", "failed", 1),))
     items = get(client, auth, "/flaky").json()
     assert [(i["reason"], i["commits"]) for i in items] == [("same_commit", [{"commit_sha": "ddddddd", "environment": None}])]
+
+
+# ---- found by the final review ------------------------------------------------------------
+
+@pytest.mark.parametrize("query", ["/trends?tz=America", "/trends?tz=Etc", "/tests?offset=10000000000000000000000000"])
+def test_more_invalid_parameters_are_422(client, auth, project_role, query):
+    project_role()
+    assert get(client, auth, query).status_code == 422
+
+
+@pytest.mark.parametrize("path, name", [("/trends", "branch"), ("/trends", "environment"), ("/tests", "search"),
+                                        ("/flaky", "branch")])
+def test_a_nul_character_is_422(client, auth, project_role, path, name):
+    # PostgreSQL cannot take NUL in a string parameter; SQLite (these tests) would not notice
+    project_role()
+    assert client.get(BASE + path, params={name: "a\x00b"}, headers=auth()).status_code == 422
+
+
+def test_an_empty_filter_means_no_filter(client, auth, project_role, seed):
+    project_role()
+    seed(branch="main", environment="staging")
+    assert get(client, auth, "/trends?days=1&branch=&environment=").json()["days"][0]["runs"] == 1
+    for i, status in enumerate(("passed", "failed", "passed", "failed", "passed")):
+        seed(minutes_ago=10 - i, results=(("flipper", status, 1),))
+    assert [i["name"] for i in get(client, auth, "/flaky?branch=").json()] == ["flipper"]
+
+
+def test_duplicates_in_one_run_are_not_same_commit_even_with_another_shard(client, auth, project_role, seed):
+    # Two shards of one commit: the duplicate pass/fail is inside one of them only
+    project_role()
+    seed(commit_sha="ccccccc", results=(("dup", "passed", 1), ("dup", "failed", 1)))
+    seed(commit_sha="ccccccc", results=(("other", "passed", 1),))
+    assert get(client, auth, "/flaky").json() == []

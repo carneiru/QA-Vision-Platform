@@ -71,7 +71,8 @@ def rank_flaky(
                 **base, "reason": "same_commit", "flips": None, "flip_rate": None,
                 "commits": [{"commit_sha": c.commit_sha, "environment": c.environment} for c in newest[:MAX_COMMITS]],
             })
-        elif count and count.runs >= min_runs and count.pairs > 0 and count.flips / count.pairs >= min_flip_rate:
+        elif (count and count.runs >= min_runs and count.pairs > 0 and count.flips > 0
+              and count.flips / count.pairs >= min_flip_rate):
             items.append({
                 **base, "reason": "flips", "commits": [], "flips": count.flips,
                 "flip_rate": round(count.flips / count.pairs, 4),

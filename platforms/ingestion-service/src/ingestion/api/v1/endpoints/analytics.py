@@ -1,7 +1,8 @@
 """Read-only analytics over a project's runs, with the run endpoints' access rule."""
 from datetime import datetime, timedelta, timezone
 from typing import List, Literal, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from functools import lru_cache
+from zoneinfo import ZoneInfo, available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
@@ -19,20 +20,29 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# PostgreSQL cannot take NUL in a string parameter (SQLite, in the tests, would not notice)
+NO_NUL = r"^[^\x00]*$"
+
+
+@lru_cache(maxsize=1)
+def _known_zones() -> frozenset:
+    return frozenset(available_timezones())
+
+
 def _zone(name: str) -> ZoneInfo:
-    try:
-        return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
-        # ValueError: not a valid zone key at all (e.g. a path); never read as a file
+    # Checked against the zone list rather than by trying ZoneInfo(name): a folder name such as
+    # "America" raised PermissionError / IsADirectoryError (a 500), and a path is never a zone
+    if name not in _known_zones():
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown time zone: {name!r}")
+    return ZoneInfo(name)
 
 
 @router.get("/trends", response_model=TrendsOut)
 def trends(
     days: int = Query(30, ge=1, le=365),
     tz: str = Query("UTC", min_length=1, max_length=64),
-    branch: Optional[str] = Query(None, max_length=255),
-    environment: Optional[str] = Query(None, max_length=100),
+    branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
+    environment: Optional[str] = Query(None, max_length=100, pattern=NO_NUL),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
@@ -46,9 +56,9 @@ def trends(
 def tests(
     days: int = Query(30, ge=1, le=90),
     sort: Literal["failures", "duration", "name"] = Query("failures"),
-    search: Optional[str] = Query(None, max_length=200),
+    search: Optional[str] = Query(None, max_length=200, pattern=NO_NUL),
     limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
+    offset: int = Query(0, ge=0, le=100_000),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
@@ -61,7 +71,7 @@ def tests(
 def history(
     test_key: str = Path(..., pattern=r"^[0-9a-f]{64}$"),
     days: int = Query(30, ge=1, le=90),
-    branch: Optional[str] = Query(None, max_length=255),
+    branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
@@ -78,7 +88,7 @@ def flaky(
     window_days: int = Query(14, ge=1, le=30),
     min_runs: int = Query(5, ge=2, le=1000),
     min_flip_rate: float = Query(0.3, ge=0.0, le=1.0),
-    branch: Optional[str] = Query(None, max_length=255),
+    branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):

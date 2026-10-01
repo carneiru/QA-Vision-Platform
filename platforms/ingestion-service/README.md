@@ -98,20 +98,21 @@ Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that
 | `GET /flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=` | At most 100 flaky tests (`window_days` 1–30) |
 
 - `pass_rate` = passed ÷ (total − skipped); errored counts as not passed; `null` when nothing ran.
-- **Flaky, confirmed (`same_commit`):** the test both passed and failed (or errored) on the same commit **in the same environment**, across at least two runs of that commit. Set `QAV_ENVIRONMENT` (or `--environment`) per CI matrix leg: legs that do not set it share one environment, so a failure specific to one leg shows as confirmed.
+- An empty filter (`?branch=`) means no filter; `tz` must be a zone name from the IANA list.
+- **Flaky, confirmed (`same_commit`):** the test both passed and failed (or errored) on the same commit **in the same environment**, with the pass and the fail in two different runs of that commit. Set `QAV_ENVIRONMENT` (or `--environment`) per CI matrix leg: legs that do not set it share one environment, so a failure specific to one leg shows as confirmed.
 - **Flaky, suspected (`flips`):** for other tests, the share of consecutive executions on a branch whose outcome (pass vs failed/errored) changed, over at least `min_runs` executions; skipped results are ignored.
 - Computed on request; migration 003 adds the indexes the queries use.
 
-Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million results over 90 days), PostgreSQL 15 in Docker:
+Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million results over 90 days, two runs per commit like CI shards), PostgreSQL 15 in Docker:
 
 | Query | Time |
 |---|---|
-| trends, 365 days | 16 ms |
-| tests, 90 days, sort=failures | 1,121 ms |
-| tests, 90 days, search | 471 ms |
-| history, 90 days | 13 ms |
-| flaky, 14 days | 1,269 ms |
-| flaky, 30 days (the maximum) | 2,445 ms |
+| trends, 365 days | 15 ms |
+| tests, 90 days, sort=failures | 1,280 ms |
+| tests, 90 days, search | 514 ms |
+| history, 90 days | 16 ms |
+| flaky, 14 days | 1,837 ms |
+| flaky, 30 days (the maximum) | 2,894 ms |
 
 Regenerate with `docker compose exec -T ingestion-service python - < scripts/analytics_benchmark.py` in a throwaway stack.
 

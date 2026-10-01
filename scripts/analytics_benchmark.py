@@ -51,7 +51,7 @@ try:
             started = now - timedelta(days=day, minutes=number * 30)
             statuses = random.choices(STATUSES, WEIGHTS, k=TESTS)
             run = Run(project_id=PROJECT, api_key_id=api_key.id, request_hash="bench", ci_provider="local",
-                      branch=random.choice(("main", "main", "feature")), commit_sha=f"{day:04x}{number:03x}",
+                      branch=random.choice(("main", "main", "feature")), commit_sha=f"{day:04x}{number // 2:03x}",  # two runs per commit, like CI shards
                       started_at=started, finished_at=started + timedelta(minutes=5), duration_ms=300000,
                       total=TESTS, passed=statuses.count("passed"), failed=statuses.count("failed"),
                       errored=statuses.count("errored"), skipped=statuses.count("skipped"))

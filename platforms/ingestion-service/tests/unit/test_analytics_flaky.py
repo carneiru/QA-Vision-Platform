@@ -64,3 +64,7 @@ def test_at_most_limit_items():
     rows = [latest(f"k{i:03d}") for i in range(150)]
     flips = [FlipCount(f"k{i:03d}", 5, 4, 4) for i in range(150)]
     assert len(rank(flips=flips, rows=rows)) == 100
+
+
+def test_a_zero_flip_rate_threshold_never_lists_tests_that_did_not_flip():
+    assert rank(flips=[FlipCount("k", 9, 0, 8)], rows=[latest("k")], min_flip_rate=0) == []

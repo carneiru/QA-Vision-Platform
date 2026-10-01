@@ -3,8 +3,8 @@ grouping live in src/ingestion/analytics."""
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from sqlalchemy import case, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func, literal, select
+from sqlalchemy.orm import Session, aliased
 
 from src.ingestion.analytics.flaky import FlipCount, LatestExecution, MixedCommit
 from src.ingestion.analytics.trends import RunRow, as_utc, pass_rate
@@ -21,7 +21,7 @@ def _escape_like(term: str) -> str:
 
 def window_filters(project_id: int, since: datetime, branch: Optional[str] = None) -> list:
     filters = [Run.project_id == project_id, Run.started_at >= since]
-    if branch is not None:
+    if branch:  # an empty filter (?branch=) means no filter
         filters.append(Run.branch == branch)
     return filters
 
@@ -30,7 +30,7 @@ def trend_rows(db: Session, project_id: int, since: datetime, branch: Optional[s
                environment: Optional[str]) -> List[RunRow]:
     query = db.query(Run.started_at, Run.total, Run.passed, Run.failed, Run.errored, Run.skipped,
                      Run.duration_ms).filter(*window_filters(project_id, since, branch))
-    if environment is not None:
+    if environment:
         query = query.filter(Run.environment == environment)
     return [RunRow(*row) for row in query.all()]
 
@@ -196,23 +196,32 @@ def flaky_inputs(db: Session, project_id: int, since: datetime, branch: Optional
         flips.append(FlipCount(key, runs, int(flipped or 0), int(pairs or 0)))
         latest[key] = LatestExecution(key, suite, class_name, name, status, as_utc(started_at))
 
-    # Pass 2: mixed outcomes per (commit, environment), only for commits with at least two runs in
-    # the window -- a single run is not a re-run of the code, and grouping every result row by
-    # (test, commit, environment) was by far the slowest part on large projects
-    environment = func.coalesce(Run.environment, "")
-    repeated = (
-        select(Run.commit_sha.label("commit_sha"), environment.label("environment"))
-        .where(*filters, Run.commit_sha.is_not(None))
-        .group_by(Run.commit_sha, environment)
-        .having(func.count(Run.id) > 1)
-    ).subquery()
+    # Pass 2: mixed outcomes per (commit, environment). Start from the failures -- a few percent of
+    # the rows -- and ask, through the (test_key, run_id) index, whether another run of the same
+    # commit and environment passed. Grouping every result by (test, commit, environment) instead
+    # was the slowest part on large projects, and a duplicate inside one run is not a re-run.
+    other_run, passing = aliased(Run), aliased(RunResult)
+    passed_elsewhere = (
+        select(literal(1))
+        .select_from(passing)
+        .join(other_run, other_run.id == passing.run_id)
+        .where(
+            passing.test_key == RunResult.test_key,
+            passing.status == "passed",
+            other_run.project_id == project_id,
+            other_run.started_at >= since,
+            other_run.commit_sha == Run.commit_sha,
+            func.coalesce(other_run.environment, "") == func.coalesce(Run.environment, ""),
+            other_run.id != Run.id,
+            *([other_run.branch == branch] if branch else []),
+        )
+        .exists()
+    )
     mixed_rows = db.execute(
         select(RunResult.test_key, Run.commit_sha, Run.environment, func.max(Run.started_at))
         .join(Run, Run.id == RunResult.run_id)
-        .join(repeated, (Run.commit_sha == repeated.c.commit_sha) & (environment == repeated.c.environment))
-        .where(*executions)
+        .where(*filters, RunResult.status.in_(("failed", "errored")), Run.commit_sha.is_not(None), passed_elsewhere)
         .group_by(RunResult.test_key, Run.commit_sha, Run.environment)
-        .having((_count("passed") > 0) & (_count("failed", "errored") > 0))
     ).all()
     mixed = [MixedCommit(key, sha, env, as_utc(seen)) for key, sha, env, seen in mixed_rows]
     return flips, mixed, latest
