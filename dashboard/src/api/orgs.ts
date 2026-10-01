@@ -19,3 +19,7 @@ export function listMyOrganizations(): Promise<MyOrganization[]> {
 export function listProjects(orgId: number): Promise<Project[]> {
   return apiFetch(`/api/v1/organizations/${orgId}/projects`);
 }
+
+export function getProject(projectId: number): Promise<Project> {
+  return apiFetch(`/api/v1/projects/${projectId}`);
+}

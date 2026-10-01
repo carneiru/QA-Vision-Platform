@@ -9,6 +9,16 @@ import { formatDuration, formatPassRate, getTrends } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 
+// Legend/tooltip text stays in ink tokens; the colored swatch carries identity.
+const inkLegend = (value: string) => (
+  <span style={{ color: "var(--text-secondary)" }}>{value}</span>
+);
+const tooltipStyles = {
+  contentStyle: { background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 },
+  itemStyle: { color: "var(--text-primary)" },
+  labelStyle: { color: "var(--text-secondary)" },
+} as const;
+
 const STATUS = [
   { key: "passed", label: "Passed", color: "var(--status-passed)" },
   { key: "failed", label: "Failed", color: "var(--status-failed)" },
@@ -104,8 +114,8 @@ export default function TrendsPage() {
                 <CartesianGrid stroke="var(--grid)" vertical={false} />
                 <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
                 <YAxis allowDecimals={false} stroke="var(--text-muted)" tickLine={false} />
-                <Tooltip />
-                <Legend />
+                <Tooltip {...tooltipStyles} />
+                <Legend formatter={inkLegend} />
                 {STATUS.map((s, i) => (
                   <Bar
                     key={s.key}
@@ -129,7 +139,7 @@ export default function TrendsPage() {
                 <CartesianGrid stroke="var(--grid)" vertical={false} />
                 <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="var(--text-muted)" tickLine={false} />
-                <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, "Pass rate"]} />
+                <Tooltip {...tooltipStyles} formatter={(v) => [`${Number(v).toFixed(1)}%`, "Pass rate"]} />
                 <Line dataKey="ratePct" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>

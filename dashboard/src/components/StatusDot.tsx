@@ -7,7 +7,7 @@ const COLOR: Record<string, string> = {
 
 export default function StatusDot({ status }: { status: string }) {
   return (
-    <span>
+    <span style={{ whiteSpace: "nowrap" }}>
       <span className="status-dot" style={{ background: COLOR[status] ?? "var(--text-muted)" }} />
       {status}
     </span>
