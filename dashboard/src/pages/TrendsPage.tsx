@@ -1,3 +1,164 @@
+import { useState } from "react";
+import { useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
+} from "recharts";
+import { formatDuration, formatPassRate, getTrends } from "../api/analytics";
+import ErrorBanner from "../components/ErrorBanner";
+import FilterBar from "../components/FilterBar";
+
+const STATUS = [
+  { key: "passed", label: "Passed", color: "var(--status-passed)" },
+  { key: "failed", label: "Failed", color: "var(--status-failed)" },
+  { key: "errored", label: "Errored", color: "var(--status-errored)" },
+  { key: "skipped", label: "Skipped", color: "var(--status-skipped)" },
+] as const;
+
 export default function TrendsPage() {
-  return <h2>Trends</h2>;
+  const { projectId } = useParams();
+  const id = Number(projectId);
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const [days, setDays] = useState(30);
+  const [branch, setBranch] = useState("");
+  const [environment, setEnvironment] = useState("");
+  const [showTable, setShowTable] = useState(false);
+
+  const query = useQuery({
+    queryKey: ["trends", id, days, branch, environment],
+    queryFn: () => getTrends(id, { days, tz, branch: branch || undefined, environment: environment || undefined }),
+  });
+
+  const trendDays = query.data?.days ?? [];
+  const totals = trendDays.reduce(
+    (acc, d) => ({
+      runs: acc.runs + d.runs,
+      passed: acc.passed + d.passed,
+      counted: acc.counted + d.passed + d.failed + d.errored,
+    }),
+    { runs: 0, passed: 0, counted: 0 },
+  );
+  const windowRate = totals.counted > 0 ? totals.passed / totals.counted : null;
+  const rateData = trendDays.map((d) => ({
+    date: d.date,
+    ratePct: d.pass_rate === null ? null : d.pass_rate * 100,
+  }));
+
+  return (
+    <section>
+      <h2 className="sr-only">Trends</h2>
+      <FilterBar>
+        <label>
+          Days
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <option value={7}>7</option>
+            <option value={30}>30</option>
+            <option value={90}>90</option>
+          </select>
+        </label>
+        <label>
+          Branch
+          <input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="all" />
+        </label>
+        <label>
+          Environment
+          <input value={environment} onChange={(e) => setEnvironment(e.target.value)} placeholder="all" />
+        </label>
+        <button onClick={() => setShowTable((v) => !v)}>
+          {showTable ? "Hide data" : "View data"}
+        </button>
+      </FilterBar>
+
+      {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
+      {query.isPending && <p className="muted">Loading trends…</p>}
+      {query.data && trendDays.length === 0 && (
+        <p className="muted">
+          No runs in the last {days} days{branch && ` on ${branch}`}{environment && ` in ${environment}`}.
+        </p>
+      )}
+
+      {trendDays.length > 0 && (
+        <>
+          <div className="tiles">
+            <div className="card">
+              <div className="tile-value">{totals.runs}</div>
+              <div className="tile-label">Runs ({days} days)</div>
+            </div>
+            <div className="card">
+              <div className="tile-value">{formatPassRate(windowRate)}</div>
+              <div className="tile-label">Pass rate ({days} days)</div>
+            </div>
+            <div className="card">
+              <div className="tile-value">
+                {formatDuration(trendDays[trendDays.length - 1].avg_run_duration_ms)}
+              </div>
+              <div className="tile-label">Avg run duration (last day)</div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h3>Results per day</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={trendDays} barCategoryGap="20%">
+                <CartesianGrid stroke="var(--grid)" vertical={false} />
+                <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
+                <YAxis allowDecimals={false} stroke="var(--text-muted)" tickLine={false} />
+                <Tooltip />
+                <Legend />
+                {STATUS.map((s, i) => (
+                  <Bar
+                    key={s.key}
+                    dataKey={s.key}
+                    name={s.label}
+                    stackId="status"
+                    fill={s.color}
+                    stroke="var(--surface-1)"
+                    strokeWidth={1}
+                    radius={i === STATUS.length - 1 ? [4, 4, 0, 0] : undefined}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="card" style={{ marginTop: 12 }}>
+            <h3>Pass rate</h3>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={rateData}>
+                <CartesianGrid stroke="var(--grid)" vertical={false} />
+                <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
+                <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="var(--text-muted)" tickLine={false} />
+                <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, "Pass rate"]} />
+                <Line dataKey="ratePct" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+
+      {showTable && query.data && (
+        <div className="card" style={{ marginTop: 12 }}>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Date</th><th>Runs</th><th>Passed</th><th>Failed</th>
+                <th>Errored</th><th>Skipped</th><th>Pass rate</th><th>Avg duration</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trendDays.map((d) => (
+                <tr key={d.date}>
+                  <td>{d.date}</td><td>{d.runs}</td><td>{d.passed}</td><td>{d.failed}</td>
+                  <td>{d.errored}</td><td>{d.skipped}</td>
+                  <td>{formatPassRate(d.pass_rate)}</td>
+                  <td>{formatDuration(d.avg_run_duration_ms)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }

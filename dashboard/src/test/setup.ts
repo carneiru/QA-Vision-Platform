@@ -11,6 +11,14 @@ globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
     ? realFetch(new URL(input, window.location.origin), init)
     : realFetch(input, init)) as typeof fetch;
 
+// Recharts' ResponsiveContainer needs ResizeObserver, which jsdom lacks.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
