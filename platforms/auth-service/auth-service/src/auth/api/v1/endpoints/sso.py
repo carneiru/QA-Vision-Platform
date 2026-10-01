@@ -1,9 +1,12 @@
+from typing import Callable
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from jwt import PyJWKClientConnectionError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from src.auth.api import deps
 import logging
-from src.auth.service.sso_service import SSOService, SSOConfigurationError
+from src.auth.service.sso_service import SSOService, SSOConfigurationError, SSOIdentityError
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
 from src.auth.schemas.auth import GoogleLoginRequest, Token
@@ -17,32 +20,45 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def verify_google_credential(credential: str) -> dict:
-    """Verify a Google ID token, raising the same HTTPExceptions /sso/google raises.
+def verify_credential(credential: str, validate: Callable[[str], dict], label: str) -> dict:
+    """Verify an ID token with `validate`, raising the HTTPExceptions every SSO endpoint raises.
 
-    Shared with the authenticated link endpoint in users.py so both call sites fail the
-    same way instead of drifting.
+    Shared by the sign-in and link endpoints of every provider, so they fail the same way.
     """
-    import asyncio
-
     try:
-        google_data = asyncio.run(SSOService.validate_google_token(credential))
+        identity = validate(credential)
     except SSOConfigurationError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google SSO is not configured",
+            detail=f"{label} SSO is not configured",
         )
+    except PyJWKClientConnectionError:
+        # The provider's key set could not be fetched: our problem, not the caller's token.
+        logger.warning("%s signing keys could not be fetched", label, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{label} sign-in is temporarily unavailable",
+        )
+    except SSOIdentityError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except Exception:
         # Deliberately opaque: the underlying text carries JWKS URLs and internal state.
-        logger.warning("Google ID token verification failed", exc_info=True)
+        logger.warning("%s ID token verification failed", label, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Google token",
+            detail=f"Invalid {label} token",
         )
 
-    if not google_data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Google token")
-    return google_data
+    if not identity:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid {label} token")
+    return identity
+
+
+def verify_google_credential(credential: str) -> dict:
+    """Verify a Google ID token, raising the same HTTPExceptions /sso/google raises."""
+    import asyncio
+
+    return verify_credential(credential, lambda c: asyncio.run(SSOService.validate_google_token(c)), "Google")
 
 
 def _link_or_create_user(db: Session, google_data: dict, email: str, provider: str,

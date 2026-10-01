@@ -358,3 +358,18 @@ def test_link_google_refuses_a_second_link_on_the_same_account(client, db, regis
     )
     assert second.status_code == 409, second.text
     assert db.query(OAuthAccount).count() == 1
+
+
+def test_google_key_outage_is_503(client, monkeypatch):
+    """A Google outage used to read as "Invalid Google token" (400)."""
+    from jwt import PyJWKClientConnectionError
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", TEST_CLIENT_ID)
+
+    def unreachable(token):
+        raise PyJWKClientConnectionError("Fail to fetch data from the url")
+
+    monkeypatch.setattr(sso_service._jwks_client, "get_signing_key_from_jwt", unreachable)
+    response = client.post("/api/v1/sso/google", json={"credential": "anything"})
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Google sign-in is temporarily unavailable"}

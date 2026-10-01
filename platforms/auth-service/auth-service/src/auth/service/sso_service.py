@@ -10,10 +10,63 @@ Google is now verified properly against Google's published signing keys. GitHub 
 are not implemented and their endpoints say so (501) rather than pretending.
 """
 
+import logging
+import re
+import time
+from typing import Callable, Optional
+
 import jwt
-from jwt import PyJWKClient
+from jwt import PyJWK, PyJWKClient, PyJWKClientError
 
 from src.auth.config import settings
+
+logger = logging.getLogger(__name__)
+
+KEY_FETCH_TIMEOUT_SECONDS = 5
+KEY_REFRESH_INTERVAL_SECONDS = 300
+
+
+class ThrottledJWKClient(PyJWKClient):
+    """PyJWKClient with a short timeout and a limit on forced key-set refreshes.
+
+    PyJWKClient re-fetches the key set whenever a token names a key id it has not cached, so a
+    token with a made-up `kid` made us call the provider on every request (and wait up to 30 s,
+    PyJWT's default timeout). Here an unknown key id forces a re-fetch at most once per refresh
+    interval; otherwise it is refused without contacting the provider.
+    """
+
+    def __init__(
+        self,
+        uri: str,
+        *,
+        timeout: int = KEY_FETCH_TIMEOUT_SECONDS,
+        refresh_interval: float = KEY_REFRESH_INTERVAL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ):
+        super().__init__(uri, cache_jwk_set=True, lifespan=300, timeout=timeout)
+        self._refresh_interval = refresh_interval
+        self._clock = clock
+        self._last_forced_refresh: Optional[float] = None
+
+    def get_signing_key(self, kid: str) -> PyJWK:
+        signing_key = self.match_kid(self.get_signing_keys(), kid)
+        if signing_key is None:
+            now = self._clock()
+            recently = (
+                self._last_forced_refresh is not None
+                and now - self._last_forced_refresh < self._refresh_interval
+            )
+            if recently:
+                raise PyJWKClientError(f'Unable to find a signing key that matches: "{kid}"')
+            self._last_forced_refresh = now
+            signing_key = self.match_kid(self.get_signing_keys(refresh=True), kid)
+            if signing_key is None:
+                raise PyJWKClientError(f'Unable to find a signing key that matches: "{kid}"')
+        return signing_key
+
+
+class SSOIdentityError(Exception):
+    """The token is genuine but its identity cannot be used. The message is shown to the caller."""
 
 # Google publishes the public keys for its ID tokens here.
 GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs"
@@ -22,7 +75,7 @@ GOOGLE_CERTS_URL = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 
 # Module-level so the fetched key set is cached across requests rather than re-fetched per login.
-_jwks_client = PyJWKClient(GOOGLE_CERTS_URL)
+_jwks_client = ThrottledJWKClient(GOOGLE_CERTS_URL)
 
 
 class SSOConfigurationError(Exception):
