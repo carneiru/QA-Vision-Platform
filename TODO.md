@@ -145,6 +145,15 @@ Reliability and operations
 - [ ] A `.qav.yml` config file as an alternative to flags and environment variables
 - [ ] Client certificates (mTLS) — roadmap Phase 2
 
+### Microsoft SSO
+- [x] Sign in with Microsoft (Entra ID) ID tokens from an allowlist of tenants; link to an existing account
+- [x] Signing-key fetch hardened for Google and Microsoft (timeout, throttled refresh); outages answer 503
+- [ ] Personal Microsoft accounts (outlook.com)
+- [ ] Map Entra groups / app roles to organization roles
+- [ ] SCIM provisioning and deprovisioning
+- [ ] GitHub SSO
+- [ ] Single sign-out
+
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
 52. [ ] Implement test case creation, versioning, and organization

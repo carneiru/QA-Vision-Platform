@@ -20,9 +20,14 @@ class LinkGoogleRequest(BaseModel):
 class GitHubLoginRequest(BaseModel):
     code: str
 
-class AzureLoginRequest(BaseModel):
-    code: str
-    tenant_id: str
+class MicrosoftLoginRequest(BaseModel):
+    credential: str  # the ID token MSAL returns
+
+
+class LinkMicrosoftRequest(BaseModel):
+    credential: str
+    # Same rule as LinkGoogleRequest: required when the account has a password
+    current_password: Optional[str] = None
 
 class Token(BaseModel):
     access_token: str

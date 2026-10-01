@@ -194,7 +194,7 @@ def test_google_sso_fails_closed_when_client_id_unconfigured(client, db, monkeyp
     assert "access_token" not in response.json()
 
 
-@pytest.mark.parametrize("provider", ["github", "azure"])
+@pytest.mark.parametrize("provider", ["github"])  # azure was replaced by /sso/microsoft
 def test_unimplemented_providers_report_501(client, provider):
     """These previously returned hardcoded identities. They must now fail honestly rather
     than either pretending or crashing with a 500."""
@@ -358,3 +358,18 @@ def test_link_google_refuses_a_second_link_on_the_same_account(client, db, regis
     )
     assert second.status_code == 409, second.text
     assert db.query(OAuthAccount).count() == 1
+
+
+def test_google_key_outage_is_503(client, monkeypatch):
+    """A Google outage used to read as "Invalid Google token" (400)."""
+    from jwt import PyJWKClientConnectionError
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", TEST_CLIENT_ID)
+
+    def unreachable(token):
+        raise PyJWKClientConnectionError("Fail to fetch data from the url")
+
+    monkeypatch.setattr(sso_service._jwks_client, "get_signing_key_from_jwt", unreachable)
+    response = client.post("/api/v1/sso/google", json={"credential": "anything"})
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Google sign-in is temporarily unavailable"}

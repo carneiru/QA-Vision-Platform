@@ -1,12 +1,15 @@
+from typing import Callable
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from jwt import PyJWKClientConnectionError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from src.auth.api import deps
 import logging
-from src.auth.service.sso_service import SSOService, SSOConfigurationError
+from src.auth.service.sso_service import SSOService, SSOConfigurationError, SSOIdentityError
 from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
-from src.auth.schemas.auth import GoogleLoginRequest, Token
+from src.auth.schemas.auth import GoogleLoginRequest, MicrosoftLoginRequest, Token
 from src.auth.schemas.user import UserCreate  # used when SSO creates a first-time user
 from src.auth.models.oauth import OAuthAccount
 from src.auth.config import settings
@@ -17,37 +20,65 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def verify_google_credential(credential: str) -> dict:
-    """Verify a Google ID token, raising the same HTTPExceptions /sso/google raises.
+def verify_credential(credential: str, validate: Callable[[str], dict], label: str) -> dict:
+    """Verify an ID token with `validate`, raising the HTTPExceptions every SSO endpoint raises.
 
-    Shared with the authenticated link endpoint in users.py so both call sites fail the
-    same way instead of drifting.
+    Shared by the sign-in and link endpoints of every provider, so they fail the same way.
     """
-    import asyncio
-
     try:
-        google_data = asyncio.run(SSOService.validate_google_token(credential))
+        identity = validate(credential)
     except SSOConfigurationError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Google SSO is not configured",
+            detail=f"{label} SSO is not configured",
         )
+    except PyJWKClientConnectionError:
+        # The provider's key set could not be fetched: our problem, not the caller's token.
+        logger.warning("%s signing keys could not be fetched", label, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{label} sign-in is temporarily unavailable",
+        )
+    except SSOIdentityError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except Exception:
         # Deliberately opaque: the underlying text carries JWKS URLs and internal state.
-        logger.warning("Google ID token verification failed", exc_info=True)
+        logger.warning("%s ID token verification failed", label, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid Google token",
+            detail=f"Invalid {label} token",
         )
 
-    if not google_data:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid Google token")
-    return google_data
+    if not identity:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid {label} token")
+    return identity
 
 
-def _link_or_create_user(db: Session, google_data: dict, email: str, provider: str,
-                         provider_user_id: str):
-    """Resolve a Google identity that is not yet linked to any account.
+def verify_google_credential(credential: str) -> dict:
+    """Verify a Google ID token, raising the same HTTPExceptions /sso/google raises."""
+    import asyncio
+
+    return verify_credential(credential, lambda c: asyncio.run(SSOService.validate_google_token(c)), "Google")
+
+
+def verify_microsoft_credential(credential: str) -> dict:
+    """Verify a Microsoft ID token, raising the same HTTPExceptions /sso/microsoft raises."""
+    return verify_credential(credential, SSOService.validate_microsoft_token, "Microsoft")
+
+
+GOOGLE_EXISTING_ACCOUNT = (
+    "An account with this email already exists. Linking Google to an existing "
+    "account is not supported yet."
+)
+MICROSOFT_EXISTING_ACCOUNT = (
+    "An account with this email already exists. Sign in to it and link Microsoft "
+    "with POST /api/v1/users/me/link/microsoft."
+)
+
+
+def _link_or_create_user(db: Session, identity: dict, email: str, provider: str, provider_user_id: str,
+                         label: str, existing_account_detail: str):
+    """Resolve an SSO identity that is not yet linked to any account.
 
     Reached only when no OAuthAccount matches this provider and `sub`.
     """
@@ -56,7 +87,7 @@ def _link_or_create_user(db: Session, google_data: dict, email: str, provider: s
     if user is None:
         user_in = UserCreate(
             email=email,
-            full_name=google_data.get("full_name"),
+            full_name=identity.get("full_name"),
             password=None,  # SSO user -- no password
         )
         # One transaction. These used to be two commits, so a failure on the link left a
@@ -74,7 +105,7 @@ def _link_or_create_user(db: Session, google_data: dict, email: str, provider: s
             db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="This Google account is already linked",
+                detail=f"This {label} account is already linked",
             )
         db.refresh(user)
         return user
@@ -93,12 +124,12 @@ def _link_or_create_user(db: Session, google_data: dict, email: str, provider: s
         # Same address, a different Google identity -- a recycled or aliased mailbox.
         # Whoever is already linked keeps the account.
         logger.warning(
-            "Google sub mismatch for user %s: linked %s, presented %s",
-            user.id, existing_link.provider_user_id, provider_user_id,
+            "%s identity mismatch for user %s: linked %s, presented %s",
+            label, user.id, existing_link.provider_user_id, provider_user_id,
         )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This account is linked to a different Google identity",
+            detail=f"This account is linked to a different {label} identity",
         )
 
     # An unlinked account already holds this address, and nothing here proves the caller owns
@@ -112,34 +143,21 @@ def _link_or_create_user(db: Session, google_data: dict, email: str, provider: s
     # endpoint, which is not built.
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail=(
-            "An account with this email already exists. Linking Google to an existing "
-            "account is not supported yet."
-        ),
+        detail=existing_account_detail,
     )
 
 
-@router.post("/google", response_model=Token)
-def google_login(
-    *,
-    db: Session = Depends(deps.get_db),
-    request: GoogleLoginRequest
-):
-    """
-    Authenticate with Google ID token.
-    """
-    google_data = verify_google_credential(request.credential)
+def sso_sign_in(db: Session, identity: dict, label: str, *, existing_account_detail: str) -> dict:
+    """Sign in with a verified SSO identity: find its account, or create one, and issue tokens."""
+    email = identity["email"]
+    provider = identity["provider"]
+    provider_user_id = identity["provider_user_id"]
 
-    # Check if user exists with this email/provider
-    email = google_data["email"]
-    provider = google_data["provider"]
-    provider_user_id = google_data["provider_user_id"]
-    
-    # Resolve by the provider identity first. (provider, provider_user_id) is UNIQUE, so the
-    # Google `sub` is the actual identity key here; the email is a mutable attribute of it.
-    # Looking up by email first meant a user whose Google address had changed fell through to
-    # the create branch, which committed a new user row and only then hit uix_provider_user
-    # -- a 500 with an orphaned account left behind.
+    # Resolve by the provider identity first. (provider, provider_user_id) is UNIQUE, so it is
+    # the actual identity key here; the email is a mutable attribute of it. Looking up by email
+    # first meant a user whose provider address had changed fell through to the create branch,
+    # which committed a new user row and only then hit uix_provider_user -- a 500 with an
+    # orphaned account left behind.
     linked = db.query(OAuthAccount).filter(
         OAuthAccount.provider == provider,
         OAuthAccount.provider_user_id == provider_user_id,
@@ -156,21 +174,22 @@ def google_login(
                 detail="Account is in an inconsistent state",
             )
     else:
-        user = _link_or_create_user(db, google_data, email, provider, provider_user_id)
-    
+        user = _link_or_create_user(
+            db, identity, email, provider, provider_user_id, label, existing_account_detail
+        )
+
     # Password login refuses a deactivated account; SSO did not, so disabling someone left
-    # them a working way in for as long as their Google account existed.
+    # them a working way in for as long as their provider account existed.
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user",
         )
 
-    # Generate tokens
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
     refresh_token = AuthService.create_user_session(db, user).token
-    
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -178,12 +197,36 @@ def google_login(
     }
 
 
+@router.post("/google", response_model=Token)
+def google_login(
+    *,
+    db: Session = Depends(deps.get_db),
+    request: GoogleLoginRequest
+):
+    """
+    Authenticate with Google ID token.
+    """
+    identity = verify_google_credential(request.credential)
+    return sso_sign_in(db, identity, "Google", existing_account_detail=GOOGLE_EXISTING_ACCOUNT)
 
-# GitHub and Azure SSO are not implemented. They previously called SSOService methods that
-# did not exist (validate_github_token / validate_azure_token vs. the service's
-# exchange_github_code / exchange_azure_code), and the GitHub handler additionally contained
-# a syntax error, so this module never imported. Rather than resurrect mock handlers that
-# returned hardcoded identities, both now fail honestly until real OAuth exchanges are built.
+
+@router.post("/microsoft", response_model=Token)
+def microsoft_login(
+    *,
+    db: Session = Depends(deps.get_db),
+    request: MicrosoftLoginRequest
+):
+    """
+    Authenticate with a Microsoft (Entra ID) ID token from an allowed tenant.
+    """
+    identity = verify_microsoft_credential(request.credential)
+    return sso_sign_in(db, identity, "Microsoft", existing_account_detail=MICROSOFT_EXISTING_ACCOUNT)
+
+
+# GitHub SSO is not implemented. It previously called an SSOService method that did not exist and
+# contained a syntax error, so this module never imported. Rather than resurrect a mock handler
+# that returned a hardcoded identity, it fails honestly until a real OAuth exchange is built.
+# (Azure was replaced by /sso/microsoft.)
 
 
 @router.post("/github", response_model=Token)
@@ -191,12 +234,4 @@ def github_login():
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="GitHub SSO is not implemented",
-    )
-
-
-@router.post("/azure", response_model=Token)
-def azure_login():
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Azure SSO is not implemented",
     )
