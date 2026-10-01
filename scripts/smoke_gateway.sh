@@ -177,6 +177,23 @@ body_has "... and the result is flagged" '"redacted":true'
 body_lacks "... the token itself is not stored" "$FAKE_TOKEN"
 
 
+# ---- analytics, through the gateway's overlap route ----
+check "analytics trends -> ingestion-service (overlap route)" 200 GET \
+  "$BASE/api/v1/projects/$PROJECT_ID/analytics/trends?days=2" "${AUTH[@]}"
+if grep -qE '"runs":[1-9]' "$TMP/body"; then
+  pass "... the runs uploaded above are counted"
+else
+  fail "... no runs counted: $(head -c 300 "$TMP/body")"
+fi
+check "analytics tests" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/tests?search=fails" "${AUTH[@]}"
+body_has "... lists the failing test" '"name":"fails"'
+FAILS_KEY="$(sed -n 's/.*"test_key":"\([0-9a-f]\{64\}\)".*/\1/p' "$TMP/body" | head -1)"
+check "analytics history of that test" 200 GET \
+  "$BASE/api/v1/projects/$PROJECT_ID/analytics/tests/${FAILS_KEY:-0}/history" "${AUTH[@]}"
+body_has "... with its executions" '"executions":[{'
+check "analytics flaky" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/flaky" "${AUTH[@]}"
+
+
 check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"
 check "a revoked key is rejected" 401 POST "$BASE/api/v1/collect/runs" \
   -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$RUN_BODY"
