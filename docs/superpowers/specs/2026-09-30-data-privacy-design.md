@@ -59,7 +59,7 @@ One pure module, `src/ingestion/utils/redaction.py`, exposing `redact(text: str)
 | 3 | `url_password` | The password in `scheme://user:password@`; the user name is kept |
 | 4 | `jwt` | `eyJ<base64url>.eyJ<base64url>.<base64url>` |
 | 5 | token kinds | `github_token` (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_` + 36+, `github_pat_` + 22+), `gitlab_token` (`glpat-` + 20+), `aws_access_key` (`AKIA`/`ASIA` + 16 upper-case alphanumerics), `slack_token` (`xoxa-`/`xoxb-`/`xoxp-`/`xoxr-`/`xoxs-` + 10+), `stripe_key` (`sk_`/`rk_` + `live_`/`test_` + 16+), `google_api_key` (`AIza` + 35), `npm_token` (`npm_` + 36), `qav_key` (`qav_` + 43) |
-| 6 | `password`, `secret`, `token`, `api_key`, … | The value of a key/value pair whose key, case-insensitively, is or ends with `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`/`apikey`/`api-key`, `access_key`, `client_secret`, `private_key`, `credentials`; written `key=value`, `key: value`, `"key": "value"` or `'key': 'value'`. The kind is the key's normalised name (`db_password` → `password`). A quoted value runs to the closing quote; an unquoted one to whitespace or `,;&"'`. Empty values and values already starting with `[REDACTED:` are left alone |
+| 6 | `password`, `secret`, `token`, `api_key`, … | The value of a key/value pair whose key, case-insensitively, is or ends with `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`/`apikey`/`api-key`, `access_key`, `client_secret`, `private_key`, `credentials`; written `key=value`, `key: value`, `"key": "value"` or `'key': 'value'`. The kind is the key's normalised name (`db_password` → `password`). A quoted value runs to the closing quote; an unquoted one to whitespace or `,;&"'=`. When the key is not a secret, the value is searched again, so `opts=--password=x` is still caught Empty values and values already starting with `[REDACTED:` are left alone |
 | 7 | `email` | An email address |
 | 8 | `card_number` | 13–19 digits, optionally grouped by single spaces or dashes, starting with a card prefix (Visa `4`, Mastercard `51`–`55`/`2221`–`2720`, Amex `34`/`37`, Discover `6011`/`65`) **and** passing the Luhn check |
 
@@ -69,7 +69,7 @@ One pure module, `src/ingestion/utils/redaction.py`, exposing `redact(text: str)
 
 ### What is recorded
 
-- `test_run_results.redacted` (boolean, like `truncated`): true when anything in that result was masked.
+- `test_results.redacted` (boolean, like `truncated`): true when anything in that result was masked.
 - A Prometheus counter `qav_ingest_redactions{kind}` (exported as `qav_ingest_redactions_total`), counting results in which each kind was found.
 - The masked values are never logged.
 
@@ -118,13 +118,13 @@ One pass:
 
 ## Database change
 
-An Alembic migration in ingestion-service adds `redacted BOOLEAN NOT NULL DEFAULT false` to `test_run_results`. Rows stored before this change are not re-masked (a one-off re-masking command is a TODO item). project-service needs no change: `settings` and `deleted_at` already exist.
+An Alembic migration in ingestion-service adds `redacted BOOLEAN NOT NULL DEFAULT false` to `test_results`. Rows stored before this change are not re-masked (a one-off re-masking command is a TODO item). project-service needs no change: `settings` and `deleted_at` already exist.
 
 ## Stack and CI
 
 - `docker-compose.yml`:
   - `INTERNAL_API_PASSWORD` is required, like `SECRET_KEY` (`${INTERNAL_API_PASSWORD:?...}`), and passed to project-service.
-  - A new service `ingestion-retention` on the ingestion-service image, command `python -m src.ingestion.jobs.retention --loop`, with `PROJECT_SERVICE_INTERNAL_URL: http://ingestion-service:${INTERNAL_API_PASSWORD}@project-service:8000`; it starts after the ingestion migration and project-service are ready. No ports.
+  - A new service `ingestion-retention` on the ingestion-service image, command `python -m src.ingestion.jobs.retention --loop`, with `PROJECT_SERVICE_INTERNAL_URL: http://ingestion-service:${INTERNAL_API_PASSWORD}@project-service:8000`; it starts after the ingestion migration and project-service are ready. No ports. The gateway depends on it (`service_started`), so `docker compose up gateway` still brings up the whole platform.
 - CI: every job that starts the stack sets `INTERNAL_API_PASSWORD`.
 - `scripts/smoke_gateway.sh` requires `INTERNAL_API_PASSWORD` (like `SECRET_KEY`) and adds:
   - an upload whose failure `details` contain a fake GitHub token, read back through the read API showing `[REDACTED:github_token]` and not the token;
