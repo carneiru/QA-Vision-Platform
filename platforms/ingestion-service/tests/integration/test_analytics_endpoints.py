@@ -282,9 +282,28 @@ def test_flaky_filters_by_branch_and_window(client, auth, project_role, seed):
     assert get(client, auth, "/flaky?branch=main").json() == []
 
 
-@pytest.mark.parametrize("query", ["/flaky?window_days=0", "/flaky?window_days=91", "/flaky?min_runs=1",
+@pytest.mark.parametrize("query", ["/flaky?window_days=0", "/flaky?window_days=31", "/flaky?min_runs=1",
                                    "/flaky?min_runs=1001", "/flaky?min_flip_rate=1.5", "/flaky?min_flip_rate=-0.1",
                                    "/tests/" + "0" * 64 + "/history?days=91", "/tests/" + "0" * 64 + "/history?limit=501"])
 def test_invalid_history_and_flaky_parameters_are_422(client, auth, project_role, query):
     project_role()
     assert get(client, auth, query).status_code == 422
+
+
+def test_a_pass_and_a_fail_inside_one_run_is_not_same_commit(client, auth, project_role, seed):
+    # Same name twice in one run (e.g. two parametrizations sharing a name): not a re-run of the
+    # code, so not evidence of flakiness. Only commits with at least two runs are compared, which
+    # is also what keeps this query from grouping every result row.
+    project_role()
+    seed(commit_sha="ccccccc", results=(("dup", "passed", 1), ("dup", "failed", 1)))
+    assert get(client, auth, "/flaky").json() == []
+
+
+def test_same_commit_needs_a_second_run_of_that_commit(client, auth, project_role, seed):
+    project_role()
+    seed(commit_sha="ddddddd", results=(("t", "passed", 1),))
+    seed(commit_sha="eeeeeee", results=(("t", "failed", 1),))
+    assert get(client, auth, "/flaky").json() == []
+    seed(commit_sha="ddddddd", results=(("t", "failed", 1),))
+    items = get(client, auth, "/flaky").json()
+    assert [(i["reason"], i["commits"]) for i in items] == [("same_commit", [{"commit_sha": "ddddddd", "environment": None}])]

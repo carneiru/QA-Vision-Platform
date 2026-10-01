@@ -74,7 +74,8 @@ def history(
 
 @router.get("/flaky", response_model=List[FlakyOut])
 def flaky(
-    window_days: int = Query(14, ge=1, le=90),
+    # 30 at most: flaky detection sorts every execution in the window (measured in the README)
+    window_days: int = Query(14, ge=1, le=30),
     min_runs: int = Query(5, ge=2, le=1000),
     min_flip_rate: float = Query(0.3, ge=0.0, le=1.0),
     branch: Optional[str] = Query(None, max_length=255),

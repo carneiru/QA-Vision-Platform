@@ -146,44 +146,73 @@ test_history.__test__ = False  # not a pytest test, despite the name
 
 def flaky_inputs(db: Session, project_id: int, since: datetime, branch: Optional[str]):
     """Per-test flip totals, mixed (commit, environment) groups, and latest executions, for the
-    tests with at least one failure in the window. All counting happens in the database."""
+    tests with at least one failure in the window. All counting happens in the database, in two
+    passes over the window's results (measured: see the README's Analytics section)."""
     filters = window_filters(project_id, since, branch)
     candidates = select(RunResult.test_key).join(Run, Run.id == RunResult.run_id).where(
         *filters, RunResult.status.in_(("failed", "errored"))
     ).distinct()
     executions = filters + [RunResult.status != "skipped", RunResult.test_key.in_(candidates)]
 
+    # Pass 1: flips per branch and the latest execution, from one scan
     outcome = case((RunResult.status == "passed", "pass"), else_="fail")
     sequence = (
         select(
             RunResult.test_key.label("test_key"),
+            RunResult.suite.label("suite"),
+            RunResult.class_name.label("class_name"),
+            RunResult.name.label("name"),
+            RunResult.status.label("status"),
+            Run.started_at.label("started_at"),
             outcome.label("outcome"),
             func.lag(outcome).over(
                 partition_by=(RunResult.test_key, Run.branch), order_by=(Run.started_at, Run.id)
             ).label("previous"),
+            func.row_number().over(
+                partition_by=RunResult.test_key, order_by=(Run.started_at.desc(), Run.id.desc())
+            ).label("position"),
         )
         .join(Run, Run.id == RunResult.run_id)
         .where(*executions)
     ).subquery()
     has_previous = sequence.c.previous.is_not(None)
-    flip_rows = db.execute(
+    newest = sequence.c.position == 1
+
+    def at_newest(column):
+        return func.max(case((newest, column)))
+
+    rows = db.execute(
         select(
             sequence.c.test_key,
             func.count(),
             func.sum(case(((has_previous & (sequence.c.previous != sequence.c.outcome)), 1), else_=0)),
             func.sum(case((has_previous, 1), else_=0)),
+            at_newest(sequence.c.suite), at_newest(sequence.c.class_name), at_newest(sequence.c.name),
+            at_newest(sequence.c.status), at_newest(sequence.c.started_at),
         ).group_by(sequence.c.test_key)
     ).all()
-    flips = [FlipCount(key, runs, int(flipped or 0), int(pairs or 0)) for key, runs, flipped, pairs in flip_rows]
+    flips, latest = [], {}
+    for key, runs, flipped, pairs, suite, class_name, name, status, started_at in rows:
+        flips.append(FlipCount(key, runs, int(flipped or 0), int(pairs or 0)))
+        latest[key] = LatestExecution(key, suite, class_name, name, status, as_utc(started_at))
 
+    # Pass 2: mixed outcomes per (commit, environment), only for commits with at least two runs in
+    # the window -- a single run is not a re-run of the code, and grouping every result row by
+    # (test, commit, environment) was by far the slowest part on large projects
+    environment = func.coalesce(Run.environment, "")
+    repeated = (
+        select(Run.commit_sha.label("commit_sha"), environment.label("environment"))
+        .where(*filters, Run.commit_sha.is_not(None))
+        .group_by(Run.commit_sha, environment)
+        .having(func.count(Run.id) > 1)
+    ).subquery()
     mixed_rows = db.execute(
         select(RunResult.test_key, Run.commit_sha, Run.environment, func.max(Run.started_at))
         .join(Run, Run.id == RunResult.run_id)
-        .where(*executions, Run.commit_sha.is_not(None))
+        .join(repeated, (Run.commit_sha == repeated.c.commit_sha) & (environment == repeated.c.environment))
+        .where(*executions)
         .group_by(RunResult.test_key, Run.commit_sha, Run.environment)
         .having((_count("passed") > 0) & (_count("failed", "errored") > 0))
     ).all()
-    mixed = [MixedCommit(key, sha, environment, as_utc(latest)) for key, sha, environment, latest in mixed_rows]
-
-    latest = latest_executions(db, filters + [RunResult.status != "skipped"], RunResult.test_key.in_(candidates))
+    mixed = [MixedCommit(key, sha, env, as_utc(seen)) for key, sha, env, seen in mixed_rows]
     return flips, mixed, latest

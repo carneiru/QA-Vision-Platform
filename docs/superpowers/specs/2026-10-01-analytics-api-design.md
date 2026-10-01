@@ -82,9 +82,9 @@ Definitions used throughout:
 
 `GET …/analytics/flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=`
 
-- `window_days` 1–90 (default 14); `min_runs` 2–1000 (default 5); `min_flip_rate` 0–1 (default 0.3); `branch` optional.
+- `window_days` 1–30 (default 14); `min_runs` 2–1000 (default 5); `min_flip_rate` 0–1 (default 0.3); `branch` optional. *(Capped at 30 after measuring: 90 days took 10.8 s on ~2 million results; 30 days took 2.4 s.)*
 - Executions considered: status `passed`, `failed` or `errored` (skipped is ignored). Outcome classes: **pass** (`passed`) and **fail** (`failed`, `errored`).
-- **`same_commit` (confirmed):** a test has, for some `(commit_sha, environment)` with `commit_sha` not null, at least one pass and at least one fail. `environment` null is its own value. Up to 5 such commits are reported (most recent first).
+- **`same_commit` (confirmed):** a test has, for some `(commit_sha, environment)` with `commit_sha` not null and at least two runs in the window, at least one pass and at least one fail. (Two results inside one run — duplicate names — are not a re-run of the code.) `environment` null is its own value. Up to 5 such commits are reported (most recent first).
 - **`flips` (suspected):** only for tests without a `same_commit` finding. Per branch (null branch is its own group), executions ordered by `started_at` then run id; a flip is a change of outcome class between consecutive executions. `flips` and `pairs` (executions − 1) are summed across the test's branches; `flip_rate` = flips ÷ pairs. Reported when total executions ≥ `min_runs` and `flip_rate` ≥ `min_flip_rate`.
 - Response: a list (at most 100) of
 
