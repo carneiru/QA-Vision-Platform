@@ -30,6 +30,21 @@ The repository is saved in every case. `POST .../repositories/{id}/verify` re-ch
 once per `REPO_VERIFY_COOLDOWN_SECONDS` (default 60): GitHub allows 60 anonymous requests per hour
 per server IP, shared by every user.
 
+## Internal API
+
+`GET /internal/v1/projects/retention` lists every project — deleted ones too — with its effective
+`result_retention_days`, for ingestion-service's retention job:
+
+```json
+{"projects": [{"project_id": 7, "result_retention_days": 90, "deleted": false}]}
+```
+
+- HTTP Basic, checked against `INTERNAL_API_USERNAME` (default `ingestion-service`) and
+  `INTERNAL_API_PASSWORD`. Wrong or missing credentials: 401. A user's JWT is not accepted here,
+  and these credentials are accepted nowhere else.
+- With `INTERNAL_API_PASSWORD` unset the endpoint answers 503 — it is never open by default.
+- The gateway does not route `/internal`, and the endpoint is not in the OpenAPI schema.
+
 ## Running locally
 
 ```bash
