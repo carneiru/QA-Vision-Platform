@@ -194,7 +194,7 @@ def test_google_sso_fails_closed_when_client_id_unconfigured(client, db, monkeyp
     assert "access_token" not in response.json()
 
 
-@pytest.mark.parametrize("provider", ["github", "azure"])
+@pytest.mark.parametrize("provider", ["github"])  # azure was replaced by /sso/microsoft
 def test_unimplemented_providers_report_501(client, provider):
     """These previously returned hardcoded identities. They must now fail honestly rather
     than either pretending or crashing with a 500."""

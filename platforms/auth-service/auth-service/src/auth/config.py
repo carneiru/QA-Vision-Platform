@@ -66,6 +66,9 @@ class Settings(BaseServiceSettings):
     AZURE_TENANT_ID: str = ""
     AZURE_CLIENT_ID: str = ""
     AZURE_CLIENT_SECRET: str = ""
+    # Microsoft (Entra ID) sign-in: the tenants allowed to sign in, comma-separated tenant ids.
+    # Empty falls back to AZURE_TENANT_ID as a one-entry list.
+    AZURE_ALLOWED_TENANTS: str = ""
     SAML_SETTINGS: str = "{}"
 
     @property
@@ -79,6 +82,12 @@ class Settings(BaseServiceSettings):
             port=str(self.REDIS_PORT),
             path=f"/{self.REDIS_DB}"
         )
+
+    @property
+    def azure_allowed_tenants(self) -> list[str]:
+        """Tenant ids are GUIDs; tokens carry them lower-cased."""
+        raw = self.AZURE_ALLOWED_TENANTS or self.AZURE_TENANT_ID
+        return [tenant.strip().lower() for tenant in raw.split(",") if tenant.strip()]
 
 
 def get_settings() -> Settings:

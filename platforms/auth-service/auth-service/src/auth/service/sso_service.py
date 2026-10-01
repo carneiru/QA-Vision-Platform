@@ -11,12 +11,12 @@ are not implemented and their endpoints say so (501) rather than pretending.
 """
 
 import logging
-import re
 import time
 from typing import Callable, Optional
 
 import jwt
 from jwt import PyJWK, PyJWKClient, PyJWKClientError
+from pydantic import EmailStr, TypeAdapter, ValidationError
 
 from src.auth.config import settings
 
@@ -77,6 +77,23 @@ GOOGLE_ISSUERS = ("https://accounts.google.com", "accounts.google.com")
 # Module-level so the fetched key set is cached across requests rather than re-fetched per login.
 _jwks_client = ThrottledJWKClient(GOOGLE_CERTS_URL)
 
+# One key set for every Entra tenant; which tenant issued a token is checked from its claims
+MICROSOFT_KEYS_URL = "https://login.microsoftonline.com/common/discovery/v2.0/keys"
+_microsoft_jwks_client = ThrottledJWKClient(MICROSOFT_KEYS_URL)
+_EMAIL = TypeAdapter(EmailStr)
+
+
+def _usable_email(value: object) -> bool:
+    """The same rule as the user model (EmailStr): an address it rejects would otherwise only
+    fail when the account is created, as a 500."""
+    if not isinstance(value, str):
+        return False
+    try:
+        _EMAIL.validate_python(value)
+    except ValidationError:
+        return False
+    return True
+
 
 class SSOConfigurationError(Exception):
     """Raised when a provider is enabled in code but not configured with its client id."""
@@ -127,4 +144,45 @@ class SSOService:
             "full_name": claims.get("name"),
             "provider": "google",
             "provider_user_id": claims["sub"],
+        }
+
+    @staticmethod
+    def validate_microsoft_token(token: str) -> dict:
+        """Verify a Microsoft (Entra ID) v2.0 ID token from an allowed tenant.
+
+        Every tenant's tokens are signed with the same key set, so the signature alone does not
+        say which tenant issued a token: `tid` must be allowed and `iss` must name that tenant.
+        """
+        tenants = settings.azure_allowed_tenants
+        if not settings.AZURE_CLIENT_ID or not tenants:
+            # Fail closed, as for Google: without an audience, tokens for any app would pass
+            raise SSOConfigurationError("AZURE_CLIENT_ID and AZURE_ALLOWED_TENANTS must be set")
+
+        signing_key = _microsoft_jwks_client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=settings.AZURE_CLIENT_ID,
+            options={"require": ["exp", "nbf", "iss", "aud", "tid", "oid"]},
+        )
+        if claims.get("ver") != "2.0":
+            raise ValueError("not a v2.0 ID token")
+        tid = str(claims["tid"])
+        if tid.lower() not in tenants:
+            # Logged so onboarding a customer's tenant is a matter of copying this id
+            logger.warning("Microsoft sign-in refused: tenant %s is not in AZURE_ALLOWED_TENANTS", tid)
+            raise ValueError("tenant is not allowed")
+        if claims["iss"] != f"https://login.microsoftonline.com/{tid}/v2.0":
+            raise ValueError("issuer does not match the token's tenant")
+
+        email = claims.get("email") or claims.get("preferred_username")
+        if not _usable_email(email):
+            raise SSOIdentityError("Microsoft account has no email address")
+        return {
+            "email": email,
+            "full_name": claims.get("name"),
+            "provider": "microsoft",
+            # oid is unique only within a tenant
+            "provider_user_id": f"{tid}:{claims['oid']}",
         }
