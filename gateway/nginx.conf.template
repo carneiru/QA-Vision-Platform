@@ -150,7 +150,8 @@ http {
             set $upstream http://ingestion-service:8000;
             proxy_pass $upstream;
         }
-        # /metrics is deliberately not routed: it falls through to `location /` (404)
+        # /metrics is deliberately not routed: it falls through to `location /`, which
+        # serves the dashboard SPA's HTML — never a proxied service, so nothing leaks.
 
         # ---- project-service ----
         # A regex location wins over prefix locations, so this takes
@@ -226,6 +227,15 @@ http {
             limit_req zone=auth burst=10 nodelay;
             set $upstream http://auth-service:8000;
             proxy_pass $upstream;
+        }
+
+        # ---- unknown API paths ----
+        # Longer prefixes and the regex locations above take every routed API path;
+        # whatever is left under /api/ keeps the JSON 404 contract instead of
+        # falling through to the SPA's HTML.
+        location /api/ {
+            add_header X-Request-ID $req_id always;
+            return 404 '{"detail":"Not Found"}';
         }
 
         # ---- dashboard SPA (everything else) ----

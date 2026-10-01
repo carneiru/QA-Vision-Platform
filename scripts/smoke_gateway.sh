@@ -227,6 +227,11 @@ else
   pass "retention job output never shows the internal password"
 fi
 
+# Unknown API paths keep the old JSON 404 contract: scripts and JSON clients
+# must never receive the SPA's HTML with a 200.
+check "unknown API path stays a JSON 404" 404 GET "$BASE/api/v1/no/such/path"
+body_has "unknown API path answers JSON" '{"detail":"Not Found"}'
+
 # ---- dashboard SPA ----
 check "dashboard index" 200 GET "$BASE/"
 body_has "dashboard index is the SPA" '<div id="root">'
