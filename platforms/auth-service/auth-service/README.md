@@ -167,8 +167,11 @@ await fetch("/api/v1/sso/microsoft", { method: "POST",
   headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential: idToken }) });
 ```
 
-The account's email (the `email` claim, else `preferred_username`) must be one the user model
-accepts; otherwise sign-in answers 400 "Microsoft account has no email address".
+The account's email is the user principal name (`preferred_username`), which Entra only allows
+on the tenant's verified domains. The `email` claim is used only when the app registration adds
+the optional claim `xms_edov` and it is `true`: Entra does not verify `email` (a tenant admin can
+set it to any address). The address must be one the user model accepts; otherwise sign-in answers
+400 "Microsoft account has no email address". Tokens get 60 s of clock leeway.
 
 ### CORS Configuration
 - `BACKEND_CORS_ORIGINS`: List of allowed origins (default: ["http://localhost:3000", "http://localhost:8000"])
@@ -226,7 +229,7 @@ There is no endpoint that grants superuser through the API. It is either bootstr
 - **Identity is the Google `sub`, not the email.** A returning user is resolved through the `(provider, provider_user_id)` link, so a Google account whose address changed still reaches its own account, and the new address is not written back.
 - **Google is never linked to an account that already exists.** A verified Google email proves control of the mailbox, not ownership of a local account sharing that address, so only a first-time address creates an account; any address already held returns 409. An earlier version auto-linked when the existing row had no password, reasoning that there was no credential to hijack — but a passwordless unlinked row is exactly what pre-provisioning produces, so that handed a seeded account (possibly a superuser) to whoever presented a Google token for the address first. Adopting SSO on an existing account now has its own endpoint: `POST /users/me/link/google` (authenticated). It requires `current_password` when the account has one -- an access token can be a short-lived, stolen bearer credential, and linking a new, durable login method to an account is exactly the kind of change that must not be reachable by holding one for a minute; the same reasoning as the password-change guard. Refuses (409) if the Google identity is already linked to a different account, or if the caller already has a Google link (at most one per user).
 
-- **Microsoft** follows the same account rules (identity first, no linking by email, inactive users refused). Its tokens must be v2.0, signed with Microsoft's keys (RS256), meant for `AZURE_CLIENT_ID`, from a tenant in `AZURE_ALLOWED_TENANTS`, with `iss` naming that same tenant — all tenants share one key set, so the signature alone does not prove the tenant. The identity key is `tid:oid` (an object id is unique only within its tenant). The account email is the `email` claim, else `preferred_username`; with a trusted tenant allowlist that is acceptable, and existing accounts are still never adopted by email.
+- **Microsoft** follows the same account rules (identity first, no linking by email, inactive users refused). Its tokens must be v2.0, signed with Microsoft's keys (RS256), meant for `AZURE_CLIENT_ID`, from a tenant in `AZURE_ALLOWED_TENANTS`, with `iss` naming that same tenant — all tenants share one key set, so the signature alone does not prove the tenant. The identity key is `tid:oid` (an object id is unique only within its tenant). The account email is the UPN (`preferred_username`), on one of the tenant's verified domains; the unverified `email` claim is used only with `xms_edov: true`. Existing accounts are still never adopted by email.
 - Signing keys (Google and Microsoft) are fetched with a 5 s timeout and cached; a token naming an unknown key id forces at most one re-fetch per 5 minutes. A provider outage answers 503, not "invalid token".
 
 **Remaining limitation:** self-service email *changes* on `PUT /users/me` are still not accepted at all (422). Verifying a new address the same way registration now does is not built, so allowing changes would reopen the address-squatting problem registration itself no longer has.

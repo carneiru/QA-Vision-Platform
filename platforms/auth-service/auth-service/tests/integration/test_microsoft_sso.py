@@ -82,7 +82,7 @@ def test_a_returning_user_is_found_by_identity_even_if_the_email_changed(client,
 
 @pytest.mark.parametrize("case, overrides", [
     ("wrong_audience", {"aud": "someone-elses-app"}),
-    ("expired", {"exp": datetime.now(timezone.utc) - timedelta(minutes=1)}),
+    ("expired", {"exp": datetime.now(timezone.utc) - timedelta(minutes=5)}),
     ("not_yet_valid", {"nbf": datetime.now(timezone.utc) + timedelta(minutes=10)}),
     ("tenant_not_allowed", {"tid": "12345678-0000-0000-0000-000000000000"}),
     ("iss_other_tenant", {"iss": f"https://login.microsoftonline.com/{OTHER_TENANT}/v2.0"}),
@@ -183,7 +183,7 @@ def test_an_existing_account_with_the_email_is_not_taken_over(client, db, micros
 
 def test_the_same_oid_in_another_tenant_is_another_identity(client, db, microsoft_key):
     assert sign_in(client, ms_token(microsoft_key)).status_code == 200
-    other = sign_in(client, ms_token(microsoft_key, tid=OTHER_TENANT, email="ann@other.example.com"))
+    other = sign_in(client, ms_token(microsoft_key, tid=OTHER_TENANT, preferred_username="ann@other.example.com"))
 
     assert other.status_code == 200, other.text
     ids = sorted(link.provider_user_id for link in db.query(OAuthAccount))
@@ -261,3 +261,39 @@ def test_link_microsoft_refuses_a_second_link_on_the_same_account(client, db, mi
 
 def test_link_microsoft_requires_sign_in(client, microsoft_key):
     assert client.post(LINK, json={"credential": ms_token(microsoft_key)}).status_code == 401
+
+
+# Found by the final review: Entra does not verify the `email` claim (a tenant admin can set a
+# user's mail attribute to anything); the UPN must be on one of the tenant's verified domains.
+def test_an_unverified_email_claim_is_not_trusted(client, db, microsoft_key):
+    response = sign_in(client, ms_token(microsoft_key, email="ceo@other-company.example.com",
+                                        preferred_username="ann@example.com"))
+    assert response.status_code == 200, response.text
+    assert db.query(User).one().email == "ann@example.com"
+
+
+def test_a_domain_verified_email_claim_is_used(client, db, microsoft_key):
+    response = sign_in(client, ms_token(microsoft_key, email="ann.mail@example.com",
+                                        preferred_username="ann@example.com", xms_edov=True))
+    assert response.status_code == 200, response.text
+    assert db.query(User).one().email == "ann.mail@example.com"
+
+
+@pytest.mark.parametrize("edov", ["true", 1, False])
+def test_only_a_boolean_true_xms_edov_counts(client, db, microsoft_key, edov):
+    response = sign_in(client, ms_token(microsoft_key, email="ann.mail@example.com",
+                                        preferred_username="ann@example.com", xms_edov=edov))
+    assert response.status_code == 200, response.text
+    assert db.query(User).one().email == "ann@example.com"
+
+
+def test_an_unverified_email_without_a_upn_is_refused(client, db, microsoft_key):
+    response = sign_in(client, ms_token(microsoft_key, email="ann@example.com", preferred_username=DROP))
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Microsoft account has no email address"}
+
+
+# Found by the final review: Entra sets nbf to the issue time, so any clock difference failed
+def test_a_small_clock_difference_is_tolerated(client, microsoft_key):
+    soon = datetime.now(timezone.utc) + timedelta(seconds=30)
+    assert sign_in(client, ms_token(microsoft_key, nbf=soon)).status_code == 200

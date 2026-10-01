@@ -164,6 +164,9 @@ class SSOService:
             signing_key.key,
             algorithms=["RS256"],
             audience=settings.AZURE_CLIENT_ID,
+            # Entra sets nbf to the issue time, so without leeway a server clock a second behind
+            # Microsoft's refused fresh tokens
+            leeway=60,
             options={"require": ["exp", "nbf", "iss", "aud", "tid", "oid"]},
         )
         if claims.get("ver") != "2.0":
@@ -176,7 +179,14 @@ class SSOService:
         if claims["iss"] != f"https://login.microsoftonline.com/{tid}/v2.0":
             raise ValueError("issuer does not match the token's tenant")
 
-        email = claims.get("email") or claims.get("preferred_username")
+        # Entra does not verify the `email` claim: it is the user's `mail` attribute, which a tenant
+        # admin can set to anyone's address. The UPN (`preferred_username`) must be on one of the
+        # tenant's verified domains, so it is the address unless Microsoft vouches for `email`
+        # with the optional claim xms_edov ("email domain owner verified") set to true.
+        if claims.get("xms_edov") is True and claims.get("email"):
+            email = claims.get("email")
+        else:
+            email = claims.get("preferred_username")
         if not _usable_email(email):
             raise SSOIdentityError("Microsoft account has no email address")
         return {

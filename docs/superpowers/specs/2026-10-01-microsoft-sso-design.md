@@ -42,7 +42,7 @@ Without a client id or without any allowed tenant, Microsoft sign-in is **off**:
 3. `ver` must be `"2.0"` (v1 tokens, issuer `https://sts.windows.net/{tid}/`, are refused).
 4. `tid` must be in the allowlist; otherwise refused, and the tenant id is logged at warning level (`tenant %s is not in AZURE_ALLOWED_TENANTS`).
 5. `iss` must equal `https://login.microsoftonline.com/{tid}/v2.0` exactly.
-6. Identity returned: `{"provider": "microsoft", "provider_user_id": f"{tid}:{oid}", "email": <email or preferred_username>, "full_name": <name or None>}`. The email must contain exactly one `@` with text on both sides; otherwise 400 `{"detail": "Microsoft account has no email address"}`.
+6. Identity returned: `{"provider": "microsoft", "provider_user_id": f"{tid}:{oid}", "email": <preferred_username, or email when xms_edov is true>, "full_name": <name or None>}`. *(Revised after the final review: Entra does not verify `email` — a tenant admin can set it to anyone's address — while the UPN must be on one of the tenant's verified domains. Decoding also allows 60 s of clock leeway, since Entra sets `nbf` to the issue time.)* The email must contain exactly one `@` with text on both sides; otherwise 400 `{"detail": "Microsoft account has no email address"}`.
 
 Errors (both providers, via one shared mapping):
 
