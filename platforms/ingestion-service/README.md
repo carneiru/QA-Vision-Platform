@@ -46,6 +46,46 @@ Receives test results from CI. Design: `docs/superpowers/specs/2026-09-29-ingest
 
 Every project role can read; roles come from project-service.
 
+## Masking
+
+Before a result is stored, its `message` and `details` are masked, and so is a password inside
+the run's `ci_run_url`. Each masked value becomes `[REDACTED:<kind>]`; the text around it stays
+readable. Test names, suites, classes, files and branches are never changed.
+
+| Kind | Matches |
+|---|---|
+| `private_key` | `-----BEGIN … PRIVATE KEY-----` blocks (to the end of the text if unterminated) |
+| `authorization` | the value of an `Authorization` / `Proxy-Authorization` header (the scheme word is kept) |
+| `url_password` | the password in `scheme://user:password@` |
+| `jwt` | JSON Web Tokens |
+| `github_token`, `gitlab_token`, `aws_access_key`, `slack_token`, `stripe_key`, `google_api_key`, `npm_token`, `qav_key` | well-known token formats |
+| `password`, `secret`, `token`, `api_key`, `access_key`, `client_secret`, `private_key`, `credentials` | the value in `key=value`, `key: value`, `key => value`, `"key": "value"` (also escaped inside a log line) when the key ends with one of these names (`DB_PASSWORD`, `SECRET_KEY`, `X-Api-Key`, `accessToken`, …); also `curl -u user:pw`, `--password pw` and `<password>pw</password>` |
+| `cookie` | the value of a `Cookie:` / `Set-Cookie:` header |
+| `email` | email addresses |
+| `card_number` | 13–19 digit card numbers with a card prefix that pass the Luhn check |
+
+- Masking happens before the 64 KB cut, so a secret on the boundary is never half-stored.
+- Each result has a `redacted` flag; `qav_ingest_redactions_total{kind}` counts results by kind.
+- Results stored before masking existed are not re-masked.
+
+## Retention
+
+`python -m src.ingestion.jobs.retention [--dry-run] [--loop]` (the `ingestion-retention` compose
+service runs it with `--loop`):
+
+- Gets every project's `result_retention_days` from project-service's
+  `GET /internal/v1/projects/retention`, with the HTTP Basic credentials in
+  `PROJECT_SERVICE_INTERNAL_URL` (`http://ingestion-service:<password>@project-service:8000`;
+  percent-encode special characters).
+- Deletes runs uploaded (`created_at`) more than that many days ago. A deleted project's API keys
+  are revoked at once; its runs are all deleted once it has been deleted for more than
+  `RETENTION_DELETED_GRACE_DAYS` (default 7) — until then a soft delete can still be undone.
+- Without a trustworthy answer (unreachable, not 200, unexpected body) it deletes nothing and
+  exits 1. Projects missing from the answer are never touched.
+- `RETENTION_INTERVAL_HOURS` (default 24) between passes with `--loop`; `RETENTION_BATCH_SIZE`
+  (default 500) runs per transaction. One pass at a time (PostgreSQL advisory lock).
+- Logs one JSON line per pass; the password is never logged (`user:***@host`).
+
 ## Operations
 
 - `GET /health`; `GET /metrics` (Prometheus, inside the Docker network only — not routed by the

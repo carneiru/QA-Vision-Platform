@@ -144,6 +144,8 @@ jobs:
     env:
       # docker-compose.yml requires SECRET_KEY and has no fallback
       SECRET_KEY: ci-gateway-secret
+      # Required by docker-compose.yml as well (project-service's internal API)
+      INTERNAL_API_PASSWORD: ci-internal-secret
     steps:
       - uses: actions/checkout@v7
 

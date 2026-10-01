@@ -8,6 +8,10 @@ RUNS = Counter("qav_ingest_runs", "Test runs stored", registry=REGISTRY)
 RESULTS = Counter("qav_ingest_results", "Test results stored", registry=REGISTRY)
 REJECTED = Counter("qav_ingest_rejected", "Uploads rejected", ["reason"], registry=REGISTRY)
 DURATION = Histogram("qav_ingest_duration_seconds", "Time to handle POST /collect/runs", registry=REGISTRY)
+REDACTIONS = Counter(
+    "qav_ingest_redactions", "Results in which masking replaced a kind of secret or personal data", ["kind"],
+    registry=REGISTRY,
+)
 
 # Pre-create each reason's series so it is visible (at 0) before the first rejection
 for _reason in ("auth", "validation", "conflict"):

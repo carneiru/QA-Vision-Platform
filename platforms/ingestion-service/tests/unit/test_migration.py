@@ -89,3 +89,14 @@ def test_result_status_check(migrated_engine):
                 "INSERT INTO test_results (run_id, test_key, suite, class_name, name, status, duration_ms, truncated)"
                 " VALUES (1, :k, '', '', 't', 'error', 0, 0)"
             ), {"k": "e" * 64})
+
+
+def test_redacted_defaults_to_false(migrated_engine):
+    with migrated_engine.begin() as conn:
+        conn.execute(text(KEY), {"hash": "f" * 64})
+        conn.execute(text(RUN), {"idem": None, "provider": "local"})
+        conn.execute(text(
+            "INSERT INTO test_results (run_id, test_key, suite, class_name, name, status, duration_ms)"
+            " VALUES (1, :k, '', '', 't', 'passed', 0)"
+        ), {"k": "f" * 64})
+        assert conn.execute(text("SELECT redacted FROM test_results")).scalar() in (False, 0)

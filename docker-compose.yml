@@ -1,4 +1,4 @@
-# The whole platform on one host: `SECRET_KEY=... docker compose up -d --build --wait gateway`.
+# The whole platform on one host: `SECRET_KEY=... INTERNAL_API_PASSWORD=... docker compose up -d --build --wait gateway`.
 # Each service's own docker-compose.yml under platforms/ still works for developing it alone;
 # this stack uses its own volumes and never touches theirs.
 name: qa-vision
@@ -30,6 +30,8 @@ x-project-env: &project-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/project_db
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   ORGANIZATION_SERVICE_URL: http://organization-service:8000
+  # Internal API (GET /internal/v1/projects/retention), used by ingestion-retention
+  INTERNAL_API_PASSWORD: ${INTERNAL_API_PASSWORD:?set INTERNAL_API_PASSWORD (project-service's internal API; URL-safe characters)}
 
 x-ingestion-env: &ingestion-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ingestion_db
@@ -159,6 +161,23 @@ services:
       ingestion-migrate:
         condition: service_completed_successfully
 
+  # Deletes runs past each project's retention period: a pass at start-up, then every
+  # RETENTION_INTERVAL_HOURS. One pass at a time across copies (PostgreSQL advisory lock).
+  ingestion-retention:
+    # Same image as ingestion-service, which builds it; never pulled from a registry
+    image: qa-vision/ingestion-service:local
+    pull_policy: never
+    environment:
+      <<: *ingestion-env
+      # HTTP Basic credentials as a connection string; the password must be URL-safe here
+      PROJECT_SERVICE_INTERNAL_URL: http://ingestion-service:${INTERNAL_API_PASSWORD:?set INTERNAL_API_PASSWORD (project-service's internal API; URL-safe characters)}@project-service:8000
+    command: ["python", "-m", "src.ingestion.jobs.retention", "--loop"]
+    depends_on:
+      ingestion-migrate:
+        condition: service_completed_successfully
+      project-service:
+        condition: service_healthy
+
   gateway:
     build: ./gateway
     image: qa-vision/gateway:local
@@ -184,6 +203,9 @@ services:
         condition: service_healthy
       ingestion-service:
         condition: service_healthy
+      # Not needed by the gateway; listed so `docker compose up gateway` starts the whole platform
+      ingestion-retention:
+        condition: service_started
 
 volumes:
   qav_postgres_data:

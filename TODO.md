@@ -103,11 +103,14 @@
 ### Ingestion follow-ups
 - [x] Collector agent MVP (JUnit XML parser, uploader with retry) — `collector/`, see below
 - [ ] Queue-based processing for 1000+ events/second — *Phase 2 exit criterion*
-- [ ] PII detection and redaction; retention policies
+- [x] PII detection and redaction; retention policies — masking on ingest, `ingestion-retention` job
 - [ ] mTLS between agent and platform
 - [ ] Artifacts (screenshots, videos, traces, logs)
 - [ ] Per-test history endpoints (test_key is already indexed)
-- [ ] Revoke a project's API keys when the project is deleted
+- [x] Revoke a project's API keys when the project is deleted — done by the retention job
+- [ ] Re-mask results stored before masking existed (one-off command)
+- [ ] Custom masking patterns per project
+- [ ] Legal hold and data export before deletion
 
 ### Collector agent (Phase 2, step 2)
 - [x] `qav-collector upload`: JUnit XML (pytest, Surefire, Playwright, cucumber-js), one run per CI job

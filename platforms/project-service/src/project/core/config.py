@@ -17,5 +17,10 @@ class Settings(BaseServiceSettings):
     REPO_VERIFY_TIMEOUT_SECONDS: float = 3.0
     REPO_VERIFY_COOLDOWN_SECONDS: int = 60
 
+    # GET /internal/v1/projects/retention, for ingestion-service's retention job (HTTP Basic).
+    # An empty password turns the endpoint off (503); it is never open by default.
+    INTERNAL_API_USERNAME: str = "ingestion-service"
+    INTERNAL_API_PASSWORD: str = ""
+
 
 settings = Settings()

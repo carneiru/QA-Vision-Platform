@@ -16,5 +16,14 @@ class Settings(BaseServiceSettings):
     MAX_RESULTS_PER_RUN: int = 20000
     MAX_TEXT_BYTES: int = 65536
 
+    # The retention job (src/ingestion/jobs/retention.py). project-service's internal API with
+    # HTTP Basic credentials in the URL: http://user:password@host:port (percent-encode special
+    # characters in the password)
+    PROJECT_SERVICE_INTERNAL_URL: str = ""
+    RETENTION_INTERVAL_HOURS: float = 24.0
+    RETENTION_BATCH_SIZE: int = 500
+    # A deleted project's runs are kept this long after the deletion (it can still be undone)
+    RETENTION_DELETED_GRACE_DAYS: int = 7
+
 
 settings = Settings()
