@@ -154,6 +154,15 @@ Reliability and operations
 - [ ] GitHub SSO
 - [ ] Single sign-out
 
+### Analytics API (Phase 3, step 1)
+- [x] Daily trends in a requested time zone; per-test list, history; flaky detection (same commit + environment, flip rate)
+- [ ] Summary tables when live queries get slow (flaky over 90 days took 10.8 s on 2 million results; the window is capped at 30)
+- [ ] Weekly and monthly views
+- [ ] Branch comparison
+- [ ] Mute / acknowledge a flaky test
+- [ ] CSV export
+- [ ] Dashboard UI
+
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
 52. [ ] Implement test case creation, versioning, and organization

@@ -86,6 +86,38 @@ service runs it with `--loop`):
   (default 500) runs per transaction. One pass at a time (PostgreSQL advisory lock).
 - Logs one JSON line per pass; the password is never logged (`user:***@host`).
 
+## Analytics
+
+Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that can read runs:
+
+| Endpoint | Returns |
+|---|---|
+| `GET /trends?days=30&tz=UTC&branch=&environment=` | One entry per local day (`days` 1–365, zone `tz`), oldest first, empty days zero-filled: runs, counts, `pass_rate`, average and maximum run duration |
+| `GET /tests?days=30&sort=failures&search=&limit=50&offset=0` | One row per test in the window (`days` 1–90): counts, `pass_rate`, average duration, last status and when last seen; `sort` is `failures`, `duration` or `name`; `search` matches the name literally, case-insensitively |
+| `GET /tests/{test_key}/history?days=30&branch=&limit=100` | One test: a summary over the window and its executions, newest first, with the message cut to 500 characters. 404 if the test was never seen in this project |
+| `GET /flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=` | At most 100 flaky tests (`window_days` 1–30) |
+
+- `pass_rate` = passed ÷ (total − skipped); errored counts as not passed; `null` when nothing ran.
+- An empty filter (`?branch=`) means no filter; `tz` must be a zone name from the IANA list.
+- **Flaky, confirmed (`same_commit`):** the test both passed and failed (or errored) on the same commit **in the same environment**, with the pass and the fail in two different runs of that commit. Set `QAV_ENVIRONMENT` (or `--environment`) per CI matrix leg: legs that do not set it share one environment, so a failure specific to one leg shows as confirmed.
+- **Flaky, suspected (`flips`):** for other tests, the share of consecutive executions on a branch whose outcome (pass vs failed/errored) changed, over at least `min_runs` executions; skipped results are ignored.
+- Computed on request; migration 003 adds the indexes the queries use.
+
+Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million results over 90 days, two runs per commit like CI shards), PostgreSQL 15 in Docker:
+
+| Query | Time |
+|---|---|
+| trends, 365 days | 15 ms |
+| tests, 90 days, sort=failures | 1,280 ms |
+| tests, 90 days, search | 514 ms |
+| history, 90 days | 16 ms |
+| flaky, 14 days | 1,837 ms |
+| flaky, 30 days (the maximum) | 2,894 ms |
+
+Regenerate with `docker compose exec -T ingestion-service python - < scripts/analytics_benchmark.py` in a throwaway stack.
+
+The flaky window is capped at 30 days because detection sorts every execution in the window: 90 days took 10.8 s on this data. The data is deliberately hard: failures are spread randomly, so nearly every test is a candidate.
+
 ## Operations
 
 - `GET /health`; `GET /metrics` (Prometheus, inside the Docker network only — not routed by the
