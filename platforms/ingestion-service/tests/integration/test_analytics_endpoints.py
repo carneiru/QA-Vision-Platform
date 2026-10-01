@@ -159,3 +159,132 @@ def test_tests_window(client, auth, project_role, seed):
 def test_invalid_parameters_are_422(client, auth, project_role, query):
     project_role()
     assert get(client, auth, query).status_code == 422
+
+
+# ---- history ------------------------------------------------------------------------------
+
+def test_history_newest_first_with_limit_and_summary(client, auth, project_role, seed):
+    project_role()
+    for days_ago, status in ((3, "passed"), (2, "failed"), (1, "passed")):
+        seed(days_ago=days_ago, commit_sha=f"c0ffee{days_ago}", results=(("a", status, 10 * days_ago),))
+    key = key_of("s", "C", "a")
+
+    body = get(client, auth, f"/tests/{key}/history?limit=2").json()
+
+    assert (body["test_key"], body["suite"], body["class_name"], body["name"]) == (key, "s", "C", "a")
+    assert [e["duration_ms"] for e in body["executions"]] == [10, 20]
+    assert [e["commit_sha"] for e in body["executions"]] == ["c0ffee1", "c0ffee2"]
+    assert body["summary"] == {"runs": 3, "passed": 2, "failed": 1, "errored": 0, "skipped": 0,
+                               "pass_rate": 0.6667, "avg_duration_ms": 20}
+
+
+def test_history_cuts_the_message_to_500_characters(client, auth, project_role, seed):
+    project_role()
+    seed(results=(("a", "failed", 1),), message="x" * 800)
+    body = get(client, auth, f"/tests/{key_of('s', 'C', 'a')}/history").json()
+    assert body["executions"][0]["message"] == "x" * 500
+
+
+def test_history_filters_by_branch(client, auth, project_role, seed):
+    project_role()
+    seed(branch="main", results=(("a", "passed", 1),))
+    seed(branch="dev", results=(("a", "failed", 1),))
+    body = get(client, auth, f"/tests/{key_of('s', 'C', 'a')}/history?branch=dev").json()
+    assert [e["status"] for e in body["executions"]] == ["failed"]
+    assert body["summary"]["runs"] == 1
+
+
+def test_history_of_an_unknown_test_is_404(client, auth, project_role):
+    project_role()
+    response = get(client, auth, f"/tests/{'0' * 64}/history")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Test not found"}
+
+
+def test_history_of_another_projects_test_is_404(client, auth, project_role, seed):
+    project_role()
+    seed(project_id=2, results=(("a", "passed", 1),))
+    assert get(client, auth, f"/tests/{key_of('s', 'C', 'a')}/history").status_code == 404
+
+
+def test_history_of_a_known_test_outside_the_window_is_empty(client, auth, project_role, seed):
+    project_role()
+    seed(days_ago=40, results=(("a", "passed", 1),))
+    body = get(client, auth, f"/tests/{key_of('s', 'C', 'a')}/history?days=30").json()
+    assert body["executions"] == [] and body["name"] == "a"
+    assert body["summary"] == {"runs": 0, "passed": 0, "failed": 0, "errored": 0, "skipped": 0,
+                               "pass_rate": None, "avg_duration_ms": None}
+
+
+@pytest.mark.parametrize("bad_key", ["xyz", "A" * 64, "0" * 63])
+def test_history_rejects_a_malformed_key(client, auth, project_role, bad_key):
+    project_role()
+    assert get(client, auth, f"/tests/{bad_key}/history").status_code == 422
+
+
+# ---- flaky --------------------------------------------------------------------------------
+
+@pytest.mark.parametrize("role", ALL_ROLES)
+def test_every_reading_role_can_read_flaky(client, auth, project_role, role):
+    project_role(role)
+    assert get(client, auth, "/flaky").status_code == 200
+
+
+def test_flaky_end_to_end(client, auth, project_role, seed):
+    project_role()
+    # confirmed: a pass and a fail on one commit, one environment
+    seed(minutes_ago=60, commit_sha="aaaaaaa", results=(("confirmed", "passed", 1),))
+    seed(minutes_ago=59, commit_sha="aaaaaaa", results=(("confirmed", "failed", 1),))
+    # suspected: flips on main, no commit
+    for i, status in enumerate(("passed", "failed", "passed", "failed", "passed")):
+        seed(minutes_ago=50 - i, results=(("flipper", status, 1),))
+    # an environment-specific failure: not confirmed, and too few runs to count as flips
+    seed(minutes_ago=40, commit_sha="bbbbbbb", environment="py39", results=(("envbug", "failed", 1),))
+    seed(minutes_ago=39, commit_sha="bbbbbbb", environment="py312", results=(("envbug", "passed", 1),))
+    # errored -> failed is not a flip
+    for i, status in enumerate(("failed", "errored", "failed", "errored", "failed")):
+        seed(minutes_ago=30 - i, results=(("broken", status, 1),))
+    # skipped results are ignored: P S F S P S F S P is 5 runs with 4 flips
+    for i, status in enumerate(("passed", "skipped", "failed", "skipped", "passed", "skipped", "failed", "skipped",
+                                "passed")):
+        seed(minutes_ago=20 - i, results=(("skippy", status, 1),))
+
+    items = get(client, auth, "/flaky").json()
+
+    # confirmed first; then flip rate 1.0 for both, the more recently seen first
+    assert [(i["name"], i["reason"]) for i in items] == [("confirmed", "same_commit"), ("skippy", "flips"),
+                                                         ("flipper", "flips")]
+    assert items[0]["commits"] == [{"commit_sha": "aaaaaaa", "environment": None}]
+    skippy = items[1]
+    assert (skippy["runs"], skippy["flips"], skippy["flip_rate"], skippy["last_status"]) == (5, 4, 1.0, "passed")
+
+
+def test_flips_are_counted_per_branch(client, auth, project_role, seed):
+    project_role()
+    # interleaved: main P, dev P, main P, dev F, main P -> per branch 1 flip in 3 pairs (0.3333);
+    # counted across the interleaved stream it would be 2 in 4 (0.5)
+    for i, (branch, status) in enumerate((("main", "passed"), ("dev", "passed"), ("main", "passed"),
+                                          ("dev", "failed"), ("main", "passed"))):
+        seed(minutes_ago=10 - i, branch=branch, results=(("t", status, 1),))
+    items = get(client, auth, "/flaky").json()
+    assert [(i["name"], i["flips"], i["flip_rate"]) for i in items] == [("t", 1, 0.3333)]
+
+
+def test_flaky_filters_by_branch_and_window(client, auth, project_role, seed):
+    project_role()
+    for i, status in enumerate(("passed", "failed", "passed", "failed", "passed")):
+        seed(days_ago=20, minutes_ago=i, results=(("old", status, 1),))
+    for i, status in enumerate(("passed", "failed", "passed", "failed", "passed")):
+        seed(minutes_ago=10 - i, branch="dev", results=(("devonly", status, 1),))
+
+    assert [i["name"] for i in get(client, auth, "/flaky").json()] == ["devonly"]          # 14-day window
+    assert sorted(i["name"] for i in get(client, auth, "/flaky?window_days=30").json()) == ["devonly", "old"]
+    assert get(client, auth, "/flaky?branch=main").json() == []
+
+
+@pytest.mark.parametrize("query", ["/flaky?window_days=0", "/flaky?window_days=91", "/flaky?min_runs=1",
+                                   "/flaky?min_runs=1001", "/flaky?min_flip_rate=1.5", "/flaky?min_flip_rate=-0.1",
+                                   "/tests/" + "0" * 64 + "/history?days=91", "/tests/" + "0" * 64 + "/history?limit=501"])
+def test_invalid_history_and_flaky_parameters_are_422(client, auth, project_role, query):
+    project_role()
+    assert get(client, auth, query).status_code == 422

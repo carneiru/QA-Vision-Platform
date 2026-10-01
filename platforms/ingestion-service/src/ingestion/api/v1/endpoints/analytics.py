@@ -3,12 +3,13 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Literal, Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
 
+from src.ingestion.analytics.flaky import rank_flaky
 from src.ingestion.analytics.trends import daily, window_start
 from src.ingestion.api.deps import READ_ROLES, ProjectAccess, get_db, require_project_role
-from src.ingestion.schemas.analytics import StatsRowOut, TrendsOut
+from src.ingestion.schemas.analytics import FlakyOut, HistoryOut, StatsRowOut, TrendsOut
 from src.ingestion.service import analytics_service
 
 router = APIRouter()  # mounted at /projects/{project_id}/analytics
@@ -54,3 +55,32 @@ def tests(
     since = _now() - timedelta(days=days)
     return analytics_service.list_tests(db, access.project_id, since, sort=sort, search=search,
                                         limit=limit, offset=offset)
+
+
+@router.get("/tests/{test_key}/history", response_model=HistoryOut)
+def history(
+    test_key: str = Path(..., pattern=r"^[0-9a-f]{64}$"),
+    days: int = Query(30, ge=1, le=90),
+    branch: Optional[str] = Query(None, max_length=255),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    if not analytics_service.test_seen(db, access.project_id, test_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found")
+    since = _now() - timedelta(days=days)
+    return analytics_service.test_history(db, access.project_id, test_key, since, branch, limit)
+
+
+@router.get("/flaky", response_model=List[FlakyOut])
+def flaky(
+    window_days: int = Query(14, ge=1, le=90),
+    min_runs: int = Query(5, ge=2, le=1000),
+    min_flip_rate: float = Query(0.3, ge=0.0, le=1.0),
+    branch: Optional[str] = Query(None, max_length=255),
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    since = _now() - timedelta(days=window_days)
+    flips, mixed, latest = analytics_service.flaky_inputs(db, access.project_id, since, branch)
+    return rank_flaky(flips, mixed, latest, min_runs=min_runs, min_flip_rate=min_flip_rate)
