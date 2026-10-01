@@ -14,7 +14,7 @@ The first phase of the platform implements a robust authentication service with 
 - **Email/Password Authentication** - Secure user registration and login with bcrypt password hashing
 - **Token Management** - JWT access tokens (default 60 minutes) and opaque refresh tokens stored in the database (30 days), rotated on use with replay detection
 - **Refresh Token Rotation** - The presented refresh token is revoked and replaced on each use
-- **Google SSO** - ID tokens verified against Google's JWKS. GitHub and Azure AD return 501; they were previously mocks that accepted any input.
+- **Google and Microsoft SSO** - ID tokens verified against each provider's JWKS; Microsoft (Entra ID) sign-in is limited to an allowlist of tenants. GitHub returns 501; it was previously a mock that accepted any input.
 - **Role-Based Access Control** - Superuser-only endpoints for user listing
 - **Multi-tenancy Support** - The user model carries a nullable `tenant_id`; authoritative membership lives in organization-service
 - **API** - RESTful endpoints with auto-generated OpenAPI documentation
@@ -27,7 +27,7 @@ The first phase of the platform implements a robust authentication service with 
 - **Database**: PostgreSQL with SQLAlchemy ORM
 - **Migrations**: Alembic
 - **Authentication**: PyJWT (including `PyJWKClient` for Google's signing keys), passlib[bcrypt]
-- **SSO**: Google ID token verification via PyJWT. Authlib and python-jose are in `requirements.txt` but unused.
+- **SSO**: Google and Microsoft ID token verification via PyJWT. Authlib and python-jose are in `requirements.txt` but unused.
 - **Validation**: Pydantic
 - **Containerization**: Docker & Docker Compose
 - **Testing**: Pytest

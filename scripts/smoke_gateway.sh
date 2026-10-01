@@ -66,6 +66,9 @@ done
 # ---- one real call per routing rule ----
 check "/api/v1/users/me with a bad token -> auth-service" 401 GET "$BASE/api/v1/users/me" \
   -H "Authorization: Bearer not-a-token"
+# The stack has no Microsoft configuration: 503 proves the request reached auth-service
+check "/api/v1/sso/microsoft -> auth-service (not configured)" 503 POST "$BASE/api/v1/sso/microsoft" \
+  -H "Content-Type: application/json" -d '{"credential":"not-a-token"}'
 check "/api/v1/organizations/999999/members/me for a non-member -> organization-service" 404 GET \
   "$BASE/api/v1/organizations/999999/members/me" "${AUTH[@]}"
 check "/api/v1/organizations/999999/projects -> project-service (overlap route)" 404 GET \
