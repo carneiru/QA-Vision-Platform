@@ -22,6 +22,8 @@ class Settings(BaseServiceSettings):
     PROJECT_SERVICE_INTERNAL_URL: str = ""
     RETENTION_INTERVAL_HOURS: float = 24.0
     RETENTION_BATCH_SIZE: int = 500
+    # A deleted project's runs are kept this long after the deletion (it can still be undone)
+    RETENTION_DELETED_GRACE_DAYS: int = 7
 
 
 settings = Settings()

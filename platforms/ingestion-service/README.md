@@ -59,7 +59,8 @@ readable. Test names, suites, classes, files and branches are never changed.
 | `url_password` | the password in `scheme://user:password@` |
 | `jwt` | JSON Web Tokens |
 | `github_token`, `gitlab_token`, `aws_access_key`, `slack_token`, `stripe_key`, `google_api_key`, `npm_token`, `qav_key` | well-known token formats |
-| `password`, `secret`, `token`, `api_key`, `access_key`, `client_secret`, `private_key`, `credentials` | the value in `key=value`, `key: value` or `"key": "value"` when the key ends with one of these names (`DB_PASSWORD`, `X-Api-Key`, `accessToken`, …) |
+| `password`, `secret`, `token`, `api_key`, `access_key`, `client_secret`, `private_key`, `credentials` | the value in `key=value`, `key: value`, `key => value`, `"key": "value"` (also escaped inside a log line) when the key ends with one of these names (`DB_PASSWORD`, `SECRET_KEY`, `X-Api-Key`, `accessToken`, …); also `curl -u user:pw`, `--password pw` and `<password>pw</password>` |
+| `cookie` | the value of a `Cookie:` / `Set-Cookie:` header |
 | `email` | email addresses |
 | `card_number` | 13–19 digit card numbers with a card prefix that pass the Luhn check |
 
@@ -76,8 +77,9 @@ service runs it with `--loop`):
   `GET /internal/v1/projects/retention`, with the HTTP Basic credentials in
   `PROJECT_SERVICE_INTERNAL_URL` (`http://ingestion-service:<password>@project-service:8000`;
   percent-encode special characters).
-- Deletes runs uploaded (`created_at`) more than that many days ago; deletes all runs of deleted
-  projects and revokes their API keys.
+- Deletes runs uploaded (`created_at`) more than that many days ago. A deleted project's API keys
+  are revoked at once; its runs are all deleted once it has been deleted for more than
+  `RETENTION_DELETED_GRACE_DAYS` (default 7) — until then a soft delete can still be undone.
 - Without a trustworthy answer (unreachable, not 200, unexpected body) it deletes nothing and
   exits 1. Projects missing from the answer are never touched.
 - `RETENTION_INTERVAL_HOURS` (default 24) between passes with `--loop`; `RETENTION_BATCH_SIZE`

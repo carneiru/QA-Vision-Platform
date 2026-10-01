@@ -24,17 +24,20 @@ def test_correct_credentials_list_every_project_with_its_retention(client, confi
     custom = make_project(name="Custom")
     custom.settings = {"result_retention_days": 30}
     gone = make_project(name="Gone")
-    gone.deleted_at = datetime.now(timezone.utc)
+    gone.deleted_at = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
     db.commit()
 
     response = client.get(URL, headers=basic("ingestion-service", PASSWORD))
 
     assert response.status_code == 200
-    assert response.json() == {"projects": [
-        {"project_id": default.id, "result_retention_days": 90, "deleted": False},
-        {"project_id": custom.id, "result_retention_days": 30, "deleted": False},
+    projects = response.json()["projects"]
+    # When it was deleted, so the retention job can wait out a grace period before emptying it
+    assert projects[2].pop("deleted_at").startswith("2026-09-01T12:00:00")
+    assert projects == [
+        {"project_id": default.id, "result_retention_days": 90, "deleted": False, "deleted_at": None},
+        {"project_id": custom.id, "result_retention_days": 30, "deleted": False, "deleted_at": None},
         {"project_id": gone.id, "result_retention_days": 90, "deleted": True},
-    ]}
+    ]
 
 
 @pytest.mark.parametrize("headers", [

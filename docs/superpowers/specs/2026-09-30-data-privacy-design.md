@@ -61,9 +61,12 @@ One pure module, `src/ingestion/utils/redaction.py`, exposing `redact(text: str)
 | 5 | token kinds | `github_token` (`ghp_`/`gho_`/`ghu_`/`ghs_`/`ghr_` + 36+, `github_pat_` + 22+), `gitlab_token` (`glpat-` + 20+), `aws_access_key` (`AKIA`/`ASIA` + 16 upper-case alphanumerics), `slack_token` (`xoxa-`/`xoxb-`/`xoxp-`/`xoxr-`/`xoxs-` + 10+), `stripe_key` (`sk_`/`rk_` + `live_`/`test_` + 16+), `google_api_key` (`AIza` + 35), `npm_token` (`npm_` + 36), `qav_key` (`qav_` + 43) |
 | 6 | `password`, `secret`, `token`, `api_key`, … | The value of a key/value pair whose key, case-insensitively, is or ends with `password`, `passwd`, `pwd`, `secret`, `token`, `api_key`/`apikey`/`api-key`, `access_key`, `client_secret`, `private_key`, `credentials`; written `key=value`, `key: value`, `"key": "value"` or `'key': 'value'`. The kind is the key's normalised name (`db_password` → `password`). A quoted value runs to the closing quote; an unquoted one to whitespace or `,;&"'=`. When the key is not a secret, the value is searched again, so `opts=--password=x` is still caught Empty values and values already starting with `[REDACTED:` are left alone |
 | 7 | `email` | An email address |
+| 9 | `cookie` | The value of a `Cookie:` / `Set-Cookie:` header, to the end of the line *(added after the final review)* |
+| 10 | `password` (CLI, XML) | `curl -u user:pw` / `--user user:pw`, `--password pw`, `<password>pw</password>` (any tag rule 6 recognises) *(added after the final review)* |
 | 8 | `card_number` | 13–19 digits, optionally grouped by single spaces or dashes, starting with a card prefix (Visa `4`, Mastercard `51`–`55`/`2221`–`2720`, Amex `34`/`37`, Discover `6011`/`65`) **and** passing the Luhn check |
 
 - Look-alikes that must **not** be masked: git SHAs, UUIDs, timestamps, long numbers that fail Luhn or have no card prefix, and the word "password" in a sentence without a value (`the password field is required`).
+- Revised after the final review: an Authorization value runs to the end of the line or the closing quote (`AWS4-HMAC-SHA256 Credential=…, Signature=…`), and `Negotiate`/`NTLM` are kept like `Bearer`; key/value pairs also accept `=>` and `:=`, JSON escaped inside a log (`\"password\": \"x\"`), a scheme word before the value (`X-Auth-Token: Bearer abc`), keys ending in `secret_key`/`signing_key`/`encryption_key`, and an empty URL user name (`redis://:pw@host`); an unquoted value ends at `;`, `,` or `&` only when another `key=` follows (`Password=ab;cd;Database=x`); PGP private key blocks are masked too.
 - Every pattern uses bounded repetition (no nested unbounded quantifiers), so input crafted to trigger catastrophic regex backtracking cannot slow ingestion: 64 KB of hostile input must be processed in under one second.
 - Masking never rejects an upload; it only replaces text.
 
@@ -82,7 +85,7 @@ One pure module, `src/ingestion/utils/redaction.py`, exposing `redact(text: str)
 ```json
 {"projects": [
   {"project_id": 7, "result_retention_days": 90, "deleted": false},
-  {"project_id": 9, "result_retention_days": 30, "deleted": true}
+  {"project_id": 9, "result_retention_days": 30, "deleted": true, "deleted_at": "2026-09-20T10:00:00+00:00"}
 ]}
 ```
 
@@ -107,7 +110,7 @@ One pass:
 1. **Lock.** On PostgreSQL, take `pg_try_advisory_lock(<fixed id>)`. If another copy holds it, log `already running` and end the pass successfully. (On SQLite, used only by the unit tests, there is no lock.)
 2. **Fetch** the retention list. If project-service is unreachable, answers anything but 200, or the body does not match the contract (`projects` a list of objects with an integer `project_id`, an integer `result_retention_days` from 1 to 365, and a boolean `deleted`), the pass **deletes nothing** and fails.
 3. **Live projects:** delete runs of that project whose `created_at` (upload time, by the server's clock) is before `now − result_retention_days`.
-4. **Deleted projects:** delete all their runs and set `revoked_at` on their API keys that are not revoked yet.
+4. **Deleted projects:** set `revoked_at` on their API keys that are not revoked yet, at once. Their runs are all deleted only once `deleted_at` is more than `RETENTION_DELETED_GRACE_DAYS` (default 7) ago — a soft delete can still be undone; until then the usual retention applies. A deleted project without a usable `deleted_at` fails the pass. *(Grace period added after the final review.)*
 5. **Projects that have runs or keys but are missing from the list are not touched**, so a bug or an empty answer can never wipe data. Their number is logged.
 6. Deletes run in batches of `RETENTION_BATCH_SIZE` runs per transaction: a batch deletes the batch's results and then its runs explicitly (not relying on `ON DELETE CASCADE`, which SQLite does not enforce by default).
 7. **Summary:** one JSON log line, e.g. `{"event":"retention","projects":12,"runs_deleted":340,"keys_revoked":2,"projects_skipped":0,"dry_run":false}`.

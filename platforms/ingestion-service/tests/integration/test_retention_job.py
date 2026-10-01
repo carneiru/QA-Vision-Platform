@@ -76,7 +76,12 @@ def summary(capsys):
 
 
 def live(project_id, days):
-    return {"project_id": project_id, "result_retention_days": days, "deleted": False}
+    return {"project_id": project_id, "result_retention_days": days, "deleted": False, "deleted_at": None}
+
+
+def gone(project_id, days_ago, days=30):
+    deleted_at = (NOW - timedelta(days=days_ago)).isoformat()
+    return {"project_id": project_id, "result_retention_days": days, "deleted": True, "deleted_at": deleted_at}
 
 
 def test_runs_older_than_the_retention_period_are_deleted(db, session_factory, answer, add_run, capsys):
@@ -98,7 +103,7 @@ def test_a_deleted_projects_runs_are_deleted_and_its_keys_revoked(db, session_fa
     live_key, _ = make_key(project_id=2)
     old_revoked, _ = make_key(project_id=2, revoked=True)
     revoked_before = old_revoked.revoked_at
-    answer([{"project_id": 2, "result_retention_days": 90, "deleted": True}])
+    answer([gone(2, days_ago=8)])
 
     assert run_job(session_factory) == 0
 
@@ -142,12 +147,12 @@ def test_without_a_trustworthy_answer_nothing_is_deleted(db, session_factory, an
 
 
 def test_dry_run_reports_but_changes_nothing(db, session_factory, answer, add_run, capsys):
-    old, recent, gone = add_run(1, 400), add_run(1, 1), add_run(2, 0)
-    answer([live(1, 30), {"project_id": 2, "result_retention_days": 30, "deleted": True}])
+    old, recent, of_deleted = add_run(1, 400), add_run(1, 1), add_run(2, 0)
+    answer([live(1, 30), gone(2, days_ago=30)])
 
     assert run_job(session_factory, "--dry-run") == 0
 
-    assert remaining(db) == sorted([old, recent, gone])
+    assert remaining(db) == sorted([old, recent, of_deleted])
     assert db.query(ApiKey).filter(ApiKey.revoked_at.isnot(None)).count() == 0
     reported = summary(capsys)
     assert (reported["runs_deleted"], reported["keys_revoked"], reported["dry_run"]) == (2, 1, True)
@@ -208,3 +213,27 @@ def test_the_loop_survives_a_failed_pass_and_stops_when_asked(monkeypatch, sessi
 
     assert retention.main(["--loop"], now=lambda: NOW, session_factory=session_factory, stop=stop) == 0
     assert calls == [False, False, False]
+
+
+def test_a_recently_deleted_project_keeps_its_runs_for_the_grace_period(db, session_factory, answer, add_run,
+                                                                       make_key):
+    # A soft delete can still be undone: only the usual retention applies until the grace period ends
+    old, recent = add_run(4, 40), add_run(4, 1)
+    key, _ = make_key(project_id=4)
+    answer([gone(4, days_ago=6, days=30)])
+
+    assert run_job(session_factory) == 0
+
+    assert remaining(db) == [recent]
+    db.refresh(key)
+    assert key.revoked_at is not None  # but uploads stop at once
+
+
+@pytest.mark.parametrize("deleted_at", [None, "yesterday", 5])
+def test_a_deleted_project_without_a_usable_deletion_time_fails_the_pass(db, session_factory, answer, add_run,
+                                                                       deleted_at):
+    old = add_run(1, 400)
+    answer([{"project_id": 1, "result_retention_days": 30, "deleted": True, "deleted_at": deleted_at}])
+
+    assert run_job(session_factory) == 1
+    assert remaining(db) == [old]

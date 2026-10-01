@@ -4,6 +4,7 @@ Not routed by the gateway (its catch-all answers 404) and not in the public Open
 authenticate with HTTP Basic: INTERNAL_API_USERNAME / INTERNAL_API_PASSWORD.
 """
 import hmac
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,6 +25,8 @@ class ProjectRetention(BaseModel):
     project_id: int
     result_retention_days: int
     deleted: bool
+    # When it was deleted: the retention job waits a grace period before emptying it
+    deleted_at: Optional[datetime] = None
 
 
 class RetentionList(BaseModel):
@@ -57,6 +60,7 @@ def list_retention(_: None = Depends(require_internal_caller), db: Session = Dep
             project_id=project.id,
             result_retention_days=settings_view(project.settings).result_retention_days,
             deleted=project.deleted_at is not None,
+            deleted_at=project.deleted_at,
         )
         for project in projects
     ])

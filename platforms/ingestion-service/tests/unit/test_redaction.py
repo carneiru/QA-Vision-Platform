@@ -104,9 +104,59 @@ def test_masking_is_idempotent():
     "eyJ" * 21845,
     "x://a:" * 10922,
     'a:"' + "b" * 65533,
+    "password=a;" * 5957,
+    "<password>" * 6553,
+    "Cookie: " * 8192,
+    "-u " * 21845,
     "-----BEGIN PRIVATE KEY-----" * 2427,
 ], ids=lambda hostile: hostile[:12])  # short ids: pytest puts the id in an env var, capped on Windows
 def test_hostile_input_is_fast(hostile):
     start = time.perf_counter()
     redact(hostile)
     assert time.perf_counter() - start < 1.0
+
+
+# Found by the final review: the first word was masked and the credential kept
+@pytest.mark.parametrize("text, expected, kind", [
+    ("password => 'hunter2'", "password => '[REDACTED:password]'", "password"),
+    ("password := hunter2", "password := [REDACTED:password]", "password"),
+    ("X-Auth-Token: Bearer abc123", "X-Auth-Token: Bearer [REDACTED:token]", "token"),
+    ("Authorization: Negotiate YIIGhgYJKoZIhvcSAQIC", "Authorization: Negotiate [REDACTED:authorization]",
+     "authorization"),
+    ("Authorization: AWS4-HMAC-SHA256 Credential=AKID/20261001, Signature=abc",
+     "Authorization: [REDACTED:authorization]", "authorization"),
+])
+def test_the_whole_credential_is_masked_not_just_its_first_word(text, expected, kind):
+    assert redact(text) == (expected, {kind})
+
+
+# Found by the final review: realistic formats that were not masked at all
+@pytest.mark.parametrize("text, expected, kind", [
+    ("SECRET_KEY=s3cr3t", "SECRET_KEY=[REDACTED:secret]", "secret"),
+    ("SIGNING_KEY: k", "SIGNING_KEY: [REDACTED:secret]", "secret"),
+    ("ENCRYPTION_KEY=k", "ENCRYPTION_KEY=[REDACTED:secret]", "secret"),
+    ('{\\"password\\": \\"x\\"}', '{\\"password\\": \\"[REDACTED:password]\\"}', "password"),
+    ("redis://:pw@cache:6379", "redis://:[REDACTED:url_password]@cache:6379", "url_password"),
+    ("curl -u bob:pw https://h", "curl -u bob:[REDACTED:password] https://h", "password"),
+    ("curl --user bob:pw https://h", "curl --user bob:[REDACTED:password] https://h", "password"),
+    ("mysql --password hunter2 db", "mysql --password [REDACTED:password] db", "password"),
+    ("<password>hunter2</password>", "<password>[REDACTED:password]</password>", "password"),
+    ("Cookie: session=abc; theme=dark", "Cookie: [REDACTED:cookie]", "cookie"),
+    ("Set-Cookie: sid=abc; HttpOnly", "Set-Cookie: [REDACTED:cookie]", "cookie"),
+    ("password=ab;cd", "password=[REDACTED:password]", "password"),
+    ("Server=db;Password=ab;cd;Database=app", "Server=db;Password=[REDACTED:password];Database=app", "password"),
+    ("https://h/?password=x&user=bob", "https://h/?password=[REDACTED:password]&user=bob", "password"),
+    ("-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQ\n-----END PGP PRIVATE KEY BLOCK-----", "[REDACTED:private_key]",
+     "private_key"),
+])
+def test_more_real_world_formats(text, expected, kind):
+    assert redact(text) == (expected, {kind})
+
+
+@pytest.mark.parametrize("text", [
+    "<testcase>ok</testcase>",
+    "curl -u bob https://h",
+    "cookie jar is empty",
+])
+def test_more_look_alikes_are_left_alone(text):
+    assert redact(text) == (text, set())

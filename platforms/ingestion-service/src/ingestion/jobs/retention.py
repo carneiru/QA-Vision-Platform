@@ -40,6 +40,7 @@ class Policy:
     project_id: int
     days: int
     deleted: bool
+    deleted_at: Optional[datetime] = None
 
 
 @dataclass(frozen=True)
@@ -99,14 +100,39 @@ def _policy(item: object, endpoint: Endpoint) -> Policy:
         or not isinstance(item.get("deleted"), bool)
     ):
         raise RetentionError(f"{endpoint.display} returned an unexpected body")
-    return Policy(project_id=item["project_id"], days=item["result_retention_days"], deleted=item["deleted"])
+    deleted_at = None
+    if item["deleted"]:
+        # A deleted project's runs go only after the grace period, so its time must be trustworthy
+        deleted_at = _aware_time(item.get("deleted_at"))
+        if deleted_at is None:
+            raise RetentionError(f"{endpoint.display} returned a deleted project without a usable deleted_at")
+    return Policy(
+        project_id=item["project_id"], days=item["result_retention_days"], deleted=item["deleted"],
+        deleted_at=deleted_at,
+    )
 
 
-def run_pass(db: Session, policies: List[Policy], now: datetime, *, batch_size: int, dry_run: bool) -> dict:
+def _aware_time(value: object) -> Optional[datetime]:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    # project-service on SQLite (its tests) serialises without an offset; its PostgreSQL column is UTC
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+
+def run_pass(
+    db: Session, policies: List[Policy], now: datetime, *, batch_size: int, dry_run: bool, grace_days: int = 7
+) -> dict:
     runs_deleted = keys_revoked = 0
     for policy in policies:
         runs = db.query(Run.id).filter(Run.project_id == policy.project_id)
-        if not policy.deleted:
+        # A soft delete can be undone: a deleted project is emptied only once the grace period is
+        # over; until then the usual retention applies (its keys are revoked at once, below)
+        empty_it = policy.deleted and policy.deleted_at <= now - timedelta(days=grace_days)
+        if not empty_it:
             runs = runs.filter(Run.created_at < now - timedelta(days=policy.days))
         runs_deleted += runs.count() if dry_run else _delete_in_batches(db, runs, batch_size)
         if policy.deleted:
@@ -173,7 +199,10 @@ def run_once(*, dry_run: bool, now: Callable[[], datetime], session_factory: ses
                 return True
             policies = fetch_policies(endpoint)
             with session_factory() as db:
-                summary = run_pass(db, policies, now(), batch_size=settings.RETENTION_BATCH_SIZE, dry_run=dry_run)
+                summary = run_pass(
+                    db, policies, now(), batch_size=settings.RETENTION_BATCH_SIZE, dry_run=dry_run,
+                    grace_days=settings.RETENTION_DELETED_GRACE_DAYS,
+                )
     except RetentionError as exc:
         _log({"event": "retention_failed", "error": str(exc)}, error=True)
         return False

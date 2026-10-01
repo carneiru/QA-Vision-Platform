@@ -36,7 +36,7 @@ per server IP, shared by every user.
 `result_retention_days`, for ingestion-service's retention job:
 
 ```json
-{"projects": [{"project_id": 7, "result_retention_days": 90, "deleted": false}]}
+{"projects": [{"project_id": 7, "result_retention_days": 90, "deleted": false, "deleted_at": null}]}
 ```
 
 - HTTP Basic, checked against `INTERNAL_API_USERNAME` (default `ingestion-service`) and
