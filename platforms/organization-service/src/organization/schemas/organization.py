@@ -28,3 +28,7 @@ class OrganizationOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MyOrganizationOut(OrganizationOut):
+    role: str
