@@ -155,7 +155,7 @@ def test_masking_is_idempotent():
     "x://a:" * 10922,
     'a:"' + "b" * 65533,
     "-----BEGIN PRIVATE KEY-----" * 2427,
-])
+], ids=lambda hostile: hostile[:12])  # short ids: pytest puts the id in an env var, capped on Windows
 def test_hostile_input_is_fast(hostile):
     start = time.perf_counter()
     redact(hostile)
@@ -217,12 +217,10 @@ _TOKENS = (
 )
 
 # key=value, key: value, "key": "value", 'key': 'value'. The key is matched as a whole word and
-# then checked against _SECRET_NAMES in Python, which keeps the expression linear.
-_KEY_VALUE = re.compile(
-    r"(?<![A-Za-z0-9_.\-])([A-Za-z0-9_.\-]{1,64})"
-    r"([\"']?[ \t]{0,5}[:=][ \t]{0,5})"
-    r"(?:\"([^\"\r\n]{1,4096})\"|'([^'\r\n]{1,4096})'|([^\s,;&\"'=]{1,4096}))"
-)
+# checked against _SECRET_NAMES in Python; only then is the value matched, so text full of
+# non-secret pairs costs one short match each, never a scan of every value.
+_KEY_SEPARATOR = re.compile(r"(?<![A-Za-z0-9_.\-])([A-Za-z0-9_.\-]{1,64})[\"']?[ \t]{0,5}[:=][ \t]{0,5}")
+_VALUE = re.compile(r"\"([^\"\r\n]{1,4096})\"|'([^'\r\n]{1,4096})'|([^\s,;&\"'=]{1,4096})")
 # (normalised key suffix, kind); longest first, so client_secret wins over secret
 _SECRET_NAMES = (
     ("clientsecret", "client_secret"),
@@ -312,17 +310,23 @@ def _secret_kind(key: str) -> Optional[str]:
 def _mask_key_values(text: str, found: Set[str]) -> str:
     pieces, last, pos = [], 0, 0
     while True:
-        match = _KEY_VALUE.search(text, pos)
-        if match is None:
+        key = _KEY_SEPARATOR.search(text, pos)
+        if key is None:
             break
-        group = next(g for g in (3, 4, 5) if match.group(g) is not None)
-        kind = _secret_kind(match.group(1))
-        if kind is None or match.group(group).startswith(MARKER_PREFIX):
-            # Not a secret: look again inside the value, which can hold one (opts=--password=x)
-            pos = match.end(2)
+        # The search goes on right after the separator either way: a value that is not a secret
+        # can still hold one (opts=--password=x)
+        pos = key.end()
+        kind = _secret_kind(key.group(1))
+        if kind is None:
+            continue
+        value = _VALUE.match(text, key.end())
+        if value is None:
+            continue
+        group = next(g for g in (1, 2, 3) if value.group(g) is not None)
+        if value.group(group).startswith(MARKER_PREFIX):
             continue
         found.add(kind)
-        start, end = match.span(group)  # the value only; quotes around it stay
+        start, end = value.span(group)  # the value only; quotes around it stay
         pieces.append(text[last:start])
         pieces.append(marker(kind))
         last = pos = end
