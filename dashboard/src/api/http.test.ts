@@ -62,7 +62,12 @@ test("non-JSON error body becomes a readable ApiError", async () => {
   server.use(
     http.get("/api/v1/thing", () => new HttpResponse("<html>Bad Gateway</html>", { status: 502 })),
   );
-  const err = await apiFetch("/api/v1/thing").catch((e: unknown) => e as ApiError);
+  const err: ApiError = await apiFetch("/api/v1/thing").then(
+    () => {
+      throw new Error("expected apiFetch to reject");
+    },
+    (e: ApiError) => e,
+  );
   expect(err).toBeInstanceOf(ApiError);
   expect(err.status).toBe(502);
   expect(err.detail).toMatch(/502/);
