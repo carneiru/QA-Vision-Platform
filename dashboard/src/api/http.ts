@@ -66,7 +66,9 @@ async function rawFetch(path: string, init: RequestInit): Promise<Response> {
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response = await rawFetch(path, init);
 
-  if (response.status === 401) {
+  // Only a session can expire: without a stored refresh token (e.g. a failed
+  // login) a 401 is a plain API error, not a refresh trigger.
+  if (response.status === 401 && getRefreshToken() !== null) {
     refreshing ??= refreshTokens().finally(() => {
       refreshing = null;
     });
