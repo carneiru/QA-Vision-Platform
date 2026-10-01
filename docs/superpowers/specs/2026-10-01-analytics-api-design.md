@@ -19,7 +19,7 @@ The platform collects test runs (collector → ingestion) but only lets a team l
 
 ## Endpoints
 
-All are `GET`, under `/api/v1/projects/{project_id}/analytics/`, guarded by the same check as the run endpoints (`require_project_role(*READ_ROLES)`: owner, admin, member, viewer; a non-member or missing project → 404; project-service unavailable → 503; bad token → 401).
+All are `GET`, under `/api/v1/projects/{project_id}/analytics/`, guarded by the same check as the run endpoints (`require_project_role(*READ_ROLES)`: owner, admin, member, viewer, billing_manager; a non-member or missing project → 404; project-service unavailable → 503; bad token → 401).
 
 Definitions used throughout:
 - **pass_rate** = passed ÷ (total − skipped), where errored counts as not passed; `null` when total − skipped is 0.
@@ -100,7 +100,7 @@ Definitions used throughout:
 
 ## Computation
 
-Code in ingestion-service:
+Code in ingestion-service (`tzdata` is added to requirements so `zoneinfo` works on Windows and slim images):
 
 | File | Responsibility |
 |---|---|
@@ -108,19 +108,19 @@ Code in ingestion-service:
 | `src/ingestion/schemas/analytics.py` | Response models |
 | `src/ingestion/service/analytics_service.py` | Database queries |
 | `src/ingestion/analytics/trends.py` | Pure: window start and grouping run rows into local days |
-| `src/ingestion/analytics/flaky.py` | Pure: the two flaky rules over plain execution rows |
+| `src/ingestion/analytics/flaky.py` | Pure: ranking per-test totals into flaky items (thresholds, order, commit cap) |
 
 - **trends:** select the window's run rows (`started_at`, `total`, `passed`, `failed`, `errored`, `skipped`, `duration_ms`) with the filters; group in Python with `zoneinfo`. Portable between PostgreSQL and SQLite (tests).
 - **tests:** one `GROUP BY test_key` over results joined to runs in the window (per-status `SUM(CASE …)`, `AVG(duration_ms)`, `MAX(started_at)`, identity via `MAX()`), sorted and paged in SQL; a second query fetches the latest execution of just that page's keys for `last_status`.
 - **history:** the executions query (results joined to runs on `test_key` and project, window, branch, newest first, `limit`) and one aggregate query for the summary; one existence query for the 404.
-- **flaky:** a query for candidate test keys (at least one `failed`/`errored` execution in the window, with the branch filter), then the executions of only those keys (non-skipped, ordered), passed to the pure function.
+- **flaky:** candidate tests are those with at least one `failed`/`errored` execution in the window (branch filter applied). The counting happens in SQL so it scales with the data: `LAG(outcome) OVER (PARTITION BY test_key, branch ORDER BY started_at, run id)` gives flips and pairs per test; a `GROUP BY test_key, commit_sha, environment HAVING` a pass and a fail gives the mixed commits; `ROW_NUMBER()` gives each test's latest non-skipped execution. The pure function ranks those totals. *(Revised while planning: loading every execution of every candidate into Python would not meet the 3 s target on ~2 million rows.)*
 - **Indexes** (migration 003): `ix_test_results_test_key_run` on `test_results(test_key, run_id)` and `ix_test_runs_project_started` on `test_runs(project_id, started_at)`.
 
 ### Performance
 
 - Target: each endpoint well under 3 s for a typical project over its maximum window.
 - Expected: about 1 s for `tests` over 90 days with ~2 million result rows on PostgreSQL; `trends` reads only run rows. Ten times more data needs summary tables (TODO).
-- A one-off script (`scripts/analytics_benchmark.py`, not in CI) seeds a project with ~2 million results in a running stack and times each endpoint through the gateway; the numbers go into the ingestion-service README.
+- A one-off script (`scripts/analytics_benchmark.py`, not in CI), run inside the ingestion container of a throwaway stack, seeds a project with ~2 million results, times each analytics query against PostgreSQL, and deletes what it seeded; the numbers go into the ingestion-service README. (It times the queries rather than the HTTP endpoints, because the seeded project does not exist in project-service; HTTP and role-check overhead is small and the same for every endpoint.)
 
 ## Errors
 
@@ -140,7 +140,7 @@ Code in ingestion-service:
 
 - **Pure functions (unit):**
   - trends: grouping in `UTC` and `Europe/Lisbon` (23:30 UTC lands on the next local day), a daylight-saving change, empty days zero-filled, `pass_rate` null when nothing ran, skipped excluded from `pass_rate`, the window start.
-  - flaky: same commit + same environment confirmed; different environments not; null commit never `same_commit`; errored → failed is not a flip; skipped ignored; flips counted per branch and summed; `min_runs` and `min_flip_rate` thresholds; a confirmed test not listed again as `flips`; ordering; at most 5 commits.
+  - flaky ranking: `min_runs` and `min_flip_rate` thresholds; a confirmed test not listed again as `flips`; ordering; at most 5 commits, most recent first; at most 100 items. The counting rules (same commit + same environment, different environments not, null commit never `same_commit`, errored → failed not a flip, skipped ignored, flips per branch then summed) are pinned by the endpoint tests, since SQL computes them.
 - **Endpoints (integration, SQLite):** each endpoint for every read role; role failures (missing project, non-member, project-service down) as for runs; another project's runs never included; branch and environment filters; `tests` sort, search with `%` and `_` in the term, paging; `history` order, `limit`, the 500-character message, 404 for an unknown key, empty list for a known key outside the window; `flaky` end to end on seeded runs; every 422 case.
 - **Migration:** a test that both indexes exist after `upgrade head` (the drift test already covers columns).
 - **Smoke (through the gateway):** with the run the smoke test already uploads: `trends` → 200 and today's entry counts it; `tests` lists `fails`; that test's `history` → 200; `flaky` → 200.
