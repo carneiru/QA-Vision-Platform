@@ -228,9 +228,12 @@ http {
             proxy_pass $upstream;
         }
 
-        # ---- everything else ----
+        # ---- dashboard SPA (everything else) ----
+        # The dashboard's own nginx falls unknown paths back to index.html.
         location / {
-            return 404;
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://dashboard:80;
+            proxy_pass $upstream;
         }
     }
 }
