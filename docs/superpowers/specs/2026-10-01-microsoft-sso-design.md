@@ -50,14 +50,14 @@ Errors (both providers, via one shared mapping):
 |---|---|
 | Not configured | 503 `"<Provider> SSO is not configured"` |
 | Key set unreachable (`PyJWKClientConnectionError`, timeout) | 503 `"<Provider> sign-in is temporarily unavailable"` — **new for Google too**, where an outage used to read as an invalid token |
-| Anything else (bad signature, claims, tenant, issuer, version, malformed) | 401 `"Invalid <Provider> token"`; details to the log only |
+| Anything else (bad signature, claims, tenant, issuer, version, malformed) | 400 `"Invalid <Provider> token"` (Google's existing status, kept for both); details to the log only |
 
 ### Hardened key client
 
 One small class wrapping `PyJWKClient`, used by both providers:
 - HTTP timeout 5 s.
 - The key set is cached (PyJWT's `cache_jwk_set`, lifespan 300 s).
-- A token whose `kid` is not in the cached set may force a re-fetch **at most once per 5 minutes**; otherwise it is refused (401) without contacting the provider. Today any made-up `kid` causes a fetch from Google per request.
+- A token whose `kid` is not in the cached set may force a re-fetch **at most once per 5 minutes**; otherwise it is refused (400) without contacting the provider. Today any made-up `kid` causes a fetch from Google per request.
 
 ## Endpoints
 
@@ -69,17 +69,17 @@ Shared sign-in helper `sso_sign_in(db, identity, label)` — used by `/sso/googl
 
 1. Look up `oauth_accounts` by `(provider, provider_user_id)`. Found → that user (the email on the token may have changed; it is not written back).
 2. Not found, and no user has the email → create a passwordless user and the link in one transaction; a concurrent duplicate → 409 `"This <Provider> account is already linked"`.
-3. Not found, and a user has the email → 409. If that user already has a link for this provider: `"This account is linked to a different <Provider> identity"`; otherwise `"An account with this email already exists. Linking <Provider> to an existing account is not supported yet."` — for Microsoft the hint points at `/users/me/link-microsoft` (the Google message stays as it is).
+3. Not found, and a user has the email → 409. If that user already has a link for this provider: `"This account is linked to a different <Provider> identity"`; otherwise `"An account with this email already exists. Linking <Provider> to an existing account is not supported yet."` — for Microsoft the hint points at `/api/v1/users/me/link/microsoft` (the Google message stays as it is).
 4. Inactive user → 400 `"Inactive user"`.
 5. Issue the access token and a refresh-token session, as today.
 
-### `POST /api/v1/users/me/link-microsoft`
+### `POST /api/v1/users/me/link/microsoft`
 
-Body `{"credential": "<id_token>", "current_password": "<optional>"}`; requires a signed-in active user. Mirrors `link-google` through one shared helper:
+Body `{"credential": "<id_token>", "current_password": "<optional>"}`; requires a signed-in active user. Mirrors `POST /api/v1/users/me/link/google` through one shared helper:
 - An account with a password must give the correct `current_password` (400 `"current_password is incorrect"`).
 - The account must not already have a Microsoft link (409).
 - The Microsoft identity must not be linked to anyone (409 on the unique constraint).
-- Success → 200 with the user (as `link-google` returns).
+- Success → 200 with the user (as the Google link returns).
 
 ### Removed
 
@@ -97,14 +97,14 @@ No change: `oauth_accounts` stores `provider` (50) and `provider_user_id` (255) 
 
 No call to Microsoft or Google ever leaves the test process.
 
-- **Token fixtures:** a test RSA key signs Microsoft-shaped ID tokens; the key client is pointed at a fake that returns that key. A respx route on the real keys URL drives the outage cases.
+- **Token fixtures:** a test RSA key signs Microsoft-shaped ID tokens; the key client's `get_signing_key_from_jwt` is replaced with one that returns that key (as the Google tests already do). PyJWT fetches keys with `urllib`, which respx cannot intercept, so the outage cases make that function raise `PyJWKClientConnectionError`, and the key-client tests replace its `fetch_data`.
 - **Verification:** valid token → identity; refused: wrong `aud`, expired, `nbf` in the future, tenant not allowed (and its id logged), `iss` not matching `tid`, `ver` "1.0", missing `tid`/`oid`, `HS256` and `none` algorithms, a signature from another key, garbage; not configured → 503; keys unreachable → 503; `AZURE_TENANT_ID` fallback when the allowlist is empty.
 - **Key client:** an unknown `kid` forces one re-fetch, a second unknown `kid` within 5 minutes does not; the timeout is passed through.
 - **Sign-in:** first sign-in creates a passwordless user and the link; a second sign-in with a changed email finds the same user; existing email → 409 and nothing created; the same `oid` under another allowed tenant is a different identity; inactive → 400; `preferred_username` used when `email` is absent; neither → 400.
 - **Link:** requires authentication; requires `current_password` when the account has one (wrong → 400); already linked → 409; identity linked to someone else → 409; after linking, that Microsoft identity signs in to this account.
 - **Google regression:** the existing Google tests pass unchanged; a Google key-fetch outage → 503.
-- **Removed route:** `POST /api/v1/sso/azure` → 404.
-- **Gateway:** `nginx -t` in CI; the smoke script checks `/api/v1/sso/microsoft` with a garbage token answers 401 or 503 through the gateway (reached auth-service, not the 404 catch-all).
+- **Removed route:** `POST /api/v1/sso/azure` → 404 (the existing Google test that expected 501 for `azure` keeps only `github`).
+- **Gateway:** `nginx -t` in CI; the smoke script checks `/api/v1/sso/microsoft` with a garbage token answers 503 through the gateway (the stack has no Microsoft configuration; reaching auth-service, not the 404 catch-all).
 
 ## Documentation
 
