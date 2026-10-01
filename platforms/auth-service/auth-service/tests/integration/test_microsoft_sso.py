@@ -204,3 +204,60 @@ def test_an_inactive_user_is_refused(client, db, microsoft_key):
 
 def test_the_old_azure_route_is_gone(client):
     assert client.post("/api/v1/sso/azure", json={"code": "x", "tenant_id": "y"}).status_code == 404
+
+
+LINK = "/api/v1/users/me/link/microsoft"
+
+
+def bearer(login):
+    return {"Authorization": f"Bearer {login['access_token']}"}
+
+
+def test_link_microsoft_to_a_password_account(client, db, microsoft_key, register_and_verify):
+    login = register_and_verify("bob@example.com")
+    linked = client.post(LINK, json={"credential": ms_token(microsoft_key), "current_password": "securepassword123"},
+                         headers=bearer(login))
+
+    assert linked.status_code == 200, linked.text
+    assert db.query(OAuthAccount).filter(OAuthAccount.user_id == linked.json()["id"]).one().provider == "microsoft"
+    # That Microsoft identity now signs in to this account, whatever its email says
+    assert sign_in(client, ms_token(microsoft_key)).status_code == 200
+    assert db.query(User).count() == 1
+
+
+@pytest.mark.parametrize("password", [None, "wrong-password"])
+def test_link_microsoft_requires_the_current_password(client, db, microsoft_key, register_and_verify, password):
+    login = register_and_verify("bob@example.com")
+    body = {"credential": ms_token(microsoft_key)}
+    if password is not None:
+        body["current_password"] = password
+
+    response = client.post(LINK, json=body, headers=bearer(login))
+    assert response.status_code == 400
+    assert response.json() == {"detail": "current_password is incorrect"}
+    assert db.query(OAuthAccount).count() == 0
+
+
+def test_link_microsoft_refuses_an_identity_linked_elsewhere(client, db, microsoft_key, register_and_verify):
+    assert sign_in(client, ms_token(microsoft_key)).status_code == 200  # ann@corp.test owns it
+    login = register_and_verify("bob@example.com")
+
+    response = client.post(LINK, json={"credential": ms_token(microsoft_key), "current_password": "securepassword123"},
+                           headers=bearer(login))
+    assert response.status_code == 409
+    assert response.json() == {"detail": "This Microsoft account is already linked to a different user"}
+
+
+def test_link_microsoft_refuses_a_second_link_on_the_same_account(client, db, microsoft_key, register_and_verify):
+    login = register_and_verify("bob@example.com")
+    first = client.post(LINK, json={"credential": ms_token(microsoft_key), "current_password": "securepassword123"},
+                        headers=bearer(login))
+    assert first.status_code == 200
+    second = client.post(LINK, json={"credential": ms_token(microsoft_key, oid="another-oid"),
+                                     "current_password": "securepassword123"}, headers=bearer(login))
+    assert second.status_code == 409
+    assert second.json() == {"detail": "A Microsoft account is already linked to this account"}
+
+
+def test_link_microsoft_requires_sign_in(client, microsoft_key):
+    assert client.post(LINK, json={"credential": ms_token(microsoft_key)}).status_code == 401

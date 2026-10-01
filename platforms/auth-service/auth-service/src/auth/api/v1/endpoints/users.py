@@ -6,7 +6,7 @@ from src.auth.service.user_service import UserService
 # UserInDB carries hashed_password; aliasing it as the response model leaked every user's
 # bcrypt hash through /users/me, /users/ and /users/{id}. User is the public shape.
 from src.auth.schemas.user import UserSelfUpdate, UserUpdate, User
-from src.auth.schemas.auth import LinkGoogleRequest
+from src.auth.schemas.auth import LinkGoogleRequest, LinkMicrosoftRequest
 from src.auth.models.user import User as UserModel
 from src.auth.models.oauth import OAuthAccount
 from src.auth.service.auth_service import AuthService
@@ -14,7 +14,7 @@ from src.auth.utils.password import verify_password
 from sqlalchemy.exc import IntegrityError
 # Reused rather than duplicated so this endpoint and /sso/google fail identically on a bad
 # or misconfigured credential.
-from src.auth.api.v1.endpoints.sso import verify_google_credential
+from src.auth.api.v1.endpoints.sso import verify_google_credential, verify_microsoft_credential
 
 router = APIRouter()
 
@@ -90,44 +90,34 @@ def update_user_me(
     return user
 
 
-@router.post("/me/link/google", response_model=User)
-def link_google_account(
-    *,
-    db: Session = Depends(deps.get_db),
-    request: LinkGoogleRequest,
-    current_user: UserModel = Depends(deps.get_current_active_user),
-):
-    """
-    Link a Google identity to the current, authenticated account.
+def _link_identity(db: Session, current_user: UserModel, credential: str, current_password, verify, label: str):
+    """Link a verified SSO identity to the current, authenticated account.
 
-    The remedy /sso/google's 409 ("account already exists") points at, and did not have.
+    The remedy the sign-in endpoints' 409 ("account already exists") points at.
     """
     if current_user.hashed_password is not None:
         # A short-lived bearer token can be stolen; requiring the password before attaching a
         # new, durable login method is the same guard PUT /users/me's password change uses,
         # for the same reason. Nothing to confirm for a passwordless (pure-SSO) account.
-        if not request.current_password or not verify_password(
-            request.current_password, current_user.hashed_password
-        ):
+        if not current_password or not verify_password(current_password, current_user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="current_password is incorrect",
             )
 
-    google_data = verify_google_credential(request.credential)
-    provider = google_data["provider"]
-    provider_user_id = google_data["provider_user_id"]
+    identity = verify(credential)
+    provider = identity["provider"]
+    provider_user_id = identity["provider_user_id"]
 
-    # At most one Google link per user, enforced here rather than only relied on: the login
-    # path's existing_link lookup already picks arbitrarily via .first() if a user were ever
-    # to hold two.
+    # At most one link per provider per user, enforced here rather than only relied on: the
+    # sign-in path's existing_link lookup picks arbitrarily via .first() if a user held two.
     if db.query(OAuthAccount).filter(
         OAuthAccount.user_id == current_user.id,
         OAuthAccount.provider == provider,
     ).first() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="A Google account is already linked to this account",
+            detail=f"A {label} account is already linked to this account",
         )
 
     db.add(OAuthAccount(
@@ -136,16 +126,40 @@ def link_google_account(
     try:
         db.commit()
     except IntegrityError:
-        # This exact Google identity is already linked to a different account -- the
-        # constraint is the backstop; the pre-check above is what usually catches it first.
+        # This exact identity is already linked to a different account -- the constraint is
+        # the backstop; the pre-check above is what usually catches it first.
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This Google account is already linked to a different user",
+            detail=f"This {label} account is already linked to a different user",
         )
 
     db.refresh(current_user)
     return current_user
+
+
+@router.post("/me/link/google", response_model=User)
+def link_google_account(
+    *,
+    db: Session = Depends(deps.get_db),
+    request: LinkGoogleRequest,
+    current_user: UserModel = Depends(deps.get_current_active_user),
+):
+    """Link a Google identity to the current, authenticated account."""
+    return _link_identity(db, current_user, request.credential, request.current_password,
+                          verify_google_credential, "Google")
+
+
+@router.post("/me/link/microsoft", response_model=User)
+def link_microsoft_account(
+    *,
+    db: Session = Depends(deps.get_db),
+    request: LinkMicrosoftRequest,
+    current_user: UserModel = Depends(deps.get_current_active_user),
+):
+    """Link a Microsoft (Entra ID) identity to the current, authenticated account."""
+    return _link_identity(db, current_user, request.credential, request.current_password,
+                          verify_microsoft_credential, "Microsoft")
 
 
 @router.get("/{user_id}", response_model=User)
