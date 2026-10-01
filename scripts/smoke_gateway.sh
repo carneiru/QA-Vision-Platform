@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # End-to-end checks through the gateway, one per routing rule and gateway feature.
-# Run from anywhere after:  SECRET_KEY=... docker compose up -d --build --wait gateway
+# Run from anywhere after:  SECRET_KEY=... INTERNAL_API_PASSWORD=... docker compose up -d --build --wait gateway
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 # docker-compose.yml interpolates ${SECRET_KEY:?...} for EVERY compose command, including the
 # `exec` below, so without it nothing here can work -- say so instead of failing obscurely.
-if [ -z "${SECRET_KEY:-}" ]; then
-  echo "FAIL  SECRET_KEY is not set: export the same value the stack was started with"
-  exit 1
-fi
+for var in SECRET_KEY INTERNAL_API_PASSWORD; do
+  if [ -z "${!var:-}" ]; then
+    echo "FAIL  $var is not set: export the same value the stack was started with"
+    exit 1
+  fi
+done
 
 HTTPS_PORT="${GATEWAY_HTTPS_PORT:-8443}"
 HTTP_PORT="${GATEWAY_HTTP_PORT:-8080}"
@@ -41,6 +43,15 @@ body_has() {
     pass "$1"
   else
     fail "$1: body was $(head -c 300 "$TMP/body" 2>/dev/null)"
+  fi
+}
+
+# body_lacks NAME TEXT -- the last response body does not contain TEXT
+body_lacks() {
+  if grep -qF -- "$2" "$TMP/body" 2>/dev/null; then
+    fail "$1: the body contains it"
+  else
+    pass "$1"
   fi
 }
 
@@ -150,10 +161,46 @@ XML
   body_has "... with the collector's counts" '"total":3,"passed":1,"failed":1,"skipped":1,"errored":0'
 fi
 
+# ---- masking: secrets in test output never reach the database ----
+FAKE_TOKEN="ghp_"'SmokeSmokeSmokeSmokeSmokeSmokeSmoke0'  # token-shaped, not a real token
+MASK_BODY="{\"run\":{\"ci_provider\":\"local\",\"branch\":\"smoke-mask\",\"started_at\":\"$NOW\",\"finished_at\":\"$NOW\"},\"results\":[{\"name\":\"leaks\",\"status\":\"failed\",\"message\":\"login as ann@acme.test\",\"details\":\"GITHUB_TOKEN=$FAKE_TOKEN\"}]}"
+check "upload a run whose output contains a token" 201 POST "$BASE/api/v1/collect/runs" \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$MASK_BODY"
+MASK_RUN_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+check "read the masked run" 200 GET "$BASE/api/v1/runs/${MASK_RUN_ID:-0}" "${AUTH[@]}"
+body_has "... the token is masked" '[REDACTED:github_token]'
+body_has "... the email is masked" '[REDACTED:email]'
+body_has "... and the result is flagged" '"redacted":true'
+body_lacks "... the token itself is not stored" "$FAKE_TOKEN"
+
+
 check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"
 check "a revoked key is rejected" 401 POST "$BASE/api/v1/collect/runs" \
   -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$RUN_BODY"
 check "/metrics is not exposed through the gateway" 404 GET "$BASE/metrics"
+check "/internal is not exposed through the gateway" 404 GET "$BASE/internal/v1/projects/retention"
+
+# ---- retention: the job runs, and really reaches project-service inside the stack ----
+if docker compose ps --status running --services 2>/dev/null | grep -qx ingestion-retention; then
+  pass "ingestion-retention is running"
+else
+  fail "ingestion-retention is not running"
+fi
+if docker compose run --rm -T ingestion-retention python -m src.ingestion.jobs.retention --dry-run \
+     >"$TMP/retention_out" 2>"$TMP/retention_err"; then
+  if grep -q '"event": "retention"' "$TMP/retention_out"; then
+    pass "retention job dry run inside the stack"
+  else
+    fail "retention job dry run printed no summary: $(tail -c 300 "$TMP/retention_out")"
+  fi
+else
+  fail "retention job dry run: $(tail -c 400 "$TMP/retention_err")"
+fi
+if grep -qF -- "$INTERNAL_API_PASSWORD" "$TMP/retention_out" "$TMP/retention_err"; then
+  fail "retention job output contains the internal password"
+else
+  pass "retention job output never shows the internal password"
+fi
 
 # ---- gateway behaviour ----
 check "unknown path" 404 GET "$BASE/no/such/path"

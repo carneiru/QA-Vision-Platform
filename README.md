@@ -110,6 +110,7 @@ repository root:
 
 ```bash
 export SECRET_KEY=<a long random value>        # required by EVERY docker compose command here
+export INTERNAL_API_PASSWORD=<a long random value, URL-safe, e.g. openssl rand -hex 32>   # required too
 docker compose up -d --build --wait gateway
 curl -k https://localhost:8443/health          # {"status":"healthy"}
 ```
