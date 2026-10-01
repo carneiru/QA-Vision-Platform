@@ -39,6 +39,7 @@ class ResultOut(BaseModel):
     message: Optional[str] = None
     details: Optional[str] = None
     truncated: bool
+    redacted: bool
     file: Optional[str] = None
 
 

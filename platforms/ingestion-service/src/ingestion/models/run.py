@@ -63,7 +63,9 @@ class RunResult(Base):
     message = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
     truncated = Column(Boolean, nullable=False, default=False, server_default=false())
-    file = Column(String(1000), nullable=True)
+    # True when masking replaced anything in message or details (see utils/redaction.py)
+    redacted = Column(Boolean, nullable=False, default=False, server_default=false())
+    file =Column(String(1000), nullable=True)
 
     __table_args__ = (
         CheckConstraint("status IN ('passed','failed','skipped','errored')", name="chk_test_results_status"),

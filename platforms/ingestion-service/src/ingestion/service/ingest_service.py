@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 from src.ingestion.core.config import settings
 from src.ingestion.models import ApiKey, Run, RunResult
 from src.ingestion.schemas.collect import RunUpload
+from src.ingestion.utils import metrics
+from src.ingestion.utils.redaction import redact
+
+CI_RUN_URL_LENGTH = 2048
 
 
 class IdempotencyConflict(Exception):
@@ -25,6 +29,10 @@ def truncate_utf8(text: Optional[str], limit: int) -> tuple[Optional[str], bool]
     if len(encoded) <= limit:
         return text, False
     return encoded[:limit].decode("utf-8", errors="ignore"), True
+
+
+def mask(text: Optional[str]) -> tuple[Optional[str], set[str]]:
+    return (None, set()) if text is None else redact(text)
 
 
 def test_key(suite: str, class_name: str, name: str) -> str:
@@ -59,13 +67,18 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
 
     counts = Counter(result.status for result in upload.results)
     meta = upload.run
+    # Masking can lengthen the URL (the marker is longer than most passwords): cut to the column
+    ci_run_url = mask(meta.ci_run_url)[0]
+    if ci_run_url is not None:
+        ci_run_url = ci_run_url[:CI_RUN_URL_LENGTH]
+    masked_kinds: Counter = Counter()
     run = Run(
         project_id=key.project_id,
         api_key_id=key.id,
         idempotency_key=idempotency_key,
         request_hash=request_hash,
         ci_provider=meta.ci_provider,
-        ci_run_url=meta.ci_run_url,
+        ci_run_url=ci_run_url,
         commit_sha=meta.commit_sha,
         branch=meta.branch,
         environment=meta.environment,
@@ -85,8 +98,13 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
 
         rows = []
         for result in upload.results:
-            message, cut_message = truncate_utf8(result.message, settings.MAX_TEXT_BYTES)
-            details, cut_details = truncate_utf8(result.details, settings.MAX_TEXT_BYTES)
+            # Mask before truncating: a cut through a secret would leave its first half unmatched
+            message, message_kinds = mask(result.message)
+            details, details_kinds = mask(result.details)
+            kinds = message_kinds | details_kinds
+            masked_kinds.update(kinds)
+            message, cut_message = truncate_utf8(message, settings.MAX_TEXT_BYTES)
+            details, cut_details = truncate_utf8(details, settings.MAX_TEXT_BYTES)
             rows.append({
                 "run_id": run.id,
                 "test_key": test_key(result.suite, result.class_name, result.name),
@@ -98,12 +116,15 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
                 "message": message,
                 "details": details,
                 "truncated": cut_message or cut_details,
+                "redacted": bool(kinds),
                 "file": result.file,
             })
         db.execute(insert(RunResult), rows)  # one executemany, not 20,000 ORM objects
 
         key.last_used_at = datetime.now(timezone.utc)
         db.commit()
+        for kind, results in masked_kinds.items():
+            metrics.REDACTIONS.labels(kind=kind).inc(results)
     except IntegrityError:
         db.rollback()
         # Two uploads raced with the same Idempotency-Key and this one lost: answer as if it had
