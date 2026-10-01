@@ -44,6 +44,7 @@ class Run(Base):
         ),
         Index("ix_test_runs_project_created", "project_id", "created_at"),
         Index("ix_test_runs_project_branch", "project_id", "branch"),
+        Index("ix_test_runs_project_started", "project_id", "started_at"),
     )
 
 
@@ -69,4 +70,5 @@ class RunResult(Base):
 
     __table_args__ = (
         CheckConstraint("status IN ('passed','failed','skipped','errored')", name="chk_test_results_status"),
+        Index("ix_test_results_test_key_run", "test_key", "run_id"),
     )

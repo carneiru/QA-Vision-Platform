@@ -100,3 +100,16 @@ def test_redacted_defaults_to_false(migrated_engine):
             " VALUES (1, :k, '', '', 't', 'passed', 0)"
         ), {"k": "f" * 64})
         assert conn.execute(text("SELECT redacted FROM test_results")).scalar() in (False, 0)
+
+
+def test_analytics_indexes_exist(migrated_engine):
+    inspector = inspect(migrated_engine)
+    result_indexes = {ix["name"]: ix["column_names"] for ix in inspector.get_indexes("test_results")}
+    run_indexes = {ix["name"]: ix["column_names"] for ix in inspector.get_indexes("test_runs")}
+    assert result_indexes["ix_test_results_test_key_run"] == ["test_key", "run_id"]
+    assert run_indexes["ix_test_runs_project_started"] == ["project_id", "started_at"]
+
+
+def test_model_indexes_match_the_migration():
+    assert "ix_test_results_test_key_run" in {ix.name for ix in Base.metadata.tables["test_results"].indexes}
+    assert "ix_test_runs_project_started" in {ix.name for ix in Base.metadata.tables["test_runs"].indexes}
