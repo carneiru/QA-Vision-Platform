@@ -1,14 +1,16 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { setOnAuthFailure } from "./api/http";
 import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
 import PickerPage from "./pages/PickerPage";
 import ProjectLayout from "./pages/ProjectLayout";
-import TrendsPage from "./pages/TrendsPage";
 import TestsPage from "./pages/TestsPage";
 import HistoryPage from "./pages/HistoryPage";
 import FlakyPage from "./pages/FlakyPage";
+
+// Recharts dominates the bundle and only the trends view uses it; split it out.
+const TrendsPage = lazy(() => import("./pages/TrendsPage"));
 
 export function AppRoutes() {
   const navigate = useNavigate();
@@ -22,7 +24,14 @@ export function AppRoutes() {
       <Route path="/" element={<RequireAuth><PickerPage /></RequireAuth>} />
       <Route path="/projects/:projectId" element={<RequireAuth><ProjectLayout /></RequireAuth>}>
         <Route index element={<Navigate to="trends" replace />} />
-        <Route path="trends" element={<TrendsPage />} />
+        <Route
+          path="trends"
+          element={
+            <Suspense fallback={<p className="muted">Loading trends…</p>}>
+              <TrendsPage />
+            </Suspense>
+          }
+        />
         <Route path="tests" element={<TestsPage />} />
         <Route path="tests/:testKey" element={<HistoryPage />} />
         <Route path="flaky" element={<FlakyPage />} />

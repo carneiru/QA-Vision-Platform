@@ -24,5 +24,8 @@ test("unauthenticated project route redirects to login", () => {
 test("project index redirects to trends tab", async () => {
   setTokens("acc", "ref");
   renderAt("/projects/42");
-  expect(await screen.findByRole("heading", { name: /trends/i })).toBeInTheDocument();
+  // TrendsPage is lazy-loaded; allow for chunk resolution under parallel test load.
+  expect(
+    await screen.findByRole("heading", { name: /trends/i }, { timeout: 5000 }),
+  ).toBeInTheDocument();
 });
