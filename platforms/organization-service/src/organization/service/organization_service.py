@@ -39,6 +39,21 @@ def get_organization(db: Session, org_id: int) -> Optional[Organization]:
     )
 
 
+def list_organizations_for_user(db: Session, user_id: int) -> list[tuple[Organization, str]]:
+    """Organizations where the user is an active member, with their role, by name."""
+    return (
+        db.query(Organization, OrganizationMember.role)
+        .join(OrganizationMember, OrganizationMember.organization_id == Organization.id)
+        .filter(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.status == "active",
+            Organization.deleted_at.is_(None),
+        )
+        .order_by(Organization.name.asc())
+        .all()
+    )
+
+
 def update_organization(db: Session, org_id: int, **fields) -> Optional[Organization]:
     org = get_organization(db, org_id)
     if org is None:

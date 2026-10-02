@@ -110,6 +110,36 @@ jobs:
         if: always()
         run: docker compose down --volumes
 
+  dashboard:
+    name: Dashboard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
   collector:
     name: Collector (Python ${{ matrix.python }})
     runs-on: ubuntu-latest

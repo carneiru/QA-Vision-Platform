@@ -197,8 +197,13 @@ check "analytics flaky" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/fla
 check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"
 check "a revoked key is rejected" 401 POST "$BASE/api/v1/collect/runs" \
   -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$RUN_BODY"
-check "/metrics is not exposed through the gateway" 404 GET "$BASE/metrics"
-check "/internal is not exposed through the gateway" 404 GET "$BASE/internal/v1/projects/retention"
+# The catch-all now serves the dashboard SPA, so these paths answer its HTML,
+# never a proxied service: the security intent is "not reachable", not "404".
+check "/metrics is not proxied (SPA fallback)" 200 GET "$BASE/metrics"
+body_has "/metrics serves the SPA, not metrics" '<div id="root">'
+body_lacks "/metrics leaks no Prometheus text" '# HELP'
+check "/internal is not proxied (SPA fallback)" 200 GET "$BASE/internal/v1/projects/retention"
+body_has "/internal serves the SPA" '<div id="root">'
 
 # ---- retention: the job runs, and really reaches project-service inside the stack ----
 if docker compose ps --status running --services 2>/dev/null | grep -qx ingestion-retention; then
@@ -222,9 +227,20 @@ else
   pass "retention job output never shows the internal password"
 fi
 
+# Unknown API paths keep the old JSON 404 contract: scripts and JSON clients
+# must never receive the SPA's HTML with a 200.
+check "unknown API path stays a JSON 404" 404 GET "$BASE/api/v1/no/such/path"
+body_has "unknown API path answers JSON" '{"detail":"Not Found"}'
+
+# ---- dashboard SPA ----
+check "dashboard index" 200 GET "$BASE/"
+body_has "dashboard index is the SPA" '<div id="root">'
+check "SPA deep link falls back to index" 200 GET "$BASE/projects/1/trends"
+body_has "deep link serves the SPA" '<div id="root">'
+
 # ---- gateway behaviour ----
-check "unknown path" 404 GET "$BASE/no/such/path"
-body_has "unknown path answers JSON" '{"detail":"Not Found"}'
+check "unknown path serves the SPA" 200 GET "$BASE/no/such/path"
+body_has "unknown path answers the SPA" '<div id="root">'
 if grep -qi '^x-request-id: ' "$TMP/headers"; then pass "X-Request-ID on responses"; else fail "no X-Request-ID header"; fi
 
 check "client X-Request-ID is echoed" 200 GET "$BASE/health" -H "X-Request-ID: smoke-123"

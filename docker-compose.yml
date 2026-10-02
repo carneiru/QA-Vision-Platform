@@ -54,6 +54,10 @@ x-ingestion-build: &ingestion-build
   context: .
   dockerfile: platforms/ingestion-service/Dockerfile
 
+x-dashboard-build: &dashboard-build
+  context: .
+  dockerfile: dashboard/Dockerfile
+
 services:
   postgres:
     image: postgres:15
@@ -178,6 +182,18 @@ services:
       project-service:
         condition: service_healthy
 
+  dashboard:
+    build: *dashboard-build
+    image: qa-vision/dashboard:local
+    restart: unless-stopped
+    # nginx:alpine has no python; busybox wget instead of the shared healthcheck
+    healthcheck:
+      # 127.0.0.1, not localhost: busybox wget prefers ::1 and nginx listens on IPv4 only
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:80/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   gateway:
     build: ./gateway
     image: qa-vision/gateway:local
@@ -202,6 +218,8 @@ services:
       project-service:
         condition: service_healthy
       ingestion-service:
+        condition: service_healthy
+      dashboard:
         condition: service_healthy
       # Not needed by the gateway; listed so `docker compose up gateway` starts the whole platform
       ingestion-retention:

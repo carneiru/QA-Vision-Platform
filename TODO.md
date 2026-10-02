@@ -161,7 +161,14 @@ Reliability and operations
 - [ ] Branch comparison
 - [ ] Mute / acknowledge a flaky test
 - [ ] CSV export
-- [ ] Dashboard UI
+- [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
+
+### Dashboard follow-ups
+- [ ] SSO sign-in buttons (Google, Microsoft) in the login page
+- [ ] Refresh token in an httpOnly cookie (needs auth-service support)
+- [ ] Mute / acknowledge flaky tests (needs a write API)
+- [ ] CSV export buttons on the tests and flaky views
+- [ ] Branch comparison view
 
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
