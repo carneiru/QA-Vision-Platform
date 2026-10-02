@@ -37,7 +37,8 @@ def client(db):
             db.close()
     
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    # https base URL so the client's cookie jar accepts the Secure refresh cookie
+    with TestClient(app, base_url="https://testserver") as c:
         yield c
     app.dependency_overrides.clear()
 

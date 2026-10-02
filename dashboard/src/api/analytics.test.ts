@@ -1,9 +1,9 @@
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { setTokens } from "../auth/tokens";
+import { setAccessToken } from "../auth/tokens";
 import { getFlaky, getHistory, getTests, getTrends, formatDuration, formatPassRate } from "./analytics";
 
-beforeEach(() => setTokens("acc", "ref"));
+beforeEach(() => setAccessToken("acc"));
 
 test("getTrends maps options to query params", async () => {
   let url = "";

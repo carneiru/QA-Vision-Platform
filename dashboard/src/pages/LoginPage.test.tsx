@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { getRefreshToken } from "../auth/tokens";
+import { isAuthenticated } from "../auth/tokens";
 import { googleEnabled, initGoogleButton, microsoftEnabled } from "../auth/ssoProviders";
 import LoginPage from "./LoginPage";
 
@@ -44,7 +44,7 @@ test("successful login stores tokens and navigates home", async () => {
   await userEvent.type(screen.getByLabelText(/password/i), "pw");
   await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
   expect(await screen.findByText("PICKER")).toBeInTheDocument();
-  expect(getRefreshToken()).toBe("ref");
+  expect(isAuthenticated()).toBe(true);
 });
 
 test("no SSO buttons when providers are unconfigured", () => {
@@ -64,7 +64,7 @@ test("Microsoft sign-in posts the ID token and navigates home", async () => {
   renderLogin();
   await userEvent.click(screen.getByRole("button", { name: /microsoft/i }));
   expect(await screen.findByText("PICKER")).toBeInTheDocument();
-  expect(getRefreshToken()).toBe("ref-ms");
+  expect(isAuthenticated()).toBe(true);
 });
 
 test("Microsoft sign-in surfaces the backend's error detail", async () => {
@@ -95,7 +95,7 @@ test("Google button mounts and its credential posts to the API", async () => {
   await vi.waitFor(() => expect(initGoogleButton).toHaveBeenCalled());
   onCredential!("g-id-token");
   expect(await screen.findByText("PICKER")).toBeInTheDocument();
-  expect(getRefreshToken()).toBe("ref-g");
+  expect(isAuthenticated()).toBe(true);
 });
 
 test("bad credentials show the API detail", async () => {

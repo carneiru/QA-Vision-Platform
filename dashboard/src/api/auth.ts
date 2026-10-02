@@ -1,5 +1,5 @@
 import { apiFetch } from "./http";
-import { clearTokens, getRefreshToken, setTokens } from "../auth/tokens";
+import { clearTokens, setAccessToken } from "../auth/tokens";
 
 interface TokenOut {
   access_token: string;
@@ -12,7 +12,8 @@ export async function login(email: string, password: string): Promise<void> {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
-  setTokens(tokens.access_token, tokens.refresh_token);
+  // The refresh token arrives as an httpOnly cookie; only the access token is kept.
+  setAccessToken(tokens.access_token);
 }
 
 export async function ssoLogin(
@@ -23,18 +24,13 @@ export async function ssoLogin(
     method: "POST",
     body: JSON.stringify({ credential }),
   });
-  setTokens(tokens.access_token, tokens.refresh_token);
+  setAccessToken(tokens.access_token);
 }
 
 export async function logout(): Promise<void> {
-  const refresh = getRefreshToken();
   try {
-    if (refresh) {
-      await apiFetch("/api/v1/auth/logout", {
-        method: "POST",
-        body: JSON.stringify({ refresh_token: refresh }),
-      });
-    }
+    // The cookie identifies the session; the server clears it.
+    await apiFetch("/api/v1/auth/logout", { method: "POST", body: "{}" });
   } catch {
     // Best effort: a dead session can't be revoked server-side anyway.
   } finally {

@@ -3,11 +3,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { setTokens } from "../auth/tokens";
+import { setAccessToken } from "../auth/tokens";
 import ProjectLayout from "./ProjectLayout";
 
 test("header shows the project name once loaded", async () => {
-  setTokens("acc", "ref");
+  setAccessToken("acc");
   server.use(
     http.get("/api/v1/projects/42", () =>
       HttpResponse.json({ id: 42, name: "Web Tests", organization_id: 1 }),

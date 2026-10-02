@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
@@ -16,6 +16,7 @@ from src.auth.schemas.user import RegisterRequest
 from src.auth.models.pending_registration import PendingRegistration
 from src.auth.models.user import User
 from src.auth.utils.password import get_password_hash
+from src.auth.utils.refresh_cookie import REFRESH_COOKIE, clear_refresh_cookie, set_refresh_cookie
 from src.auth.config import settings
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ def register_user(
 
 
 @router.get("/verify-email", response_model=Token)
-def verify_email(token: str, db: Session = Depends(deps.get_db)):
+def verify_email(token: str, response: Response, db: Session = Depends(deps.get_db)):
     """
     Complete registration: turn a valid, unexpired PendingRegistration into a User and
     auto-login.
@@ -138,6 +139,7 @@ def verify_email(token: str, db: Session = Depends(deps.get_db)):
         user, expires_delta=access_token_expires
     )
     refresh_token = AuthService.create_user_session(db, user).token
+    set_refresh_cookie(response, refresh_token)
 
     return {
         "access_token": access_token,
@@ -204,6 +206,7 @@ def resend_verification(request: ResendVerificationRequest, db: Session = Depend
 def login_access_token(
     *,
     db: Session = Depends(deps.get_db),
+    response: Response,
     form_data: LoginRequest
 ):
     """
@@ -222,7 +225,8 @@ def login_access_token(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
     refresh_token = AuthService.create_user_session(db, user).token
-    
+    set_refresh_cookie(response, refresh_token)
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
@@ -234,12 +238,22 @@ def login_access_token(
 def refresh_access_token(
     *,
     db: Session = Depends(deps.get_db),
+    http_request: Request,
+    response: Response,
     request: RefreshTokenRequest
 ):
     """
-    Refresh access token using refresh token.
+    Refresh access token using refresh token (JSON body, or the httpOnly
+    cookie the browser carries).
     """
-    db_token, outcome = AuthService.claim_refresh_token(db, request.refresh_token)
+    presented = request.refresh_token or http_request.cookies.get(REFRESH_COOKIE)
+    if not presented:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No refresh token presented",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    db_token, outcome = AuthService.claim_refresh_token(db, presented)
 
     if outcome == "replayed":
         # An already-rotated token is being presented. Rotation alone does not help here: if
@@ -282,7 +296,8 @@ def refresh_access_token(
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
     new_refresh_token = AuthService.create_user_session(db, user).token
-    
+    set_refresh_cookie(response, new_refresh_token)
+
     return {
         "access_token": access_token,
         "refresh_token": new_refresh_token,
@@ -294,13 +309,20 @@ def refresh_access_token(
 def logout_user(
     *,
     db: Session = Depends(deps.get_db),
+    http_request: Request,
+    response: Response,
     request: RefreshTokenRequest,
     current_user: dict = Depends(deps.get_current_active_user)
 ):
     """
-    Logout user by revoking refresh token.
+    Logout user by revoking the refresh token (body or cookie). The cookie is
+    cleared either way, so logout is idempotent for browsers.
     """
-    success = AuthService.revoke_refresh_token(db, request.refresh_token, user_id=current_user.id)
+    presented = request.refresh_token or http_request.cookies.get(REFRESH_COOKIE)
+    clear_refresh_cookie(response)
+    if not presented:
+        return {"message": "Successfully logged out"}
+    success = AuthService.revoke_refresh_token(db, presented, user_id=current_user.id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

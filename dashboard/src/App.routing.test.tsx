@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { setTokens, clearTokens } from "./auth/tokens";
+import { setAccessToken, clearTokens } from "./auth/tokens";
 import { AppRoutes } from "./App";
 import { MemoryRouter } from "react-router-dom";
 
@@ -22,7 +22,7 @@ test("unauthenticated project route redirects to login", () => {
 });
 
 test("project index redirects to trends tab", async () => {
-  setTokens("acc", "ref");
+  setAccessToken("acc");
   renderAt("/projects/42");
   // TrendsPage is lazy-loaded; allow for chunk resolution under parallel test load.
   expect(

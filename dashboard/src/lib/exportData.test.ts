@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { setTokens } from "../auth/tokens";
+import { setAccessToken } from "../auth/tokens";
 import { fetchAllTests } from "./exportData";
 
 const row = (i: number) => ({
@@ -10,7 +10,7 @@ const row = (i: number) => ({
 });
 
 test("pages through the API until a short page, carrying filters", async () => {
-  setTokens("acc", "ref");
+  setAccessToken("acc");
   const calls: URLSearchParams[] = [];
   server.use(
     http.get("/api/v1/projects/42/analytics/tests", ({ request }) => {

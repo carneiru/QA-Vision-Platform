@@ -1,4 +1,4 @@
-import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../auth/tokens";
+import { clearTokens, getAccessToken, setAccessToken } from "../auth/tokens";
 
 export class ApiError extends Error {
   constructor(
@@ -42,17 +42,37 @@ async function errorFrom(response: Response): Promise<ApiError> {
 let refreshing: Promise<boolean> | null = null;
 
 async function refreshTokens(): Promise<boolean> {
-  const refresh = getRefreshToken();
-  if (!refresh) return false;
+  // The httpOnly cookie carries the refresh token; the body stays empty.
   const response = await fetch("/api/v1/auth/refresh-token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refresh }),
+    body: "{}",
   });
   if (!response.ok) return false;
   const body = await response.json();
-  setTokens(body.access_token, body.refresh_token);
+  setAccessToken(body.access_token);
   return true;
+}
+
+function sharedRefresh(): Promise<boolean> {
+  refreshing ??= refreshTokens().finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+/** Restores the session from the cookie at app start; quiet on failure. */
+export async function bootstrapSession(): Promise<void> {
+  if (getAccessToken() !== null) return;
+  try {
+    await sharedRefresh();
+  } catch {
+    // Network trouble at boot: the login page is the fallback either way.
+  }
+}
+
+function isAuthPath(path: string): boolean {
+  return path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/sso/");
 }
 
 async function rawFetch(path: string, init: RequestInit): Promise<Response> {
@@ -66,13 +86,10 @@ async function rawFetch(path: string, init: RequestInit): Promise<Response> {
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response = await rawFetch(path, init);
 
-  // Only a session can expire: without a stored refresh token (e.g. a failed
-  // login) a 401 is a plain API error, not a refresh trigger.
-  if (response.status === 401 && getRefreshToken() !== null) {
-    refreshing ??= refreshTokens().finally(() => {
-      refreshing = null;
-    });
-    const refreshed = await refreshing;
+  // A 401 from login/refresh/logout/sso is that endpoint's own verdict, not
+  // an expired session.
+  if (response.status === 401 && !isAuthPath(path)) {
+    const refreshed = await sharedRefresh();
     if (!refreshed) {
       clearTokens();
       onAuthFailure();

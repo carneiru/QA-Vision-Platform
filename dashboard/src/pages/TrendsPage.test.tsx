@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { setTokens } from "../auth/tokens";
+import { setAccessToken } from "../auth/tokens";
 import TrendsPage from "./TrendsPage";
 
 const day = (date: string, passed: number, failed: number, pass_rate: number | null) => ({
@@ -13,7 +13,7 @@ const day = (date: string, passed: number, failed: number, pass_rate: number | n
 });
 
 function renderTrends() {
-  setTokens("acc", "ref");
+  setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
