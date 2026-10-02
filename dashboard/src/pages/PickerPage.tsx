@@ -22,7 +22,7 @@ export default function PickerPage() {
 
   return (
     <div className="page">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="page-header">
         <h1>Choose a project</h1>
         <button onClick={onSignOut}>Sign out</button>
       </div>
@@ -31,7 +31,7 @@ export default function PickerPage() {
       {orgs.data?.length === 0 && (
         <p className="muted">You are not a member of any organization yet.</p>
       )}
-      <div style={{ display: "flex", gap: 24 }}>
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
         <ul>
           {orgs.data?.map((org) => (
             <li key={org.id}>

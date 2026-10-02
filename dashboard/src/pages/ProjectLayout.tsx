@@ -16,10 +16,10 @@ export default function ProjectLayout() {
 
   return (
     <div className="page">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="page-header">
         <h1>{project.data?.name ?? `Project ${projectId}`}</h1>
         <span>
-          <Link to="/">Switch project</Link>{" "}
+          <Link to="/">Switch project</Link>
           <button onClick={onSignOut}>Sign out</button>
         </span>
       </div>

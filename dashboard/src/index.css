@@ -56,5 +56,14 @@ button.primary { background: var(--accent); color: #fff; border-color: transpare
 .tabs a { padding: 8px 14px; text-decoration: none; color: var(--text-secondary); border-bottom: 2px solid transparent; }
 .tabs a.active { color: var(--text-primary); border-bottom-color: var(--accent); }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 16px 0; }
+.page-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.page-header > span { display: flex; align-items: center; gap: 12px; }
+
+/* Touch: 44px minimum targets without changing the pointer-device density. */
+@media (pointer: coarse) {
+  input, select, button { min-height: 44px; }
+  .tabs a { padding: 12px 16px; }
+  table.data th, table.data td { padding: 12px; }
+}
 .tile-value { font-size: 28px; font-weight: 650; }
 .tile-label { font-size: 13px; color: var(--text-secondary); }
