@@ -222,3 +222,30 @@ def test_make_context_refuses_an_unusable_ca_file(tmp_path):
     for path in (str(not_a_cert), str(tmp_path / "missing.pem")):
         with pytest.raises(ConfigError, match="cannot use --ca-file"):
             make_context(path)
+
+
+def test_make_context_with_ca_file_trusts_exactly_that_file(tmp_path):
+    """--ca-file pins trust to the given CA (curl --cacert semantics). Blending
+    with the system store broke on machines whose Windows ROOT store carries
+    CN=localhost entries (IIS/dotnet dev certs): OpenSSL resolves the anchor by
+    subject and picks one with the wrong key."""
+    import ssl
+    import subprocess
+
+    crt, key = tmp_path / "tls.crt", tmp_path / "tls.key"
+    subprocess.run(
+        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
+         "-subj", "/CN=localhost", "-keyout", str(key), "-out", str(crt)],
+        check=True, capture_output=True, env={**__import__("os").environ, "MSYS_NO_PATHCONV": "1"},
+    )
+    context = make_context(str(crt))
+    stats = context.cert_store_stats()
+    assert stats["x509"] == 1, f"store must hold only the pinned CA, got {stats}"
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
+    assert context.minimum_version >= ssl.TLSVersion.TLSv1_2
+
+
+def test_make_context_without_ca_file_uses_system_defaults():
+    context = make_context(None)
+    assert context.cert_store_stats()["x509"] > 1  # system CAs loaded

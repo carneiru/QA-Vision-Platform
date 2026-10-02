@@ -64,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--ci-run-url", help="default: $QAV_CI_RUN_URL, else detected")
     upload.add_argument("--environment", help="e.g. staging (default: $QAV_ENVIRONMENT)")
     upload.add_argument("--idempotency-key", help="default: $QAV_IDEMPOTENCY_KEY, else derived from the CI job")
-    upload.add_argument("--ca-file", help="extra CA certificate to trust (default: $QAV_CA_FILE)")
+    upload.add_argument("--ca-file", help="trust exactly this CA certificate, e.g. a private or self-signed one (default: $QAV_CA_FILE)")
     upload.add_argument("--fail-on-error", action="store_true",
                         help="exit 1 if the upload fails (default: $QAV_FAIL_ON_ERROR)")
     upload.add_argument("--no-changes", action="store_true",

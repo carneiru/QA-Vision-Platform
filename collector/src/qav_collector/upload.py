@@ -48,12 +48,18 @@ def endpoint_for(url: str) -> str:
 
 
 def make_context(ca_file: Optional[str]) -> ssl.SSLContext:
-    context = ssl.create_default_context()
-    if ca_file:
-        try:
-            context.load_verify_locations(cafile=ca_file)
-        except (OSError, ssl.SSLError) as exc:
-            raise ConfigError(f"cannot use --ca-file {ca_file}: {exc}") from None
+    if not ca_file:
+        return ssl.create_default_context()
+    # --ca-file pins trust to exactly this CA (curl --cacert semantics). Blending it
+    # into the system store broke verification on Windows machines whose ROOT store
+    # carries CN=localhost dev certificates (IIS Express, dotnet dev-certs): OpenSSL
+    # looks anchors up by subject and can pick one with the wrong key.
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # CERT_REQUIRED + hostname check
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    try:
+        context.load_verify_locations(cafile=ca_file)
+    except (OSError, ssl.SSLError) as exc:
+        raise ConfigError(f"cannot use --ca-file {ca_file}: {exc}") from None
     return context
 
 

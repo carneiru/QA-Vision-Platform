@@ -21,7 +21,7 @@ numbers in platforms/ingestion-service/README.md.
 
 1. Git metadata on runs: commit author/message, PR number, base branch
    (pairs with shipped code-change data).
-2. Collector `--ca-file` fix for the dev gateway's self-signed certificate.
+2. ~~Collector `--ca-file` fix~~ — done: `--ca-file` now pins trust exclusively (curl `--cacert` semantics); blending with the system store broke on Windows machines with CN=localhost dev certs in ROOT.
 3. Confirmed-flaky pass optimization (the remaining ~3 s at 90 d).
 4. Collector distribution: tag `collector-v0.1.0`, PyPI trusted publishing,
    ready-made GitHub Action.
