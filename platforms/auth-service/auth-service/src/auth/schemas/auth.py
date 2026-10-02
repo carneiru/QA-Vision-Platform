@@ -42,6 +42,13 @@ class RefreshTokenRequest(BaseModel):
     # clients keep sending it in the body.
     refresh_token: Optional[str] = None
 
+class MfaCodeRequest(BaseModel):
+    code: str = Field(..., min_length=4, max_length=16)
+
+class MfaVerifyRequest(BaseModel):
+    mfa_token: str
+    code: str = Field(..., min_length=4, max_length=16)
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 

@@ -19,6 +19,10 @@ class User(Base):
     # membership now lives in organization-service's organization_members table.
     tenant_id = Column(Integer, nullable=True, index=True)
 
+    # TOTP MFA: secret is set at enrollment and only counts once mfa_enabled is true
+    mfa_secret = Column(String(64), nullable=True)
+    mfa_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+
     # Profile information
     avatar_url = Column(String(500), nullable=True)
     department = Column(String(100), nullable=True)

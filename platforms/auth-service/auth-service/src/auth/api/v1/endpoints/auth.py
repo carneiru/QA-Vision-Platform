@@ -9,9 +9,10 @@ from src.auth.service.auth_service import AuthService
 from src.auth.service.user_service import UserService
 from src.auth.service.email_sender import EmailSender
 from src.auth.schemas.auth import (
-    LoginRequest, Token, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest,
-    ResendVerificationRequest,
+    LoginRequest, MfaCodeRequest, MfaVerifyRequest, Token, PasswordResetRequest,
+    PasswordResetConfirm, RefreshTokenRequest, ResendVerificationRequest,
 )
+from src.auth.service import mfa_service
 from src.auth.schemas.user import RegisterRequest
 from src.auth.models.pending_registration import PendingRegistration
 from src.auth.models.user import User
@@ -202,7 +203,19 @@ def resend_verification(request: ResendVerificationRequest, db: Session = Depend
     }
 
 
-@router.post("/login", response_model=Token)
+def _issue_tokens(db: Session, user: User, response: Response) -> dict:
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
+    refresh_token = AuthService.create_user_session(db, user).token
+    set_refresh_cookie(response, refresh_token)
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer"
+    }
+
+
+@router.post("/login", response_model=None)
 def login_access_token(
     *,
     db: Session = Depends(deps.get_db),
@@ -210,7 +223,8 @@ def login_access_token(
     form_data: LoginRequest
 ):
     """
-    OAuth2 compatible token login, get an access and refresh token.
+    Token login. With MFA enabled the response is a five-minute challenge
+    instead of a session: {"mfa_required": true, "mfa_token": ...}.
     """
     user = AuthService.authenticate_user(db, form_data.email, form_data.password)
     if not user:
@@ -221,17 +235,72 @@ def login_access_token(
         )
     elif not user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = AuthService.create_access_token_for_user(user, expires_delta=access_token_expires)
-    refresh_token = AuthService.create_user_session(db, user).token
-    set_refresh_cookie(response, refresh_token)
 
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
+    if user.mfa_enabled:
+        return {"mfa_required": True, "mfa_token": mfa_service.create_mfa_token(user)}
+    return _issue_tokens(db, user, response)
+
+
+@router.post("/mfa/verify", response_model=Token)
+def mfa_verify(
+    *,
+    db: Session = Depends(deps.get_db),
+    response: Response,
+    request: MfaVerifyRequest
+):
+    """Complete an MFA login: challenge token plus a TOTP or recovery code."""
+    invalid = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid MFA token or code",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    user_id = mfa_service.verify_mfa_token(request.mfa_token)
+    if user_id is None:
+        raise invalid
+    user = UserService.get_user_by_id(db, user_id)
+    if not user or not user.is_active or not user.mfa_enabled:
+        raise invalid
+    if not mfa_service.check_code(db, user, request.code):
+        raise invalid
+    return _issue_tokens(db, user, response)
+
+
+@router.post("/mfa/enroll")
+def mfa_enroll(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user)
+):
+    """Start TOTP enrollment: a fresh secret, pending until /mfa/confirm."""
+    secret, uri = mfa_service.start_enrollment(db, current_user)
+    return {"secret": secret, "otpauth_uri": uri}
+
+
+@router.post("/mfa/confirm")
+def mfa_confirm(
+    *,
+    db: Session = Depends(deps.get_db),
+    request: MfaCodeRequest,
+    current_user: User = Depends(deps.get_current_active_user)
+):
+    """Prove the authenticator works; returns the recovery codes exactly once."""
+    recovery = mfa_service.confirm_enrollment(db, current_user, request.code)
+    if recovery is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+    return {"recovery_codes": recovery}
+
+
+@router.post("/mfa/disable")
+def mfa_disable(
+    *,
+    db: Session = Depends(deps.get_db),
+    request: MfaCodeRequest,
+    current_user: User = Depends(deps.get_current_active_user)
+):
+    """Turn MFA off; requires a current TOTP or an unused recovery code."""
+    if not mfa_service.disable(db, current_user, request.code):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+    return {"message": "MFA disabled"}
 
 
 @router.post("/refresh-token", response_model=Token)

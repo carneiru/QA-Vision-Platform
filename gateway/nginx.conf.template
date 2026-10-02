@@ -211,6 +211,13 @@ http {
             set $upstream http://auth-service:8000;
             proxy_pass $upstream;
         }
+        location = /api/v1/auth/mfa/verify {
+            limit_req zone=api burst=40 nodelay;
+            # A sign-in attempt, like /auth/login: the stricter zone applies
+            limit_req zone=auth burst=10 nodelay;
+            set $upstream http://auth-service:8000;
+            proxy_pass $upstream;
+        }
         location /api/v1/auth {
             limit_req zone=api burst=40 nodelay;
             set $upstream http://auth-service:8000;
