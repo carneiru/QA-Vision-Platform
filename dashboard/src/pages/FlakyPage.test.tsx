@@ -78,6 +78,51 @@ test("Export CSV downloads rows with joined commits", async () => {
   expect(csv).toContain("abcdef1234:ci");
 });
 
+test("Mute sends the key and refetches the list", async () => {
+  const muted: string[] = [];
+  let listCalls = 0;
+  server.use(
+    http.get("/api/v1/projects/42/analytics/flaky", () => {
+      listCalls += 1;
+      return HttpResponse.json(muted.length ? [flaky[1]] : flaky);
+    }),
+    http.put("/api/v1/projects/42/analytics/flaky/mute", async ({ request }) => {
+      muted.push(((await request.json()) as { test_key: string }).test_key);
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderFlaky();
+  await screen.findByText("test_ok");
+  await userEvent.click(screen.getAllByRole("button", { name: /^mute/i })[0]);
+  await vi.waitFor(() => expect(muted).toEqual(["k1"]));
+  await vi.waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(2)); // refetched
+});
+
+test("Show muted adds include_muted and offers Unmute", async () => {
+  const unmuted: string[] = [];
+  server.use(
+    http.get("/api/v1/projects/42/analytics/flaky", ({ request }) => {
+      const include = new URL(request.url).searchParams.get("include_muted");
+      if (include === "true") {
+        return HttpResponse.json([{ ...flaky[0], muted: true }, { ...flaky[1], muted: false }]);
+      }
+      return HttpResponse.json([flaky[1]]);
+    }),
+    http.delete("/api/v1/projects/42/analytics/flaky/mute/k1", () => {
+      unmuted.push("k1");
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  renderFlaky();
+  await screen.findByText("test_add");
+  expect(screen.queryByText("test_ok")).not.toBeInTheDocument();
+  await userEvent.click(screen.getByLabelText(/show muted/i));
+  await screen.findByText("test_ok");
+  expect(screen.getByText(/muted/i, { selector: "span" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /unmute/i }));
+  await vi.waitFor(() => expect(unmuted).toEqual(["k1"]));
+});
+
 test("numeric inputs apply on submit and clamp to API bounds", async () => {
   const calls: URLSearchParams[] = [];
   server.use(

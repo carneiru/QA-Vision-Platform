@@ -159,14 +159,14 @@ Reliability and operations
 - [ ] Summary tables when live queries get slow (flaky over 90 days took 10.8 s on 2 million results; the window is capped at 30)
 - [ ] Weekly and monthly views
 - [ ] Branch comparison
-- [ ] Mute / acknowledge a flaky test
+- [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls
 - [ ] CSV export
 - [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
 
 ### Dashboard follow-ups
 - [x] SSO sign-in buttons (Google, Microsoft) in the login page — rendered only when `VITE_*` client ids are baked at build time; manual verification against a real tenant still pending
 - [ ] Refresh token in an httpOnly cookie (needs auth-service support)
-- [ ] Mute / acknowledge flaky tests (needs a write API)
+- [x] Mute / acknowledge flaky tests
 - [x] CSV export buttons on the tests and flaky views (client-side; tests view pages the API at limit=200, capped at 10k rows)
 - [ ] Branch comparison view
 

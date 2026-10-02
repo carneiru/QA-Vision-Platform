@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { formatPassRate, getFlaky } from "../api/analytics";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { formatPassRate, getFlaky, muteFlaky, unmuteFlaky } from "../api/analytics";
 import { downloadCsv, toCsv } from "../lib/csv";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
@@ -31,9 +31,23 @@ export default function FlakyPage() {
     setMinFlipRateInput(String(rate));
   }
 
+  const [showMuted, setShowMuted] = useState(false);
+  const queryClient = useQueryClient();
+
   const query = useQuery({
-    queryKey: ["flaky", id, windowDays, minRuns, minFlipRate, branch],
-    queryFn: () => getFlaky(id, { windowDays, minRuns, minFlipRate, branch: branch || undefined }),
+    queryKey: ["flaky", id, windowDays, minRuns, minFlipRate, branch, showMuted],
+    queryFn: () =>
+      getFlaky(id, {
+        windowDays, minRuns, minFlipRate,
+        branch: branch || undefined,
+        includeMuted: showMuted || undefined,
+      }),
+  });
+
+  const muteToggle = useMutation({
+    mutationFn: ({ testKey, muted }: { testKey: string; muted: boolean }) =>
+      muted ? unmuteFlaky(id, testKey) : muteFlaky(id, testKey),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["flaky", id] }),
   });
 
   const rows = query.data ?? [];
@@ -85,6 +99,14 @@ export default function FlakyPage() {
           <button type="button" onClick={onExport} disabled={rows.length === 0}>
             Export CSV
           </button>
+          <label style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={showMuted}
+              onChange={(e) => setShowMuted(e.target.checked)}
+            />
+            Show muted
+          </label>
         </FilterBar>
       </form>
 
@@ -101,6 +123,7 @@ export default function FlakyPage() {
               <tr>
                 <th>Test</th><th>Reason</th><th>Flips</th><th>Flip rate</th>
                 <th>Runs</th><th>Last status</th><th>Commits</th>
+                <th><span className="sr-only">Mute</span></th>
               </tr>
             </thead>
             <tbody>
@@ -133,6 +156,15 @@ export default function FlakyPage() {
                         </ul>
                       </details>
                     )}
+                  </td>
+                  <td>
+                    {r.muted && <span className="muted">Muted · </span>}
+                    <button
+                      onClick={() => muteToggle.mutate({ testKey: r.test_key, muted: r.muted === true })}
+                      disabled={muteToggle.isPending}
+                    >
+                      {r.muted ? "Unmute" : "Mute"}
+                    </button>
                   </td>
                 </tr>
               ))}
