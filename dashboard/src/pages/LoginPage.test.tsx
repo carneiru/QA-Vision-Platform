@@ -4,7 +4,22 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { getRefreshToken } from "../auth/tokens";
+import { googleEnabled, initGoogleButton, microsoftEnabled } from "../auth/ssoProviders";
 import LoginPage from "./LoginPage";
+
+vi.mock("../auth/ssoProviders", () => ({
+  googleEnabled: vi.fn(() => false),
+  microsoftEnabled: vi.fn(() => false),
+  initGoogleButton: vi.fn(async () => {}),
+  getMicrosoftCredential: vi.fn(async () => "ms-id-token"),
+}));
+
+beforeEach(() => {
+  vi.mocked(googleEnabled).mockReturnValue(false);
+  vi.mocked(microsoftEnabled).mockReturnValue(false);
+  vi.mocked(initGoogleButton).mockClear();
+  vi.mocked(initGoogleButton).mockResolvedValue(undefined);
+});
 
 function renderLogin() {
   render(
@@ -30,6 +45,57 @@ test("successful login stores tokens and navigates home", async () => {
   await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
   expect(await screen.findByText("PICKER")).toBeInTheDocument();
   expect(getRefreshToken()).toBe("ref");
+});
+
+test("no SSO buttons when providers are unconfigured", () => {
+  renderLogin();
+  expect(screen.queryByRole("button", { name: /microsoft/i })).not.toBeInTheDocument();
+  expect(initGoogleButton).not.toHaveBeenCalled();
+});
+
+test("Microsoft sign-in posts the ID token and navigates home", async () => {
+  vi.mocked(microsoftEnabled).mockReturnValue(true);
+  server.use(
+    http.post("/api/v1/sso/microsoft", async ({ request }) => {
+      expect(await request.json()).toEqual({ credential: "ms-id-token" });
+      return HttpResponse.json({ access_token: "acc", refresh_token: "ref-ms", token_type: "bearer" });
+    }),
+  );
+  renderLogin();
+  await userEvent.click(screen.getByRole("button", { name: /microsoft/i }));
+  expect(await screen.findByText("PICKER")).toBeInTheDocument();
+  expect(getRefreshToken()).toBe("ref-ms");
+});
+
+test("Microsoft sign-in surfaces the backend's error detail", async () => {
+  vi.mocked(microsoftEnabled).mockReturnValue(true);
+  server.use(
+    http.post("/api/v1/sso/microsoft", () =>
+      HttpResponse.json({ detail: "Tenant not allowed" }, { status: 403 }),
+    ),
+  );
+  renderLogin();
+  await userEvent.click(screen.getByRole("button", { name: /microsoft/i }));
+  expect(await screen.findByText("Tenant not allowed")).toBeInTheDocument();
+});
+
+test("Google button mounts and its credential posts to the API", async () => {
+  vi.mocked(googleEnabled).mockReturnValue(true);
+  let onCredential: ((credential: string) => void) | undefined;
+  vi.mocked(initGoogleButton).mockImplementation(async (_el, cb) => {
+    onCredential = cb;
+  });
+  server.use(
+    http.post("/api/v1/sso/google", async ({ request }) => {
+      expect(await request.json()).toEqual({ credential: "g-id-token" });
+      return HttpResponse.json({ access_token: "acc", refresh_token: "ref-g", token_type: "bearer" });
+    }),
+  );
+  renderLogin();
+  await vi.waitFor(() => expect(initGoogleButton).toHaveBeenCalled());
+  onCredential!("g-id-token");
+  expect(await screen.findByText("PICKER")).toBeInTheDocument();
+  expect(getRefreshToken()).toBe("ref-g");
 });
 
 test("bad credentials show the API detail", async () => {

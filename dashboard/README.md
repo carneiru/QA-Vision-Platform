@@ -20,6 +20,16 @@ API answers.
     npm run lint       # eslint
     npm run build      # production build to dist/
 
+## SSO buttons
+
+Google and Microsoft sign-in render only when their client ids are baked at
+build time (`VITE_GOOGLE_CLIENT_ID`, `VITE_MSAL_CLIENT_ID`, optional
+`VITE_MSAL_AUTHORITY`, default `organizations`). They must match the
+auth-service configuration (`GOOGLE_CLIENT_ID`, `AZURE_ALLOWED_TENANTS`);
+the compose file forwards them as build args. The SPA obtains an ID token
+(Google Identity Services button / MSAL popup) and posts it to
+`/api/v1/sso/{provider}`.
+
 ## Auth model
 
 Access token in memory; refresh token in sessionStorage (per tab). On 401 the

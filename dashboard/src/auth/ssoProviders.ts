@@ -1,0 +1,77 @@
+/* Thin wrappers around the provider SDKs so pages can be tested at this
+   boundary. A provider without a configured client id is simply disabled;
+   the backend would answer 503 for it anyway. */
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+const MSAL_CLIENT_ID = import.meta.env.VITE_MSAL_CLIENT_ID ?? "";
+const MSAL_AUTHORITY =
+  import.meta.env.VITE_MSAL_AUTHORITY ?? "https://login.microsoftonline.com/organizations";
+
+export function googleEnabled(): boolean {
+  return GOOGLE_CLIENT_ID !== "";
+}
+
+export function microsoftEnabled(): boolean {
+  return MSAL_CLIENT_ID !== "";
+}
+
+interface GoogleAccountsId {
+  initialize(config: { client_id: string; callback: (r: { credential: string }) => void }): void;
+  renderButton(parent: HTMLElement, options: Record<string, unknown>): void;
+}
+
+declare global {
+  interface Window {
+    google?: { accounts: { id: GoogleAccountsId } };
+  }
+}
+
+let gisLoading: Promise<GoogleAccountsId> | null = null;
+
+function loadGis(): Promise<GoogleAccountsId> {
+  gisLoading ??= new Promise((resolve, reject) => {
+    if (window.google?.accounts.id) return resolve(window.google.accounts.id);
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => {
+      const id = window.google?.accounts.id;
+      if (id) resolve(id);
+      else reject(new Error("Google Identity Services failed to initialize"));
+    };
+    script.onerror = () => reject(new Error("Could not load Google Identity Services"));
+    document.head.appendChild(script);
+  });
+  return gisLoading;
+}
+
+/** Mounts the official Google button; policy requires their rendered button
+    for ID-token sign-in. The callback receives the ID token (credential). */
+export async function initGoogleButton(
+  container: HTMLElement,
+  onCredential: (credential: string) => void,
+): Promise<void> {
+  const gis = await loadGis();
+  gis.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: (response) => onCredential(response.credential),
+  });
+  gis.renderButton(container, { theme: "outline", size: "large", width: 320 });
+}
+
+/** Opens the MSAL popup and resolves with the Entra ID token. MSAL is
+    lazy-imported so the login page does not carry it until used. */
+export async function getMicrosoftCredential(): Promise<string> {
+  const { PublicClientApplication } = await import("@azure/msal-browser");
+  const app = new PublicClientApplication({
+    auth: {
+      clientId: MSAL_CLIENT_ID,
+      authority: MSAL_AUTHORITY,
+      redirectUri: window.location.origin,
+    },
+  });
+  await app.initialize();
+  const result = await app.loginPopup({ scopes: ["openid", "profile", "email"] });
+  if (!result.idToken) throw new Error("Microsoft sign-in returned no ID token");
+  return result.idToken;
+}
