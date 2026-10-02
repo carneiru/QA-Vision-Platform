@@ -1,5 +1,36 @@
 # QA Vision Platform Architecture Blueprint v1.0
 
+> **IMPLEMENTATION STATUS — read this first (updated 2026-10-02).**
+> This blueprint describes the TARGET architecture (QEOS). Unless a section is
+> listed as CURRENT below, treat its content as aspirational — not what runs today.
+>
+> | Area | Status today |
+> |---|---|
+> | Services | CURRENT: auth, organization, project, ingestion (`platforms/`), NGINX gateway, React dashboard (`dashboard/`), collector agent (`collector/`), retention + analytics-rollup jobs |
+> | Data layer | CURRENT: PostgreSQL 15 only (one DB per service). Kafka, MongoDB, Neo4j, Qdrant, ClickHouse, Redis, MinIO, Elasticsearch: TARGET, none deployed |
+> | Events / CDC / QIP backbone (sect. 6, 8, 12) | TARGET. All cross-service communication today is synchronous HTTP via the gateway |
+> | Deployment (sect. 9, 18, 22) | CURRENT: docker-compose (maturity L0). Kubernetes/Istio/Vault/ArgoCD: TARGET |
+> | Security (sect. 10) | CURRENT: JWT + rotation + replay detection, httpOnly refresh cookie, TOTP MFA, Google/Microsoft SSO (tenant allowlist), scoped API keys, gateway rate zones, PII masking, retention. OPA/ABAC/SPIFFE/Vault: TARGET |
+> | Analytics | CURRENT: ingestion-service analytics API (trends incl. weekly/monthly, tests, history, flaky with daily rollups, branches) on PostgreSQL — fulfils the role sect. 8's "QIP Analytics Service" targets |
+> | Capability map (sect. 3) | ~1.5 of 10 capabilities realized (Platform Foundation; analytics sliver) |
+> | `execution/`, `automation/`, `marketplace/`, `collaboration/`, `intelligence/`, `platforms/qip-service` | UNWIRED PROTOTYPES: not in docker-compose, CI, gateway routing or migrations. See ARCHITECTURE_EVOLUTION.md |
+>
+> **Adoption triggers** — a TARGET piece is pulled in only when its trigger fires:
+>
+> | Target piece | Trigger (measurable) |
+> |---|---|
+> | Kafka / queue-based ingestion | Sustained 1000+ events/s or upload latency degrading CI (Phase 2 exit criterion in TODO.md) |
+> | Redis (shared rate limits, cache) | Second gateway instance |
+> | ClickHouse | Rollup tables stop holding (e.g. flaky 90d > 5 s at ~10x current data) |
+> | MinIO (artifacts) | Artifacts feature (screenshots/videos/traces) starts |
+> | Kubernetes + real certificates | First multi-node deployment |
+> | Qdrant / Neo4j / QIP services | Phase 6 AI engine work begins |
+> | MongoDB / Elasticsearch | Only with evidence PostgreSQL JSONB / full-text cannot serve the need |
+>
+> The live delivery record is TODO.md; the forward plan is IMPLEMENTATION_PLAN.md.
+> Known defect left in place this pass: appendix section numbers duplicate 22-24.
+
+
 ## Table of Contents
 1. [Product Vision & North Star](#1-product-vision--north-star)
 2. [Competitive Landscape & Differentiation](#2-competitive-landscape--differentiation)
@@ -127,10 +158,10 @@ AI Runtime & Analytics Engines
 | Knowledge Graph | Neo4j 5.12 | Strong (Single) | Relationship traversal, influence mapping, recommendations |
 | Vector Embeddings | Qdrant 1.7+ | Eventual | Semantic search, similarity matching, clustering |
 | Analytics Warehouse | ClickHouse 24.3 | Strong within partition | Aggregated metrics, trend analysis, reporting |
-| Event Streaming | Apache Kafka 3.6 | At-least-once | Inter-domain communication, event souring, CQRS |
+| Event Streaming | Apache Kafka 3.6 | At-least-once | Inter-domain communication, event sourcing, CQRS |
 | Caching Layer | Redis 7.2 | Eventual | Session storage, rate limiting, computed value caching |
 | Object Storage | MinIO | Eventually consistent | Execution artifacts, logs, screenshots, videos, backups |
-| Search Engine | Elasticsearch 8.12 | Eventually inconsistent | Full-text search, log analysis, audit querying |
+| Search Engine | Elasticsearch 8.12 | Eventual | Full-text search, log analysis, audit querying |
 | Time Series DB | Prometheus 2.50 | Eventually consistent | System and business metrics, alerting |
 
 ### Data Management Principles
@@ -385,7 +416,7 @@ DELETE /api/v1/models/{id}               # Retire model version
 
 ## 9. Deployment Architecture
 
-QEOS supports six progressive deployment maturity levels, allowing organizations to start simple and evolve as needs grow.
+QEOS supports seven progressive deployment maturity levels, allowing organizations to start simple and evolve as needs grow.
 
 ### Deployment Maturity Levels
 
@@ -486,7 +517,7 @@ Monitoring & Response Layer
 - **Hierarchical RBAC**: Tenant → Organization → Project → Resource → Action
 - **Attribute-Based Access Control (ABAC)**: Context-aware policies (time, location, device, risk)
 - **Policy Administration Point (PAP)**: Central policy definition and management
-- **Policy Decision Point (PDP): Real-time authorization decisions using OPA
+- **Policy Decision Point (PDP)**: Real-time authorization decisions using OPA
 - **Policy Enforcement Point (PEP)**: Enforcement at API gateway and service boundaries
 - **Permission Model**: Fine-grained permissions (create, read, update, delete, execute, approve, share)
 - **Role Templates**: Pre-defined roles (Viewer, Member, Manager, Admin, Auditor) with customization
@@ -1017,74 +1048,44 @@ KnowledgeObject {
 
 ## 14. Repository Structure
 
+As it exists (2026-10-02). The earlier target tree (qa-ai-dashboard/, infra/, sdk/, ui/) was never created and is dropped; new top-level directories appear when their adoption trigger fires.
+
 ```
-qa-ai-dashboard/
-├── .github/
-│   ├── workflows/                # GitHub Actions workflows
-│   └── ISSUE_TEMPLATE/           # Issue templates
-├── docs/
-│   ├── architecture/             # Architecture documentation
-│   ├── api/                      # API documentation
-│   ├── user-guides/              # User guides and tutorials
-│   └── contributing/             # Contribution guidelines
-├── infra/
-│   ├── terraform/                # Infrastructure as Code
-│   ├── kubernetes/               # Kubernetes manifests
-│   └── monitoring/               # Monitoring configurations
-├── platforms/
-│   ├── auth-service/             # Authentication and authorization service
-│   ├── execution-service/        # Test execution and management service
-│   ├── qip-service/              # Quality Intelligence Platform service
-│   ├── automation-service/       # Workflow automation service
-│   ├── collaboration-service/    # Collaboration and reporting service
-│   ├── admin-service/            # Administration and management service
-│   ├── marketplace-service/      # Plugin and extension marketplace
-│   ├── integration-service/      # External system integrations
-├── shared/
-│   ├── lib/                      # Shared libraries and utilities
-│   ├── contracts/                # API contracts and data models
-│   └── events/                   # Event schemas and definitions
-├── sdk/
-│   ├── typescript/               # TypeScript SDK
-│   ├── python/                   # Python SDK
-│   └── java/                     # Java SDK
-├── ui/
-│   ├── web/                      # Web application (React/Vue/Angular)
-│   └── mobile/                   # Mobile applications (React Native/Flutter)
-├── tests/
-│   ├── unit/                     # Unit tests
-│   ├── integration/              # Integration tests
-│   ├── e2e/                      # End-to-end tests
-│   └── performance/              # Performance tests
-├── scripts/                      # Utility scripts
-└── README.md                     # Project overview and getting started
+QA-Vision-Platform/
+├── .github/workflows/            # CI: per-service tests, collector matrix, dashboard, gateway full-stack smoke, CodeQL
+├── platforms/                    # Wired, running services (FastAPI, src/<pkg> layout)
+│   ├── auth-service/auth-service/    # JWT + rotation/replay detection, SSO, MFA, httpOnly refresh cookie
+│   ├── organization-service/         # Orgs, members, roles, invitations
+│   ├── project-service/              # Projects, settings, internal retention API
+│   ├── ingestion-service/            # Collect API, API keys, PII masking, retention job,
+│   │                                 #   analytics (trends/tests/history/flaky+rollups/branches), analytics-rollup job
+│   └── qip-service/                  # UNWIRED PROTOTYPE
+├── dashboard/                    # React + Vite + TS SPA (login/MFA/SSO, picker, trends, tests, history, flaky, branches, runs, security)
+├── collector/                    # qav-collector: JUnit parsing (incl. Surefire rerun attempts), git change data, retrying uploader
+├── gateway/                      # NGINX: routing, rate zones, TLS, JSON errors, request IDs, SPA catch-all (JSON 404 kept for /api/)
+├── shared/                       # qav_shared (config, db helpers) — installed editable by services, tested in CI
+├── scripts/                      # smoke_gateway.sh (70+ checks), analytics_benchmark.py, postgres-init.sh, new-service.sh
+├── docs/superpowers/             # Per-feature specs and implementation plans (the working design record)
+├── execution/ automation/ marketplace/ collaboration/ intelligence/   # UNWIRED PROTOTYPES (see ARCHITECTURE_EVOLUTION.md)
+├── docker-compose.yml            # One Postgres, db-init, per-service migrations, services, jobs, gateway, dashboard
+└── TODO.md                       # Live phase/feature record
 ```
 
-### Service Structure (Example: execution-service)
+### Service Structure (actual, all wired services)
 ```
-platforms/execution-service/
-├── cmd/                          # Application entry points
-│   └── server/                   # Main server entrypoint
-├── internal/
-│   ├── api/                      # HTTP handlers and middleware
-│   ├── db/                       # Database access layer
-│   ├── service/                  # Business logic layer
-│   ├── worker/                   # Background workers
-│   └── event/                    # Event handlers and producers
-├── pkg/                          # Package-level reusable code
-│   ├── models/                   # Data models and DTOs
-│   ├── utils/                    # Utility functions
-│   └── config/                   # Configuration management
-├── configs/                      # Configuration files
-├── migrations/                   # Database migrations
-├── Dockerfile                    # Container definition
-├── charts/                       # Helm chart for deployment
-└── README.md                     # Service-specific documentation
+platforms/<name>-service/
+├── src/<package>/
+│   ├── api/            # deps + v1 endpoints
+│   ├── models/         # SQLAlchemy
+│   ├── schemas/        # Pydantic
+│   ├── service/        # domain logic
+│   ├── analytics/|jobs/|utils/   # where applicable
+│   └── config.py / main.py
+├── alembic/versions/   # numbered migrations
+├── tests/unit + tests/integration
+├── requirements.txt    # installs ../shared editable
+└── Dockerfile          # repo-root build context
 ```
-
----
-
-# 15. Bounded Context Map and Context Mapping
 
 ## 15.1 Context Overview
 

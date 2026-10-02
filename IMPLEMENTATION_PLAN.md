@@ -1,145 +1,63 @@
-# QA Vision Platform Implementation Plan
+# QA Vision Platform — Implementation Plan
 
-## Overview
-This document outlines the execution plan for evolving the current Architecture Blueprint v1.0 to the target AI-native Quality Engineering Operating System (QEOS) architecture.
+Updated 2026-10-02. Single forward plan, reconciled with TODO.md (the live
+per-item record) and ARCHITECTURE_BLUEPRINT_V1_0.md (the target; its
+Implementation Status banner carries the adoption triggers referenced here).
+The previous version of this file was a day-one snapshot that still named
+paths and phases long since superseded.
 
-## Current State
-- Authentication Service (`src/services/auth-service/`) - Complete
-- AI Engine Foundation (`ai-engine/`) - Partial (Data Preparation, Feature Store)
-- Documentation - Complete
+## 1. Done (verified, running, tested)
 
-## Target Architecture
-The target architecture is defined in the Architecture Blueprint v1.0.
+| Phase | Delivered |
+|---|---|
+| 1. Platform foundation | auth-service (JWT rotation + replay detection, email-verified registration, Google/Microsoft SSO with tenant allowlist, TOTP MFA + recovery codes, httpOnly refresh cookie), organization-service (orgs/members/roles/invitations), project-service (projects/settings/internal retention API), NGINX gateway (rate zones, TLS, JSON errors, request IDs), compose stack, CI with full-stack smoke |
+| 2. Ingestion | ingestion-service collect API (API keys, idempotency+replay, PII masking, retention job), qav-collector (JUnit incl. Surefire rerun attempts, CI detection, git code-change data, retrying multi-part uploads) |
+| 3. Analytics + UI | Analytics API (trends day/week/month, tests, history, flaky ≤90 d via daily rollups + rollup job, branches, mute/unmute), React dashboard (login/MFA/SSO, picker, all analytics views, runs browser incl. changed files, CSV export, account security), 20/20 design audit |
 
-## Migration Strategy
+Benchmarked: flaky 90 d 3.9 s (rollups) vs 11.3 s live on ~2M results; full
+numbers in platforms/ingestion-service/README.md.
 
-### 6.1 Phase-Based Approach
-Migration follows a domain-by-domains strangler fig pattern with zero-downtime cutover:
+## 2. Now / Next (small, unblocked — TODO.md carries the authoritative list)
 
-- **Phase 0: Foundation** (Completed) - Establish target structure, move validated services
-- **Phase 1: Core Platform & Intelligence** (Months 1-2) - Platform services + intelligence core
-- **Phase 2: Execution & Collaboration** (Months 3-4) - Execution engine + collaboration tools
-- **Phase 3: Administration & Marketplace** (Months 5-6) - Governance + extensibility
-- **Phase 4: Optimization & Scale** (Ongoing) - Performance, advanced features
+1. Git metadata on runs: commit author/message, PR number, base branch
+   (pairs with shipped code-change data).
+2. Collector `--ca-file` fix for the dev gateway's self-signed certificate.
+3. Confirmed-flaky pass optimization (the remaining ~3 s at 90 d).
+4. Collector distribution: tag `collector-v0.1.0`, PyPI trusted publishing,
+   ready-made GitHub Action.
+5. Phase 2 exit proof: agents on 3 CI platforms in real projects; 10k real
+   executions ingested.
 
-### 6.2 Technical Approach
-- **Strangler Fig**: New services run alongside legacy, gradually taking over traffic
-- **Database Per Service**: Each service owns its schema; no cross-DB joins
-- **Event-Driven Integration**: Services communicate via versioned Kafka topics
-- **API Versioning**: All services expose versioned contracts in `shared/contracts/`
-- **Feature Flags**: Enable gradual cutover with rollback capability
-- **Contract Testing**: Automated validation of schema compatibility
-- **Observability First**: Shared logging/tracing/metrics from day one
+## 3. Blocked on external input
 
-### 6.3 Data Migration Strategy
-For services with existing data:
-1. **Dual Write Period**: Write to both old and new systems during transition
-2. **Change Data Capture**: Use Debezium or similar to sync changes
-3. **Batch Migration**: Periodic bulk transfers for historical data
-4. **Validation**: Compare key metrics between systems
-5. **Cutover**: Switch read traffic, then write traffic after validation
+- SAML 2.0 sign-in and real-tenant SSO verification: need an IdP / client
+  IDs (note: `collaboration/` vendors an xmlsec source tree usable for SAML).
+- Production deployment target (cluster, domain, real certificates).
 
-### 6.4 Risk Mitigation
-- **Backward Compatibility**: Maintain old interfaces during transition
-- **Blue/Green Deployments**: Instant rollback capability
-- **Canary Releases**: Gradual traffic shift (5% → 25% → 50% → 100%)
-- **Circuit Breakers**: Prevent cascade failures
-- **Comprehensive Monitoring**: Track error rates, latency, business metrics
+## 4. Later — target-architecture slices, each behind its blueprint trigger
 
-## Phase 0: Foundation (Weeks 1-2)
-1. ✅ Create target directory structure
-2. ✅ Move Auth Service to `/platforms/auth-service/`
-3. ✅ Move AI Engine components to `/intelligence/ai-engine/`
-4. ✅ Establish shared foundations and common infrastructure (logging, config, base models, monitoring)
-   - Includes setup of shared logging, configuration management, base domain models
-   - Includes setup of monitoring stack (Prometheus, Grafana), distributed tracing (Jaeger), and centralized logging
+| Slice | Trigger |
+|---|---|
+| Queue-based ingestion (Kafka) | sustained 1000+ events/s or CI-visible upload latency |
+| Redis shared rate limits / cache | second gateway instance |
+| ClickHouse analytics warehouse | rollups stop holding at ~10× data |
+| Artifact storage (MinIO) | artifacts feature starts (screenshots/videos/traces) |
+| Kubernetes + real certs + monitoring stack (Prometheus server/Grafana) | first multi-node deployment |
+| Test Management service (blueprint capability) | product pull, after Phase 2 exit |
+| Phase 6 AI engine, QIP services, vector/graph stores | AI work begins; revive or replace the `intelligence/` prototype deliberately |
 
-## Phase 1: Core Platform & Intelligence (Months 1-2)
-1. Complete Platform services:
-   - Organization Service
-   - Project Service  
-   - User/Team Services
-   - Billing/Subscription Service
-2. Enhance Intelligence core:
-   - Observability collector and storage (builds upon monitoring/tracing setup from Phase 0)
-   - Knowledge repository and management
-   - Basic analytics capabilities
-3. Begin critical Integrations:
-   - Webhook receiver/dispatcher
-   - Primary SCM integrations (GitHub/GitLab)
+## 5. Prototype directories
 
-## Phase 2: Execution & Collaboration (Months 3-4)
-1. Build Execution core:
-   - Test recorder service
-   - Test scheduler/executor
-   - Environment management service
-   - Artifact storage and management
-2. Develop Collaboration features:
-   - Reporting and dashboard service
-   - Commenting and notification system
-   - Knowledge sharing capabilities
+`execution/`, `automation/`, `marketplace/`, `collaboration/`,
+`intelligence/`, `platforms/qip-service` are unwired prototypes (no compose,
+CI, gateway, migrations). Decision pending: archive to a branch or revive
+per-slice when their capability's trigger fires. Do not treat their presence
+as shipped functionality.
 
-## Phase 3: Advanced Intelligence & Administration (Months 5-6)
-1. Complete Intelligence capabilities:
-   - Predictive analytics service
-   - Test optimization service
-   - Release quality prediction
-   - Workflow automation engine
-2. Complete Administration:
-   - Usage tracking and analytics
-   - Tenant management
-   - Service mesh observability
-   - Compliance and audit tools
+## 6. Working agreement
 
-## Immediate Next Steps (Completed in this session)
-1. ✅ Created domain directory structure
-2. ✅ Moved Auth Service to `/platforms/auth-service/`
-3. ✅ Moved AI Engine to `/intelligence/ai-engine/`
-4. ✅ Established shared foundations and common infrastructure (logging, config, base models, monitoring)
-
-## Verification Checkpoint
-After completing Phase 0, verify:
-- All existing tests still pass
-- Services can still be built and deployed
-- Import paths have been updated correctly
-- Documentation reflects new structure
-
-## 12. Completion Criteria
-The architecture evolution is complete when:
-
-### 12.1 Structural Completeness
-- [ ] All seven domains have at least one functional service deployed
-- [ ] All migrated services (Auth, AI Engine) are operating in their new locations
-- [ ] No active development occurring in the legacy `src/services/` structure
-- [ ] Shared libraries (`shared/lib/`, `shared/contracts/`, `shared/events/`) are actively used and maintained
-- [ ] Service scaffolding tool (`scripts/new-service.sh`) is in regular use for new service creation
-
-### 12.2 Functional Completeness
-- [ ] Core authentication workflows (login, refresh, MFA, SSO) functional
-- [ ] AI engine data processing and feature storage operational
-- [ ] Organization and project lifecycle management functional
-- [ ] Basic test case creation and retrieval possible
-- [ ] Simple dashboard displaying system metrics
-- [ ] Audit logging capturing system events
-- [ ] Webhook receiver accepting and validating incoming payloads
-- [ ] At least one external integration (e.g., GitHub) functioning end-to-end
-
-### 12.3 Non-Functional Compliance
-- [ ] 99.9% uptime SLA met for core platform services (excluding planned maintenance)
-- [ ] Average API response time < 200ms for 95th percentile requests
-- [ ] System scales horizontally to support anticipated load (10K+ RPM)
-- [ ] Mean time to detect (MTTD) and recover (MTTR) meet SLAs
-- [ ] Security penetration testing passes with no critical findings
-- [ ] Data backup and restore validated with RPO < 1 hour, RTO < 4 hours
-- [ ] Cost per transaction remains within budgeted targets
-- [ ] All error conditions properly handled and logged
-- [ ] Log retention and archival compliance verified
-
-### 12.4 Governance Maturity
-- [ ] Architecture Decision Records (ADRs) maintained for significant choices
-- [ ] API versioning and deprecation policy followed
-- [ ] Data classification and handling procedures implemented
-- [ ] Regular architecture review board meetings conducted
-- [ ] Knowledge transfer completed to operations and support teams
-- [ ] Training materials delivered to development teams
-- [ ] Runbooks and playbooks maintained and exercised
+- TODO.md is updated in the same commit as the work it records.
+- Direct pushes to master; all relevant suites green before every push; TDD
+  for behavior changes.
+- Every new feature names the blueprint section it serves or amends; pulling
+  a TARGET technology requires citing its trigger.

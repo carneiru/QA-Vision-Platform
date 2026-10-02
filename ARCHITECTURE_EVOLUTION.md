@@ -154,3 +154,21 @@ See Architecture Blueprint v1.0 for reference architecture diagrams including:
 
 ### Appendix C: Migration Playbook Outline
 (Summary of cutover procedures for each service type)
+## 8. What Actually Shipped (2026-09/10 reality checkpoint)
+
+The migration paths above predate delivery. As of 2026-10-02 the running
+platform is: auth-service (SSO, TOTP MFA, httpOnly refresh cookie, rotation +
+replay detection), organization-service, project-service, ingestion-service
+(collect API, PII masking, retention, analytics incl. 90-day flaky windows
+from daily rollups, mute, branches, code-change data), qav-collector
+(incl. Surefire rerun-attempt expansion and git diff data), NGINX gateway,
+React dashboard, retention + analytics-rollup jobs — PostgreSQL-only,
+docker-compose, CI with a 70+-check full-stack smoke. TODO.md is the live
+record; IMPLEMENTATION_PLAN.md the forward plan; the blueprint's
+Implementation Status banner maps current vs target.
+
+`execution/`, `automation/`, `marketplace/`, `collaboration/`,
+`intelligence/`, `platforms/qip-service` remain unwired prototypes from the
+earlier blueprint-first attempt (each now carries an UNWIRED PROTOTYPE
+README). The TODO-driven slice approach shipped; the prototype-first approach
+did not — new target slices follow the blueprint's adoption triggers instead.
