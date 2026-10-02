@@ -15,6 +15,10 @@ class RunOut(BaseModel):
     branch: Optional[str] = None
     environment: Optional[str] = None
     agent_version: Optional[str] = None
+    commit_author: Optional[str] = None
+    commit_message: Optional[str] = None
+    pr_number: Optional[int] = None
+    base_branch: Optional[str] = None
     started_at: datetime
     finished_at: datetime
     duration_ms: int

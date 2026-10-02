@@ -41,11 +41,16 @@ class RunIn(BaseModel):
     branch: Optional[_text(255)] = None
     environment: Optional[_text(100)] = None
     agent_version: Optional[_text(50)] = None
+    commit_author: Optional[_text(255)] = None
+    commit_message: Optional[_text(500)] = None  # first line is enough; collector truncates
+    pr_number: Optional[int] = Field(None, ge=1, le=2_147_483_647)
+    base_branch: Optional[_text(255)] = None
     started_at: AwareDatetime
     finished_at: AwareDatetime
 
     _no_unstorable = field_validator(
-        "ci_run_url", "commit_sha", "branch", "environment", "agent_version", mode="before"
+        "ci_run_url", "commit_sha", "branch", "environment", "agent_version",
+        "commit_author", "commit_message", "base_branch", mode="before"
     )(_reject_unstorable)
 
     @model_validator(mode="after")
@@ -120,6 +125,10 @@ class RunReceipt(BaseModel):
     failed: int
     skipped: int
     errored: int
+    commit_author: Optional[str] = None
+    commit_message: Optional[str] = None
+    pr_number: Optional[int] = None
+    base_branch: Optional[str] = None
     change_base_ref: Optional[str] = None
     changed_files: Optional[int] = None
     additions: Optional[int] = None
