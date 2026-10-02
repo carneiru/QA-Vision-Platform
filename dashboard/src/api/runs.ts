@@ -19,7 +19,19 @@ export interface Run {
   failed: number;
   skipped: number;
   errored: number;
+  change_base_ref: string | null;
+  changed_files: number | null;
+  additions: number | null;
+  deletions: number | null;
+  changes_truncated: boolean | null;
   created_at: string;
+}
+
+export interface ChangedFile {
+  path: string;
+  status: string;
+  additions: number | null;
+  deletions: number | null;
 }
 
 export interface RunResult {
@@ -39,6 +51,7 @@ export interface RunResult {
 
 export interface RunDetail extends Run {
   results: RunResult[];
+  changes: ChangedFile[];
 }
 
 export type RunStatusFilter = "passed" | "failed" | "skipped" | "errored";

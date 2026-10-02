@@ -13,7 +13,9 @@ const detail = (results: object[]) => ({
   branch: "main", environment: "ci", agent_version: "0.1.0",
   started_at: "2026-10-01T12:00:00Z", finished_at: "2026-10-01T12:04:00Z",
   duration_ms: 240000, total: 24, passed: 20, failed: 3, skipped: 0, errored: 1,
-  created_at: "2026-10-01T12:05:00Z", results,
+  created_at: "2026-10-01T12:05:00Z",
+  change_base_ref: null, changed_files: null, additions: null, deletions: null,
+  changes_truncated: null, changes: [], results,
 });
 
 const result = {
@@ -61,4 +63,29 @@ test("status filter refetches server-side", async () => {
   await screen.findByText(/no failed results/i);
   expect(statuses[statuses.length - 1]).toBe("failed");
   expect(statuses[0]).toBeNull();
+});
+
+
+test("a run with change data shows the Changes card and file list", async () => {
+  const withChanges = {
+    ...detail([]),
+    change_base_ref: "origin/main", changed_files: 2, additions: 12, deletions: 3,
+    changes_truncated: true,
+    changes: [
+      { path: "src/app.py", status: "M", additions: 12, deletions: 3 },
+      { path: "assets/logo.png", status: "A", additions: null, deletions: null },
+    ],
+  };
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(withChanges)));
+  renderDetail();
+  expect(await screen.findByText("src/app.py")).toBeInTheDocument();
+  expect(screen.getByText(/\+12\s*−3 vs origin\/main/)).toBeInTheDocument();
+  expect(screen.getByText(/list truncated/i)).toBeInTheDocument();
+});
+
+test("a run without change data shows no Changes card", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail([]))));
+  renderDetail();
+  await screen.findByText(/run #61/i);
+  expect(screen.queryByText(/changes/i)).not.toBeInTheDocument();
 });

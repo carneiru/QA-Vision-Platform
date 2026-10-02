@@ -74,6 +74,35 @@ export default function RunDetailPage() {
             </div>
           </div>
 
+          {run.change_base_ref !== null && (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <h3>Changes</h3>
+              <p className="muted">
+                {run.changed_files} file(s), +{run.additions ?? 0} −{run.deletions ?? 0} vs {run.change_base_ref}
+                {run.changes_truncated && <span> · list truncated at 1000 files</span>}
+              </p>
+              {run.changes.length > 0 && (
+                <table className="data">
+                  <thead>
+                    <tr>
+                      <th>File</th><th>Status</th><th>+</th><th>−</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {run.changes.map((f) => (
+                      <tr key={f.path}>
+                        <td>{f.path}</td>
+                        <td>{f.status}</td>
+                        <td>{f.additions ?? "—"}</td>
+                        <td>{f.deletions ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
           {run.results.length === 0 ? (
             <p className="muted">No {status || ""} results in this run.</p>
           ) : (
