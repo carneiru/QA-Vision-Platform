@@ -53,9 +53,15 @@ export interface RunResult {
   file: string | null;
 }
 
+export interface RunComponent {
+  name: string;
+  sha: string;
+}
+
 export interface RunDetail extends Run {
   results: RunResult[];
   changes: ChangedFile[];
+  components: RunComponent[];
 }
 
 export type RunStatusFilter = "passed" | "failed" | "skipped" | "errored";

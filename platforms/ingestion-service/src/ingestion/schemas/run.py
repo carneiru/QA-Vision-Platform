@@ -61,6 +61,14 @@ class ChangedFileOut(BaseModel):
     deletions: Optional[int] = None
 
 
+class ComponentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    sha: str
+
+
 class RunDetail(RunOut):
     results: list[ResultOut]
     changes: list[ChangedFileOut] = []
+    components: list[ComponentOut] = []

@@ -36,6 +36,9 @@ numbers in platforms/ingestion-service/README.md.
    partial streaming).
 5. Phase 2 exit proof: agents on 3 CI platforms in real projects; 10k real
    executions ingested.
+6. ~~Components under test~~ — done 2026-10-02: runs may record which
+   repo/versions they exercised (`--component NAME@SHA`); dormant data for
+   Phase 6 cross-repo correlation (ADR-018).
 
 ## 3. Blocked on external input
 
@@ -53,7 +56,8 @@ numbers in platforms/ingestion-service/README.md.
 | Artifact storage (MinIO) | artifacts feature starts (screenshots/videos/traces) |
 | Kubernetes + real certs + monitoring stack (Prometheus server/Grafana) | first multi-node deployment |
 | Test Management service (blueprint capability) | product pull, after Phase 2 exit |
-| Phase 6 AI engine, QIP services, vector/graph stores | AI work begins; revive or replace the `intelligence/` prototype deliberately |
+| Workspaces: group QA projects with the product repos they test (Phase 4) | product pull, after Phase 2 exit; components-under-test data (ADR-018) is already being captured |
+| Phase 6 AI engine, QIP services, vector/graph stores | AI work begins; revive or replace the `intelligence/` prototype deliberately — failure↔product-commit correlation feeds on run components (ADR-018) |
 
 ## 5. Prototype directories
 

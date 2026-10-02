@@ -55,6 +55,17 @@ export default function RunDetailPage() {
               run.ci_provider
             )}
           </p>
+          {run.components.length > 0 && (
+            <p className="muted">
+              Under test:{" "}
+              {run.components.map((c, i) => (
+                <span key={c.name}>
+                  {i > 0 && " · "}
+                  <code>{c.name}@{c.sha.slice(0, 12)}</code>
+                </span>
+              ))}
+            </p>
+          )}
           {(run.commit_author || run.commit_message || run.pr_number || run.base_branch) && (
             <p className="muted">
               {run.commit_author && <span>{run.commit_author}</span>}

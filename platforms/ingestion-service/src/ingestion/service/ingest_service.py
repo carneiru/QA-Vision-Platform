@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.ingestion.core.config import settings
-from src.ingestion.models import ApiKey, Run, RunChangedFile, RunResult
+from src.ingestion.models import ApiKey, Run, RunChangedFile, RunComponent, RunResult
 from src.ingestion.schemas.collect import RunUpload
 from src.ingestion.utils import metrics
 from src.ingestion.utils.redaction import redact
@@ -136,6 +136,11 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
                 {"run_id": run.id, "path": f.path, "status": f.status,
                  "additions": f.additions, "deletions": f.deletions}
                 for f in upload.changes.files
+            ])
+
+        if upload.components:
+            db.execute(insert(RunComponent), [
+                {"run_id": run.id, "name": c.name, "sha": c.sha} for c in upload.components
             ])
 
         key.last_used_at = datetime.now(timezone.utc)

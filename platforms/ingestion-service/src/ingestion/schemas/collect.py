@@ -107,12 +107,32 @@ class ChangesIn(BaseModel):
     _no_unstorable = field_validator("base_ref", mode="before")(_reject_unstorable)
 
 
+class ComponentIn(BaseModel):
+    """A repo/version the run exercised, e.g. the product build an E2E suite ran against."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    sha: Annotated[str, StringConstraints(pattern=r"^[0-9a-fA-F]{7,40}$")]
+
+    _no_unstorable = field_validator("name", mode="before")(_reject_unstorable)
+
+
 class RunUpload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     run: RunIn
     results: list[ResultIn] = Field(min_length=1, max_length=settings.MAX_RESULTS_PER_RUN)
     changes: Optional[ChangesIn] = None
+    components: list[ComponentIn] = Field(default_factory=list, max_length=20)
+
+    @field_validator("components")
+    @classmethod
+    def _component_names_unique(cls, value: list[ComponentIn]) -> list[ComponentIn]:
+        names = [c.name for c in value]
+        if len(names) != len(set(names)):
+            raise ValueError("component names must be unique")
+        return value
 
 
 class RunReceipt(BaseModel):

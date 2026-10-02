@@ -12,6 +12,7 @@ TODO.md, commit messages and benchmark rulings:
 | [ADR-015](ADR-015-idempotency-body-hash.md) | Idempotency keys with body-hash replay detection |
 | [ADR-016](ADR-016-sso-bypasses-mfa.md) | SSO sign-ins bypass platform MFA |
 | [ADR-017](ADR-017-gateway-spa-catchall.md) | Gateway catch-all serves the SPA; /api/ keeps JSON 404 |
+| [ADR-018](ADR-018-components-under-test.md) | Capture components-under-test per run now; correlate in Phase 6 |
 
 **Proposed** — ADR-001..010 describe the TARGET architecture (DDD, Kafka,
 Kubernetes, Go services, Neo4j, Qdrant, ...). Reclassified 2026-10-02: their

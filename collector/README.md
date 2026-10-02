@@ -93,6 +93,7 @@ variable, and both win over what is detected from the CI system.
 | `--environment` | `QAV_ENVIRONMENT` | e.g. `staging` |
 | `--idempotency-key` | `QAV_IDEMPOTENCY_KEY` | Overrides the key derived from the CI job |
 | `--ca-file` | `QAV_CA_FILE` | Extra CA certificate to trust (a private CA, or the local stack's self-signed one) |
+| `--component` | `QAV_COMPONENTS` | `NAME@SHA` of a repo/version this run exercised, e.g. the product build an E2E suite ran against. Flag repeatable; variable comma-separated. Up to 20 |
 | `--fail-on-error` | `QAV_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
 | `--dry-run` | — | Print the JSON; upload nothing |
 

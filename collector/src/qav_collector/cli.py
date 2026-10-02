@@ -16,7 +16,7 @@ from qav_collector import __version__
 from qav_collector.ci import detect, sanitize_key
 from qav_collector.junit import parse_file
 from qav_collector.gitdiff import collect_changes, collect_commit_info
-from qav_collector.payload import build_parts, build_run, run_times, summarize
+from qav_collector.payload import build_parts, build_run, parse_components, run_times, summarize
 from qav_collector.upload import ConfigError, UploadError, endpoint_for, make_context, upload_part
 
 CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "other", "local")
@@ -65,6 +65,9 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--environment", help="e.g. staging (default: $QAV_ENVIRONMENT)")
     upload.add_argument("--idempotency-key", help="default: $QAV_IDEMPOTENCY_KEY, else derived from the CI job")
     upload.add_argument("--ca-file", help="trust exactly this CA certificate, e.g. a private or self-signed one (default: $QAV_CA_FILE)")
+    upload.add_argument("--component", action="append", default=[], metavar="NAME@SHA",
+                        help="a repo/version this run exercised, e.g. product-api@3f2a9c1; repeatable "
+                             "(default: $QAV_COMPONENTS, comma separated)")
     upload.add_argument("--fail-on-error", action="store_true",
                         help="exit 1 if the upload fails (default: $QAV_FAIL_ON_ERROR)")
     upload.add_argument("--no-changes", action="store_true",
@@ -180,6 +183,14 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
             say(f"changes vs {changes['base_ref']}: {len(changes['files'])} file(s), +{adds} -{dels}"
                 + (" (truncated)" if changes["truncated"] else ""))
 
+    component_values = args.component or [v for v in env.get("QAV_COMPONENTS", "").split(",") if v.strip()]
+    try:
+        components = parse_components(component_values)
+    except ValueError as exc:
+        raise ConfigError(str(exc)) from None
+    if components:
+        say("components under test: " + ", ".join(f"{c['name']}@{c['sha'][:12]}" for c in components))
+
     key = sanitize_key(pick(args.idempotency_key, "QAV_IDEMPOTENCY_KEY") or "")
     if not key:
         # The CI identifiers name the job, but every leg of a matrix and every upload step in one
@@ -187,7 +198,7 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         # (finished_at alone always differs). So each invocation adds its own random suffix: the
         # collector's retries reuse the key, and a POST stored without an answer is replayed.
         key = f"{ci.idempotency_key or 'local'}-{uuid.uuid4().hex[:12]}"
-    parts = build_parts(run, results, key, changes)
+    parts = build_parts(run, results, key, changes, components)
 
     if args.dry_run:
         for part in parts:

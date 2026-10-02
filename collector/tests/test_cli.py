@@ -262,3 +262,55 @@ def test_an_unexpected_error_follows_the_upload_failure_rule(platform, report, m
     err = capsys.readouterr().err
     assert "qav: unexpected error: RuntimeError: boom ***" in err
     assert KEY not in err
+
+
+SHA_A = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+
+
+def test_component_flags_are_sent(platform, report):
+    platform.reply(201, RECEIPT)
+
+    argv = ["upload", str(report), "--component", f"product-api@{SHA_A}", "--component", "web@0f1e2d3c"]
+    assert run(argv, env_for(platform)) == 0
+    assert sent(platform)["components"] == [
+        {"name": "product-api", "sha": SHA_A},
+        {"name": "web", "sha": "0f1e2d3c"},
+    ]
+
+
+def test_components_from_environment(platform, report):
+    platform.reply(201, RECEIPT)
+
+    env = env_for(platform, QAV_COMPONENTS=f"product-api@{SHA_A},web@0f1e2d3c")
+    assert run(["upload", str(report)], env) == 0
+    assert sent(platform)["components"] == [
+        {"name": "product-api", "sha": SHA_A},
+        {"name": "web", "sha": "0f1e2d3c"},
+    ]
+
+
+def test_component_flags_beat_the_environment(platform, report):
+    platform.reply(201, RECEIPT)
+
+    env = env_for(platform, QAV_COMPONENTS="ignored@0f1e2d3c")
+    assert run(["upload", str(report), "--component", "web@aa11bb22"], env) == 0
+    assert sent(platform)["components"] == [{"name": "web", "sha": "aa11bb22"}]
+
+
+def test_no_components_means_no_components_key(platform, report):
+    platform.reply(201, RECEIPT)
+
+    assert run(["upload", str(report)], env_for(platform)) == 0
+    assert "components" not in sent(platform)
+
+
+@pytest.mark.parametrize("value, complaint", [
+    ("missing-separator", "NAME@SHA"),
+    ("api@not-hex!", "hexadecimal"),
+    ("@0f1e2d3c", "NAME@SHA"),
+    ("api@0f1e2d3c,api@aa11bb22", "unique"),
+])
+def test_bad_components_are_a_config_error(platform, report, capsys, value, complaint):
+    env = env_for(platform, QAV_COMPONENTS=value)
+    assert run(["upload", str(report)], env) == 2
+    assert complaint in capsys.readouterr().err

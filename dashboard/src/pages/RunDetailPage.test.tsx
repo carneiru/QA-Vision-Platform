@@ -16,7 +16,7 @@ const detail = (results: object[]) => ({
   created_at: "2026-10-01T12:05:00Z",
   commit_author: null, commit_message: null, pr_number: null, base_branch: null,
   change_base_ref: null, changed_files: null, additions: null, deletions: null,
-  changes_truncated: null, changes: [], results,
+  changes_truncated: null, changes: [], components: [], results,
 });
 
 const result = {
@@ -89,6 +89,29 @@ test("a run without change data shows no Changes card", async () => {
   renderDetail();
   await screen.findByText(/run #61/i);
   expect(screen.queryByText(/changes/i)).not.toBeInTheDocument();
+});
+
+
+test("components under test render when present", async () => {
+  const withComponents = {
+    ...detail([]),
+    components: [
+      { name: "product-api", sha: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678" },
+      { name: "web-frontend", sha: "0f1e2d3c" },
+    ],
+  };
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(withComponents)));
+  renderDetail();
+  expect(await screen.findByText(/under test/i)).toBeInTheDocument();
+  expect(screen.getByText(/product-api@a1b2c3d4e5f6/)).toBeInTheDocument();
+  expect(screen.getByText(/web-frontend@0f1e2d3c/)).toBeInTheDocument();
+});
+
+test("no components line when the run reported none", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail([]))));
+  renderDetail();
+  await screen.findByText(/run #61/i);
+  expect(screen.queryByText(/under test/i)).not.toBeInTheDocument();
 });
 
 

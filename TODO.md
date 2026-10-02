@@ -142,6 +142,7 @@ Richer data
 - [x] Keep each retry attempt as its own result, so flaky tests become visible — Surefire flakyFailure/flakyError/rerunFailure/rerunError expand into per-attempt results (duplicate testcases, pytest-rerunfailures style, already passed through)
 - [x] Git metadata: commit author and message (git log -1, best effort), PR number + base branch (GitHub/GitLab env), stored per run and shown on run detail
 - [x] Code-change data, not just JUnit: changed files and diff stats per run — collector gitdiff module, ingestion migration 005 + run API, dashboard Changes card. Correlation analytics remain Phase 6 input.
+- [x] Components under test: `--component NAME@SHA` (or `QAV_COMPONENTS`) records which repo versions the run exercised (e.g. the product build an E2E suite ran against) — ingestion migration 008 + run API, "Under test" line on run detail. Dormant Phase 6 input; cross-repo correlation and Workspaces stay behind their triggers (ADR-018).
 - [ ] Test ownership from CODEOWNERS
 - [ ] Artifact upload (screenshots, videos, traces) once ingestion accepts them
 

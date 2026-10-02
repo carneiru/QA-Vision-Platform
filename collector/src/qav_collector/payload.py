@@ -18,6 +18,8 @@ ENVIRONMENT_LENGTH = 100
 RUN_URL_LENGTH = 2048
 _SHA = re.compile(r"^[0-9a-fA-F]{7,40}$")
 _RUN_URL = re.compile(r"^https?://\S+$")
+MAX_COMPONENTS = 20       # mirrors the server's cap
+MAX_COMPONENT_NAME = 100
 
 
 @dataclass
@@ -85,12 +87,36 @@ def build_run(
     return run
 
 
+def parse_components(values: Sequence[str]) -> List[dict]:
+    """NAME@SHA pairs naming the repos/versions the run exercised. The server
+    stores them for later cross-repo analysis. Bad input is a config error:
+    this is identity data, silently dropping it would poison the history."""
+    components: List[dict] = []
+    for value in values:
+        name, separator, sha = value.strip().partition("@")
+        name = name.strip()
+        sha = sha.strip()
+        if not separator or not name:
+            raise ValueError(f"component {value!r} must look like NAME@SHA")
+        if len(name) > MAX_COMPONENT_NAME:
+            raise ValueError(f"component name {name!r} is longer than {MAX_COMPONENT_NAME} characters")
+        if not _SHA.match(sha):
+            raise ValueError(f"component {name!r}: {sha!r} is not a 7-40 character hexadecimal sha")
+        components.append({"name": name, "sha": sha})
+    names = [c["name"] for c in components]
+    if len(names) != len(set(names)):
+        raise ValueError("component names must be unique")
+    if len(components) > MAX_COMPONENTS:
+        raise ValueError(f"at most {MAX_COMPONENTS} components per run")
+    return components
+
+
 def build_parts(run: dict, results: List[dict], idempotency_key: str,
-                changes: "dict | None" = None) -> List[Part]:
+                changes: "dict | None" = None, components: "List[dict] | None" = None) -> List[Part]:
     chunks = [results[i:i + MAX_RESULTS_PER_PART] for i in range(0, len(results), MAX_RESULTS_PER_PART)]
     encoded: List[Tuple[bytes, int]] = []
     for chunk in chunks:
-        encoded.extend(_fit(run, chunk, changes))
+        encoded.extend(_fit(run, chunk, changes, components))
     if len(encoded) == 1:
         body, count = encoded[0]
         return [Part(body=body, idempotency_key=idempotency_key, count=count)]
@@ -108,15 +134,18 @@ def summarize(results: Sequence[dict]) -> Dict[str, int]:
     return counts
 
 
-def _fit(run: dict, chunk: List[dict], changes: "dict | None" = None) -> List[Tuple[bytes, int]]:
+def _fit(run: dict, chunk: List[dict], changes: "dict | None" = None,
+         components: "List[dict] | None" = None) -> List[Tuple[bytes, int]]:
     payload = {"run": run, "results": chunk}
     if changes is not None:
         payload["changes"] = changes
+    if components:
+        payload["components"] = components
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(body) <= MAX_PART_BYTES or len(chunk) == 1:
         return [(body, len(chunk))]
     middle = len(chunk) // 2
-    return _fit(run, chunk[:middle], changes) + _fit(run, chunk[middle:], changes)
+    return _fit(run, chunk[:middle], changes, components) + _fit(run, chunk[middle:], changes, components)
 
 
 def _storable(value: Optional[str]) -> Optional[str]:
