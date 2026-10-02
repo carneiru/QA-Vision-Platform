@@ -1,24 +1,21 @@
-const REFRESH_KEY = "qav.refresh";
+/* The access token lives in memory only. The refresh token never reaches
+   JavaScript: it travels as the httpOnly `qav_refresh` cookie the auth
+   service sets, scoped to /api/v1/auth. */
+
 let accessToken: string | null = null;
 
-export function setTokens(access: string, refresh: string): void {
+export function setAccessToken(access: string): void {
   accessToken = access;
-  sessionStorage.setItem(REFRESH_KEY, refresh);
 }
 
 export function getAccessToken(): string | null {
   return accessToken;
 }
 
-export function getRefreshToken(): string | null {
-  return sessionStorage.getItem(REFRESH_KEY);
-}
-
 export function clearTokens(): void {
   accessToken = null;
-  sessionStorage.removeItem(REFRESH_KEY);
 }
 
 export function isAuthenticated(): boolean {
-  return getRefreshToken() !== null;
+  return accessToken !== null;
 }

@@ -1,9 +1,9 @@
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { setTokens } from "../auth/tokens";
+import { setAccessToken } from "../auth/tokens";
 import { getRun, listRuns } from "./runs";
 
-beforeEach(() => setTokens("acc", "ref"));
+beforeEach(() => setAccessToken("acc"));
 
 test("listRuns maps pagination and branch to query params", async () => {
   let url = "";

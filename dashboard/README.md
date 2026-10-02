@@ -32,7 +32,9 @@ the compose file forwards them as build args. The SPA obtains an ID token
 
 ## Auth model
 
-Access token in memory; refresh token in sessionStorage (per tab). On 401 the
-client refreshes once (rotation-aware) and retries; a failed refresh returns
-to /login. A 401 with no stored refresh token (a failed login) is surfaced
-as the API's own error detail.
+Access token in memory; the refresh token never reaches JavaScript — it lives
+in the httpOnly `qav_refresh` cookie (Secure, SameSite=Strict, scoped to
+`/api/v1/auth`). App boot restores the session with one silent refresh. On
+401 the client refreshes once and retries; a failed refresh returns to
+/login. A 401 from the auth endpoints themselves (a failed login) is
+surfaced as the API's own error detail.

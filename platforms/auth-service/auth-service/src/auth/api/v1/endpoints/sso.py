@@ -1,6 +1,6 @@
 from typing import Callable
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from jwt import PyJWKClientConnectionError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from src.auth.schemas.auth import GoogleLoginRequest, MicrosoftLoginRequest, Tok
 from src.auth.schemas.user import UserCreate  # used when SSO creates a first-time user
 from src.auth.models.oauth import OAuthAccount
 from src.auth.config import settings
+from src.auth.utils.refresh_cookie import set_refresh_cookie
 from datetime import timedelta
 
 logger = logging.getLogger(__name__)
@@ -201,26 +202,32 @@ def sso_sign_in(db: Session, identity: dict, label: str, *, existing_account_det
 def google_login(
     *,
     db: Session = Depends(deps.get_db),
+    response: Response,
     request: GoogleLoginRequest
 ):
     """
     Authenticate with Google ID token.
     """
     identity = verify_google_credential(request.credential)
-    return sso_sign_in(db, identity, "Google", existing_account_detail=GOOGLE_EXISTING_ACCOUNT)
+    tokens = sso_sign_in(db, identity, "Google", existing_account_detail=GOOGLE_EXISTING_ACCOUNT)
+    set_refresh_cookie(response, tokens["refresh_token"])
+    return tokens
 
 
 @router.post("/microsoft", response_model=Token)
 def microsoft_login(
     *,
     db: Session = Depends(deps.get_db),
+    response: Response,
     request: MicrosoftLoginRequest
 ):
     """
     Authenticate with a Microsoft (Entra ID) ID token from an allowed tenant.
     """
     identity = verify_microsoft_credential(request.credential)
-    return sso_sign_in(db, identity, "Microsoft", existing_account_detail=MICROSOFT_EXISTING_ACCOUNT)
+    tokens = sso_sign_in(db, identity, "Microsoft", existing_account_detail=MICROSOFT_EXISTING_ACCOUNT)
+    set_refresh_cookie(response, tokens["refresh_token"])
+    return tokens
 
 
 # GitHub SSO is not implemented. It previously called an SSOService method that did not exist and

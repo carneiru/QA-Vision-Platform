@@ -1,6 +1,6 @@
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { setOnAuthFailure } from "./api/http";
+import { bootstrapSession, setOnAuthFailure } from "./api/http";
 import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
 import PickerPage from "./pages/PickerPage";
@@ -55,6 +55,15 @@ export function AppRoutes() {
 }
 
 export default function App() {
+  // Try the httpOnly-cookie session before routing, so a page reload does not
+  // bounce a logged-in user to /login.
+  const [booted, setBooted] = useState(false);
+  useEffect(() => {
+    bootstrapSession().finally(() => setBooted(true));
+  }, []);
+
+  if (!booted) return <p className="muted page">Loading…</p>;
+
   return (
     <BrowserRouter>
       <AppRoutes />

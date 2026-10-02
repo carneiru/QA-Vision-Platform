@@ -4,11 +4,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
-import { setTokens } from "../auth/tokens";
+import { setAccessToken } from "../auth/tokens";
 import PickerPage from "./PickerPage";
 
 function renderPicker() {
-  setTokens("acc", "ref");
+  setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
@@ -45,7 +45,7 @@ test("sign out is available and returns to login", async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  setTokens("acc", "ref");
+  setAccessToken("acc");
   await userEvent.click(await screen.findByRole("button", { name: /sign out/i }));
   expect(await screen.findByText("LOGIN")).toBeInTheDocument();
 });
