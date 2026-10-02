@@ -24,6 +24,8 @@ export async function logout(): Promise<void> {
         body: JSON.stringify({ refresh_token: refresh }),
       });
     }
+  } catch {
+    // Best effort: a dead session can't be revoked server-side anyway.
   } finally {
     clearTokens();
   }

@@ -60,6 +60,24 @@ test("search and sort map to params; next page advances offset", async () => {
   expect(last.get("offset")).toBe("50");
 });
 
+test("empty page past the first keeps Previous reachable", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/tests", ({ request }) => {
+      const offset = Number(new URL(request.url).searchParams.get("offset"));
+      // Exactly 50 rows total: page 2 is empty.
+      return HttpResponse.json(
+        offset === 0 ? Array.from({ length: 50 }, (_, i) => row(`k${i}`, `t${i}`)) : [],
+      );
+    }),
+  );
+  renderTests();
+  await screen.findByText("t0");
+  await userEvent.click(screen.getByRole("button", { name: /next/i }));
+  await screen.findByText(/no tests/i);
+  await userEvent.click(screen.getByRole("button", { name: /previous/i }));
+  expect(await screen.findByText("t0")).toBeInTheDocument();
+});
+
 test("empty result shows an empty state", async () => {
   server.use(http.get("/api/v1/projects/42/analytics/tests", () => HttpResponse.json([])));
   renderTests();

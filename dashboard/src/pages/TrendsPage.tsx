@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -31,9 +31,19 @@ export default function TrendsPage() {
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [days, setDays] = useState(30);
+  // Text filters are drafts until Apply: per-keystroke refetching is chatty
+  // against the shared gateway rate limit.
+  const [branchInput, setBranchInput] = useState("");
+  const [environmentInput, setEnvironmentInput] = useState("");
   const [branch, setBranch] = useState("");
   const [environment, setEnvironment] = useState("");
   const [showTable, setShowTable] = useState(false);
+
+  function applyFilters(event: FormEvent) {
+    event.preventDefault();
+    setBranch(branchInput.trim());
+    setEnvironment(environmentInput.trim());
+  }
 
   const query = useQuery({
     queryKey: ["trends", id, days, branch, environment],
@@ -58,27 +68,34 @@ export default function TrendsPage() {
   return (
     <section>
       <h2 className="sr-only">Trends</h2>
-      <FilterBar>
-        <label>
-          Days
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={7}>7</option>
-            <option value={30}>30</option>
-            <option value={90}>90</option>
-          </select>
-        </label>
-        <label>
-          Branch
-          <input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="all" />
-        </label>
-        <label>
-          Environment
-          <input value={environment} onChange={(e) => setEnvironment(e.target.value)} placeholder="all" />
-        </label>
-        <button onClick={() => setShowTable((v) => !v)}>
-          {showTable ? "Hide data" : "View data"}
-        </button>
-      </FilterBar>
+      <form onSubmit={applyFilters}>
+        <FilterBar>
+          <label>
+            Days
+            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+              <option value={7}>7</option>
+              <option value={30}>30</option>
+              <option value={90}>90</option>
+            </select>
+          </label>
+          <label>
+            Branch
+            <input value={branchInput} onChange={(e) => setBranchInput(e.target.value)} placeholder="all" />
+          </label>
+          <label>
+            Environment
+            <input
+              value={environmentInput}
+              onChange={(e) => setEnvironmentInput(e.target.value)}
+              placeholder="all"
+            />
+          </label>
+          <button type="submit">Apply</button>
+          <button type="button" onClick={() => setShowTable((v) => !v)}>
+            {showTable ? "Hide data" : "View data"}
+          </button>
+        </FilterBar>
+      </form>
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading trends…</p>}

@@ -45,7 +45,7 @@ button:disabled { opacity: 0.6; cursor: default; }
 .error-banner { border: 1px solid var(--status-failed); color: var(--status-failed); border-radius: 8px; padding: 12px 16px; margin: 12px 0; display: flex; gap: 12px; align-items: center; }
 .card:has(table.data) { overflow-x: auto; }
 table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-table.data th, table.data td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--grid); }
+table.data th, table.data td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--grid); overflow-wrap: break-word; }
 table.data th { color: var(--text-secondary); font-weight: 600; }
 .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin: 16px 0; }
 .filters label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-secondary); }

@@ -49,6 +49,24 @@ test("empty window shows an empty state naming the filters", async () => {
   expect(await screen.findByText(/no runs in the last 30 days/i)).toBeInTheDocument();
 });
 
+test("branch input fetches only on Apply, not per keystroke", async () => {
+  const branches: (string | null)[] = [];
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", ({ request }) => {
+      branches.push(new URL(request.url).searchParams.get("branch"));
+      return HttpResponse.json({ tz: "UTC", days: [] });
+    }),
+  );
+  renderTrends();
+  await screen.findByText(/no runs/i);
+  const fetchesBeforeTyping = branches.length;
+  await userEvent.type(screen.getByLabelText(/branch/i), "main");
+  expect(branches.length).toBe(fetchesBeforeTyping); // nothing while typing
+  await userEvent.click(screen.getByRole("button", { name: /apply/i }));
+  await screen.findByText(/on main/i);
+  expect(branches[branches.length - 1]).toBe("main");
+});
+
 test("changing days refetches with the new value", async () => {
   const seen: string[] = [];
   server.use(

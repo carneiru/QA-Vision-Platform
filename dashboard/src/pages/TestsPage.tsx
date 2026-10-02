@@ -63,6 +63,11 @@ export default function TestsPage() {
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading tests…</p>}
       {query.data && rows.length === 0 && <p className="muted">No tests in the last {days} days.</p>}
+      {query.data && rows.length === 0 && offset > 0 && (
+        <div className="filters">
+          <button onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
+        </div>
+      )}
 
       {rows.length > 0 && (
         <div className="card">

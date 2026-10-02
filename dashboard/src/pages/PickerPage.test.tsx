@@ -30,6 +30,26 @@ test("zero organizations shows an empty state", async () => {
   expect(await screen.findByText(/not a member of any organization/i)).toBeInTheDocument();
 });
 
+test("sign out is available and returns to login", async () => {
+  server.use(
+    http.get("/api/v1/organizations", () => HttpResponse.json([])),
+    http.post("/api/v1/auth/logout", () => new HttpResponse(null, { status: 200 })),
+  );
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route path="/" element={<PickerPage />} />
+          <Route path="/login" element={<div>LOGIN</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  setTokens("acc", "ref");
+  await userEvent.click(await screen.findByRole("button", { name: /sign out/i }));
+  expect(await screen.findByText("LOGIN")).toBeInTheDocument();
+});
+
 test("selecting an org lists projects; clicking navigates to trends", async () => {
   server.use(
     http.get("/api/v1/organizations", () => HttpResponse.json([org])),

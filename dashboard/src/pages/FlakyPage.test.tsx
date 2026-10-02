@@ -42,7 +42,7 @@ test("renders confirmed and suspected rows with flip rate", async () => {
   expect(screen.getByText("42.0%")).toBeInTheDocument();
 });
 
-test("controls map to snake_case params", async () => {
+test("controls map to snake_case params; window select is immediate", async () => {
   const calls: URLSearchParams[] = [];
   server.use(
     http.get("/api/v1/projects/42/analytics/flaky", ({ request }) => {
@@ -53,9 +53,29 @@ test("controls map to snake_case params", async () => {
   renderFlaky();
   await screen.findByText(/no flaky tests/i);
   await userEvent.selectOptions(screen.getByLabelText(/window/i), "30");
-  await screen.findByText(/no flaky tests/i);
+  await screen.findByText(/last 30 days/i);
   const last = calls[calls.length - 1];
   expect(last.get("window_days")).toBe("30");
   expect(last.get("min_runs")).toBe("5");
   expect(last.get("min_flip_rate")).toBe("0.3");
+});
+
+test("numeric inputs apply on submit and clamp to API bounds", async () => {
+  const calls: URLSearchParams[] = [];
+  server.use(
+    http.get("/api/v1/projects/42/analytics/flaky", ({ request }) => {
+      calls.push(new URL(request.url).searchParams);
+      return HttpResponse.json([]);
+    }),
+  );
+  renderFlaky();
+  await screen.findByText(/no flaky tests/i);
+  const fetchesBefore = calls.length;
+  const minRuns = screen.getByLabelText(/min runs/i);
+  await userEvent.clear(minRuns); // empty mid-edit must not fetch min_runs=0
+  expect(calls.length).toBe(fetchesBefore);
+  await userEvent.click(screen.getByRole("button", { name: /apply/i }));
+  await screen.findByText(/no flaky tests/i);
+  const last = calls[calls.length - 1];
+  expect(last.get("min_runs")).toBe("2"); // clamped to the API's ge=2
 });
