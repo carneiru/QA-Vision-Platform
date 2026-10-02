@@ -1,4 +1,4 @@
-# ADR-007: Gateway catch-all serves the SPA; /api/ keeps the JSON 404 contract
+# ADR-017: Gateway catch-all serves the SPA; /api/ keeps the JSON 404 contract
 
 Status: Accepted (2026-10-01, amended 2026-10-02) · Evidence: smoke_gateway.sh checks, gateway review finding
 

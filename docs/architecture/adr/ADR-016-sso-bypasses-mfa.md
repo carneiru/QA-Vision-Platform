@@ -1,4 +1,4 @@
-# ADR-006: SSO sign-ins bypass platform MFA
+# ADR-016: SSO sign-ins bypass platform MFA
 
 Status: Accepted (2026-10-02) · Evidence: login flow (mfa_required only on password path), MFA tests
 

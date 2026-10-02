@@ -1,4 +1,4 @@
-# ADR-003: Refresh token as httpOnly cookie; body kept for API clients
+# ADR-013: Refresh token as httpOnly cookie; body kept for API clients
 
 Status: Accepted (2026-10-02) · Evidence: auth tests (cookie set/rotate/replay), gateway e2e
 

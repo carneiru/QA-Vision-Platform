@@ -1,6 +1,6 @@
 # ADR-007: Select React 5+ for Frontend Applications
 
-- Status: Accepted
+- Status: Proposed (TARGET architecture; reclassified 2026-10-02 — adopt only when the Blueprint's Implementation Status trigger fires; nothing here is deployed)
 - Date: 2024-03-05
 - Version: 1.0
 - Authors: Architecture Team

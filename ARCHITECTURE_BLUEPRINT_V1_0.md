@@ -1458,17 +1458,17 @@ Each ADR includes:
 
 ## 19.2 ADR Index
 
-**Accepted** (real decisions with evidence — see docs/adr/):
+**Accepted** (real decisions with evidence — see docs/architecture/adr/, index in INDEX.md):
 
 | ADR | Decision |
 |------|----------|
-| [ADR-001](docs/adr/ADR-001-flaky-window-rollups.md) | 90-day flaky window via daily rollups; commit rollup rejected by benchmark |
-| [ADR-002](docs/adr/ADR-002-same-commit-semantics.md) | A duplicate inside one run is not a re-run (same-commit semantics) |
-| [ADR-003](docs/adr/ADR-003-refresh-token-httponly-cookie.md) | Refresh token as httpOnly cookie; body kept for API clients |
-| [ADR-004](docs/adr/ADR-004-pii-masking-on-ingest.md) | PII masking at ingest, before truncation; per-project retention |
-| [ADR-005](docs/adr/ADR-005-idempotency-body-hash.md) | Idempotency keys with body-hash replay detection |
-| [ADR-006](docs/adr/ADR-006-sso-bypasses-mfa.md) | SSO sign-ins bypass platform MFA |
-| [ADR-007](docs/adr/ADR-007-gateway-spa-catchall.md) | Gateway catch-all serves the SPA; /api/ keeps the JSON 404 contract |
+| [ADR-011](docs/architecture/adr/ADR-011-flaky-window-rollups.md) | 90-day flaky window via daily rollups; commit rollup rejected by benchmark |
+| [ADR-012](docs/architecture/adr/ADR-012-same-commit-semantics.md) | A duplicate inside one run is not a re-run (same-commit semantics) |
+| [ADR-013](docs/architecture/adr/ADR-013-refresh-token-httponly-cookie.md) | Refresh token as httpOnly cookie; body kept for API clients |
+| [ADR-014](docs/architecture/adr/ADR-014-pii-masking-on-ingest.md) | PII masking at ingest, before truncation; per-project retention |
+| [ADR-015](docs/architecture/adr/ADR-015-idempotency-body-hash.md) | Idempotency keys with body-hash replay detection |
+| [ADR-016](docs/architecture/adr/ADR-016-sso-bypasses-mfa.md) | SSO sign-ins bypass platform MFA |
+| [ADR-017](docs/architecture/adr/ADR-017-gateway-spa-catchall.md) | Gateway catch-all serves the SPA; /api/ keeps the JSON 404 contract |
 
 **Proposed** (target architecture; each becomes an ADR when its adoption
 trigger fires — the previous index listed these as decided, including "Go for

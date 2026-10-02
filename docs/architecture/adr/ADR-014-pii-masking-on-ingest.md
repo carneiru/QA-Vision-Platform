@@ -1,4 +1,4 @@
-# ADR-004: PII masking at ingest, before truncation; retention per project
+# ADR-014: PII masking at ingest, before truncation; retention per project
 
 Status: Accepted (2026-09) · Evidence: ingest_service.mask/truncate order, retention job, masking tests
 

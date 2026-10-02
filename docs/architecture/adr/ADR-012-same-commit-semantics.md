@@ -1,4 +1,4 @@
-# ADR-002: A duplicate inside one run is not a re-run
+# ADR-012: A duplicate inside one run is not a re-run
 
 Status: Accepted (2026-10-01) · Evidence: analytics_service.mixed_commits (other_run.id != Run.id), test suite
 

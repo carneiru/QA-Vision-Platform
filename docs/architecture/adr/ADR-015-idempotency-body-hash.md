@@ -1,4 +1,4 @@
-# ADR-005: Idempotency keys with body-hash replay detection
+# ADR-015: Idempotency keys with body-hash replay detection
 
 Status: Accepted (2026-09) · Evidence: collect endpoint tests (replay, 409 on divergent body)
 

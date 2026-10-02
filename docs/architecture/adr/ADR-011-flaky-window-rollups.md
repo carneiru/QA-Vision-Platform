@@ -1,4 +1,4 @@
-# ADR-001: 90-day flaky window via daily rollups; commit rollup rejected
+# ADR-011: 90-day flaky window via daily rollups; commit rollup rejected
 
 Status: Accepted (2026-10-02) · Evidence: scripts/analytics_benchmark.py, tests/unit/test_flaky_rollup.py
 
@@ -23,3 +23,8 @@ same-commit detection therefore stays on the live failure-driven pass.
 90 d: 3.9 s from rollups vs 11.3 s live; 14 d: 0.83 s vs 2.1 s. Remaining
 90-day cost is the confirmed pass (future optimization). ClickHouse adoption
 trigger: rollups stop holding at ~10× data.
+
+## Addendum (2026-10-02)
+A follow-up experiment also rejected an aggregate-join rewrite of the
+confirmed pass: 3.8 s vs the current correlated-EXISTS 1.6 s at 90 days on
+the same dataset (identical result sets). The failure-driven EXISTS stands.

@@ -22,7 +22,11 @@ numbers in platforms/ingestion-service/README.md.
 1. Git metadata on runs: commit author/message, PR number, base branch
    (pairs with shipped code-change data).
 2. ~~Collector `--ca-file` fix~~ — done: `--ca-file` now pins trust exclusively (curl `--cacert` semantics); blending with the system store broke on Windows machines with CN=localhost dev certs in ROOT.
-3. Confirmed-flaky pass optimization (the remaining ~3 s at 90 d).
+3. ~~Confirmed-flaky pass optimization~~ — investigated 2026-10-02 and
+   closed without change: on the 2M-row benchmark the current failure-driven
+   correlated-EXISTS pass measures 1.6 s at 90 d and beats an aggregate-join
+   rewrite (3.8 s, identical result sets). The confirmed pass is a minority
+   of the 90-day total; revisit only if real data shows otherwise.
 4. Collector distribution (a product slice of its own — full list in
    TODO.md "Collector — nice to have"): tag `collector-v0.1.0`; PyPI trusted
    publishing (`pip install qav-collector`); ready-made GitHub Action and
