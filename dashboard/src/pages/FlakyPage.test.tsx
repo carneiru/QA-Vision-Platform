@@ -5,7 +5,13 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setTokens } from "../auth/tokens";
+import { downloadCsv } from "../lib/csv";
 import FlakyPage from "./FlakyPage";
+
+vi.mock("../lib/csv", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/csv")>()),
+  downloadCsv: vi.fn(),
+}));
 
 const flaky = [
   {
@@ -58,6 +64,18 @@ test("controls map to snake_case params; window select is immediate", async () =
   expect(last.get("window_days")).toBe("30");
   expect(last.get("min_runs")).toBe("5");
   expect(last.get("min_flip_rate")).toBe("0.3");
+});
+
+test("Export CSV downloads rows with joined commits", async () => {
+  server.use(http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json(flaky)));
+  renderFlaky();
+  await screen.findByText("Confirmed");
+  await userEvent.click(screen.getByRole("button", { name: /export csv/i }));
+  await vi.waitFor(() => expect(downloadCsv).toHaveBeenCalled());
+  const [filename, csv] = vi.mocked(downloadCsv).mock.calls[0];
+  expect(filename).toMatch(/flaky-project-42.*\.csv/);
+  expect(csv).toContain("same_commit");
+  expect(csv).toContain("abcdef1234:ci");
 });
 
 test("numeric inputs apply on submit and clamp to API bounds", async () => {

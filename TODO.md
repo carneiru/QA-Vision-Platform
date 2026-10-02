@@ -167,7 +167,7 @@ Reliability and operations
 - [ ] SSO sign-in buttons (Google, Microsoft) in the login page
 - [ ] Refresh token in an httpOnly cookie (needs auth-service support)
 - [ ] Mute / acknowledge flaky tests (needs a write API)
-- [ ] CSV export buttons on the tests and flaky views
+- [x] CSV export buttons on the tests and flaky views (client-side; tests view pages the API at limit=200, capped at 10k rows)
 - [ ] Branch comparison view
 
 ### Phase 4: Test Management

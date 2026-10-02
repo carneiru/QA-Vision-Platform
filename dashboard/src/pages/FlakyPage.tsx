@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { formatPassRate, getFlaky } from "../api/analytics";
+import { downloadCsv, toCsv } from "../lib/csv";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
@@ -37,6 +38,18 @@ export default function FlakyPage() {
 
   const rows = query.data ?? [];
 
+  function onExport() {
+    // The flaky endpoint returns the full result set, so the loaded rows are everything.
+    const csv = toCsv(
+      ["test_key", "suite", "class_name", "name", "reason", "flips", "flip_rate", "runs",
+       "last_status", "last_seen", "commits"],
+      rows.map((r) => [r.test_key, r.suite, r.class_name, r.name, r.reason, r.flips,
+        r.flip_rate, r.runs, r.last_status, r.last_seen,
+        r.commits.map((c) => (c.environment ? `${c.commit_sha}:${c.environment}` : c.commit_sha)).join("; ")]),
+    );
+    downloadCsv(`flaky-project-${id}-${windowDays}d.csv`, csv);
+  }
+
   return (
     <section>
       <h2 className="sr-only">Flaky tests</h2>
@@ -69,6 +82,9 @@ export default function FlakyPage() {
             <input value={branchInput} onChange={(e) => setBranchInput(e.target.value)} placeholder="all" />
           </label>
           <button type="submit">Apply</button>
+          <button type="button" onClick={onExport} disabled={rows.length === 0}>
+            Export CSV
+          </button>
         </FilterBar>
       </form>
 

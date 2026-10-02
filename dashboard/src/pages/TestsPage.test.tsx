@@ -5,7 +5,13 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setTokens } from "../auth/tokens";
+import { downloadCsv } from "../lib/csv";
 import TestsPage from "./TestsPage";
+
+vi.mock("../lib/csv", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/csv")>()),
+  downloadCsv: vi.fn(),
+}));
 
 const row = (key: string, name: string) => ({
   test_key: key, suite: "auth", class_name: "TestLogin", name,
@@ -76,6 +82,28 @@ test("empty page past the first keeps Previous reachable", async () => {
   await screen.findByText(/no tests/i);
   await userEvent.click(screen.getByRole("button", { name: /previous/i }));
   expect(await screen.findByText("t0")).toBeInTheDocument();
+});
+
+test("Export CSV downloads the full filtered dataset", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/tests", ({ request }) => {
+      const params = new URL(request.url).searchParams;
+      // The export pager asks with limit=200; the view itself uses 50.
+      if (params.get("limit") === "200") {
+        return HttpResponse.json([row("k1", "t1"), row("k2", "t2")]);
+      }
+      return HttpResponse.json([row("k1", "t1")]);
+    }),
+  );
+  renderTests();
+  await screen.findByText("t1");
+  await userEvent.click(screen.getByRole("button", { name: /export csv/i }));
+  await vi.waitFor(() => expect(downloadCsv).toHaveBeenCalled());
+  const [filename, csv] = vi.mocked(downloadCsv).mock.calls[0];
+  expect(filename).toMatch(/tests-project-42.*\.csv/);
+  expect(csv.split("\r\n")).toHaveLength(3); // header + 2 rows
+  expect(csv).toContain("test_key");
+  expect(csv).toContain("k2");
 });
 
 test("empty result shows an empty state", async () => {
