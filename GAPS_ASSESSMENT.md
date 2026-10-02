@@ -1,53 +1,23 @@
-# Assessment of Infrastructure Gaps in QA AI Dashboard Platform
+# Gaps Assessment
 
-Based on the work performed in this session, the following gaps from the provided list remain **unaddressed**:
+Updated 2026-10-02 against the running system (the previous version predated
+the gateway, CI and benchmarks and listed them as absent).
 
-## Unresolved Gaps
+## Closed since the last assessment
+- API gateway: NGINX with rate zones, TLS, JSON errors, request IDs, smoke-tested routing.
+- CI/CD: `.github/workflows/ci.yml` — service matrix, collector matrix, dashboard, container smokes, gateway full-stack smoke, CodeQL.
+- Performance evidence: `scripts/analytics_benchmark.py` (~2M results), numbers in the ingestion README.
+- Frontend: `dashboard/` SPA shipped.
+- Auth hardening: MFA, httpOnly refresh cookie, SSO tenant allowlist, signing-key fetch hardening.
 
-- **Orchestration & Orchestration‑as‑Code**: Only Helm charts for model-training-service were updated; no production-ready Kubernetes manifests, Terraform, or CloudFormation templates exist for full platform deployment.
+## Real gaps today
+1. **No metrics backend**: ingestion exposes Prometheus metrics; no Prometheus server/Grafana (trigger: first multi-node deployment).
+2. **No event bus / queue**: ingestion is synchronous (trigger: 1000+ events/s).
+3. **Service-to-service auth**: organization-service cannot verify users against auth-service without a superuser token (TODO gateway follow-up).
+4. **Artifacts**: no screenshot/video/trace storage (trigger: MinIO slice).
+5. **Unverified integrations**: real-tenant SSO sign-in, collector `--ca-file` against the dev self-signed cert, SAML (blocked on an IdP).
+6. **Dead prototype weight**: six unwired directories (flagged with READMEs) awaiting archive-or-revive decisions.
+7. **Phase 2 exit unproven**: no real-project deployments of the collector; 10k-execution ingestion target untested outside benchmarks.
+8. **Single points**: one Postgres, one gateway instance, compose-only deployment (accepted at current maturity L0).
 
-- **Service Mesh / Traffic Management**: No Istio, Linkerd, Consul Connect, or equivalent implemented for mTLS, retries, circuit breaking, or mesh-level observability.
-
-- **API Gateway**: Absence of a gateway layer providing centralized auth, rate limiting, request/response transformation, SSL termination, and API product management.
-
-- **Secrets Management**: Continued reliance on raw environment files (e.g., in Helm values.yaml); no integration with HashiCorp Vault, AWS Secrets Manager, GCP Secret Manager, or Azure Key Vault.
-
-- **Security Scanning**: No visible SAST/DAST, dependency‑check (Dependabot, Snyk, OWASP Dependency‑Check), or container image scanning (Trivy, Clair) in CI pipelines.
-
-- **Logging & Metrics Backend**: Logs remain JSON without pipeline to centralized log store (ELK/EFK, Loki, Splunk); metrics exposed but no Grafana dashboards or alerting rules configured.
-
-- **Event Schema Management**: Kafka topics exist but no Schema Registry (Confluent, AWS Glue, Applebury) for versioning or compatibility checks.
-
-- **Load‑Testing / Performance Benchmarks**: No scripts (k6, Locust, JMeter) or benchmark configurations present.
-
-- **Feature Flags / Configuration Service**: No evidence of a feature‑flag system (LaunchDarkly, Unleash, OpenFeature) or distributed config service (Spring Cloud Consul, Azure App Configuration).
-
-- **Autoscaling Policies**: No HPA/VPA definitions, cluster autoscaler configs, or custom metrics‑based scaling observed (Helm chart shows autoscaling.disabled: true).
-
-- **Backup & Disaster Recovery**: No documented backup schedules, point‑in‑time recovery RPO/RTO targets, or cross‑region replication strategies for datastores.
-
-- **CI/CD Pipelines**: Absent build, test, security scan, container image push, and deployment automation files.
-
-- **Service Discovery**: Services rely on static host/port configuration via environment variables; no Consul, Eureka, Kubernetes DNS, or Cloud‑Native service mesh lookup.
-
-- **Observability Alerting**: No alerting rules (Prometheus Alertmanager, PagerDuty, OpsGenie) visible; only metric emission.
-
-- **Chaos Engineering / Fault Injection**: No experiments (Gremlin, LitmusChaos) or failure‑injection test suites.
-
-- **API Governance / Catalog**: No developer portal, API versioning policy, deprecation notices, or automated contract‑testing (Pact) visible.
-
-- **Policy as Code**: No OPA/Kyverno policies for admission control, API authorization, or network segmentation.
-
-- **Standardized Build Artifacts**: No visible use of Buildpacks, Dockerfile linting (Hadolint), or SBOM generation.
-
-## Work Performed
-
-This session focused exclusively on improving the **model-training-service** integration patterns:
-- Added OpenTelemetry trace context propagation to Kafka producers/consumers
-- Implemented resilient HTTP client with circuit breaker, retry, timeout patterns
-- Added idempotency middleware using Redis caching
-- Added correlation ID middleware for request tracing
-- Updated Helm chart values.yaml and deployment.yaml to expose new configuration
-- Updated README.md to document the new features
-
-These changes address **internal service resilience and observability** but do **not** constitute solutions to the platform-level infrastructure gaps listed above. The gaps remain open concerns requiring dedicated effort beyond service-specific code improvements.
+Forward plan: IMPLEMENTATION_PLAN.md. Live record: TODO.md.

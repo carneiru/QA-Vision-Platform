@@ -1,5 +1,11 @@
 # QA Vision Platform Implementation Progress
 
+> Live item-level record. Forward plan: IMPLEMENTATION_PLAN.md. Target
+> architecture + adoption triggers: ARCHITECTURE_BLUEPRINT_V1_0.md (read its
+> Implementation Status banner first). Current-state spec:
+> TECHNICAL_SPECIFICATION.md. New features name the blueprint section they
+> serve; TARGET technologies enter only when their trigger fires.
+
 ## Completed Tasks
 
 ### Phase 1: Foundation Services - AUTHENTICATION SERVICE (COMPLETED)
