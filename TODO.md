@@ -164,7 +164,7 @@ Reliability and operations
 - [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
 
 ### Dashboard follow-ups
-- [ ] SSO sign-in buttons (Google, Microsoft) in the login page
+- [x] SSO sign-in buttons (Google, Microsoft) in the login page — rendered only when `VITE_*` client ids are baked at build time; manual verification against a real tenant still pending
 - [ ] Refresh token in an httpOnly cookie (needs auth-service support)
 - [ ] Mute / acknowledge flaky tests (needs a write API)
 - [ ] CSV export buttons on the tests and flaky views

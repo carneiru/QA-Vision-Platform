@@ -57,6 +57,11 @@ x-ingestion-build: &ingestion-build
 x-dashboard-build: &dashboard-build
   context: .
   dockerfile: dashboard/Dockerfile
+  args:
+    # Must match auth-service's GOOGLE_CLIENT_ID / Entra app; empty hides the button
+    VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    VITE_MSAL_CLIENT_ID: ${VITE_MSAL_CLIENT_ID:-}
+    VITE_MSAL_AUTHORITY: ${VITE_MSAL_AUTHORITY:-}
 
 services:
   postgres:

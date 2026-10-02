@@ -15,6 +15,17 @@ export async function login(email: string, password: string): Promise<void> {
   setTokens(tokens.access_token, tokens.refresh_token);
 }
 
+export async function ssoLogin(
+  provider: "google" | "microsoft",
+  credential: string,
+): Promise<void> {
+  const tokens = await apiFetch<TokenOut>(`/api/v1/sso/${provider}`, {
+    method: "POST",
+    body: JSON.stringify({ credential }),
+  });
+  setTokens(tokens.access_token, tokens.refresh_token);
+}
+
 export async function logout(): Promise<void> {
   const refresh = getRefreshToken();
   try {

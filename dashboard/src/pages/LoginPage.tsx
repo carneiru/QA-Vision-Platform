@@ -1,6 +1,12 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../api/auth";
+import { login, ssoLogin } from "../api/auth";
+import {
+  getMicrosoftCredential,
+  googleEnabled,
+  initGoogleButton,
+  microsoftEnabled,
+} from "../auth/ssoProviders";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function LoginPage() {
@@ -9,6 +15,36 @@ export default function LoginPage() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const googleRef = useRef<HTMLDivElement>(null);
+
+  async function finishSso(provider: "google" | "microsoft", credential: string) {
+    setError(null);
+    try {
+      await ssoLogin(provider, credential);
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  useEffect(() => {
+    if (googleEnabled() && googleRef.current) {
+      initGoogleButton(googleRef.current, (credential) => {
+        void finishSso("google", credential);
+      }).catch((err) => setError(err));
+    }
+    // Mount-only: the google button renders once into the ref.
+  }, []);
+
+  async function onMicrosoft() {
+    setError(null);
+    try {
+      const credential = await getMicrosoftCredential();
+      await finishSso("microsoft", credential);
+    } catch (err) {
+      setError(err);
+    }
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -23,6 +59,8 @@ export default function LoginPage() {
       setBusy(false);
     }
   }
+
+  const anySso = googleEnabled() || microsoftEnabled();
 
   return (
     <div className="page" style={{ maxWidth: 380 }}>
@@ -49,6 +87,19 @@ export default function LoginPage() {
         <button className="primary" type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        {anySso && (
+          <>
+            <p className="muted" style={{ textAlign: "center", margin: "16px 0 8px" }}>
+              or
+            </p>
+            {googleEnabled() && <div ref={googleRef} />}
+            {microsoftEnabled() && (
+              <button type="button" onClick={onMicrosoft} style={{ width: "100%", marginTop: 8 }}>
+                Sign in with Microsoft
+              </button>
+            )}
+          </>
+        )}
       </form>
     </div>
   );
