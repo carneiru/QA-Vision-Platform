@@ -5,21 +5,7 @@ import { formatDuration, formatPassRate, getHistory } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
-
-function Message({ text }: { text: string | null }) {
-  const [open, setOpen] = useState(false);
-  if (!text) return <span className="muted">—</span>;
-  const firstLine = text.split("\n")[0];
-  if (text === firstLine) return <span>{text}</span>;
-  return open ? (
-    <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{text}</pre>
-  ) : (
-    <span>
-      {firstLine}{" "}
-      <button onClick={() => setOpen(true)}>Show full message</button>
-    </span>
-  );
-}
+import Message from "../components/Message";
 
 export default function HistoryPage() {
   const { projectId, testKey } = useParams();

@@ -8,6 +8,8 @@ import ProjectLayout from "./pages/ProjectLayout";
 import TestsPage from "./pages/TestsPage";
 import HistoryPage from "./pages/HistoryPage";
 import FlakyPage from "./pages/FlakyPage";
+import RunsPage from "./pages/RunsPage";
+import RunDetailPage from "./pages/RunDetailPage";
 
 // Recharts dominates the bundle and only the trends view uses it; split it out.
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
@@ -35,6 +37,8 @@ export function AppRoutes() {
         <Route path="tests" element={<TestsPage />} />
         <Route path="tests/:testKey" element={<HistoryPage />} />
         <Route path="flaky" element={<FlakyPage />} />
+        <Route path="runs" element={<RunsPage />} />
+        <Route path="runs/:runId" element={<RunDetailPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
