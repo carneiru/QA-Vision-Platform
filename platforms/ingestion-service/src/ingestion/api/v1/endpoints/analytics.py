@@ -9,8 +9,8 @@ from sqlalchemy.orm import Session
 
 from src.ingestion.analytics.flaky import rank_flaky
 from src.ingestion.analytics.trends import daily, window_start
-from src.ingestion.api.deps import READ_ROLES, ProjectAccess, get_db, require_project_role
-from src.ingestion.schemas.analytics import FlakyOut, HistoryOut, StatsRowOut, TrendsOut
+from src.ingestion.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
+from src.ingestion.schemas.analytics import FlakyOut, HistoryOut, MuteIn, StatsRowOut, TrendsOut
 from src.ingestion.service import analytics_service
 
 router = APIRouter()  # mounted at /projects/{project_id}/analytics
@@ -89,9 +89,35 @@ def flaky(
     min_runs: int = Query(5, ge=2, le=1000),
     min_flip_rate: float = Query(0.3, ge=0.0, le=1.0),
     branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
+    include_muted: bool = Query(False),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
     since = _now() - timedelta(days=window_days)
     flips, mixed, latest = analytics_service.flaky_inputs(db, access.project_id, since, branch)
-    return rank_flaky(flips, mixed, latest, min_runs=min_runs, min_flip_rate=min_flip_rate)
+    items = rank_flaky(flips, mixed, latest, min_runs=min_runs, min_flip_rate=min_flip_rate)
+    muted = analytics_service.muted_keys(db, access.project_id)
+    if include_muted:
+        for item in items:
+            item["muted"] = item["test_key"] in muted
+        return items
+    return [item for item in items if item["test_key"] not in muted]
+
+
+@router.put("/flaky/mute", status_code=status.HTTP_204_NO_CONTENT)
+def mute_flaky(
+    payload: MuteIn,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
+):
+    analytics_service.mute_test(db, access.project_id, payload.test_key, access.user_id)
+
+
+@router.delete("/flaky/mute/{test_key}", status_code=status.HTTP_204_NO_CONTENT)
+def unmute_flaky(
+    test_key: str = Path(max_length=500, pattern=NO_NUL),
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
+):
+    if not analytics_service.unmute_test(db, access.project_id, test_key):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test is not muted")

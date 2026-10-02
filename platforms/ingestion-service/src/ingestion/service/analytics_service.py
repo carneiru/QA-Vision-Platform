@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, aliased
 
 from src.ingestion.analytics.flaky import FlipCount, LatestExecution, MixedCommit
 from src.ingestion.analytics.trends import RunRow, as_utc, pass_rate
-from src.ingestion.models import Run, RunResult
+from src.ingestion.models import MutedTest, Run, RunResult
 
 
 def _count(*statuses: str):
@@ -225,3 +225,30 @@ def flaky_inputs(db: Session, project_id: int, since: datetime, branch: Optional
     ).all()
     mixed = [MixedCommit(key, sha, env, as_utc(seen)) for key, sha, env, seen in mixed_rows]
     return flips, mixed, latest
+
+
+def muted_keys(db: Session, project_id: int) -> set:
+    rows = db.execute(select(MutedTest.test_key).where(MutedTest.project_id == project_id)).all()
+    return {key for (key,) in rows}
+
+
+def mute_test(db: Session, project_id: int, test_key: str, user_id: int) -> None:
+    """Idempotent: muting an already-muted test is a no-op."""
+    exists = db.execute(
+        select(MutedTest.id).where(MutedTest.project_id == project_id, MutedTest.test_key == test_key)
+    ).first()
+    if exists:
+        return
+    db.add(MutedTest(project_id=project_id, test_key=test_key, muted_by_user_id=user_id))
+    db.commit()
+
+
+def unmute_test(db: Session, project_id: int, test_key: str) -> bool:
+    row = db.execute(
+        select(MutedTest).where(MutedTest.project_id == project_id, MutedTest.test_key == test_key)
+    ).scalar_one_or_none()
+    if row is None:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

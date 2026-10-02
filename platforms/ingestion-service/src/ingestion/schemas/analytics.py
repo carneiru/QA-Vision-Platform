@@ -68,8 +68,13 @@ class CommitRef(BaseModel):
     environment: Optional[str] = None
 
 
+class MuteIn(BaseModel):
+    test_key: str
+
+
 class FlakyOut(BaseModel):
     test_key: str
+    muted: bool = False
     suite: str
     class_name: str
     name: str

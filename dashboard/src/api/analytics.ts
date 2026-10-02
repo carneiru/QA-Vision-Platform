@@ -71,6 +71,7 @@ export interface CommitRef {
 
 export interface FlakyRow {
   test_key: string;
+  muted?: boolean;
   suite: string;
   class_name: string;
   name: string;
@@ -108,15 +109,30 @@ export function getHistory(
   return apiFetch(`/api/v1/projects/${projectId}/analytics/tests/${encodeURIComponent(testKey)}/history${q}`);
 }
 
+export function muteFlaky(projectId: number, testKey: string): Promise<void> {
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/flaky/mute`, {
+    method: "PUT",
+    body: JSON.stringify({ test_key: testKey }),
+  });
+}
+
+export function unmuteFlaky(projectId: number, testKey: string): Promise<void> {
+  return apiFetch(
+    `/api/v1/projects/${projectId}/analytics/flaky/mute/${encodeURIComponent(testKey)}`,
+    { method: "DELETE" },
+  );
+}
+
 export function getFlaky(
   projectId: number,
-  opts: { windowDays: number; minRuns: number; minFlipRate: number; branch?: string },
+  opts: { windowDays: number; minRuns: number; minFlipRate: number; branch?: string; includeMuted?: boolean },
 ): Promise<FlakyRow[]> {
   const q = buildQuery({
     window_days: opts.windowDays,
     min_runs: opts.minRuns,
     min_flip_rate: opts.minFlipRate,
     branch: opts.branch,
+    include_muted: opts.includeMuted ? "true" : undefined,
   });
   return apiFetch(`/api/v1/projects/${projectId}/analytics/flaky${q}`);
 }
