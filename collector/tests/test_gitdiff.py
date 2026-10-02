@@ -86,3 +86,20 @@ def test_git_failure_returns_none():
 
 def test_no_commit_and_no_base_returns_none():
     assert collect_changes({}, commit=None, run=fake_git({})) is None
+
+
+def test_commit_info_reads_author_and_subject():
+    from qav_collector.gitdiff import collect_commit_info
+
+    run = fake_git({("log", "-1", "--format=%an%n%s", "abc1234"): "Ada Lovelace\nfix: keep totals stable\n"})
+    assert collect_commit_info("abc1234", run=run) == ("Ada Lovelace", "fix: keep totals stable")
+
+
+def test_commit_info_survives_git_failure():
+    from qav_collector.gitdiff import collect_commit_info
+
+    def run(cmd, **kwargs):
+        raise FileNotFoundError("no git")
+
+    assert collect_commit_info("abc1234", run=run) == (None, None)
+    assert collect_commit_info(None, run=fake_git({})) == (None, None)

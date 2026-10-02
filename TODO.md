@@ -140,7 +140,7 @@ Formats
 
 Richer data
 - [x] Keep each retry attempt as its own result, so flaky tests become visible — Surefire flakyFailure/flakyError/rerunFailure/rerunError expand into per-attempt results (duplicate testcases, pytest-rerunfailures style, already passed through)
-- [ ] Git metadata: commit author and message, pull-request number, base branch
+- [x] Git metadata: commit author and message (git log -1, best effort), PR number + base branch (GitHub/GitLab env), stored per run and shown on run detail
 - [x] Code-change data, not just JUnit: changed files and diff stats per run — collector gitdiff module, ingestion migration 005 + run API, dashboard Changes card. Correlation analytics remain Phase 6 input.
 - [ ] Test ownership from CODEOWNERS
 - [ ] Artifact upload (screenshots, videos, traces) once ingestion accepts them

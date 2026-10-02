@@ -89,3 +89,28 @@ def test_sanitize_key():
     assert sanitize_key("a bé\n") == "a-b--"
     assert sanitize_key("x" * 300) == "x" * 200
     assert sanitize_key("") is None
+
+
+def test_github_pull_request_number_and_base():
+    env = {"GITHUB_ACTIONS": "true", "GITHUB_SERVER_URL": "https://github.com",
+           "GITHUB_REPOSITORY": "o/r", "GITHUB_RUN_ID": "9", "GITHUB_SHA": "abc",
+           "GITHUB_HEAD_REF": "feature-x", "GITHUB_REF_NAME": "123/merge",
+           "GITHUB_BASE_REF": "main"}
+    info = detect(env)
+    assert info.pr_number == 123
+    assert info.base_branch == "main"
+
+
+def test_github_push_has_no_pr():
+    env = {"GITHUB_ACTIONS": "true", "GITHUB_REF_NAME": "main", "GITHUB_SHA": "abc"}
+    info = detect(env)
+    assert info.pr_number is None and info.base_branch is None
+
+
+def test_gitlab_merge_request_number_and_base():
+    env = {"GITLAB_CI": "true", "CI_JOB_ID": "7", "CI_COMMIT_SHA": "abc",
+           "CI_COMMIT_REF_NAME": "feature", "CI_MERGE_REQUEST_IID": "45",
+           "CI_MERGE_REQUEST_TARGET_BRANCH_NAME": "develop"}
+    info = detect(env)
+    assert info.pr_number == 45
+    assert info.base_branch == "develop"

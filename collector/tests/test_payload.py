@@ -136,3 +136,20 @@ def test_build_parts_carries_changes_in_every_part():
 
     without = build_parts(run, results, "key")
     assert "changes" not in _json.loads(without[0].body)
+
+
+def test_build_run_carries_git_metadata_when_valid():
+    from qav_collector.payload import build_run
+    from datetime import datetime, timezone
+
+    now = datetime(2026, 10, 2, tzinfo=timezone.utc)
+    run = build_run(ci_provider="local", started_at=now, finished_at=now,
+                    commit_author="Ada", commit_message="m" * 600,
+                    pr_number=123, base_branch="main")
+    assert run["commit_author"] == "Ada"
+    assert len(run["commit_message"]) == 500  # cut, not rejected
+    assert run["pr_number"] == 123
+    assert run["base_branch"] == "main"
+
+    bare = build_run(ci_provider="local", started_at=now, finished_at=now, pr_number=0)
+    assert "pr_number" not in bare and "commit_author" not in bare

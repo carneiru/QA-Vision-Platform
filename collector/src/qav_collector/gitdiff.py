@@ -102,3 +102,19 @@ def collect_changes(
         adds, dels = numstat.get(path, (None, None))
         files.append({"path": path, "status": letter, "additions": adds, "deletions": dels})
     return {"base_ref": base_ref, "truncated": truncated, "files": files}
+
+
+def collect_commit_info(
+    commit: Optional[str], *, run: Callable = subprocess.run
+) -> tuple:
+    """(author, subject) of the commit; (None, None) on any failure."""
+    if not commit:
+        return None, None
+    try:
+        out = _git(run, ["log", "-1", "--format=%an%n%s", commit])
+    except Exception:
+        return None, None
+    lines = out.splitlines()
+    author = lines[0].strip() if lines else ""
+    subject = lines[1].strip() if len(lines) > 1 else ""
+    return (author or None, subject or None)

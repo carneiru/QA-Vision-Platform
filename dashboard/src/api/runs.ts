@@ -11,6 +11,10 @@ export interface Run {
   branch: string | null;
   environment: string | null;
   agent_version: string | null;
+  commit_author: string | null;
+  commit_message: string | null;
+  pr_number: number | null;
+  base_branch: string | null;
   started_at: string;
   finished_at: string;
   duration_ms: number;

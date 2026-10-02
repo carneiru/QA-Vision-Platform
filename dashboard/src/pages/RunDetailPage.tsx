@@ -55,6 +55,14 @@ export default function RunDetailPage() {
               run.ci_provider
             )}
           </p>
+          {(run.commit_author || run.commit_message || run.pr_number || run.base_branch) && (
+            <p className="muted">
+              {run.commit_author && <span>{run.commit_author}</span>}
+              {run.commit_message && <span> · {run.commit_message}</span>}
+              {run.pr_number && <span> · PR #{run.pr_number}</span>}
+              {run.base_branch && <span> · into {run.base_branch}</span>}
+            </p>
+          )}
           <div className="tiles">
             <div className="card">
               <div className="tile-value">{run.total}</div>

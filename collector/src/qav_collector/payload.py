@@ -50,6 +50,10 @@ def build_run(
     commit_sha: Optional[str] = None,
     branch: Optional[str] = None,
     environment: Optional[str] = None,
+    commit_author: Optional[str] = None,
+    commit_message: Optional[str] = None,
+    pr_number: Optional[int] = None,
+    base_branch: Optional[str] = None,
 ) -> Dict[str, str]:
     """Metadata the server would reject is left out or cut, so it never costs the whole run."""
     run = {
@@ -68,6 +72,16 @@ def build_run(
         run["branch"] = branch[:BRANCH_LENGTH]
     if environment:
         run["environment"] = environment[:ENVIRONMENT_LENGTH]
+    commit_author, commit_message = _storable(commit_author), _storable(commit_message)
+    base_branch = _storable(base_branch)
+    if commit_author:
+        run["commit_author"] = commit_author[:255]
+    if commit_message:
+        run["commit_message"] = commit_message[:500]
+    if isinstance(pr_number, int) and pr_number > 0:
+        run["pr_number"] = pr_number
+    if base_branch:
+        run["base_branch"] = base_branch[:BRANCH_LENGTH]
     return run
 
 

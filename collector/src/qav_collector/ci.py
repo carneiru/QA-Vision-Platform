@@ -15,6 +15,8 @@ class CIInfo:
     branch: Optional[str] = None
     run_url: Optional[str] = None
     idempotency_key: Optional[str] = None
+    pr_number: Optional[int] = None
+    base_branch: Optional[str] = None
 
 
 def detect(env: Mapping[str, str]) -> CIInfo:
@@ -28,6 +30,9 @@ def detect(env: Mapping[str, str]) -> CIInfo:
             commit=get("GITHUB_SHA"),
             # On pull requests GITHUB_REF_NAME is "<number>/merge"; the head branch is the useful one
             branch=get("GITHUB_HEAD_REF") or get("GITHUB_REF_NAME"),
+            # On a PR, GITHUB_REF_NAME is "<number>/merge"
+            pr_number=_pr_from_ref(get("GITHUB_REF_NAME")) if get("GITHUB_HEAD_REF") else None,
+            base_branch=get("GITHUB_BASE_REF"),
             run_url=f"{server}/{repo}/actions/runs/{run_id}" if server and repo and run_id else None,
             # A re-run attempt is a new execution, so it gets a new key on purpose
             idempotency_key=_key("gh", run_id, get("GITHUB_RUN_ATTEMPT") or "1", get("GITHUB_JOB")) if run_id else None,
@@ -40,6 +45,8 @@ def detect(env: Mapping[str, str]) -> CIInfo:
             branch=get("CI_COMMIT_REF_NAME"),
             run_url=get("CI_JOB_URL"),
             idempotency_key=_key("gl", job_id) if job_id else None,
+            pr_number=_int_or_none(get("CI_MERGE_REQUEST_IID")),
+            base_branch=get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"),
         )
     if get("JENKINS_URL"):
         branch, tag = get("GIT_BRANCH"), get("BUILD_TAG")
@@ -63,3 +70,17 @@ def sanitize_key(raw: str) -> Optional[str]:
 
 def _key(*parts: Optional[str]) -> Optional[str]:
     return sanitize_key("-".join(p for p in parts if p))
+
+
+def _int_or_none(value: Optional[str]) -> Optional[int]:
+    try:
+        number = int(value or "")
+        return number if number > 0 else None
+    except ValueError:
+        return None
+
+
+def _pr_from_ref(ref_name: Optional[str]) -> Optional[int]:
+    if ref_name and ref_name.endswith("/merge"):
+        return _int_or_none(ref_name.split("/", 1)[0])
+    return None

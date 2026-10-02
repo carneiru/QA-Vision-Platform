@@ -14,6 +14,7 @@ const detail = (results: object[]) => ({
   started_at: "2026-10-01T12:00:00Z", finished_at: "2026-10-01T12:04:00Z",
   duration_ms: 240000, total: 24, passed: 20, failed: 3, skipped: 0, errored: 1,
   created_at: "2026-10-01T12:05:00Z",
+  commit_author: null, commit_message: null, pr_number: null, base_branch: null,
   change_base_ref: null, changed_files: null, additions: null, deletions: null,
   changes_truncated: null, changes: [], results,
 });
@@ -88,4 +89,20 @@ test("a run without change data shows no Changes card", async () => {
   renderDetail();
   await screen.findByText(/run #61/i);
   expect(screen.queryByText(/changes/i)).not.toBeInTheDocument();
+});
+
+
+test("git metadata renders when present", async () => {
+  const withMeta = {
+    ...detail([]),
+    commit_author: "Ada Lovelace",
+    commit_message: "fix(cart): keep totals stable",
+    pr_number: 123,
+    base_branch: "main",
+  };
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(withMeta)));
+  renderDetail();
+  expect(await screen.findByText(/Ada Lovelace/)).toBeInTheDocument();
+  expect(screen.getByText(/fix\(cart\): keep totals stable/)).toBeInTheDocument();
+  expect(screen.getByText(/PR #123/)).toBeInTheDocument();
 });

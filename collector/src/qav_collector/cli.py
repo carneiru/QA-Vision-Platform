@@ -15,7 +15,7 @@ from typing import Callable, List, Mapping, Optional, Sequence
 from qav_collector import __version__
 from qav_collector.ci import detect, sanitize_key
 from qav_collector.junit import parse_file
-from qav_collector.gitdiff import collect_changes
+from qav_collector.gitdiff import collect_changes, collect_commit_info
 from qav_collector.payload import build_parts, build_run, run_times, summarize
 from qav_collector.upload import ConfigError, UploadError, endpoint_for, make_context, upload_part
 
@@ -149,6 +149,8 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         f"({counts['failed']} failed, {counts['errored']} errored, {counts['skipped']} skipped)"
     )
 
+    author, subject = collect_commit_info(pick(args.commit, "QAV_COMMIT", ci.commit))
+
     started, finished = run_times(
         [stamp for report in parsed for stamp in report.suite_timestamps],
         sum(report.suite_seconds for report in parsed),
@@ -163,6 +165,10 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         commit_sha=pick(args.commit, "QAV_COMMIT", ci.commit),
         branch=pick(args.branch, "QAV_BRANCH", ci.branch),
         environment=pick(args.environment, "QAV_ENVIRONMENT"),
+        commit_author=author,
+        commit_message=subject,
+        pr_number=ci.pr_number,
+        base_branch=ci.base_branch,
     )
     changes = None
     skip_changes = args.no_changes or env.get("QAV_NO_CHANGES", "").strip().lower() in _TRUE
