@@ -23,7 +23,7 @@ export default function ProjectLayout() {
           <button onClick={onSignOut}>Sign out</button>
         </span>
       </div>
-      <nav className="tabs">
+      <nav className="tabs" aria-label="Project views">
         <NavLink to="trends" className={({ isActive }) => (isActive ? "active" : "")}>Trends</NavLink>
         <NavLink to="tests" end className={({ isActive }) => (isActive ? "active" : "")}>Tests</NavLink>
         <NavLink to="flaky" className={({ isActive }) => (isActive ? "active" : "")}>Flaky</NavLink>

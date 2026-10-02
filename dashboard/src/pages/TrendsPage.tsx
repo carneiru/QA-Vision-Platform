@@ -109,12 +109,16 @@ export default function TrendsPage() {
 
           <div className="card">
             <h3>Results per day</h3>
+            <div
+              role="img"
+              aria-label={`Stacked bars of passed, failed, errored and skipped results per day over the last ${days} days. The View data button shows the same numbers as a table.`}
+            >
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={trendDays} barCategoryGap="20%">
                 <CartesianGrid stroke="var(--grid)" vertical={false} />
                 <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
                 <YAxis allowDecimals={false} stroke="var(--text-muted)" tickLine={false} />
-                <Tooltip {...tooltipStyles} />
+                <Tooltip {...tooltipStyles} cursor={{ fill: "var(--grid)", fillOpacity: 0.5 }} />
                 <Legend formatter={inkLegend} />
                 {STATUS.map((s, i) => (
                   <Bar
@@ -130,19 +134,29 @@ export default function TrendsPage() {
                 ))}
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </div>
 
           <div className="card" style={{ marginTop: 12 }}>
             <h3>Pass rate</h3>
+            <div
+              role="img"
+              aria-label={`Daily pass rate line over the last ${days} days. The View data button shows the same numbers as a table.`}
+            >
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={rateData}>
                 <CartesianGrid stroke="var(--grid)" vertical={false} />
                 <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
                 <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="var(--text-muted)" tickLine={false} />
-                <Tooltip {...tooltipStyles} formatter={(v) => [`${Number(v).toFixed(1)}%`, "Pass rate"]} />
+                <Tooltip
+                  {...tooltipStyles}
+                  cursor={{ stroke: "var(--grid)" }}
+                  formatter={(v) => [`${Number(v).toFixed(1)}%`, "Pass rate"]}
+                />
                 <Line dataKey="ratePct" stroke="var(--accent)" strokeWidth={2} dot={false} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>
+            </div>
           </div>
         </>
       )}
