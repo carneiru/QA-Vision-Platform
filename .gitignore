@@ -3,3 +3,4 @@
 .claude/.proven-config-version
 .claude/proven-config.json
 .playwright-mcp/
+.env

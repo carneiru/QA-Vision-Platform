@@ -122,7 +122,8 @@ curl -k https://localhost:8443/health          # {"status":"healthy"}
 - Inspect a database: `docker compose exec postgres psql -U postgres -d project_db`.
 - Stop: `docker compose down`. Wipe all data: `docker compose down --volumes`.
 - Ports: `GATEWAY_HTTPS_PORT` (default 8443) and `GATEWAY_HTTP_PORT` (default 8080) — set
-  either if the port is already taken on your machine.
+  either if the port is already taken on your machine. Easiest: `cp .env.example .env` and
+  uncomment the override there (compose reads `.env` automatically; it is git-ignored).
 - Adding members to an organization needs `AUTH_SERVICE_TOKEN` set to a superuser's token (a
   known limitation; see `TODO.md`).
 
