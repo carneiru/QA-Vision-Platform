@@ -5,6 +5,7 @@ import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
 import PickerPage from "./pages/PickerPage";
 import ProjectLayout from "./pages/ProjectLayout";
+import SecurityPage from "./pages/SecurityPage";
 import TestsPage from "./pages/TestsPage";
 import HistoryPage from "./pages/HistoryPage";
 import FlakyPage from "./pages/FlakyPage";
@@ -25,6 +26,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<RequireAuth><PickerPage /></RequireAuth>} />
+      <Route path="/account/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
       <Route path="/projects/:projectId" element={<RequireAuth><ProjectLayout /></RequireAuth>}>
         <Route index element={<Navigate to="trends" replace />} />
         <Route

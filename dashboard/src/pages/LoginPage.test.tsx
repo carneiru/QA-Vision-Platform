@@ -98,6 +98,26 @@ test("Google button mounts and its credential posts to the API", async () => {
   expect(isAuthenticated()).toBe(true);
 });
 
+test("MFA-enabled login asks for a code, then verify signs in", async () => {
+  server.use(
+    http.post("/api/v1/auth/login", () =>
+      HttpResponse.json({ mfa_required: true, mfa_token: "challenge-1" }),
+    ),
+    http.post("/api/v1/auth/mfa/verify", async ({ request }) => {
+      expect(await request.json()).toEqual({ mfa_token: "challenge-1", code: "123456" });
+      return HttpResponse.json({ access_token: "acc", refresh_token: "r", token_type: "bearer" });
+    }),
+  );
+  renderLogin();
+  await userEvent.type(screen.getByLabelText(/email/i), "a@b.co");
+  await userEvent.type(screen.getByLabelText(/password/i), "pw");
+  await userEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+  await userEvent.type(await screen.findByLabelText(/authentication code/i), "123456");
+  await userEvent.click(screen.getByRole("button", { name: /verify/i }));
+  expect(await screen.findByText("PICKER")).toBeInTheDocument();
+  expect(isAuthenticated()).toBe(true);
+});
+
 test("bad credentials show the API detail", async () => {
   server.use(
     http.post("/api/v1/auth/login", () =>

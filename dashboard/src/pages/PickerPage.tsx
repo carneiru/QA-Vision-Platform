@@ -24,7 +24,10 @@ export default function PickerPage() {
     <div className="page">
       <div className="page-header">
         <h1>Choose a project</h1>
-        <button onClick={onSignOut}>Sign out</button>
+        <span>
+          <Link to="/account/security">Security</Link>
+          <button onClick={onSignOut}>Sign out</button>
+        </span>
       </div>
       {orgs.error != null && <ErrorBanner error={orgs.error} onRetry={() => orgs.refetch()} />}
       {orgs.isPending && <p className="muted">Loading organizations…</p>}

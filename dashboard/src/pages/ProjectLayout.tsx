@@ -20,6 +20,7 @@ export default function ProjectLayout() {
         <h1>{project.data?.name ?? `Project ${projectId}`}</h1>
         <span>
           <Link to="/">Switch project</Link>
+          <Link to="/account/security">Security</Link>
           <button onClick={onSignOut}>Sign out</button>
         </span>
       </div>

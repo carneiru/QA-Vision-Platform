@@ -154,7 +154,7 @@ Reliability and operations
 - [ ] SCIM provisioning and deprovisioning
 - [ ] GitHub SSO
 - [ ] Single sign-out
-- [ ] MFA for password accounts: TOTP enrollment (QR + otpauth URI), verification on login, recovery codes; SSO sign-ins defer MFA to the identity provider
+- [x] MFA for password accounts: TOTP enrollment (QR + otpauth URI), verification on login, recovery codes; SSO sign-ins defer MFA to the identity provider
 - [ ] SAML 2.0 sign-in for enterprise IdPs that don't do OIDC (SP-initiated, signed assertions, per-organization IdP metadata); complements the existing Google/Microsoft ID-token flows
 
 ### Analytics API (Phase 3, step 1)

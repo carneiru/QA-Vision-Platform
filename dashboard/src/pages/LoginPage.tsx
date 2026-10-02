@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { login, ssoLogin } from "../api/auth";
+import { login, mfaVerify, ssoLogin } from "../api/auth";
 import {
   getMicrosoftCredential,
   googleEnabled,
@@ -46,18 +46,66 @@ export default function LoginPage() {
     }
   }
 
+  const [mfaToken, setMfaToken] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await login(email, password);
+      const challenge = await login(email, password);
+      if (challenge) {
+        setMfaToken(challenge.mfaToken);
+        return;
+      }
       navigate("/", { replace: true });
     } catch (err) {
       setError(err);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function onMfaSubmit(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await mfaVerify(mfaToken!, mfaCode.trim());
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (mfaToken !== null) {
+    return (
+      <div className="page" style={{ maxWidth: 380 }}>
+        <h1>QA Vision</h1>
+        <form className="card" onSubmit={onMfaSubmit}>
+          <p>Enter the code from your authenticator app, or a recovery code.</p>
+          <p>
+            <label>
+              Authentication code
+              <input
+                value={mfaCode}
+                onChange={(e) => setMfaCode(e.target.value)}
+                autoComplete="one-time-code"
+                autoFocus
+                required
+              />
+            </label>
+          </p>
+          {error != null && <ErrorBanner error={error} />}
+          <button className="primary" type="submit" disabled={busy}>
+            {busy ? "Verifying…" : "Verify"}
+          </button>
+        </form>
+      </div>
+    );
   }
 
   const anySso = googleEnabled() || microsoftEnabled();
