@@ -159,7 +159,7 @@ Reliability and operations
 
 ### Analytics API (Phase 3, step 1)
 - [x] Daily trends in a requested time zone; per-test list, history; flaky detection (same commit + environment, flip rate)
-- [ ] Summary tables when live queries get slow (flaky over 90 days took 10.8 s on 2 million results; the window is capped at 30)
+- [x] Summary tables: flaky_daily rollups + analytics-rollup job; window raised to 90 days (90d: 3.9 s from rollups vs 11.3 s live; 14d: 0.8 s)
 - [ ] Weekly and monthly views
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
 - [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls

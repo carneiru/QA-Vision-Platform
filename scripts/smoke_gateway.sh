@@ -211,6 +211,11 @@ if docker compose ps --status running --services 2>/dev/null | grep -qx ingestio
 else
   fail "ingestion-retention is not running"
 fi
+if docker compose ps --status running --services 2>/dev/null | grep -qx analytics-rollup; then
+  pass "analytics-rollup is running"
+else
+  fail "analytics-rollup is not running"
+fi
 if docker compose run --rm -T ingestion-retention python -m src.ingestion.jobs.retention --dry-run \
      >"$TMP/retention_out" 2>"$TMP/retention_err"; then
   if grep -q '"event": "retention"' "$TMP/retention_out"; then

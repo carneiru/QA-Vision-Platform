@@ -13,7 +13,9 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, insert, select, text
 
+from src.ingestion.analytics import rollup
 from src.ingestion.analytics.flaky import rank_flaky
+from src.ingestion.models.flaky_rollup import FlakyDaily, FlakyRollupDay
 from src.ingestion.analytics.trends import daily, window_start
 from src.ingestion.db.session import SessionLocal
 from src.ingestion.models import ApiKey, Run, RunResult
@@ -83,11 +85,28 @@ try:
     since30 = now - timedelta(days=30)
     timed("flaky, 30 days", lambda: rank_flaky(*analytics_service.flaky_inputs(db, PROJECT, since30, None),
                                                 min_runs=5, min_flip_rate=0.3))
+    since90d = now - timedelta(days=90)
+    timed("flaky, 90 days, live", lambda: rank_flaky(*analytics_service.flaky_inputs(db, PROJECT, since90d, None),
+                                                      min_runs=5, min_flip_rate=0.3))
+
+    def roll_all():
+        day = (now - timedelta(days=DAYS)).date()
+        while day <= now.date():
+            rollup.upsert_day(db, PROJECT, day)
+            day += timedelta(days=1)
+
+    timed(f"rollup job, {DAYS} days backfill", roll_all)
+    timed("flaky, 14 days, rollup", lambda: rank_flaky(*rollup.rollup_inputs(db, PROJECT, since14.date(), None),
+                                                        min_runs=5, min_flip_rate=0.3))
+    timed("flaky, 90 days, rollup", lambda: rank_flaky(*rollup.rollup_inputs(db, PROJECT, since90d.date(), None),
+                                                        min_runs=5, min_flip_rate=0.3))
 finally:
     db.rollback()
     run_ids = select(Run.id).where(Run.project_id == PROJECT)
     db.execute(delete(RunResult).where(RunResult.run_id.in_(run_ids)))
     db.execute(delete(Run).where(Run.project_id == PROJECT))
     db.execute(delete(ApiKey).where(ApiKey.project_id == PROJECT))
+    db.execute(delete(FlakyDaily).where(FlakyDaily.project_id == PROJECT))
+    db.execute(delete(FlakyRollupDay).where(FlakyRollupDay.project_id == PROJECT))
     db.commit()
     db.close()

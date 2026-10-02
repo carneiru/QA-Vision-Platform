@@ -199,6 +199,16 @@ services:
       timeout: 5s
       retries: 12
 
+  # Keeps the flaky_daily rollups current: backfill on start, then every 6 hours.
+  analytics-rollup:
+    image: qa-vision/ingestion-service:local
+    pull_policy: never
+    environment: *ingestion-env
+    command: ["python", "-m", "src.ingestion.jobs.rollup", "--loop"]
+    depends_on:
+      ingestion-migrate:
+        condition: service_completed_successfully
+
   gateway:
     build: ./gateway
     image: qa-vision/gateway:local
@@ -228,6 +238,8 @@ services:
         condition: service_healthy
       # Not needed by the gateway; listed so `docker compose up gateway` starts the whole platform
       ingestion-retention:
+        condition: service_started
+      analytics-rollup:
         condition: service_started
 
 volumes:

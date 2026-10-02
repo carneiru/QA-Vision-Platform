@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo, available_timezones
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
 
+from src.ingestion.analytics import rollup
 from src.ingestion.analytics.flaky import rank_flaky
 from src.ingestion.analytics.trends import daily, window_start
 from src.ingestion.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
@@ -97,8 +98,9 @@ def branches(
 
 @router.get("/flaky", response_model=List[FlakyOut])
 def flaky(
-    # 30 at most: flaky detection sorts every execution in the window (measured in the README)
-    window_days: int = Query(14, ge=1, le=30),
+    # 90 now that windows recombine from the daily rollups; the live fallback
+    # (a project the rollup job has not visited yet) still scans executions
+    window_days: int = Query(14, ge=1, le=90),
     min_runs: int = Query(5, ge=2, le=1000),
     min_flip_rate: float = Query(0.3, ge=0.0, le=1.0),
     branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
@@ -107,7 +109,10 @@ def flaky(
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
     since = _now() - timedelta(days=window_days)
-    flips, mixed, latest = analytics_service.flaky_inputs(db, access.project_id, since, branch)
+    if rollup.has_rollups(db, access.project_id):
+        flips, mixed, latest = rollup.rollup_inputs(db, access.project_id, since.date(), branch)
+    else:
+        flips, mixed, latest = analytics_service.flaky_inputs(db, access.project_id, since, branch)
     items = rank_flaky(flips, mixed, latest, min_runs=min_runs, min_flip_rate=min_flip_rate)
     muted = analytics_service.muted_keys(db, access.project_id)
     if include_muted:

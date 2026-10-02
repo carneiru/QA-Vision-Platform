@@ -95,7 +95,7 @@ Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that
 | `GET /trends?days=30&tz=UTC&branch=&environment=` | One entry per local day (`days` 1–365, zone `tz`), oldest first, empty days zero-filled: runs, counts, `pass_rate`, average and maximum run duration |
 | `GET /tests?days=30&sort=failures&search=&limit=50&offset=0` | One row per test in the window (`days` 1–90): counts, `pass_rate`, average duration, last status and when last seen; `sort` is `failures`, `duration` or `name`; `search` matches the name literally, case-insensitively |
 | `GET /tests/{test_key}/history?days=30&branch=&limit=100` | One test: a summary over the window and its executions, newest first, with the message cut to 500 characters. 404 if the test was never seen in this project |
-| `GET /flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=` | At most 100 flaky tests (`window_days` 1–30) |
+| `GET /flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=` | At most 100 flaky tests (`window_days` 1–90) |
 
 - `pass_rate` = passed ÷ (total − skipped); errored counts as not passed; `null` when nothing ran.
 - An empty filter (`?branch=`) means no filter; `tz` must be a zone name from the IANA list.
@@ -111,12 +111,16 @@ Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million re
 | tests, 90 days, sort=failures | 1,280 ms |
 | tests, 90 days, search | 514 ms |
 | history, 90 days | 16 ms |
-| flaky, 14 days | 1,837 ms |
-| flaky, 30 days (the maximum) | 2,894 ms |
+| flaky, 14 days, live scan | 2,130 ms |
+| flaky, 30 days, live scan | 3,229 ms |
+| flaky, 90 days, live scan | 11,305 ms |
+| rollup backfill, 90 days (one-off) | 34,828 ms |
+| flaky, 14 days, from rollups | 833 ms |
+| flaky, 90 days, from rollups | 3,887 ms |
 
 Regenerate with `docker compose exec -T ingestion-service python - < scripts/analytics_benchmark.py` in a throwaway stack.
 
-The flaky window is capped at 30 days because detection sorts every execution in the window: 90 days took 10.8 s on this data. The data is deliberately hard: failures are spread randomly, so nearly every test is a candidate.
+The flaky window goes up to 90 days. Flip counting recombines from the `flaky_daily` rollups the `analytics-rollup` job keeps current (backfill on start, then yesterday + today every 6 hours); a project the job has not visited yet falls back to the live scan with identical results (equivalence is pinned by `tests/unit/test_flaky_rollup.py`). Confirmed same-commit detection stays on the live failure-driven pass at every window — it rides the `(test_key, run_id)` index and dominates the remaining 90-day cost. The data is deliberately hard: failures are spread randomly, so nearly every test is a candidate.
 
 ## Operations
 

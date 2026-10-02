@@ -282,7 +282,7 @@ def test_flaky_filters_by_branch_and_window(client, auth, project_role, seed):
     assert get(client, auth, "/flaky?branch=main").json() == []
 
 
-@pytest.mark.parametrize("query", ["/flaky?window_days=0", "/flaky?window_days=31", "/flaky?min_runs=1",
+@pytest.mark.parametrize("query", ["/flaky?window_days=0", "/flaky?window_days=91", "/flaky?min_runs=1",
                                    "/flaky?min_runs=1001", "/flaky?min_flip_rate=1.5", "/flaky?min_flip_rate=-0.1",
                                    "/tests/" + "0" * 64 + "/history?days=91", "/tests/" + "0" * 64 + "/history?limit=501"])
 def test_invalid_history_and_flaky_parameters_are_422(client, auth, project_role, query):

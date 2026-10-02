@@ -196,34 +196,7 @@ def flaky_inputs(db: Session, project_id: int, since: datetime, branch: Optional
         flips.append(FlipCount(key, runs, int(flipped or 0), int(pairs or 0)))
         latest[key] = LatestExecution(key, suite, class_name, name, status, as_utc(started_at))
 
-    # Pass 2: mixed outcomes per (commit, environment). Start from the failures -- a few percent of
-    # the rows -- and ask, through the (test_key, run_id) index, whether another run of the same
-    # commit and environment passed. Grouping every result by (test, commit, environment) instead
-    # was the slowest part on large projects, and a duplicate inside one run is not a re-run.
-    other_run, passing = aliased(Run), aliased(RunResult)
-    passed_elsewhere = (
-        select(literal(1))
-        .select_from(passing)
-        .join(other_run, other_run.id == passing.run_id)
-        .where(
-            passing.test_key == RunResult.test_key,
-            passing.status == "passed",
-            other_run.project_id == project_id,
-            other_run.started_at >= since,
-            other_run.commit_sha == Run.commit_sha,
-            func.coalesce(other_run.environment, "") == func.coalesce(Run.environment, ""),
-            other_run.id != Run.id,
-            *([other_run.branch == branch] if branch else []),
-        )
-        .exists()
-    )
-    mixed_rows = db.execute(
-        select(RunResult.test_key, Run.commit_sha, Run.environment, func.max(Run.started_at))
-        .join(Run, Run.id == RunResult.run_id)
-        .where(*filters, RunResult.status.in_(("failed", "errored")), Run.commit_sha.is_not(None), passed_elsewhere)
-        .group_by(RunResult.test_key, Run.commit_sha, Run.environment)
-    ).all()
-    mixed = [MixedCommit(key, sha, env, as_utc(seen)) for key, sha, env, seen in mixed_rows]
+    mixed = mixed_commits(db, project_id, since, branch)
     return flips, mixed, latest
 
 
@@ -286,3 +259,39 @@ def branch_stats(db: Session, project_id: int, since: datetime, limit: int) -> L
         }
         for branch, runs, total, passed, failed, errored, skipped, seen in rows
     ]
+
+
+def mixed_commits(db: Session, project_id: int, since: datetime, branch: Optional[str]) -> List[MixedCommit]:
+    """Pass 2 of flaky detection, on its own: the rollup path reuses it, since
+    it is failure-driven through the (test_key, run_id) index and stays fast
+    at any window."""
+    filters = window_filters(project_id, since, branch)
+    # mixed outcomes per (commit, environment). Start from the failures -- a few percent of
+    # the rows -- and ask, through the (test_key, run_id) index, whether another run of the same
+    # commit and environment passed. Grouping every result by (test, commit, environment) instead
+    # was the slowest part on large projects, and a duplicate inside one run is not a re-run.
+    other_run, passing = aliased(Run), aliased(RunResult)
+    passed_elsewhere = (
+        select(literal(1))
+        .select_from(passing)
+        .join(other_run, other_run.id == passing.run_id)
+        .where(
+            passing.test_key == RunResult.test_key,
+            passing.status == "passed",
+            other_run.project_id == project_id,
+            other_run.started_at >= since,
+            other_run.commit_sha == Run.commit_sha,
+            func.coalesce(other_run.environment, "") == func.coalesce(Run.environment, ""),
+            other_run.id != Run.id,
+            *([other_run.branch == branch] if branch else []),
+        )
+        .exists()
+    )
+    mixed_rows = db.execute(
+        select(RunResult.test_key, Run.commit_sha, Run.environment, func.max(Run.started_at))
+        .join(Run, Run.id == RunResult.run_id)
+        .where(*filters, RunResult.status.in_(("failed", "errored")), Run.commit_sha.is_not(None), passed_elsewhere)
+        .group_by(RunResult.test_key, Run.commit_sha, Run.environment)
+    ).all()
+    mixed = [MixedCommit(key, sha, env, as_utc(seen)) for key, sha, env, seen in mixed_rows]
+    return mixed
