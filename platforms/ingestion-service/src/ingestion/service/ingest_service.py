@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.ingestion.core.config import settings
-from src.ingestion.models import ApiKey, Run, RunResult
+from src.ingestion.models import ApiKey, Run, RunChangedFile, RunResult
 from src.ingestion.schemas.collect import RunUpload
 from src.ingestion.utils import metrics
 from src.ingestion.utils.redaction import redact
@@ -92,6 +92,12 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
         skipped=counts["skipped"],
         errored=counts["errored"],
     )
+    if upload.changes is not None:
+        run.change_base_ref = upload.changes.base_ref
+        run.changed_files = len(upload.changes.files)
+        run.additions = sum(f.additions or 0 for f in upload.changes.files)
+        run.deletions = sum(f.deletions or 0 for f in upload.changes.files)
+        run.changes_truncated = upload.changes.truncated
     try:
         db.add(run)
         db.flush()  # assigns run.id inside the transaction
@@ -120,6 +126,13 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
                 "file": result.file,
             })
         db.execute(insert(RunResult), rows)  # one executemany, not 20,000 ORM objects
+
+        if upload.changes is not None and upload.changes.files:
+            db.execute(insert(RunChangedFile), [
+                {"run_id": run.id, "path": f.path, "status": f.status,
+                 "additions": f.additions, "deletions": f.deletions}
+                for f in upload.changes.files
+            ])
 
         key.last_used_at = datetime.now(timezone.utc)
         db.commit()

@@ -2,7 +2,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from src.ingestion.models import Run, RunResult
+from src.ingestion.models import Run, RunChangedFile, RunResult
 
 
 def list_runs(db: Session, project_id: int, limit: int, offset: int, branch: Optional[str]) -> list[Run]:
@@ -21,3 +21,7 @@ def list_results(db: Session, run_id: int, status: Optional[str]) -> list[RunRes
     if status is not None:
         query = query.filter(RunResult.status == status)
     return query.order_by(RunResult.id).all()
+
+
+def list_changes(db: Session, run_id: int) -> list[RunChangedFile]:
+    return db.query(RunChangedFile).filter(RunChangedFile.run_id == run_id).order_by(RunChangedFile.id).all()

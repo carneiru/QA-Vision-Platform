@@ -81,11 +81,33 @@ class ResultIn(BaseModel):
         return "errored" if value == "error" else value
 
 
+class ChangedFileIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    path: Annotated[str, StringConstraints(min_length=1, max_length=1000)]
+    status: Literal["A", "M", "D", "R", "C", "T", "U"]  # git name-status letters
+    additions: Optional[int] = Field(None, ge=0, le=10_000_000)  # null: binary file
+    deletions: Optional[int] = Field(None, ge=0, le=10_000_000)
+
+    _no_unstorable = field_validator("path", mode="before")(_reject_unstorable)
+
+
+class ChangesIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    base_ref: Optional[_text(255)] = None
+    truncated: bool = False  # the collector cut the list at its cap
+    files: list[ChangedFileIn] = Field(default_factory=list, max_length=1000)
+
+    _no_unstorable = field_validator("base_ref", mode="before")(_reject_unstorable)
+
+
 class RunUpload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     run: RunIn
     results: list[ResultIn] = Field(min_length=1, max_length=settings.MAX_RESULTS_PER_RUN)
+    changes: Optional[ChangesIn] = None
 
 
 class RunReceipt(BaseModel):
@@ -98,4 +120,9 @@ class RunReceipt(BaseModel):
     failed: int
     skipped: int
     errored: int
+    change_base_ref: Optional[str] = None
+    changed_files: Optional[int] = None
+    additions: Optional[int] = None
+    deletions: Optional[int] = None
+    changes_truncated: Optional[bool] = None
     created_at: datetime

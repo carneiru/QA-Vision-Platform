@@ -35,6 +35,12 @@ class Run(Base):
     failed = Column(Integer, nullable=False)
     skipped = Column(Integer, nullable=False)
     errored = Column(Integer, nullable=False)
+    # Code-change summary from the upload's optional `changes`; null means "not reported"
+    change_base_ref = Column(String(255), nullable=True)
+    changed_files = Column(Integer, nullable=True)
+    additions = Column(Integer, nullable=True)
+    deletions = Column(Integer, nullable=True)
+    changes_truncated = Column(Boolean, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (

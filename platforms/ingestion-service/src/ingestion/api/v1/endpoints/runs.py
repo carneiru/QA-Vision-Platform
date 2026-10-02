@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from src.ingestion.api.deps import (
     READ_ROLES, Caller, ProjectAccess, check_project_role, get_caller, get_db, require_project_role,
 )
-from src.ingestion.schemas.run import ResultOut, RunDetail, RunOut
+from src.ingestion.schemas.run import ChangedFileOut, ResultOut, RunDetail, RunOut
 from src.ingestion.service import run_service
 
 project_router = APIRouter()  # mounted at /projects/{project_id}/runs
@@ -37,7 +37,9 @@ def get_run(
     # The project comes from the run row, never from the URL
     check_project_role(run.project_id, caller, READ_ROLES, "Run not found")
     results = run_service.list_results(db, run.id, status_filter)
+    changes = run_service.list_changes(db, run.id)
     return RunDetail(
         **RunOut.model_validate(run).model_dump(),
         results=[ResultOut.model_validate(result) for result in results],
+        changes=[ChangedFileOut.model_validate(f) for f in changes],
     )

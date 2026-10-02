@@ -23,6 +23,11 @@ class RunOut(BaseModel):
     failed: int
     skipped: int
     errored: int
+    change_base_ref: Optional[str] = None
+    changed_files: Optional[int] = None
+    additions: Optional[int] = None
+    deletions: Optional[int] = None
+    changes_truncated: Optional[bool] = None
     created_at: datetime
 
 
@@ -43,5 +48,15 @@ class ResultOut(BaseModel):
     file: Optional[str] = None
 
 
+class ChangedFileOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    path: str
+    status: str
+    additions: Optional[int] = None
+    deletions: Optional[int] = None
+
+
 class RunDetail(RunOut):
     results: list[ResultOut]
+    changes: list[ChangedFileOut] = []
