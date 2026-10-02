@@ -135,6 +135,7 @@ Formats
 Richer data
 - [ ] Keep each retry attempt as its own result, so flaky tests become visible
 - [ ] Git metadata: commit author and message, pull-request number, base branch
+- [ ] Code-change data, not just JUnit: changed files and diff stats per run (collector reads `git diff --stat` against the base branch; ingestion stores them per run) — enables correlating failures with touched paths, change-aware flaky triage, and risk-based test selection (Phase 6 AI engine input)
 - [ ] Test ownership from CODEOWNERS
 - [ ] Artifact upload (screenshots, videos, traces) once ingestion accepts them
 
