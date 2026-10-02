@@ -13,9 +13,10 @@ test("getTrends maps options to query params", async () => {
       return HttpResponse.json({ tz: "UTC", days: [] });
     }),
   );
-  await getTrends(42, { days: 30, tz: "Europe/London", branch: "main" });
+  await getTrends(42, { days: 30, tz: "Europe/London", branch: "main", bucket: "week" });
   const params = new URL(url).searchParams;
   expect(params.get("days")).toBe("30");
+  expect(params.get("bucket")).toBe("week");
   expect(params.get("tz")).toBe("Europe/London");
   expect(params.get("branch")).toBe("main");
   expect(params.has("environment")).toBe(false);

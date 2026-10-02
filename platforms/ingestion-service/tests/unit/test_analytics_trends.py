@@ -65,3 +65,55 @@ def test_naive_datetimes_are_utc():
     lisbon_noon = datetime(2026, 10, 1, 12, 0, tzinfo=LISBON)
     assert as_utc(lisbon_noon) == datetime(2026, 10, 1, 11, 0, tzinfo=timezone.utc)
     assert daily([row(datetime(2026, 10, 1, 10, 0))], NOW, 1, UTC)[0]["runs"] == 1
+
+
+# ---- weekly / monthly buckets ----------------------------------------------------------------
+
+def _row(day_str, passed=1, failed=0, duration=100):
+    started = datetime.fromisoformat(day_str + "T12:00:00+00:00")
+    total = passed + failed
+    return RunRow(started, total, passed, failed, 0, 0, duration)
+
+
+def test_weekly_buckets_start_on_monday_and_zero_fill():
+    from src.ingestion.analytics.trends import bucketed
+
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)  # a Friday
+    rows = [_row("2026-09-22"), _row("2026-09-30"), _row("2026-10-01", failed=1)]
+    out = bucketed(rows, now, 21, ZoneInfo("UTC"), "week")
+
+    dates = [b["date"] for b in out]
+    assert dates == ["2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28"]  # Mondays
+    assert [b["runs"] for b in out] == [0, 0, 1, 2]
+    last = out[-1]
+    assert (last["passed"], last["failed"], last["pass_rate"]) == (2, 1, round(2 / 3, 4))
+
+
+def test_monthly_buckets_group_on_month_start():
+    from src.ingestion.analytics.trends import bucketed
+
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+    rows = [_row("2026-08-20"), _row("2026-09-05"), _row("2026-10-01")]
+    out = bucketed(rows, now, 90, ZoneInfo("UTC"), "month")
+
+    assert [b["date"] for b in out] == ["2026-07-01", "2026-08-01", "2026-09-01", "2026-10-01"]
+    assert [b["runs"] for b in out] == [0, 1, 1, 1]
+
+
+def test_day_bucket_matches_daily():
+    from src.ingestion.analytics.trends import bucketed, daily
+
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+    rows = [_row("2026-10-01"), _row("2026-10-02", failed=1)]
+    assert bucketed(rows, now, 7, ZoneInfo("UTC"), "day") == daily(rows, now, 7, ZoneInfo("UTC"))
+
+
+def test_weekly_respects_the_time_zone():
+    from src.ingestion.analytics.trends import bucketed
+
+    # 2026-09-28 00:30 UTC is still Sunday 2026-09-27 in Chicago: previous week's bucket
+    now = datetime(2026, 10, 2, 12, 0, tzinfo=timezone.utc)
+    rows = [RunRow(datetime(2026, 9, 28, 0, 30, tzinfo=timezone.utc), 1, 1, 0, 0, 0, 100)]
+    out = bucketed(rows, now, 14, ZoneInfo("America/Chicago"), "week")
+    by_date = {b["date"]: b["runs"] for b in out}
+    assert by_date.get("2026-09-21") == 1  # Chicago-Sunday lands in the Sep 21 week

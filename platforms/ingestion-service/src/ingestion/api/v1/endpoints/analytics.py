@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from src.ingestion.analytics import rollup
 from src.ingestion.analytics.flaky import rank_flaky
-from src.ingestion.analytics.trends import daily, window_start
+from src.ingestion.analytics.trends import bucketed, daily, window_start
 from src.ingestion.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
 from src.ingestion.schemas.analytics import (
     BranchStatsOut, FlakyOut, HistoryOut, MuteIn, StatsRowOut, TrendsOut,
@@ -44,6 +44,7 @@ def _zone(name: str) -> ZoneInfo:
 def trends(
     days: int = Query(30, ge=1, le=365),
     tz: str = Query("UTC", min_length=1, max_length=64),
+    bucket: Literal["day", "week", "month"] = Query("day"),
     branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
     environment: Optional[str] = Query(None, max_length=100, pattern=NO_NUL),
     db: Session = Depends(get_db),
@@ -52,7 +53,7 @@ def trends(
     zone = _zone(tz)
     now = _now()
     rows = analytics_service.trend_rows(db, access.project_id, window_start(now, days, zone), branch, environment)
-    return {"tz": tz, "days": daily(rows, now, days, zone)}
+    return {"tz": tz, "bucket": bucket, "days": bucketed(rows, now, days, zone, bucket)}
 
 
 @router.get("/tests", response_model=List[StatsRowOut])

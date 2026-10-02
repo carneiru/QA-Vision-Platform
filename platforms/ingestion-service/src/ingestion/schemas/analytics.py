@@ -21,7 +21,8 @@ class TrendDay(BaseModel):
 
 class TrendsOut(BaseModel):
     tz: str
-    days: List[TrendDay]
+    bucket: Literal["day", "week", "month"] = "day"
+    days: List[TrendDay]  # one entry per bucket; `date` is the bucket's start day
 
 
 class CountsOut(BaseModel):

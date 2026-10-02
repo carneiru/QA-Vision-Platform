@@ -15,8 +15,11 @@ export interface TrendDay {
   max_run_duration_ms: number | null;
 }
 
+export type TrendBucket = "day" | "week" | "month";
+
 export interface Trends {
   tz: string;
+  bucket: TrendBucket;
   days: TrendDay[];
 }
 
@@ -86,9 +89,13 @@ export interface FlakyRow {
 
 export function getTrends(
   projectId: number,
-  opts: { days: number; tz: string; branch?: string; environment?: string },
+  opts: { days: number; tz: string; bucket?: TrendBucket; branch?: string; environment?: string },
 ): Promise<Trends> {
-  const q = buildQuery({ days: opts.days, tz: opts.tz, branch: opts.branch, environment: opts.environment });
+  const q = buildQuery({
+    days: opts.days, tz: opts.tz,
+    bucket: opts.bucket && opts.bucket !== "day" ? opts.bucket : undefined,
+    branch: opts.branch, environment: opts.environment,
+  });
   return apiFetch(`/api/v1/projects/${projectId}/analytics/trends${q}`);
 }
 

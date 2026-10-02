@@ -62,3 +62,46 @@ def _day(day: date, runs: List[RunRow]) -> dict:
         "avg_run_duration_ms": round(sum(durations) / len(durations)) if durations else None,
         "max_run_duration_ms": max(durations) if durations else None,
     }
+
+
+BUCKETS = ("day", "week", "month")
+
+
+def _bucket_start(day: date, bucket: str) -> date:
+    if bucket == "week":
+        return day - timedelta(days=day.weekday())  # Monday
+    if bucket == "month":
+        return day.replace(day=1)
+    return day
+
+
+def _next_bucket(start: date, bucket: str) -> date:
+    if bucket == "week":
+        return start + timedelta(days=7)
+    if bucket == "month":
+        return (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return start + timedelta(days=1)
+
+
+def bucketed(rows: Iterable[RunRow], now: datetime, days: int, zone: ZoneInfo, bucket: str) -> List[dict]:
+    """daily(), but grouped into week (Monday-start) or month buckets on the
+    local calendar. Every bucket touching the window appears, zero-filled; the
+    first and last may be partial. `date` is the bucket's start day."""
+    if bucket == "day":
+        return daily(rows, now, days, zone)
+    today = as_utc(now).astimezone(zone).date()
+    first_day = today - timedelta(days=days - 1)
+    wanted = {first_day + timedelta(days=offset) for offset in range(days)}
+
+    starts = []
+    cursor = _bucket_start(first_day, bucket)
+    while cursor <= today:
+        starts.append(cursor)
+        cursor = _next_bucket(cursor, bucket)
+
+    grouped: Dict[date, List[RunRow]] = defaultdict(list)
+    for run in rows:
+        local_day = as_utc(run.started_at).astimezone(zone).date()
+        if local_day in wanted:
+            grouped[_bucket_start(local_day, bucket)].append(run)
+    return [_day(start, grouped.get(start, [])) for start in starts]

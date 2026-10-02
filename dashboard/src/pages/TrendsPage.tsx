@@ -5,7 +5,7 @@ import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { formatDuration, formatPassRate, getTrends } from "../api/analytics";
+import { TrendBucket, formatDuration, formatPassRate, getTrends } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 
@@ -31,6 +31,7 @@ export default function TrendsPage() {
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
   const [days, setDays] = useState(30);
+  const [bucket, setBucket] = useState<TrendBucket>("day");
   // Text filters are drafts until Apply: per-keystroke refetching is chatty
   // against the shared gateway rate limit.
   const [branchInput, setBranchInput] = useState("");
@@ -46,8 +47,9 @@ export default function TrendsPage() {
   }
 
   const query = useQuery({
-    queryKey: ["trends", id, days, branch, environment],
-    queryFn: () => getTrends(id, { days, tz, branch: branch || undefined, environment: environment || undefined }),
+    queryKey: ["trends", id, days, bucket, branch, environment],
+    queryFn: () =>
+      getTrends(id, { days, tz, bucket, branch: branch || undefined, environment: environment || undefined }),
   });
 
   const trendDays = query.data?.days ?? [];
@@ -76,6 +78,14 @@ export default function TrendsPage() {
               <option value={7}>7</option>
               <option value={30}>30</option>
               <option value={90}>90</option>
+            </select>
+          </label>
+          <label>
+            View
+            <select value={bucket} onChange={(e) => setBucket(e.target.value as TrendBucket)}>
+              <option value="day">Daily</option>
+              <option value="week">Weekly</option>
+              <option value="month">Monthly</option>
             </select>
           </label>
           <label>

@@ -340,3 +340,18 @@ def test_duplicates_in_one_run_are_not_same_commit_even_with_another_shard(clien
     seed(commit_sha="ccccccc", results=(("dup", "passed", 1), ("dup", "failed", 1)))
     seed(commit_sha="ccccccc", results=(("other", "passed", 1),))
     assert get(client, auth, "/flaky").json() == []
+
+
+def test_trends_weekly_bucket(client, auth, project_role, seed):
+    project_role()
+    seed(days_ago=8, results=(("a", "passed", 1),))
+    seed(days_ago=1, results=(("a", "failed", 1),))
+    body = get(client, auth, "/trends?days=14&bucket=week").json()
+    assert body["bucket"] == "week"
+    assert len(body["days"]) in (2, 3)  # two or three Mondays touch a 14-day window
+    assert sum(b["runs"] for b in body["days"]) == 2
+
+
+def test_trends_bucket_rejects_unknown_values(client, auth, project_role):
+    project_role()
+    assert get(client, auth, "/trends?bucket=fortnight").status_code == 422

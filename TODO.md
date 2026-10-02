@@ -160,7 +160,7 @@ Reliability and operations
 ### Analytics API (Phase 3, step 1)
 - [x] Daily trends in a requested time zone; per-test list, history; flaky detection (same commit + environment, flip rate)
 - [x] Summary tables: flaky_daily rollups + analytics-rollup job; window raised to 90 days (90d: 3.9 s from rollups vs 11.3 s live; 14d: 0.8 s)
-- [ ] Weekly and monthly views
+- [x] Weekly and monthly views — trends bucket=day|week|month (Monday weeks, local calendar), dashboard View select, window up to 365 days
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
 - [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls
 - [ ] CSV export

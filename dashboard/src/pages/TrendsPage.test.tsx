@@ -81,3 +81,18 @@ test("changing days refetches with the new value", async () => {
   await screen.findByText(/no runs in the last 90 days/i);
   expect(seen).toContain("90");
 });
+
+
+test("bucket select refetches weekly", async () => {
+  const buckets: (string | null)[] = [];
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", ({ request }) => {
+      buckets.push(new URL(request.url).searchParams.get("bucket"));
+      return HttpResponse.json({ tz: "UTC", bucket: "week", days: [] });
+    }),
+  );
+  renderTrends();
+  await screen.findByText(/no runs/i);
+  await userEvent.selectOptions(screen.getByLabelText(/view/i), "week");
+  await vi.waitFor(() => expect(buckets[buckets.length - 1]).toBe("week"));
+});
