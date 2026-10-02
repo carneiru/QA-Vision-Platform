@@ -2,6 +2,8 @@ import { FormEvent, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { formatDuration, formatPassRate, getTests } from "../api/analytics";
+import { downloadCsv, toCsv } from "../lib/csv";
+import { fetchAllTests } from "../lib/exportData";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
@@ -27,6 +29,28 @@ export default function TestsPage() {
     event.preventDefault();
     setSearch(searchInput);
     setOffset(0);
+  }
+
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<unknown>(null);
+
+  async function onExport() {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const all = await fetchAllTests(id, { days, sort, search: search || undefined });
+      const csv = toCsv(
+        ["test_key", "suite", "class_name", "name", "runs", "passed", "failed", "errored",
+         "skipped", "pass_rate", "avg_duration_ms", "last_status", "last_seen"],
+        all.map((r) => [r.test_key, r.suite, r.class_name, r.name, r.runs, r.passed, r.failed,
+          r.errored, r.skipped, r.pass_rate, r.avg_duration_ms, r.last_status, r.last_seen]),
+      );
+      downloadCsv(`tests-project-${id}-${days}d.csv`, csv);
+    } catch (err) {
+      setExportError(err);
+    } finally {
+      setExporting(false);
+    }
   }
 
   const rows = query.data ?? [];
@@ -57,9 +81,13 @@ export default function TestsPage() {
             <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)} />
           </label>
           <button type="submit">Apply</button>
+          <button type="button" onClick={onExport} disabled={exporting}>
+            {exporting ? "Exporting…" : "Export CSV"}
+          </button>
         </FilterBar>
       </form>
 
+      {exportError != null && <ErrorBanner error={exportError} onRetry={onExport} />}
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading tests…</p>}
       {query.data && rows.length === 0 && <p className="muted">No tests in the last {days} days.</p>}
