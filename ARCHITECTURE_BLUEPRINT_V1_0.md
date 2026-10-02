@@ -504,6 +504,24 @@ Infrastructure Security Layer
 Monitoring & Response Layer
 ```
 
+### 10.0 Security Backlog (current, consolidated from TODO.md)
+
+Implemented today: JWT rotation + replay-revocation, httpOnly refresh cookie,
+TOTP MFA + recovery codes, Google/Microsoft SSO (tenant allowlist, hardened
+key fetch), scoped project API keys, gateway rate zones (stricter on
+login/sso/mfa-verify), PII masking + retention, CodeQL in CI.
+
+Open, in rough order:
+1. Service-to-service token (organization-service -> auth-service user checks; today needs a superuser AUTH_SERVICE_TOKEN)
+2. JWT validation + per-user limits at the gateway
+3. mTLS collector <-> platform
+4. Re-mask results stored before masking existed (one-off command)
+5. Custom masking patterns per project
+6. Legal hold and data export before deletion
+7. Single sign-out; personal Microsoft accounts; Entra groups -> org roles; SCIM
+8. SAML 2.0 (blocked on an IdP for honest verification)
+9. Real certificates at the gateway (with the Kubernetes trigger)
+
 ### 10.1 Identity & Access Management
 - **Authentication**: OIDC/OAuth 2.0 with support for LDAP, SAML, Azure AD, Google Workspace
 - **Multi-Factor Authentication**: TOTP, push notifications, hardware keys (YubiKey) required for admin
@@ -1438,22 +1456,34 @@ Each ADR includes:
 
 ---
 
-## 19.2 Initial ADR Index
+## 19.2 ADR Index
+
+**Accepted** (real decisions with evidence — see docs/adr/):
 
 | ADR | Decision |
 |------|----------|
-| ADR-001 | Adopt Domain-Driven Design |
-| ADR-002 | Adopt Event-Driven Architecture |
-| ADR-003 | Kubernetes as Orchestrator |
-| ADR-004 | Kafka as Event Backbone |
-| ADR-005 | Go for Core Services |
-| ADR-006 | Python for AI Services |
-| ADR-007 | React + TypeScript Frontend |
-| ADR-008 | PostgreSQL as Primary Database |
-| ADR-009 | Neo4j Knowledge Graph |
-| ADR-010 | Qdrant Vector Database |
+| [ADR-001](docs/adr/ADR-001-flaky-window-rollups.md) | 90-day flaky window via daily rollups; commit rollup rejected by benchmark |
+| [ADR-002](docs/adr/ADR-002-same-commit-semantics.md) | A duplicate inside one run is not a re-run (same-commit semantics) |
+| [ADR-003](docs/adr/ADR-003-refresh-token-httponly-cookie.md) | Refresh token as httpOnly cookie; body kept for API clients |
+| [ADR-004](docs/adr/ADR-004-pii-masking-on-ingest.md) | PII masking at ingest, before truncation; per-project retention |
+| [ADR-005](docs/adr/ADR-005-idempotency-body-hash.md) | Idempotency keys with body-hash replay detection |
+| [ADR-006](docs/adr/ADR-006-sso-bypasses-mfa.md) | SSO sign-ins bypass platform MFA |
+| [ADR-007](docs/adr/ADR-007-gateway-spa-catchall.md) | Gateway catch-all serves the SPA; /api/ keeps the JSON 404 contract |
 
----
+**Proposed** (target architecture; each becomes an ADR when its adoption
+trigger fires — the previous index listed these as decided, including "Go for
+Core Services" while every service is Python/FastAPI):
+
+| Proposal | Trigger |
+|------|----------|
+| Event-driven backbone (Kafka) | 1000+ events/s sustained |
+| Kubernetes as orchestrator | first multi-node deployment |
+| ClickHouse warehouse | rollups stop holding |
+| Neo4j knowledge graph / Qdrant vectors | Phase 6 AI engine |
+| Redis cache/limits | second gateway instance |
+
+De facto accepted without ceremony: Python/FastAPI for services, PostgreSQL
+as primary database, React + TypeScript frontend.
 
 ## 19.3 ADR Lifecycle
 

@@ -23,8 +23,13 @@ numbers in platforms/ingestion-service/README.md.
    (pairs with shipped code-change data).
 2. ~~Collector `--ca-file` fix~~ — done: `--ca-file` now pins trust exclusively (curl `--cacert` semantics); blending with the system store broke on Windows machines with CN=localhost dev certs in ROOT.
 3. Confirmed-flaky pass optimization (the remaining ~3 s at 90 d).
-4. Collector distribution: tag `collector-v0.1.0`, PyPI trusted publishing,
-   ready-made GitHub Action.
+4. Collector distribution (a product slice of its own — full list in
+   TODO.md "Collector — nice to have"): tag `collector-v0.1.0`; PyPI trusted
+   publishing (`pip install qav-collector`); ready-made GitHub Action and
+   GitLab component; Jenkins shared-library step; zipapp/Docker builds;
+   then formats (Cucumber JSON, Playwright JSON, TestNG/NUnit/xUnit/TRX) and
+   reliability (`qav-collector check`, keep-and-retry failed uploads,
+   partial streaming).
 5. Phase 2 exit proof: agents on 3 CI platforms in real projects; 10k real
    executions ingested.
 
