@@ -107,8 +107,30 @@ def _add_case(case: ET.Element, suite: str, parsed: ParsedFile) -> None:
     if not name:
         parsed.unnamed += 1
         return
+    # Surefire records earlier attempts of a re-run test as flakyFailure/flakyError
+    # (the test ultimately passed) or rerunFailure/rerunError (it ultimately failed).
+    # Each becomes its own result, before the final outcome, so flaky tests become
+    # visible as pass+fail within one run. Per-attempt time is not recorded: 0 ms.
+    ATTEMPTS = (("flakyFailure", "failed"), ("flakyError", "errored"),
+                ("rerunFailure", "failed"), ("rerunError", "errored"))
+    for tag, attempt_status in ATTEMPTS:
+        for attempt in case.findall(tag):
+            row = {
+                "suite": suite[:SUITE_LENGTH],
+                "class_name": (case.get("classname") or "")[:CLASS_NAME_LENGTH],
+                "name": name[:NAME_LENGTH],
+                "status": attempt_status,
+                "duration_ms": 0,
+            }
+            text = "".join(attempt.itertext())
+            message = attempt.get("message") or _first_line(text)
+            if message:
+                row["message"] = _cut(message)
+            if text.strip():
+                row["details"] = _cut(text)
+            parsed.results.append(row)
+
     # Element truthiness means "has children", so compare with None explicitly.
-    # Surefire's flakyFailure/rerunFailure/... record earlier attempts and are not looked at.
     error, failure, skipped = case.find("error"), case.find("failure"), case.find("skipped")
     if error is not None:
         status, outcome = "errored", error

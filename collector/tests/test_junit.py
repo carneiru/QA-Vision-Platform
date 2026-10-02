@@ -231,3 +231,21 @@ def test_a_missing_file_is_skipped(tmp_path):
     parsed = parse_file(str(tmp_path / "missing.xml"))
 
     assert parsed.skipped and "cannot be read" in parsed.warnings[0]
+
+
+def test_surefire_rerun_attempts_become_their_own_results():
+    parsed = parse_file(str(FIXTURES / "surefire-reruns.xml"))
+    rows = [(r["name"], r["status"], r.get("message")) for r in parsed.results]
+    assert rows == [
+        # Earlier attempts first, final outcome last -- execution order.
+        ("eventually passes", "failed", "expected 2 but was 1"),
+        ("eventually passes", "failed", "expected 2 but was 3"),
+        ("eventually passes", "passed", None),
+        ("eventually errors out", "errored", "boom first"),
+        ("eventually errors out", "errored", "boom final"),
+        ("plain pass", "passed", None),
+    ]
+    attempts = [r for r in parsed.results if r["name"] == "eventually passes"]
+    assert attempts[0]["duration_ms"] == 0  # per-attempt time is not recorded by Surefire
+    assert attempts[2]["duration_ms"] == 1500
+    assert "first attempt trace" in attempts[0]["details"]

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="RerunSuite" tests="3" failures="1" errors="0" time="4.2">
+  <testcase classname="shop.CartTest" name="eventually passes" time="1.5">
+    <flakyFailure message="expected 2 but was 1" type="java.lang.AssertionError">first attempt trace</flakyFailure>
+    <flakyFailure message="expected 2 but was 3" type="java.lang.AssertionError">second attempt trace</flakyFailure>
+  </testcase>
+  <testcase classname="shop.CartTest" name="eventually errors out" time="1.2">
+    <error message="boom final" type="java.lang.IllegalStateException">final trace</error>
+    <rerunError message="boom first" type="java.lang.IllegalStateException">first trace</rerunError>
+  </testcase>
+  <testcase classname="shop.CartTest" name="plain pass" time="0.5"/>
+</testsuite>
