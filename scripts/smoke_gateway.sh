@@ -238,6 +238,19 @@ body_has "dashboard index is the SPA" '<div id="root">'
 check "SPA deep link falls back to index" 200 GET "$BASE/projects/1/trends"
 body_has "deep link serves the SPA" '<div id="root">'
 
+# The index references hashed assets; one must load and carry the immutable cache policy.
+ASSET="$(grep -oE '/assets/[A-Za-z0-9._-]+\.js' "$TMP/body" | head -1)"
+if [ -n "$ASSET" ]; then
+  check "hashed SPA asset loads" 200 GET "$BASE$ASSET"
+  if grep -qiE '^cache-control:.*immutable' "$TMP/headers"; then
+    pass "SPA asset is immutable-cached"
+  else
+    fail "SPA asset missing immutable Cache-Control: $(grep -i '^cache-control' "$TMP/headers" | head -1)"
+  fi
+else
+  fail "no hashed asset path found in the SPA index"
+fi
+
 # ---- gateway behaviour ----
 check "unknown path serves the SPA" 200 GET "$BASE/no/such/path"
 body_has "unknown path answers the SPA" '<div id="root">'
