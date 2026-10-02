@@ -11,8 +11,9 @@ import FlakyPage from "./pages/FlakyPage";
 import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 
-// Recharts dominates the bundle and only the trends view uses it; split it out.
+// Recharts dominates the bundle; the chart-bearing views load on demand.
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
+const BranchesPage = lazy(() => import("./pages/BranchesPage"));
 
 export function AppRoutes() {
   const navigate = useNavigate();
@@ -37,6 +38,14 @@ export function AppRoutes() {
         <Route path="tests" element={<TestsPage />} />
         <Route path="tests/:testKey" element={<HistoryPage />} />
         <Route path="flaky" element={<FlakyPage />} />
+        <Route
+          path="branches"
+          element={
+            <Suspense fallback={<p className="muted">Loading branches…</p>}>
+              <BranchesPage />
+            </Suspense>
+          }
+        />
         <Route path="runs" element={<RunsPage />} />
         <Route path="runs/:runId" element={<RunDetailPage />} />
       </Route>

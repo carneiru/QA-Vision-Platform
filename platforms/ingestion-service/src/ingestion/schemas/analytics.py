@@ -63,6 +63,18 @@ class HistoryOut(BaseModel):
     executions: List[ExecutionOut]
 
 
+class BranchStatsOut(BaseModel):
+    branch: Optional[str] = None
+    runs: int
+    total: int
+    passed: int
+    failed: int
+    errored: int
+    skipped: int
+    pass_rate: Optional[float] = None
+    last_seen: datetime
+
+
 class CommitRef(BaseModel):
     commit_sha: str
     environment: Optional[str] = None
