@@ -147,9 +147,10 @@ Richer data
 - [ ] Artifact upload (screenshots, videos, traces) once ingestion accepts them
 
 Reliability and operations
-- [ ] Keep a failed upload on disk and `qav-collector retry` it later
+- [x] Keep a failed upload on disk and retry it later — automatic via `--spool` (below); a separate `retry` command adds nothing, the next upload resends first
 - [ ] Stream partial results during long runs instead of one upload at the end
 - [x] `qav-collector check`: verifies URL shape, TLS trust, API key (GET /collect/key names the project) and report parsing, without uploading; exits 2 on the first failure
+- [x] Keep-and-retry failed uploads: `--spool DIR` / `QAV_SPOOL` stores undelivered parts (base64 JSON, capped at 100) and the next invocation resends them under their original Idempotency-Key; non-retryable rejections (401/409/4xx/TLS) are dropped, not respooled
 - [ ] A `.qav.yml` config file as an alternative to flags and environment variables
 - [ ] Client certificates (mTLS) — roadmap Phase 2
 

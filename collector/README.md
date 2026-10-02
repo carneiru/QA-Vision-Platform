@@ -95,6 +95,7 @@ variable, and both win over what is detected from the CI system.
 | `--ca-file` | `QAV_CA_FILE` | Extra CA certificate to trust (a private CA, or the local stack's self-signed one) |
 | `--component` | `QAV_COMPONENTS` | `NAME@SHA` of a repo/version this run exercised, e.g. the product build an E2E suite ran against. Flag repeatable; variable comma-separated. Up to 20 |
 | `--fail-on-error` | `QAV_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
+| `--spool` | `QAV_SPOOL` | Directory keeping parts a failed upload could not deliver; the next invocation resends them first, under their original Idempotency-Key (so nothing is ever stored twice). Capped at 100 files; rejected uploads (401/409) are never spooled. Point it at a persistent runner path — a wiped workspace wipes the spool |
 | `--dry-run` | — | Print the JSON; upload nothing |
 
 ## `qav-collector check`

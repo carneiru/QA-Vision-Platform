@@ -31,7 +31,13 @@ class ConfigError(Exception):
 
 
 class UploadError(Exception):
-    """The platform did not store the part."""
+    """The platform did not store the part. `retryable` is True when a later
+    identical attempt could succeed (outage, 429/5xx exhaustion) and False when
+    it never will (401, 409, a 4xx rejection, a TLS trust problem)."""
+
+    def __init__(self, message: str, *, retryable: bool = False):
+        super().__init__(message)
+        self.retryable = retryable
 
 
 def endpoint_for(url: str) -> str:
@@ -104,9 +110,9 @@ def upload_part(
             else:
                 raise UploadError(_explain(status, body, response_headers))
         if attempt >= MAX_ATTEMPTS:
-            raise UploadError(f"{problem}; gave up after {attempt} attempts")
+            raise UploadError(f"{problem}; gave up after {attempt} attempts", retryable=True)
         if clock() - started + wait > TIME_BUDGET_SECONDS:
-            raise UploadError(f"{problem}; gave up after {TIME_BUDGET_SECONDS} s")
+            raise UploadError(f"{problem}; gave up after {TIME_BUDGET_SECONDS} s", retryable=True)
         sleep(wait)
 
 

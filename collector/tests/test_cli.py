@@ -356,3 +356,62 @@ def test_check_needs_a_url(capsys):
 def test_check_needs_a_key(platform, capsys):
     assert run(["check"], {"QAV_URL": platform.url}) == 2
     assert "QAV_API_KEY" in capsys.readouterr().err
+
+
+def test_a_failed_upload_is_spooled_for_the_next_run(platform, report, tmp_path, capsys):
+    for _ in range(5):
+        platform.reply(503, {"detail": "down"})
+
+    assert run(["upload", str(report), "--spool", str(tmp_path), "--idempotency-key", "job-9"],
+               env_for(platform)) == 0
+    err = capsys.readouterr().err
+    assert "qav: spooled 1 part(s) for the next run" in err
+    files = list(tmp_path.glob("*.json"))
+    assert len(files) == 1
+
+
+def test_spooled_parts_are_resent_before_the_current_run(platform, report, tmp_path, capsys):
+    for _ in range(5):
+        platform.reply(503, {"detail": "down"})
+    assert run(["upload", str(report), "--spool", str(tmp_path), "--idempotency-key", "job-9"],
+               env_for(platform)) == 0
+
+    platform.reply(201, RECEIPT)  # the spooled part
+    platform.reply(201, RECEIPT)  # the current run
+    assert run(["upload", str(report), "--spool", str(tmp_path), "--idempotency-key", "job-10"],
+               env_for(platform)) == 0
+    keys = [r["headers"]["Idempotency-Key"] for r in platform.requests[5:]]
+    assert keys == ["job-9", "job-10"]
+    assert list(tmp_path.glob("*.json")) == []
+    assert "qav: resent 1 spooled part(s)" in capsys.readouterr().err
+
+
+def test_a_still_failing_spooled_part_is_kept_and_the_run_continues(platform, report, tmp_path, capsys):
+    for _ in range(5):
+        platform.reply(503, {"detail": "down"})
+    assert run(["upload", str(report), "--spool", str(tmp_path), "--idempotency-key", "job-9"],
+               env_for(platform)) == 0
+
+    for _ in range(5):
+        platform.reply(503, {"detail": "still down"})  # the spooled part
+    platform.reply(201, RECEIPT)  # the current run succeeds
+    assert run(["upload", str(report), "--spool", str(tmp_path), "--idempotency-key", "job-10"],
+               env_for(platform)) == 0
+    assert len(list(tmp_path.glob("*.json"))) == 1
+    err = capsys.readouterr().err
+    assert "qav: a spooled part still fails" in err
+    assert "qav: uploaded run 42 (201)" in err
+
+
+def test_a_rejected_upload_is_not_spooled(platform, report, tmp_path):
+    platform.reply(401, {"detail": "Invalid API key"})
+
+    assert run(["upload", str(report), "--spool", str(tmp_path)], env_for(platform)) == 0
+    assert list(tmp_path.glob("*.json")) == []
+
+
+def test_no_spool_flag_means_no_spooling(platform, report, tmp_path):
+    for _ in range(5):
+        platform.reply(503, {"detail": "down"})
+    assert run(["upload", str(report)], env_for(platform)) == 0
+    assert list(tmp_path.glob("*.json")) == []

@@ -17,6 +17,7 @@ from qav_collector.ci import detect, sanitize_key
 from qav_collector.junit import parse_file
 from qav_collector.gitdiff import collect_changes, collect_commit_info
 from qav_collector.payload import build_parts, build_run, parse_components, run_times, summarize
+from qav_collector.spool import spool_part, spooled_parts
 from qav_collector.upload import (
     ConfigError, UploadError, check_key, endpoint_for, make_context, upload_part,
 )
@@ -74,6 +75,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="exit 1 if the upload fails (default: $QAV_FAIL_ON_ERROR)")
     upload.add_argument("--no-changes", action="store_true",
                         help="skip git code-change collection (default: $QAV_NO_CHANGES)")
+    upload.add_argument("--spool", metavar="DIR",
+                        help="keep parts a failed upload could not deliver in DIR and resend them on "
+                             "the next invocation (default: $QAV_SPOOL)")
     upload.add_argument("--dry-run", action="store_true", help="print the JSON that would be sent; upload nothing")
     check = commands.add_parser(
         "check",
@@ -256,6 +260,10 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         say(f"dry run: {len(parts)} part(s), nothing uploaded")
         return 0
 
+    spool_dir = pick(args.spool, "QAV_SPOOL")
+    if spool_dir:
+        _resend_spooled(spool_dir, endpoint, api_key, context, say, sleep=sleep, clock=clock)
+
     stored: List[str] = []
     for number, part in enumerate(parts, start=1):
         of = f"part {number} of {len(parts)}"
@@ -265,11 +273,38 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
             say(f"upload failed: {exc}")
             if stored:
                 say(f"stored before the failure: {', '.join(stored)}")
+            if spool_dir and exc.retryable:
+                # This part and every later one: a 409 on a later part out of order is worse
+                # than retrying all of them under their original keys
+                spooled = sum(1 for p in parts[number - 1:] if spool_part(spool_dir, p) is not None)
+                say(f"spooled {spooled} part(s) for the next run")
             raise _UploadFailed() from None
         run_id = receipt.get("id", "?")
         say(f"uploaded run {run_id} ({status})" + (f", {of}" if len(parts) > 1 else ""))
         stored.append(f"run {run_id} ({of})")
     return 0
+
+
+def _resend_spooled(spool_dir, endpoint, api_key, context, say: _Output, *, sleep, clock) -> None:
+    """Best effort before the current run: a still-broken platform keeps the
+    files, a non-retryable answer (replayed key, revoked access) drops them."""
+    resent = 0
+    for path, part in spooled_parts(spool_dir):
+        try:
+            upload_part(endpoint, api_key, part, context, sleep=sleep, clock=clock)
+        except UploadError as exc:
+            if exc.retryable:
+                say(f"a spooled part still fails: {exc}")
+                continue
+            say(f"dropping a spooled part the platform will never take: {exc}")
+        else:
+            resent += 1
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    if resent:
+        say(f"resent {resent} spooled part(s)")
 
 
 def _expand(patterns: Sequence[str]) -> List[str]:
