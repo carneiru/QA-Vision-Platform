@@ -15,6 +15,7 @@ from typing import Callable, List, Mapping, Optional, Sequence
 from qav_collector import __version__
 from qav_collector.ci import detect, sanitize_key
 from qav_collector.junit import parse_file
+from qav_collector.gitdiff import collect_changes
 from qav_collector.payload import build_parts, build_run, run_times, summarize
 from qav_collector.upload import ConfigError, UploadError, endpoint_for, make_context, upload_part
 
@@ -66,6 +67,8 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--ca-file", help="extra CA certificate to trust (default: $QAV_CA_FILE)")
     upload.add_argument("--fail-on-error", action="store_true",
                         help="exit 1 if the upload fails (default: $QAV_FAIL_ON_ERROR)")
+    upload.add_argument("--no-changes", action="store_true",
+                        help="skip git code-change collection (default: $QAV_NO_CHANGES)")
     upload.add_argument("--dry-run", action="store_true", help="print the JSON that would be sent; upload nothing")
     return parser
 
@@ -161,6 +164,16 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         branch=pick(args.branch, "QAV_BRANCH", ci.branch),
         environment=pick(args.environment, "QAV_ENVIRONMENT"),
     )
+    changes = None
+    skip_changes = args.no_changes or env.get("QAV_NO_CHANGES", "").strip().lower() in _TRUE
+    if not skip_changes:
+        changes = collect_changes(env, run.get("commit_sha"))
+        if changes is not None:
+            adds = sum(f["additions"] or 0 for f in changes["files"])
+            dels = sum(f["deletions"] or 0 for f in changes["files"])
+            say(f"changes vs {changes['base_ref']}: {len(changes['files'])} file(s), +{adds} -{dels}"
+                + (" (truncated)" if changes["truncated"] else ""))
+
     key = sanitize_key(pick(args.idempotency_key, "QAV_IDEMPOTENCY_KEY") or "")
     if not key:
         # The CI identifiers name the job, but every leg of a matrix and every upload step in one
@@ -168,7 +181,7 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         # (finished_at alone always differs). So each invocation adds its own random suffix: the
         # collector's retries reuse the key, and a POST stored without an answer is replayed.
         key = f"{ci.idempotency_key or 'local'}-{uuid.uuid4().hex[:12]}"
-    parts = build_parts(run, results, key)
+    parts = build_parts(run, results, key, changes)
 
     if args.dry_run:
         for part in parts:

@@ -71,11 +71,12 @@ def build_run(
     return run
 
 
-def build_parts(run: dict, results: List[dict], idempotency_key: str) -> List[Part]:
+def build_parts(run: dict, results: List[dict], idempotency_key: str,
+                changes: "dict | None" = None) -> List[Part]:
     chunks = [results[i:i + MAX_RESULTS_PER_PART] for i in range(0, len(results), MAX_RESULTS_PER_PART)]
     encoded: List[Tuple[bytes, int]] = []
     for chunk in chunks:
-        encoded.extend(_fit(run, chunk))
+        encoded.extend(_fit(run, chunk, changes))
     if len(encoded) == 1:
         body, count = encoded[0]
         return [Part(body=body, idempotency_key=idempotency_key, count=count)]
@@ -93,12 +94,15 @@ def summarize(results: Sequence[dict]) -> Dict[str, int]:
     return counts
 
 
-def _fit(run: dict, chunk: List[dict]) -> List[Tuple[bytes, int]]:
-    body = json.dumps({"run": run, "results": chunk}, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+def _fit(run: dict, chunk: List[dict], changes: "dict | None" = None) -> List[Tuple[bytes, int]]:
+    payload = {"run": run, "results": chunk}
+    if changes is not None:
+        payload["changes"] = changes
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     if len(body) <= MAX_PART_BYTES or len(chunk) == 1:
         return [(body, len(chunk))]
     middle = len(chunk) // 2
-    return _fit(run, chunk[:middle]) + _fit(run, chunk[middle:])
+    return _fit(run, chunk[:middle], changes) + _fit(run, chunk[middle:], changes)
 
 
 def _storable(value: Optional[str]) -> Optional[str]:

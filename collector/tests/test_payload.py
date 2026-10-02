@@ -119,3 +119,20 @@ def test_a_single_result_is_never_split_further(monkeypatch):
 def test_summarize():
     results = [result("a"), result("b", "failed"), result("c", "errored"), result("d", "skipped"), result("e")]
     assert summarize(results) == {"passed": 2, "failed": 1, "errored": 1, "skipped": 1}
+
+
+def test_build_parts_carries_changes_in_every_part():
+    import json as _json
+    from qav_collector.payload import build_parts
+
+    run = {"ci_provider": "local", "started_at": "2026-10-02T00:00:00+00:00",
+           "finished_at": "2026-10-02T00:01:00+00:00"}
+    results = [{"name": f"t{i}", "status": "passed"} for i in range(3)]
+    changes = {"base_ref": "origin/main", "truncated": False,
+               "files": [{"path": "a.py", "status": "M", "additions": 1, "deletions": 0}]}
+    parts = build_parts(run, results, "key", changes)
+    for part in parts:
+        assert _json.loads(part.body)["changes"] == changes
+
+    without = build_parts(run, results, "key")
+    assert "changes" not in _json.loads(without[0].body)
