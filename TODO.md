@@ -158,7 +158,7 @@ Reliability and operations
 - [x] Daily trends in a requested time zone; per-test list, history; flaky detection (same commit + environment, flip rate)
 - [ ] Summary tables when live queries get slow (flaky over 90 days took 10.8 s on 2 million results; the window is capped at 30)
 - [ ] Weekly and monthly views
-- [ ] Branch comparison
+- [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
 - [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls
 - [ ] CSV export
 - [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
@@ -168,7 +168,7 @@ Reliability and operations
 - [ ] Refresh token in an httpOnly cookie (needs auth-service support)
 - [x] Mute / acknowledge flaky tests
 - [x] CSV export buttons on the tests and flaky views (client-side; tests view pages the API at limit=200, capped at 10k rows)
-- [ ] Branch comparison view
+- [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
 
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models

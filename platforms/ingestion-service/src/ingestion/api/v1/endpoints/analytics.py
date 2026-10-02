@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from src.ingestion.analytics.flaky import rank_flaky
 from src.ingestion.analytics.trends import daily, window_start
 from src.ingestion.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
-from src.ingestion.schemas.analytics import FlakyOut, HistoryOut, MuteIn, StatsRowOut, TrendsOut
+from src.ingestion.schemas.analytics import (
+    BranchStatsOut, FlakyOut, HistoryOut, MuteIn, StatsRowOut, TrendsOut,
+)
 from src.ingestion.service import analytics_service
 
 router = APIRouter()  # mounted at /projects/{project_id}/analytics
@@ -80,6 +82,17 @@ def history(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test not found")
     since = _now() - timedelta(days=days)
     return analytics_service.test_history(db, access.project_id, test_key, since, branch, limit)
+
+
+@router.get("/branches", response_model=List[BranchStatsOut])
+def branches(
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    since = _now() - timedelta(days=days)
+    return analytics_service.branch_stats(db, access.project_id, since, limit)
 
 
 @router.get("/flaky", response_model=List[FlakyOut])

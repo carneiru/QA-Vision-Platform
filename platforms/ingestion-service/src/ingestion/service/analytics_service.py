@@ -252,3 +252,37 @@ def unmute_test(db: Session, project_id: int, test_key: str) -> bool:
     db.delete(row)
     db.commit()
     return True
+
+
+def branch_stats(db: Session, project_id: int, since: datetime, limit: int) -> List[dict]:
+    """Per-branch run aggregates in the window, most recently active first."""
+    rows = db.execute(
+        select(
+            Run.branch,
+            func.count(Run.id),
+            func.sum(Run.total),
+            func.sum(Run.passed),
+            func.sum(Run.failed),
+            func.sum(Run.errored),
+            func.sum(Run.skipped),
+            func.max(Run.started_at),
+        )
+        .where(Run.project_id == project_id, Run.started_at >= since)
+        .group_by(Run.branch)
+        .order_by(func.max(Run.started_at).desc())
+        .limit(limit)
+    ).all()
+    return [
+        {
+            "branch": branch,
+            "runs": runs,
+            "total": int(total or 0),
+            "passed": int(passed or 0),
+            "failed": int(failed or 0),
+            "errored": int(errored or 0),
+            "skipped": int(skipped or 0),
+            "pass_rate": pass_rate(int(passed or 0), int(total or 0), int(skipped or 0)),
+            "last_seen": as_utc(seen),
+        }
+        for branch, runs, total, passed, failed, errored, skipped, seen in rows
+    ]

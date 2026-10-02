@@ -123,6 +123,26 @@ export function unmuteFlaky(projectId: number, testKey: string): Promise<void> {
   );
 }
 
+export interface BranchStats {
+  branch: string | null;
+  runs: number;
+  total: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  skipped: number;
+  pass_rate: number | null;
+  last_seen: string;
+}
+
+export function getBranches(
+  projectId: number,
+  opts: { days: number; limit?: number },
+): Promise<BranchStats[]> {
+  const q = buildQuery({ days: opts.days, limit: opts.limit });
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/branches${q}`);
+}
+
 export function getFlaky(
   projectId: number,
   opts: { windowDays: number; minRuns: number; minFlipRate: number; branch?: string; includeMuted?: boolean },
