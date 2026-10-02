@@ -314,3 +314,45 @@ def test_bad_components_are_a_config_error(platform, report, capsys, value, comp
     env = env_for(platform, QAV_COMPONENTS=value)
     assert run(["upload", str(report)], env) == 2
     assert complaint in capsys.readouterr().err
+
+
+def test_check_passes_and_uploads_nothing(platform, report, capsys):
+    platform.reply(200, {"project_id": 7, "name": "ci"})
+
+    assert run(["check", str(report)], env_for(platform)) == 0
+    err = capsys.readouterr().err
+    assert "qav: url: ok" in err
+    assert "qav: key: ok (project 7, key 'ci')" in err
+    assert "qav: reports: 1 file(s), 2 results" in err
+    assert [r["path"] for r in platform.requests] == ["/api/v1/collect/key"]
+
+
+def test_check_without_patterns_checks_config_only(platform, capsys):
+    platform.reply(200, {"project_id": 7, "name": "ci"})
+
+    assert run(["check"], env_for(platform)) == 0
+    assert "reports:" not in capsys.readouterr().err
+
+
+def test_check_reports_a_bad_key(platform, capsys):
+    platform.reply(401, {"detail": "Invalid API key"})
+
+    assert run(["check"], env_for(platform)) == 2
+    assert "invalid or revoked" in capsys.readouterr().err
+
+
+def test_check_fails_when_no_file_matches(platform, capsys):
+    platform.reply(200, {"project_id": 7, "name": "ci"})
+
+    assert run(["check", "no-such-*.xml"], env_for(platform)) == 2
+    assert "no file matched" in capsys.readouterr().err
+
+
+def test_check_needs_a_url(capsys):
+    assert run(["check"], {"QAV_API_KEY": KEY}) == 2
+    assert "QAV_URL" in capsys.readouterr().err
+
+
+def test_check_needs_a_key(platform, capsys):
+    assert run(["check"], {"QAV_URL": platform.url}) == 2
+    assert "QAV_API_KEY" in capsys.readouterr().err

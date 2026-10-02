@@ -135,6 +135,13 @@ class RunUpload(BaseModel):
         return value
 
 
+class KeyCheck(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    project_id: int
+    name: str
+
+
 class RunReceipt(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -149,7 +149,7 @@ Richer data
 Reliability and operations
 - [ ] Keep a failed upload on disk and `qav-collector retry` it later
 - [ ] Stream partial results during long runs instead of one upload at the end
-- [ ] `qav-collector check`: verify the URL, certificate and key without uploading
+- [x] `qav-collector check`: verifies URL shape, TLS trust, API key (GET /collect/key names the project) and report parsing, without uploading; exits 2 on the first failure
 - [ ] A `.qav.yml` config file as an alternative to flags and environment variables
 - [ ] Client certificates (mTLS) — roadmap Phase 2
 

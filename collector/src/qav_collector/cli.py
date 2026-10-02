@@ -17,7 +17,9 @@ from qav_collector.ci import detect, sanitize_key
 from qav_collector.junit import parse_file
 from qav_collector.gitdiff import collect_changes, collect_commit_info
 from qav_collector.payload import build_parts, build_run, parse_components, run_times, summarize
-from qav_collector.upload import ConfigError, UploadError, endpoint_for, make_context, upload_part
+from qav_collector.upload import (
+    ConfigError, UploadError, check_key, endpoint_for, make_context, upload_part,
+)
 
 CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "other", "local")
 _TRUE = ("1", "true", "yes")
@@ -73,6 +75,16 @@ def build_parser() -> argparse.ArgumentParser:
     upload.add_argument("--no-changes", action="store_true",
                         help="skip git code-change collection (default: $QAV_NO_CHANGES)")
     upload.add_argument("--dry-run", action="store_true", help="print the JSON that would be sent; upload nothing")
+    check = commands.add_parser(
+        "check",
+        help="verify the configuration without uploading: URL, TLS, API key, and report parsing",
+        description="Verify the collector can talk to the platform: URL shape, TLS trust, API key. "
+        "With PATTERN arguments, also checks that reports match and parse. Uploads nothing. "
+        "Exits 2 on the first failed check.",
+    )
+    check.add_argument("patterns", nargs="*", metavar="PATTERN")
+    check.add_argument("--url", help="platform URL (default: $QAV_URL)")
+    check.add_argument("--ca-file", help="trust exactly this CA certificate (default: $QAV_CA_FILE)")
     return parser
 
 
@@ -96,6 +108,13 @@ def main(
 
     api_key = env.get("QAV_API_KEY", "").strip()
     say = _Output(api_key)
+    if args.command == "check":
+        # A diagnostic: any failure is the answer, so it always exits 2, never softened
+        try:
+            return _check(args, env, api_key, say)
+        except (ConfigError, UploadError) as exc:
+            say(str(exc))
+            return 2
     fail_on_error = args.fail_on_error or env.get("QAV_FAIL_ON_ERROR", "").strip().lower() in _TRUE
     try:
         return _upload(args, env, api_key, say, now=now, sleep=sleep, clock=clock)
@@ -109,6 +128,37 @@ def main(
     if fail_on_error:
         return 1
     say("not failing the build (pass --fail-on-error to change that)")
+    return 0
+
+
+def _check(args, env: Mapping[str, str], api_key: str, say: _Output) -> int:
+    def pick(flag: Optional[str], name: str) -> Optional[str]:
+        return (flag or "").strip() or env.get(name, "").strip() or None
+
+    url = pick(args.url, "QAV_URL")
+    if not url:
+        raise ConfigError("QAV_URL is not set (or pass --url)")
+    endpoint_for(url)  # validates the shape; raises ConfigError
+    say(f"url: ok ({url})")
+
+    if not api_key:
+        raise ConfigError("QAV_API_KEY is not set; the API key is read from the environment only")
+    if not _API_KEY.match(api_key):
+        raise ConfigError("QAV_API_KEY must be printable ASCII without spaces; check the CI secret")
+    context = make_context(pick(args.ca_file, "QAV_CA_FILE"))
+    identity = check_key(url, api_key, context)
+    say(f"key: ok (project {identity.get('project_id', '?')}, key {identity.get('name', '?')!r})")
+
+    if args.patterns:
+        files = _expand(args.patterns)
+        if not files:
+            raise ConfigError(f"no file matched {' '.join(args.patterns)}")
+        parsed = [parse_file(path) for path in files]
+        for report in parsed:
+            for warning in report.warnings:
+                say(warning)
+        results = [result for report in parsed for result in report.results]
+        say(f"reports: {sum(1 for report in parsed if not report.skipped)} file(s), {len(results)} results")
     return 0
 
 

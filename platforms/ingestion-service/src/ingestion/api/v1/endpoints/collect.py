@@ -6,11 +6,17 @@ from sqlalchemy.orm import Session
 from src.ingestion.api.deps import get_db
 from src.ingestion.api.key_auth import get_api_key
 from src.ingestion.models import ApiKey
-from src.ingestion.schemas.collect import RunReceipt, RunUpload
+from src.ingestion.schemas.collect import KeyCheck, RunReceipt, RunUpload
 from src.ingestion.service import ingest_service
 from src.ingestion.utils import metrics
 
 router = APIRouter()  # mounted at /collect
+
+
+@router.get("/key", response_model=KeyCheck)
+def check_key(key: ApiKey = Depends(get_api_key)):
+    """Proof the key works, for `qav-collector check` — uploads nothing."""
+    return key
 
 
 @router.post("/runs", response_model=RunReceipt, status_code=status.HTTP_201_CREATED)

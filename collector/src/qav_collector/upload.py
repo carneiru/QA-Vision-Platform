@@ -16,6 +16,7 @@ from qav_collector import __version__
 from qav_collector.payload import Part
 
 COLLECT_PATH = "/api/v1/collect/runs"
+KEY_CHECK_PATH = "/api/v1/collect/key"
 LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 TIMEOUT_SECONDS = 30
 MAX_ATTEMPTS = 5
@@ -109,6 +110,34 @@ def upload_part(
         sleep(wait)
 
 
+def check_key(url: str, api_key: str, context: Optional[ssl.SSLContext] = None) -> dict:
+    """GET /collect/key: proves URL, TLS and key in one request. Single attempt —
+    `check` is a diagnostic, waiting through retries would hide the problem."""
+    endpoint = url.strip().rstrip("/") + KEY_CHECK_PATH
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+        "User-Agent": f"qav-collector/{__version__}",
+    }
+    try:
+        status, body, response_headers = _send(endpoint, None, headers, context)
+    except (OSError, http.client.HTTPException) as exc:
+        if _is_tls_error(exc):
+            raise UploadError(
+                f"TLS error talking to the platform ({_reason(exc)}); if it uses a private CA, pass --ca-file"
+            ) from None
+        raise UploadError(f"cannot reach the platform ({_reason(exc)})") from None
+    if status == 200:
+        return _json(body)
+    if status == 401:
+        raise UploadError("the API key is invalid or revoked (401)")
+    if 300 <= status < 400:
+        raise UploadError(
+            f"the platform redirected to {response_headers.get('Location', '?')} ({status}); set QAV_URL to that address"
+        )
+    raise UploadError(f"the platform answered {status}: {_detail(body)}")
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     # Following a redirect would re-send the Authorization header to wherever it points
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -116,11 +145,12 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _send(
-    endpoint: str, body: bytes, headers: Mapping[str, str], context: Optional[ssl.SSLContext]
+    endpoint: str, body: Optional[bytes], headers: Mapping[str, str], context: Optional[ssl.SSLContext]
 ) -> Tuple[int, bytes, Mapping[str, str]]:
     # build_opener keeps the default ProxyHandler, so HTTPS_PROXY / NO_PROXY are honoured
     opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=context), _NoRedirect)
-    request = urllib.request.Request(endpoint, data=body, headers=dict(headers), method="POST")
+    method = "POST" if body is not None else "GET"
+    request = urllib.request.Request(endpoint, data=body, headers=dict(headers), method=method)
     try:
         with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
             return response.status, response.read(), response.headers

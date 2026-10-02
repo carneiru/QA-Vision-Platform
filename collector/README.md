@@ -97,6 +97,19 @@ variable, and both win over what is detected from the CI system.
 | `--fail-on-error` | `QAV_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
 | `--dry-run` | — | Print the JSON; upload nothing |
 
+## `qav-collector check`
+
+Verifies the setup without uploading — run it once when wiring a new pipeline:
+
+```
+qav-collector check "reports/**/*.xml" --url https://qa-vision.example.com
+```
+
+It checks, in order: the URL shape, the TLS trust (`--ca-file` honoured), the
+API key (a `GET /api/v1/collect/key` names the project it belongs to), and —
+when patterns are given — that report files match and parse. Exits 2 on the
+first failed check, 0 when everything passes.
+
 ## Exit codes
 
 | Code | When |

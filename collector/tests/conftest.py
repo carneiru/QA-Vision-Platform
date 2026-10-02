@@ -42,6 +42,9 @@ def platform():
             self.end_headers()
             self.wfile.write(data)
 
+        def do_GET(self):
+            self.do_POST()
+
         def log_message(self, *args):
             pass
 
