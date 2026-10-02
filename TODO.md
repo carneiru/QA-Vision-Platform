@@ -123,13 +123,13 @@
 - [x] GitHub Actions, GitLab CI and Jenkins detection; retry-safe Idempotency-Keys; parts past 20,000 results / 9 MB
 - [x] Retries with backoff and a 2-minute budget; HTTPS and verified TLS; the key never printed
 - [x] CI: tests on Python 3.9 and 3.12; end-to-end upload through the gateway in the smoke test
-- [ ] Tag `collector-v0.1.0` (maintainer)
+- [x] Tag `collector-v0.1.0` — release workflow builds+verifies on the tag
 - [ ] Phase 2 exit criteria: agents on 3 CI platforms in real projects; 10k test executions ingested
 
 ### Collector — nice to have
 Distribution
-- [ ] Publish to PyPI (trusted publishing from a tag): `pip install qav-collector`, `pipx run qav-collector`
-- [ ] A ready-made GitHub Action (`uses: …/qav-collector@v1`) and a GitLab CI component
+- [~] Publish to PyPI: workflow ready (trusted publishing, gated on repo variable PYPI_PUBLISH=true); needs the one-off publisher config on pypi.org (project qav-collector, repo carneiru/QA-Vision-Platform, workflow release-collector.yml, environment pypi)
+- [x] Ready-made GitHub Action (`uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0`) and GitLab CI template (`templates/qav-collector.gitlab-ci.yml`) — both install the collector pinned to the tag
 - [ ] A Jenkins shared-library step
 - [ ] A Docker image and a single-file (zipapp) build for runners without pip
 

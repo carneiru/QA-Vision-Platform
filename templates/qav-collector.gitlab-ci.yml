@@ -1,0 +1,23 @@
+# GitLab CI template: upload JUnit XML results to a QA Vision platform.
+#
+# include:
+#   - remote: https://raw.githubusercontent.com/carneiru/QA-Vision-Platform/collector-v0.1.0/templates/qav-collector.gitlab-ci.yml
+#
+# Set QAV_URL as a CI/CD variable and QAV_API_KEY as a masked variable.
+# Override QAV_PATTERNS (and optionally QAV_ENVIRONMENT, QAV_EXTRA_ARGS).
+
+.qav-collector:
+  image: python:3.12-slim
+  variables:
+    QAV_PATTERNS: "reports/**/*.xml"
+    QAV_COLLECTOR_REF: "collector-v0.1.0"
+  script:
+    - apt-get update -qq && apt-get install -y -qq git > /dev/null
+    - pip install --quiet "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${QAV_COLLECTOR_REF}#subdirectory=collector"
+    - qav-collector upload ${QAV_PATTERNS} --url "${QAV_URL}" ${QAV_ENVIRONMENT:+--environment "${QAV_ENVIRONMENT}"} ${QAV_EXTRA_ARGS}
+
+qav-collector-upload:
+  extends: .qav-collector
+  stage: .post
+  rules:
+    - when: always  # report results even when the test job failed
