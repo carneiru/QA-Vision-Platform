@@ -72,6 +72,21 @@ def revoke_invitation(db: Session, org_id: int, invitation_id: int) -> bool:
     return True
 
 
+def preview_invitation(db: Session, token: str):
+    """The invitation and its organization, for the invitee's accept page.
+    Usable invitations only — a dead token previews exactly like an unknown
+    one, so the endpoint never says which tokens existed."""
+    invitation = db.query(OrganizationInvitation).filter(OrganizationInvitation.token == token).first()
+    if invitation is None or invitation.accepted_at is not None:
+        raise InvitationNotUsable("invitation not found")
+    if _as_aware_utc(invitation.expires_at) <= datetime.now(timezone.utc):
+        raise InvitationNotUsable("invitation expired")
+    organization = get_organization(db, invitation.organization_id)
+    if organization is None:
+        raise InvitationNotUsable("organization not found")
+    return invitation, organization
+
+
 def accept_invitation(db: Session, token: str, user_id: int) -> OrganizationMember:
     invitation = db.query(OrganizationInvitation).filter(OrganizationInvitation.token == token).first()
     if invitation is None:

@@ -222,12 +222,17 @@ check "create an invitation" 201 POST "$BASE/api/v1/organizations/$ORG_ID/invita
 INVITE_TOKEN="$(grep -o '"token":"[^"]*"' "$TMP/body" | head -1 | cut -d'"' -f4)"
 check "the invitation list answers" 200 GET "$BASE/api/v1/organizations/$ORG_ID/invitations" "${AUTH[@]}"
 body_lacks "the list never shows the raw token" "${INVITE_TOKEN:-no-token-found}"
+check "the invitee previews the invitation" 200 GET "$BASE/api/v1/invitations/${INVITE_TOKEN:-none}" "${INVITEE_AUTH[@]}"
+body_has "... which names the organization" '"organization_name":"Smoke '
 check "accept the invitation" 201 POST "$BASE/api/v1/invitations/${INVITE_TOKEN:-none}/accept" "${INVITEE_AUTH[@]}"
 check "the invitee's role in the organization" 200 GET \
   "$BASE/api/v1/organizations/$ORG_ID/members/me" "${INVITEE_AUTH[@]}"
 body_has "... is member" '"role":"member"'
 check "an accepted token cannot be used again" 404 POST \
   "$BASE/api/v1/invitations/${INVITE_TOKEN:-none}/accept" "${INVITEE_AUTH[@]}"
+check "the member list carries emails from auth-service" 200 GET \
+  "$BASE/api/v1/organizations/$ORG_ID/members" "${INVITEE_AUTH[@]}"
+body_has "... the invitee's email is on their row" "$INVITEE"
 
 # The catch-all now serves the dashboard SPA, so these paths answer its HTML,
 # never a proxied service: the security intent is "not reachable", not "404".

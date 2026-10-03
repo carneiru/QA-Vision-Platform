@@ -41,7 +41,15 @@ def _add_member(client, org_id: int, granter_id: int, user_id: int, role: str) -
     return response.json()["id"]
 
 
+def _mock_email_batch():
+    # Listing members now asks auth-service for emails; answer "none known"
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users").mock(
+        return_value=httpx.Response(200, json={"users": []})
+    )
+
+
 def _owner_member_id(client, org_id: int, user_id: int) -> int:
+    _mock_email_batch()
     members = client.get(f"/api/v1/organizations/{org_id}/members", headers=_auth(user_id)).json()
     return next(m["id"] for m in members if m["user_id"] == user_id)
 
@@ -120,6 +128,7 @@ def test_admin_can_remove_plain_member(client):
 @respx.mock
 def test_member_routes_404_after_org_soft_deleted(client):
     org_id = _make_org(client, owner_id=1)
+    _mock_email_batch()
     assert client.get(f"/api/v1/organizations/{org_id}/members", headers=_auth(1)).status_code == 200
 
     assert client.delete(f"/api/v1/organizations/{org_id}", headers=_auth(1)).status_code == 204

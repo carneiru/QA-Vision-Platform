@@ -4,7 +4,7 @@ from src.organization.api.deps import get_db, require_org_role
 from src.organization.models.member import OrganizationMember
 from src.organization.schemas.member import MemberCreate, MemberOut, MyRoleOut
 from src.organization.service import member_service
-from src.organization.utils.auth_client import AuthServiceUnavailable
+from src.organization.utils.auth_client import AuthServiceUnavailable, emails_by_ids
 
 router = APIRouter()
 
@@ -34,7 +34,14 @@ def list_members(
     # any member role may list; require_org_role also 404s on a soft-deleted org
     _role: str = Depends(require_org_role(*OrganizationMember.ROLES)),
 ):
-    return member_service.list_members(db, org_id)
+    members = member_service.list_members(db, org_id)
+    emails = emails_by_ids([m.user_id for m in members])  # best effort: {} when auth is down
+    enriched = []
+    for member in members:
+        out = MemberOut.model_validate(member, from_attributes=True)
+        out.email = emails.get(member.user_id)
+        enriched.append(out)
+    return enriched
 
 
 @router.get("/me", response_model=MyRoleOut)

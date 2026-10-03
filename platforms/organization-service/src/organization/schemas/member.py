@@ -13,6 +13,7 @@ class MemberOut(BaseModel):
     id: int
     organization_id: int
     user_id: int
+    email: Optional[str] = None  # enriched from auth-service, best effort
     role: str
     status: str
     created_at: datetime

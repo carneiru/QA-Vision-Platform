@@ -16,10 +16,23 @@ export interface Member {
   id: number;
   organization_id: number;
   user_id: number;
+  email: string | null; // enriched from auth-service, best effort
   role: string;
   status: string;
   created_at: string;
   updated_at: string | null;
+}
+
+export interface InvitationPreview {
+  organization_id: number;
+  organization_name: string;
+  email: string;
+  role: string;
+  expires_at: string;
+}
+
+export function previewInvitation(token: string): Promise<InvitationPreview> {
+  return apiFetch(`/api/v1/invitations/${encodeURIComponent(token)}`);
 }
 
 export interface InvitationSummary {

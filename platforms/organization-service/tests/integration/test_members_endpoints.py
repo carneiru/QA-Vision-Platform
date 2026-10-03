@@ -76,6 +76,9 @@ def test_add_nonexistent_user_returns_422(client):
 @respx.mock
 def test_list_members(client):
     org_id = _make_org(client, owner_id=1)
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users").mock(
+        return_value=httpx.Response(200, json={"users": []})
+    )
     response = client.get(f"/api/v1/organizations/{org_id}/members", headers=_auth(1))
     assert response.status_code == 200
     members = response.json()

@@ -90,14 +90,14 @@ export default function OrganizationPage() {
             <tbody>
               {members.data.map((member) => (
                 <tr key={member.id}>
-                  <td>user {member.user_id}</td>
+                  <td>{member.email ?? `user ${member.user_id}`}</td>
                   <td>{member.role}</td>
                   <td>{member.status}</td>
                   <td>{new Date(member.created_at).toLocaleDateString()}</td>
                   {canManage && (
                     <td>
                       <button
-                        aria-label={`Remove user ${member.user_id}`}
+                        aria-label={`Remove ${member.email ?? `user ${member.user_id}`}`}
                         onClick={() => remove.mutate(member.id)}
                         disabled={remove.isPending}
                       >

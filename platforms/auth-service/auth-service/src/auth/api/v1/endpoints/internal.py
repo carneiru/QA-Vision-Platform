@@ -48,6 +48,29 @@ def require_internal_caller(credentials: Optional[HTTPBasicCredentials] = Depend
         )
 
 
+class InternalUserList(BaseModel):
+    users: list[InternalUser]
+
+
+MAX_BATCH_IDS = 200
+
+
+@router.get("/users", response_model=InternalUserList)
+def get_users(ids: str, _: None = Depends(require_internal_caller), db: Session = Depends(get_db)):
+    """Batch lookup for list views (e.g. an organization's member table).
+    Unknown ids are simply absent — the caller treats them as 'not found'."""
+    try:
+        wanted = [int(part) for part in ids.split(",") if part.strip()]
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="ids must be a comma-separated list of integers")
+    if not wanted or len(wanted) > MAX_BATCH_IDS:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"ids must name between 1 and {MAX_BATCH_IDS} users")
+    users = db.query(User).filter(User.id.in_(wanted)).order_by(User.id).all()
+    return InternalUserList(users=[InternalUser.model_validate(u) for u in users])
+
+
 @router.get("/users/{user_id}", response_model=InternalUser)
 def get_user(user_id: int, _: None = Depends(require_internal_caller), db: Session = Depends(get_db)):
     user = db.get(User, user_id)

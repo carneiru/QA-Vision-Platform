@@ -8,8 +8,8 @@ import { setAccessToken } from "../auth/tokens";
 import OrganizationPage from "./OrganizationPage";
 
 const MEMBERS = [
-  { id: 1, organization_id: 7, user_id: 10, role: "owner", status: "active", created_at: "2026-10-01T10:00:00Z", updated_at: null },
-  { id: 2, organization_id: 7, user_id: 11, role: "member", status: "active", created_at: "2026-10-02T10:00:00Z", updated_at: null },
+  { id: 1, organization_id: 7, user_id: 10, email: "owner@example.com", role: "owner", status: "active", created_at: "2026-10-01T10:00:00Z", updated_at: null },
+  { id: 2, organization_id: 7, user_id: 11, email: null, role: "member", status: "active", created_at: "2026-10-02T10:00:00Z", updated_at: null },
 ];
 
 const INVITATIONS = [
@@ -45,8 +45,8 @@ test("lists members and pending invitations", async () => {
   mockOrg();
   renderPage();
   expect(await screen.findByText("Acme QA")).toBeInTheDocument();
-  expect(screen.getByText("user 10")).toBeInTheDocument();
-  expect(screen.getByText("user 11")).toBeInTheDocument();
+  expect(screen.getByText("owner@example.com")).toBeInTheDocument();
+  expect(screen.getByText("user 11")).toBeInTheDocument(); // auth had no email: honest fallback
   expect(screen.getByText("carol@example.com")).toBeInTheDocument();
 });
 

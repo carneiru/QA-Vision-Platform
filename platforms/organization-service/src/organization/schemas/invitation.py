@@ -26,6 +26,16 @@ class InvitationOut(BaseModel):
         from_attributes = True
 
 
+class InvitationPreview(BaseModel):
+    """What the invitee sees before accepting: enough to decide, nothing more."""
+
+    organization_id: int
+    organization_name: str
+    email: str
+    role: str
+    expires_at: datetime
+
+
 class InvitationSummary(BaseModel):
     """Same fields as InvitationOut minus the raw token.
 
