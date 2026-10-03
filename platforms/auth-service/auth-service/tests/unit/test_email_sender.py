@@ -13,6 +13,9 @@ def test_logs_the_link_when_smtp_is_not_configured(caplog, monkeypatch):
         )
     assert "http://example.com/verify?token=abc" in caplog.text
     assert "person@example.com" in caplog.text
+    # WARNING, not INFO: Python's root logger defaults to WARNING, so an INFO
+    # line never reaches the container log — the one place this link must appear
+    assert all(r.levelno >= logging.WARNING for r in caplog.records)
 
 
 def test_sends_via_smtp_when_configured(monkeypatch):

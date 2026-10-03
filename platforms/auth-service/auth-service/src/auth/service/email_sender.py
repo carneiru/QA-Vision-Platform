@@ -24,7 +24,10 @@ class EmailSender:
         )
 
         if not settings.SMTP_HOST:
-            logger.info(
+            # WARNING, not INFO: the root logger defaults to WARNING, so an INFO
+            # line never reaches the container log — and this link is the only
+            # way to complete registration on a deployment without SMTP
+            logger.warning(
                 "Verification email for %s (SMTP not configured, logging instead): %s",
                 to_email, verification_link,
             )
