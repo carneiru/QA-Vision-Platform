@@ -164,7 +164,7 @@ export default function TrendsPage() {
             </div>
           </div>
 
-          <div className="card" style={{ marginTop: 12 }}>
+          <div className="card">
             <h3>Pass rate</h3>
             <div
               role="img"
@@ -189,7 +189,7 @@ export default function TrendsPage() {
       )}
 
       {showTable && query.data && (
-        <div className="card" style={{ marginTop: 12 }}>
+        <div className="card">
           <table className="data">
             <thead>
               <tr>

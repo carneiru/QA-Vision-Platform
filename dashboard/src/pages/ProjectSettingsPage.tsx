@@ -156,7 +156,7 @@ export default function ProjectSettingsPage() {
         )}
       </div>
 
-      <div className="card" style={{ marginTop: 12 }}>
+      <div className="card">
         <h3>Wire up your CI</h3>
         <p className="muted">
           Paste this after your test step; store the API key as a CI secret named{" "}

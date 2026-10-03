@@ -76,7 +76,7 @@ export default function OrganizationPage() {
       )}
       {notice && <p role="status">{notice}</p>}
 
-      <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card">
         <h2>Members</h2>
         {members.isPending && <p className="muted">Loading members…</p>}
         {members.data && (

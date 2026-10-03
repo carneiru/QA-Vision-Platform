@@ -1,4 +1,5 @@
-import { Link, NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { logout } from "../api/auth";
 import { getProject } from "../api/orgs";
@@ -8,6 +9,13 @@ export default function ProjectLayout() {
   const id = Number(projectId);
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
   const navigate = useNavigate();
+  const location = useLocation();
+  const tabs = useRef<HTMLElement>(null);
+
+  // On narrow screens the tab strip scrolls; keep the current view's tab in sight
+  useEffect(() => {
+    tabs.current?.querySelector(".active")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [location.pathname]);
 
   async function onSignOut() {
     await logout();
@@ -24,7 +32,7 @@ export default function ProjectLayout() {
           <button onClick={onSignOut}>Sign out</button>
         </span>
       </div>
-      <nav className="tabs" aria-label="Project views">
+      <nav ref={tabs} className="tabs" aria-label="Project views">
         <NavLink to="trends" className={({ isActive }) => (isActive ? "active" : "")}>Trends</NavLink>
         <NavLink to="tests" end className={({ isActive }) => (isActive ? "active" : "")}>Tests</NavLink>
         <NavLink to="flaky" className={({ isActive }) => (isActive ? "active" : "")}>Flaky</NavLink>

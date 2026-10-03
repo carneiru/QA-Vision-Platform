@@ -94,7 +94,7 @@ export default function RunDetailPage() {
           </div>
 
           {run.change_base_ref !== null && (
-            <div className="card" style={{ marginBottom: 12 }}>
+            <div className="card">
               <h3>Changes</h3>
               <p className="muted">
                 {run.changed_files} file(s), +{run.additions ?? 0} −{run.deletions ?? 0} vs {run.change_base_ref}

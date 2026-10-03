@@ -100,7 +100,7 @@ export default function BranchesPage() {
       )}
 
       {branchA && branchB && (
-        <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card">
           <h3>Pass rate: {branchA} vs {branchB}</h3>
           {(trendA.error != null || trendB.error != null) && (
             <ErrorBanner error={trendA.error ?? trendB.error} />
