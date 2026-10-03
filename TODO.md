@@ -182,6 +182,7 @@ Reliability and operations
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
 - [x] Organization management UI — `/organizations/:orgId` (members list/remove, invite by email+role, pending invitations with revoke; controls gated on owner/admin via `GET /members/me`; the invite link with the single-use token is shown once, from the 201) and `/invitations/:token` accept page closing the self-service loop; Manage link per organization in the picker. Audit follow-ups landed: member rows carry emails (auth batch internal lookup, best effort), the accept page previews organization+role via authenticated `GET /invitations/{token}` (dead token = unknown token), per-row accessible action names, copy button on the invite link
 
+- [x] Registration in the UI — /register page (full name optional, "check your email" state says where the link lands when SMTP is unconfigured), /verify-email SPA landing that verifies and signs the person in (the emailed link now points there instead of the raw API endpoint), Create account link on the login page
 - [x] Create flows in the UI — "New organization" (slug derived from the name, editable, backend pattern enforced) and "New project" (owner/admin only) in the picker; Settings tab per project with API-key management (create shows the full key once with a copy button, list shows prefix/created/last-used, revoke; revoked keys lose the action). Closes the last curl-only step: a team can go from register to first upload entirely in the browser
 
 ### Phase 4: Test Management

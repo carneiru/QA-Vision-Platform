@@ -59,9 +59,9 @@ def register_user(
     db.add(pending)
     db.commit()
 
-    verification_link = (
-        f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={token}"
-    )
+    # The dashboard route, not the raw API endpoint: the SPA page calls the API
+    # and signs the person in, instead of showing them a JSON blob
+    verification_link = f"{settings.BASE_URL}/verify-email?token={token}"
     EmailSender.send_verification_email(user_in.email, verification_link)
 
     return {"message": "Check your email to complete registration"}
@@ -190,9 +190,7 @@ def resend_verification(request: ResendVerificationRequest, db: Session = Depend
         pending.token = secrets.token_urlsafe(32)
         pending.expires_at = now + timedelta(hours=settings.EMAIL_VERIFICATION_EXPIRE_HOURS)
         db.commit()
-        verification_link = (
-            f"{settings.BASE_URL}{settings.API_V1_STR}/auth/verify-email?token={pending.token}"
-        )
+        verification_link = f"{settings.BASE_URL}/verify-email?token={pending.token}"
         EmailSender.send_verification_email(request.email, verification_link)
     # len(unexpired) == 0: nothing pending, same as today.
     # len(unexpired) > 1: ambiguous. Decline silently -- each attempt's own original link

@@ -3,6 +3,8 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-route
 import { bootstrapSession, setOnAuthFailure } from "./api/http";
 import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
 import PickerPage from "./pages/PickerPage";
 import ProjectLayout from "./pages/ProjectLayout";
 import SecurityPage from "./pages/SecurityPage";
@@ -28,6 +30,8 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route path="/" element={<RequireAuth><PickerPage /></RequireAuth>} />
       <Route path="/account/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
       <Route path="/organizations/:orgId" element={<RequireAuth><OrganizationPage /></RequireAuth>} />

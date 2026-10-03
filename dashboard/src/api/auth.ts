@@ -28,6 +28,20 @@ export async function login(email: string, password: string): Promise<MfaChallen
   return null;
 }
 
+export async function register(email: string, password: string, fullName?: string): Promise<void> {
+  const body: Record<string, string> = { email, password };
+  if (fullName?.trim()) body.full_name = fullName.trim();
+  await apiFetch("/api/v1/auth/register", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Completes registration from the emailed link and signs the person in. */
+export async function verifyEmail(token: string): Promise<void> {
+  const tokens = await apiFetch<TokenOut>(
+    `/api/v1/auth/verify-email?token=${encodeURIComponent(token)}`,
+  );
+  setAccessToken(tokens.access_token);
+}
+
 export async function mfaVerify(mfaToken: string, code: string): Promise<void> {
   const tokens = await apiFetch<TokenOut>("/api/v1/auth/mfa/verify", {
     method: "POST",
