@@ -197,6 +197,38 @@ check "analytics flaky" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/fla
 check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"
 check "a revoked key is rejected" 401 POST "$BASE/api/v1/collect/runs" \
   -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$RUN_BODY"
+# ---- organization membership: register -> invite -> accept -> role, through the gateway ----
+# The minted smoke token (sub 999999) is no real user, so the member flow needs one: register,
+# verify (token read from the database, as a person would read it from the email), log in.
+INVITEE="smoke-invitee-$SUFFIX@example.com"
+check "register the invitee" 202 POST "$BASE/api/v1/auth/register" \
+  -H "Content-Type: application/json" -d "{\"email\":\"$INVITEE\",\"password\":\"Smoke-pw-123456\"}"
+VERIFY_TOKEN="$(docker compose exec -T postgres psql -U postgres -d auth_db -tAc \
+  "SELECT token FROM pending_registrations WHERE email='$INVITEE' ORDER BY id DESC LIMIT 1" | tr -d ' \r\n')"
+check "verify the invitee's email" 200 GET "$BASE/api/v1/auth/verify-email?token=$VERIFY_TOKEN"
+check "invitee login" 200 POST "$BASE/api/v1/auth/login" \
+  -H "Content-Type: application/json" -d "{\"email\":\"$INVITEE\",\"password\":\"Smoke-pw-123456\"}"
+INVITEE_TOKEN="$(grep -o '"access_token":"[^"]*"' "$TMP/body" | head -1 | cut -d'"' -f4)"
+INVITEE_AUTH=(-H "Authorization: Bearer ${INVITEE_TOKEN}")
+
+# Adding a nonexistent user answers a clean 422: organization-service asked auth-service's
+# internal API (the superuser AUTH_SERVICE_TOKEN is gone)
+check "direct member add of a nonexistent user" 422 POST "$BASE/api/v1/organizations/$ORG_ID/members" \
+  "${AUTH[@]}" -H "Content-Type: application/json" -d '{"user_id":987654321,"role":"member"}'
+body_has "... names the reason" 'user not found'
+
+check "create an invitation" 201 POST "$BASE/api/v1/organizations/$ORG_ID/invitations" \
+  "${AUTH[@]}" -H "Content-Type: application/json" -d "{\"email\":\"$INVITEE\",\"role\":\"member\"}"
+INVITE_TOKEN="$(grep -o '"token":"[^"]*"' "$TMP/body" | head -1 | cut -d'"' -f4)"
+check "the invitation list answers" 200 GET "$BASE/api/v1/organizations/$ORG_ID/invitations" "${AUTH[@]}"
+body_lacks "the list never shows the raw token" "${INVITE_TOKEN:-no-token-found}"
+check "accept the invitation" 201 POST "$BASE/api/v1/invitations/${INVITE_TOKEN:-none}/accept" "${INVITEE_AUTH[@]}"
+check "the invitee's role in the organization" 200 GET \
+  "$BASE/api/v1/organizations/$ORG_ID/members/me" "${INVITEE_AUTH[@]}"
+body_has "... is member" '"role":"member"'
+check "an accepted token cannot be used again" 404 POST \
+  "$BASE/api/v1/invitations/${INVITE_TOKEN:-none}/accept" "${INVITEE_AUTH[@]}"
+
 # The catch-all now serves the dashboard SPA, so these paths answer its HTML,
 # never a proxied service: the security intent is "not reachable", not "404".
 check "/metrics is not proxied (SPA fallback)" 200 GET "$BASE/metrics"
