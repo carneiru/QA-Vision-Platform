@@ -17,6 +17,16 @@ export default function OrganizationPage() {
   const [role, setRole] = useState("member");
   const [created, setCreated] = useState<InvitationCreated | null>(null);
   const [notice, setNotice] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function copyInviteLink(link: string) {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+    } catch {
+      setCopied(false); // clipboard blocked (permissions, http): the link stays selectable
+    }
+  }
 
   const orgs = useQuery({ queryKey: ["orgs"], queryFn: listMyOrganizations });
   const me = useQuery({ queryKey: ["org", id, "me"], queryFn: () => myRole(id) });
@@ -30,6 +40,7 @@ export default function OrganizationPage() {
     mutationFn: () => createInvitation(id, email, role),
     onSuccess: (invitation) => {
       setCreated(invitation);
+      setCopied(false);
       setEmail("");
       setNotice("");
       qc.invalidateQueries({ queryKey: ["org", id, "invitations"] });
@@ -72,7 +83,8 @@ export default function OrganizationPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>User</th><th>Role</th><th>Status</th><th>Since</th>{canManage && <th />}
+                <th>User</th><th>Role</th><th>Status</th><th>Since</th>
+                {canManage && <th><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -84,7 +96,11 @@ export default function OrganizationPage() {
                   <td>{new Date(member.created_at).toLocaleDateString()}</td>
                   {canManage && (
                     <td>
-                      <button onClick={() => remove.mutate(member.id)} disabled={remove.isPending}>
+                      <button
+                        aria-label={`Remove user ${member.user_id}`}
+                        onClick={() => remove.mutate(member.id)}
+                        disabled={remove.isPending}
+                      >
                         Remove
                       </button>
                     </td>
@@ -124,7 +140,13 @@ export default function OrganizationPage() {
         {created && (
           <p role="status">
             Invitation for <strong>{created.email}</strong> — send this link (only shown once):{" "}
-            <code>{`${window.location.origin}/invitations/${created.token}`}</code>
+            <code>{`${window.location.origin}/invitations/${created.token}`}</code>{" "}
+            <button
+              aria-label={`Copy the invitation link for ${created.email}`}
+              onClick={() => copyInviteLink(`${window.location.origin}/invitations/${created.token}`)}
+            >
+              {copied ? "Copied" : "Copy link"}
+            </button>
           </p>
         )}
         {invitations.isPending && <p className="muted">Loading invitations…</p>}
@@ -133,7 +155,8 @@ export default function OrganizationPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Email</th><th>Role</th><th>Expires</th>{canManage && <th />}
+                <th>Email</th><th>Role</th><th>Expires</th>
+                {canManage && <th><span className="sr-only">Actions</span></th>}
               </tr>
             </thead>
             <tbody>
@@ -144,7 +167,11 @@ export default function OrganizationPage() {
                   <td>{new Date(invitation.expires_at).toLocaleDateString()}</td>
                   {canManage && (
                     <td>
-                      <button onClick={() => revoke.mutate(invitation.id)} disabled={revoke.isPending}>
+                      <button
+                        aria-label={`Revoke invitation for ${invitation.email}`}
+                        onClick={() => revoke.mutate(invitation.id)}
+                        disabled={revoke.isPending}
+                      >
                         Revoke
                       </button>
                     </td>

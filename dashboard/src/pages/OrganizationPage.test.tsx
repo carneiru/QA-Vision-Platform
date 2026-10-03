@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -71,6 +71,12 @@ test("inviting shows the single-use link with the token", async () => {
   const link = await screen.findByText(/\/invitations\/tok-abc123/);
   expect(link).toBeInTheDocument();
   expect(screen.getByText(/only shown once/i)).toBeInTheDocument();
+
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.assign(navigator, { clipboard: { writeText } });
+  await userEvent.click(screen.getByRole("button", { name: /copy the invitation link/i }));
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("/invitations/tok-abc123"));
+  expect(await screen.findByRole("button", { name: /copy the invitation link/i })).toHaveTextContent("Copied");
 });
 
 test("revoking an invitation calls the API", async () => {
@@ -84,7 +90,7 @@ test("revoking an invitation calls the API", async () => {
   );
   renderPage();
   await screen.findByText("carol@example.com");
-  await userEvent.click(screen.getByRole("button", { name: /revoke/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Revoke invitation for carol@example.com" }));
   expect(await screen.findByText(/invitation revoked/i)).toBeInTheDocument();
   expect(revoked).toBe(true);
 });
@@ -99,8 +105,8 @@ test("removing a member calls the API", async () => {
     }),
   );
   renderPage();
-  const row = (await screen.findByText("user 11")).closest("tr")!;
-  await userEvent.click(within(row).getByRole("button", { name: /remove/i }));
+  await screen.findByText("user 11");
+  await userEvent.click(screen.getByRole("button", { name: "Remove user 11" }));
   expect(await screen.findByText(/member removed/i)).toBeInTheDocument();
   expect(removed).toBe(true);
 });
