@@ -78,12 +78,11 @@ export default function PickerPage() {
           </ul>
           {orgFormOpen ? (
             <form
-              className="card"
+              className="card inline-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 createOrg.mutate();
               }}
-              style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}
             >
               <label>
                 Name
@@ -132,12 +131,11 @@ export default function PickerPage() {
             {canCreateProject &&
               (projectFormOpen ? (
                 <form
-                  className="card"
+                  className="card inline-form"
                   onSubmit={(e) => {
                     e.preventDefault();
                     createProj.mutate();
                   }}
-                  style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap" }}
                 >
                   <label>
                     Project name

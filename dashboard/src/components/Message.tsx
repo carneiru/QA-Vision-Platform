@@ -7,7 +7,7 @@ export default function Message({ text }: { text: string | null }) {
   const firstLine = text.split("\n")[0];
   if (text === firstLine) return <span>{text}</span>;
   return open ? (
-    <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{text}</pre>
+    <pre className="message-full">{text}</pre>
   ) : (
     <span>
       {firstLine}{" "}

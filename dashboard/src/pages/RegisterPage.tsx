@@ -27,7 +27,7 @@ export default function RegisterPage() {
 
   if (done) {
     return (
-      <div className="page" style={{ maxWidth: 380 }}>
+      <div className="page page-narrow">
         <h1>QA Vision</h1>
         <div className="card">
           <p role="status">Check your email to complete registration.</p>
@@ -42,7 +42,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 380 }}>
+    <div className="page page-narrow">
       <h1>QA Vision</h1>
       <form className="card" onSubmit={onSubmit}>
         <h2>Create account</h2>

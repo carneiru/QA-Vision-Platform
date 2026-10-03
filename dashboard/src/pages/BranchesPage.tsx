@@ -9,7 +9,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 
 const inkLegend = (value: string) => (
-  <span style={{ color: "var(--text-secondary)" }}>{value}</span>
+  <span className="muted">{value}</span>
 );
 const tooltipStyles = {
   contentStyle: { background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 },

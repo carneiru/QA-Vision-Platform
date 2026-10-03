@@ -83,7 +83,7 @@ export default function LoginPage() {
 
   if (mfaToken !== null) {
     return (
-      <div className="page" style={{ maxWidth: 380 }}>
+      <div className="page page-narrow">
         <h1>QA Vision</h1>
         <form className="card" onSubmit={onMfaSubmit}>
           <p>Enter the code from your authenticator app, or a recovery code.</p>
@@ -111,7 +111,7 @@ export default function LoginPage() {
   const anySso = googleEnabled() || microsoftEnabled();
 
   return (
-    <div className="page" style={{ maxWidth: 380 }}>
+    <div className="page page-narrow">
       <h1>QA Vision</h1>
       <form className="card" onSubmit={onSubmit}>
         <p>

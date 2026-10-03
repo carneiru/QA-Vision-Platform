@@ -34,7 +34,7 @@ export default function VerifyEmailPage() {
 
   if (!token) {
     return (
-      <div className="page" style={{ maxWidth: 380 }}>
+      <div className="page page-narrow">
         <h1>QA Vision</h1>
         <div className="card">
           <p>This verification link is incomplete — it carries no token. Use the full link from the email.</p>
@@ -46,7 +46,7 @@ export default function VerifyEmailPage() {
   if (state === "done") return <Navigate to="/" replace />;
 
   return (
-    <div className="page" style={{ maxWidth: 380 }}>
+    <div className="page page-narrow">
       <h1>QA Vision</h1>
       <div className="card">
         {state === "working" && <p className="muted">Verifying your email…</p>}

@@ -120,7 +120,7 @@ export default function OrganizationPage() {
               e.preventDefault();
               invite.mutate();
             }}
-            style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap", marginBottom: 12 }}
+            className="inline-form"
           >
             <label>
               Email

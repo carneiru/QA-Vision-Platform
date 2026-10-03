@@ -98,7 +98,7 @@ export default function ProjectSettingsPage() {
             e.preventDefault();
             create.mutate();
           }}
-          style={{ display: "flex", gap: 8, alignItems: "end", flexWrap: "wrap", marginBottom: 12 }}
+          className="inline-form"
         >
           <label>
             Name
@@ -170,7 +170,7 @@ export default function ProjectSettingsPage() {
             ))}
           </select>
         </label>
-        <pre data-testid="ci-snippet">
+        <pre data-testid="ci-snippet" className="code-block">
           <code>{snippets[platform].code}</code>
         </pre>
         <button
