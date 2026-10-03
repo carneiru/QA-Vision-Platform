@@ -126,7 +126,11 @@ By default an unreachable platform never turns a build red; a misconfigured coll
 - Reads `<testsuites>`/`<testsuite>` reports: pytest, Maven Surefire, Playwright, cucumber-js and
   anything else that writes JUnit XML. A test's status is `errored` if it has an `<error>`,
   else `failed` for `<failure>`, else `skipped` for `<skipped>`, else `passed`. Surefire's
-  `flakyFailure`/`rerunFailure` elements are earlier attempts and are ignored.
+  `flakyFailure`/`rerunFailure` elements become per-attempt results, so flaky tests show up
+  as pass+fail within one run.
+- Also reads, detected by the root element: .NET TRX (`<TestRun>`, vstest/`dotnet test`),
+  NUnit 3 (`<test-run>`), xUnit.net v2 (`<assemblies>`) and TestNG (`<testng-results>`).
+  Formats mix freely in one upload; every file lands in the same run.
 - Skips, with a warning, files over 50 MB, files that are not well-formed XML, and files that
   declare a DOCTYPE or entities (JUnit never needs one; refusing them blocks XML entity attacks).
 - Cuts failure messages and output to 64 KB, as the platform does.

@@ -14,7 +14,7 @@ from typing import Callable, List, Mapping, Optional, Sequence
 
 from qav_collector import __version__
 from qav_collector.ci import detect, sanitize_key
-from qav_collector.junit import parse_file
+from qav_collector.formats import parse_file
 from qav_collector.gitdiff import collect_changes, collect_commit_info
 from qav_collector.payload import build_parts, build_run, parse_components, run_times, summarize
 from qav_collector.spool import spool_part, spooled_parts

@@ -415,3 +415,22 @@ def test_no_spool_flag_means_no_spooling(platform, report, tmp_path):
         platform.reply(503, {"detail": "down"})
     assert run(["upload", str(report)], env_for(platform)) == 0
     assert list(tmp_path.glob("*.json")) == []
+
+
+def test_a_trx_report_uploads_like_junit(platform, tmp_path, capsys):
+    platform.reply(201, RECEIPT)
+    trx = tmp_path / "results.trx"
+    trx.write_text(
+        '<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
+        '<Results><UnitTestResult testId="i1" testName="Adds" outcome="Passed" duration="00:00:01.5000000"/>'
+        '<UnitTestResult testId="i2" testName="Pays" outcome="Failed"/></Results>'
+        '<TestDefinitions><UnitTest id="i1"><TestMethod className="Shop.Cart" name="Adds"/></UnitTest>'
+        '<UnitTest id="i2"><TestMethod className="Shop.Cart" name="Pays"/></UnitTest></TestDefinitions>'
+        '</TestRun>',
+        encoding="utf-8",
+    )
+
+    assert run(["upload", str(trx)], env_for(platform)) == 0
+    body = sent(platform)
+    assert [(r["name"], r["status"]) for r in body["results"]] == [("Adds", "passed"), ("Pays", "failed")]
+    assert "qav: parsed 1 file(s), 2 results" in capsys.readouterr().err

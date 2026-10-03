@@ -136,7 +136,7 @@ Distribution
 Formats
 - [ ] Cucumber JSON (features, scenarios, tags, steps) — needs ingestion fields for tags and steps
 - [ ] Playwright JSON (retries, attachments, projects/browsers)
-- [ ] TestNG XML, NUnit XML, xUnit.net XML, .NET TRX
+- [x] TestNG XML, NUnit 3 XML, xUnit.net v2 XML, .NET TRX — dispatched on the XML root element (`formats.py`); same result shape, formats mix freely in one upload
 
 Richer data
 - [x] Keep each retry attempt as its own result, so flaky tests become visible — Surefire flakyFailure/flakyError/rerunFailure/rerunError expand into per-attempt results (duplicate testcases, pytest-rerunfailures style, already passed through)
