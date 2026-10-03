@@ -50,6 +50,7 @@ class ResultOut(BaseModel):
     truncated: bool
     redacted: bool
     file: Optional[str] = None
+    owner: Optional[str] = None
 
 
 class ChangedFileOut(BaseModel):

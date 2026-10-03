@@ -54,19 +54,32 @@ def endpoint_for(url: str) -> str:
     return url.rstrip("/") + COLLECT_PATH
 
 
-def make_context(ca_file: Optional[str]) -> ssl.SSLContext:
+def make_context(
+    ca_file: Optional[str],
+    client_cert: Optional[str] = None,
+    client_key: Optional[str] = None,
+) -> ssl.SSLContext:
+    if client_key and not client_cert:
+        raise ConfigError("--client-key needs --client-cert (the certificate the key belongs to)")
     if not ca_file:
-        return ssl.create_default_context()
-    # --ca-file pins trust to exactly this CA (curl --cacert semantics). Blending it
-    # into the system store broke verification on Windows machines whose ROOT store
-    # carries CN=localhost dev certificates (IIS Express, dotnet dev-certs): OpenSSL
-    # looks anchors up by subject and can pick one with the wrong key.
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # CERT_REQUIRED + hostname check
-    context.minimum_version = ssl.TLSVersion.TLSv1_2
-    try:
-        context.load_verify_locations(cafile=ca_file)
-    except (OSError, ssl.SSLError) as exc:
-        raise ConfigError(f"cannot use --ca-file {ca_file}: {exc}") from None
+        context = ssl.create_default_context()
+    else:
+        # --ca-file pins trust to exactly this CA (curl --cacert semantics). Blending it
+        # into the system store broke verification on Windows machines whose ROOT store
+        # carries CN=localhost dev certificates (IIS Express, dotnet dev-certs): OpenSSL
+        # looks anchors up by subject and can pick one with the wrong key.
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)  # CERT_REQUIRED + hostname check
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+        try:
+            context.load_verify_locations(cafile=ca_file)
+        except (OSError, ssl.SSLError) as exc:
+            raise ConfigError(f"cannot use --ca-file {ca_file}: {exc}") from None
+    if client_cert:
+        # mTLS: presented when the server asks for a client certificate
+        try:
+            context.load_cert_chain(certfile=client_cert, keyfile=client_key or None)
+        except (OSError, ssl.SSLError) as exc:
+            raise ConfigError(f"cannot use --client-cert {client_cert}: {exc}") from None
     return context
 
 

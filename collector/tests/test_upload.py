@@ -249,3 +249,52 @@ def test_make_context_with_ca_file_trusts_exactly_that_file(tmp_path):
 def test_make_context_without_ca_file_uses_system_defaults():
     context = make_context(None)
     assert context.cert_store_stats()["x509"] > 1  # system CAs loaded
+
+
+def _self_signed(tmp_path):
+    """One self-signed cert+key pair, usable as a client identity in tests."""
+    import datetime
+    import ipaddress  # noqa: F401  (cryptography import check)
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        from cryptography.x509.oid import NameOID
+    except ImportError:
+        import pytest
+        pytest.skip("cryptography not installed in this venv")
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "qav-client")])
+    now = datetime.datetime.now(datetime.timezone.utc)
+    cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
+            .public_key(key.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(now).not_valid_after(now + datetime.timedelta(days=1))
+            .sign(key, hashes.SHA256()))
+    cert_path = tmp_path / "client.crt"
+    key_path = tmp_path / "client.key"
+    cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption()))
+    return str(cert_path), str(key_path)
+
+
+def test_make_context_loads_a_client_certificate(tmp_path):
+    cert, key = _self_signed(tmp_path)
+    context = make_context(None, client_cert=cert, client_key=key)
+    # Loading succeeded; a context with a client chain still verifies servers
+    assert context.verify_mode.name == "CERT_REQUIRED"
+
+
+def test_a_broken_client_certificate_is_a_config_error(tmp_path):
+    bad = tmp_path / "bad.pem"
+    bad.write_text("not a certificate", encoding="utf-8")
+    with pytest.raises(ConfigError) as err:
+        make_context(None, client_cert=str(bad))
+    assert "--client-cert" in str(err.value)
+
+
+def test_client_key_without_cert_is_a_config_error(tmp_path):
+    with pytest.raises(ConfigError) as err:
+        make_context(None, client_key=str(tmp_path / "k.pem"))
+    assert "--client-cert" in str(err.value)

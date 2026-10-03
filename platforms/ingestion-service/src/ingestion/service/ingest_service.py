@@ -128,6 +128,7 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
                 "truncated": cut_message or cut_details,
                 "redacted": bool(kinds),
                 "file": result.file,
+                "owner": result.owner,
             })
         db.execute(insert(RunResult), rows)  # one executemany, not 20,000 ORM objects
 

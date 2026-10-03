@@ -14,6 +14,8 @@ from typing import Callable, List, Mapping, Optional, Sequence
 
 from qav_collector import __version__
 from qav_collector.ci import detect, sanitize_key
+from qav_collector.codeowners import load_codeowners
+from qav_collector.config_file import load_config
 from qav_collector.formats import parse_file
 from qav_collector.gitdiff import collect_changes, collect_commit_info
 from qav_collector.payload import build_parts, build_run, parse_components, run_times, summarize
@@ -59,7 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Parse the JUnit XML files matching PATTERN (** matches any directories) and upload "
         "them as one run. The API key is read from the QAV_API_KEY environment variable only.",
     )
-    upload.add_argument("patterns", nargs="+", metavar="PATTERN")
+    upload.add_argument("patterns", nargs="*", metavar="PATTERN",
+                        help="default: the patterns list in .qav.yml")
     upload.add_argument("--url", help="platform URL (default: $QAV_URL)")
     upload.add_argument("--ci-provider", choices=CI_PROVIDERS, help="default: $QAV_CI_PROVIDER, else detected")
     upload.add_argument("--branch", help="default: $QAV_BRANCH, else detected")
@@ -75,6 +78,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="exit 1 if the upload fails (default: $QAV_FAIL_ON_ERROR)")
     upload.add_argument("--no-changes", action="store_true",
                         help="skip git code-change collection (default: $QAV_NO_CHANGES)")
+    upload.add_argument("--client-cert", help="client certificate for mTLS (default: $QAV_CLIENT_CERT)")
+    upload.add_argument("--client-key", help="private key for --client-cert (default: $QAV_CLIENT_KEY)")
     upload.add_argument("--spool", metavar="DIR",
                         help="keep parts a failed upload could not deliver in DIR and resend them on "
                              "the next invocation (default: $QAV_SPOOL)")
@@ -120,6 +125,11 @@ def main(
             say(str(exc))
             return 2
     fail_on_error = args.fail_on_error or env.get("QAV_FAIL_ON_ERROR", "").strip().lower() in _TRUE
+    if not fail_on_error:
+        try:
+            fail_on_error = load_config(os.getcwd()).get("fail-on-error") is True
+        except ConfigError:
+            pass  # _upload reads the file itself and reports the problem properly
     try:
         return _upload(args, env, api_key, say, now=now, sleep=sleep, clock=clock)
     except ConfigError as exc:
@@ -167,14 +177,23 @@ def _check(args, env: Mapping[str, str], api_key: str, say: _Output) -> int:
 
 
 def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sleep, clock) -> int:
-    def pick(flag: Optional[str], name: str, detected: Optional[str] = None) -> Optional[str]:
-        return (flag or "").strip() or env.get(name, "").strip() or detected
+    file_config = load_config(os.getcwd())
+
+    def from_file(key: str) -> Optional[str]:
+        value = file_config.get(key)
+        return value if isinstance(value, str) else None
+
+    def pick(flag: Optional[str], name: str, detected: Optional[str] = None,
+             file_key: Optional[str] = None) -> Optional[str]:
+        # Precedence: flag, then environment, then .qav.yml, then detection
+        return ((flag or "").strip() or env.get(name, "").strip()
+                or (from_file(file_key) if file_key else None) or detected)
 
     endpoint, context = "", None
     if not args.dry_run:
-        url = pick(args.url, "QAV_URL")
+        url = pick(args.url, "QAV_URL", file_key="url")
         if not url:
-            raise ConfigError("QAV_URL is not set (or pass --url)")
+            raise ConfigError("QAV_URL is not set (or pass --url, or url: in .qav.yml)")
         if not api_key:
             raise ConfigError("QAV_API_KEY is not set; the API key is read from the environment only")
         if not _API_KEY.match(api_key):
@@ -182,16 +201,23 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
             # quotes the key in a form the output scrubbing does not recognise
             raise ConfigError("QAV_API_KEY must be printable ASCII without spaces; check the CI secret")
         endpoint = endpoint_for(url)
-        context = make_context(pick(args.ca_file, "QAV_CA_FILE"))
+        context = make_context(
+            pick(args.ca_file, "QAV_CA_FILE", file_key="ca-file"),
+            client_cert=pick(args.client_cert, "QAV_CLIENT_CERT"),
+            client_key=pick(args.client_key, "QAV_CLIENT_KEY"),
+        )
 
     ci = detect(env)
-    provider = pick(args.ci_provider, "QAV_CI_PROVIDER", ci.provider)
+    provider = pick(args.ci_provider, "QAV_CI_PROVIDER", ci.provider, file_key="ci-provider")
     if provider not in CI_PROVIDERS:
         raise ConfigError(f"QAV_CI_PROVIDER must be one of {', '.join(CI_PROVIDERS)}, got {provider!r}")
 
-    files = _expand(args.patterns)
+    patterns = args.patterns or list(file_config.get("patterns") or [])
+    if not patterns:
+        raise ConfigError("no report patterns given (arguments, or patterns: in .qav.yml)")
+    files = _expand(patterns)
     if not files:
-        raise ConfigError(f"no file matched {' '.join(args.patterns)}")
+        raise ConfigError(f"no file matched {' '.join(patterns)}")
     parsed = [parse_file(path) for path in files]
     for report in parsed:
         for warning in report.warnings:
@@ -200,6 +226,17 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
     if not results:
         say("no test results found")
         return 0
+
+    owners_for = load_codeowners(os.getcwd())
+    owned = 0
+    for result in results:
+        owner = owners_for(result["file"]) if result.get("file") else None
+        if owner:
+            result["owner"] = owner
+            owned += 1
+    if owned:
+        say(f"owners from CODEOWNERS on {owned} result(s)")
+
     counts = summarize(results)
     say(
         f"parsed {sum(1 for report in parsed if not report.skipped)} file(s), {len(results)} results "
@@ -220,15 +257,16 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         finished_at=finished,
         ci_run_url=pick(args.ci_run_url, "QAV_CI_RUN_URL", ci.run_url),
         commit_sha=pick(args.commit, "QAV_COMMIT", ci.commit),
-        branch=pick(args.branch, "QAV_BRANCH", ci.branch),
-        environment=pick(args.environment, "QAV_ENVIRONMENT"),
+        branch=pick(args.branch, "QAV_BRANCH", ci.branch, file_key="branch"),
+        environment=pick(args.environment, "QAV_ENVIRONMENT", file_key="environment"),
         commit_author=author,
         commit_message=subject,
         pr_number=ci.pr_number,
         base_branch=ci.base_branch,
     )
     changes = None
-    skip_changes = args.no_changes or env.get("QAV_NO_CHANGES", "").strip().lower() in _TRUE
+    skip_changes = (args.no_changes or env.get("QAV_NO_CHANGES", "").strip().lower() in _TRUE
+                    or file_config.get("no-changes") is True)
     if not skip_changes:
         changes = collect_changes(env, run.get("commit_sha"))
         if changes is not None:
@@ -237,7 +275,9 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
             say(f"changes vs {changes['base_ref']}: {len(changes['files'])} file(s), +{adds} -{dels}"
                 + (" (truncated)" if changes["truncated"] else ""))
 
-    component_values = args.component or [v for v in env.get("QAV_COMPONENTS", "").split(",") if v.strip()]
+    component_values = (args.component
+                        or [v for v in env.get("QAV_COMPONENTS", "").split(",") if v.strip()]
+                        or list(file_config.get("components") or []))
     try:
         components = parse_components(component_values)
     except ValueError as exc:
@@ -260,7 +300,7 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         say(f"dry run: {len(parts)} part(s), nothing uploaded")
         return 0
 
-    spool_dir = pick(args.spool, "QAV_SPOOL")
+    spool_dir = pick(args.spool, "QAV_SPOOL", file_key="spool")
     if spool_dir:
         _resend_spooled(spool_dir, endpoint, api_key, context, say, sleep=sleep, clock=clock)
 

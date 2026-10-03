@@ -141,6 +141,7 @@ export default function RunDetailPage() {
                         </Link>
                         <div className="muted">
                           {r.suite} / {r.class_name}
+                          {r.owner && <span> · {r.owner}</span>}
                           {r.truncated && <span> · truncated</span>}
                           {r.redacted && <span> · redacted</span>}
                         </div>

@@ -51,6 +51,7 @@ export interface RunResult {
   truncated: boolean;
   redacted: boolean;
   file: string | null;
+  owner: string | null;
 }
 
 export interface RunComponent {

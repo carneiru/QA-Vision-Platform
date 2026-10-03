@@ -434,3 +434,46 @@ def test_a_trx_report_uploads_like_junit(platform, tmp_path, capsys):
     body = sent(platform)
     assert [(r["name"], r["status"]) for r in body["results"]] == [("Adds", "passed"), ("Pays", "failed")]
     assert "qav: parsed 1 file(s), 2 results" in capsys.readouterr().err
+
+
+def test_config_file_supplies_defaults_and_flags_win(platform, tmp_path, monkeypatch, capsys):
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    (reports / "junit.xml").write_text(REPORT, encoding="utf-8")
+    (tmp_path / ".qav.yml").write_text(
+        f"url: {platform.url}\nenvironment: from-file\npatterns:\n  - \"reports/**/*.xml\"\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    platform.reply(201, RECEIPT)
+
+    # no patterns and no --url on the command line: both come from .qav.yml
+    assert run(["upload"], {"QAV_API_KEY": KEY}) == 0
+    assert sent(platform)["run"]["environment"] == "from-file"
+
+    platform.reply(201, RECEIPT)
+    assert run(["upload", "--environment", "from-flag"], {"QAV_API_KEY": KEY}) == 0
+    assert sent(platform, 1)["run"]["environment"] == "from-flag"
+
+
+def test_no_patterns_anywhere_is_a_config_error(platform, tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert run(["upload"], env_for(platform)) == 2
+    assert "no report patterns" in capsys.readouterr().err
+
+
+def test_codeowners_attach_owners_to_results(platform, tmp_path, monkeypatch):
+    (tmp_path / "CODEOWNERS").write_text("*.xml @org/qa-team\n", encoding="utf-8")
+    report_path = tmp_path / "junit.xml"
+    report_path.write_text(
+        '<testsuite name="s"><testcase classname="c" name="ok" time="0.1" file="tests/login.xml"/>'
+        '<testcase classname="c" name="nofile" time="0.1"/></testsuite>',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    platform.reply(201, RECEIPT)
+
+    assert run(["upload", str(report_path)], env_for(platform)) == 0
+    results = {r["name"]: r for r in sent(platform)["results"]}
+    assert results["ok"]["owner"] == "@org/qa-team"
+    assert "owner" not in results["nofile"]

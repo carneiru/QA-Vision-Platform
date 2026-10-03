@@ -1,0 +1,53 @@
+"""`.qav.yml`: project defaults for the collector. Flags beat environment
+variables beat the file. Parsed with a small built-in reader (flat keys and
+string lists), so the collector stays dependency-free."""
+import pytest
+
+from qav_collector.config_file import load_config
+from qav_collector.upload import ConfigError
+
+YAML = """
+# QA Vision collector defaults
+url: https://qa-vision.example.com
+environment: staging
+ca-file: certs/internal-ca.pem
+spool: .qav-spool
+fail-on-error: true
+no-changes: false
+patterns:
+  - "reports/**/*.xml"
+  - "cucumber.json"
+components:
+  - product-api@a1b2c3d4e5f6
+"""
+
+
+def test_load_and_types(tmp_path):
+    path = tmp_path / ".qav.yml"
+    path.write_text(YAML, encoding="utf-8")
+    config = load_config(str(tmp_path))
+    assert config["url"] == "https://qa-vision.example.com"
+    assert config["environment"] == "staging"
+    assert config["ca-file"] == "certs/internal-ca.pem"
+    assert config["spool"] == ".qav-spool"
+    assert config["fail-on-error"] is True
+    assert config["no-changes"] is False
+    assert config["patterns"] == ["reports/**/*.xml", "cucumber.json"]
+    assert config["components"] == ["product-api@a1b2c3d4e5f6"]
+
+
+def test_missing_file_is_empty(tmp_path):
+    assert load_config(str(tmp_path)) == {}
+
+
+def test_unknown_keys_are_rejected(tmp_path):
+    (tmp_path / ".qav.yml").write_text("api-key: qav_nope\n", encoding="utf-8")
+    with pytest.raises(ConfigError) as err:
+        load_config(str(tmp_path))
+    assert "api-key" in str(err.value)
+
+
+def test_broken_yaml_is_a_config_error(tmp_path):
+    (tmp_path / ".qav.yml").write_text("url: a\n  dangling:\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(str(tmp_path))

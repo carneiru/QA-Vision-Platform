@@ -23,7 +23,7 @@ const result = {
   id: 1, test_key: "tests/a.py::TestLogin::test_ok", suite: "auth",
   class_name: "TestLogin", name: "test_ok", status: "failed", duration_ms: 480,
   message: "AssertionError: boom", details: null, truncated: true, redacted: false,
-  file: "tests/a.py",
+  file: "tests/a.py", owner: null,
 };
 
 function renderDetail() {
@@ -91,6 +91,13 @@ test("a run without change data shows no Changes card", async () => {
   expect(screen.queryByText(/changes/i)).not.toBeInTheDocument();
 });
 
+
+test("a result's owner renders when present", async () => {
+  const owned = { ...result, owner: "@org/qa-team" };
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail([owned]))));
+  renderDetail();
+  expect(await screen.findByText(/@org\/qa-team/)).toBeInTheDocument();
+});
 
 test("components under test render when present", async () => {
   const withComponents = {

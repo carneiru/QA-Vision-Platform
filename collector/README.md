@@ -94,6 +94,8 @@ variable, and both win over what is detected from the CI system.
 | `--idempotency-key` | `QAV_IDEMPOTENCY_KEY` | Overrides the key derived from the CI job |
 | `--ca-file` | `QAV_CA_FILE` | Extra CA certificate to trust (a private CA, or the local stack's self-signed one) |
 | `--component` | `QAV_COMPONENTS` | `NAME@SHA` of a repo/version this run exercised, e.g. the product build an E2E suite ran against. Flag repeatable; variable comma-separated. Up to 20 |
+| `--client-cert` | `QAV_CLIENT_CERT` | Client certificate for mTLS, presented when the server asks for one |
+| `--client-key` | `QAV_CLIENT_KEY` | Private key belonging to `--client-cert` |
 | `--fail-on-error` | `QAV_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
 | `--spool` | `QAV_SPOOL` | Directory keeping parts a failed upload could not deliver; the next invocation resends them first, under their original Idempotency-Key (so nothing is ever stored twice). Capped at 100 files; rejected uploads (401/409) are never spooled. Point it at a persistent runner path — a wiped workspace wipes the spool |
 | `--dry-run` | — | Print the JSON; upload nothing |
@@ -110,6 +112,31 @@ It checks, in order: the URL shape, the TLS trust (`--ca-file` honoured), the
 API key (a `GET /api/v1/collect/key` names the project it belongs to), and —
 when patterns are given — that report files match and parse. Exits 2 on the
 first failed check, 0 when everything passes.
+
+## `.qav.yml`
+
+Project defaults, read from the working directory — flags beat environment
+variables beat the file. Flat keys and string lists only (a built-in reader,
+no YAML dependency); the API key is never accepted here:
+
+```yaml
+url: https://qa-vision.example.com
+environment: staging
+ca-file: certs/internal-ca.pem
+spool: .qav-spool
+fail-on-error: true
+patterns:
+  - "reports/**/*.xml"
+components:
+  - product-api@a1b2c3d4e5f6
+```
+
+## CODEOWNERS
+
+When the working directory has a `CODEOWNERS` file (root, `.github/` or
+`docs/`), every result whose `file` matches a pattern carries its owners
+(git semantics: last matching line wins). Shown on the run detail view —
+a failing test names the team that owns it.
 
 ## Exit codes
 
@@ -134,6 +161,9 @@ By default an unreachable platform never turns a build red; a misconfigured coll
 - Cucumber JSON (the classic formatter of cucumber-jvm/js/rb): each scenario becomes one
   result (feature name as suite, feature uri as class), background steps count into their
   scenario, a failed step fails the scenario, and undefined/pending steps leave it skipped.
+- Playwright's JSON reporter (`--reporter=json`): every retry attempt is kept as its own
+  result (a flaky spec shows as fail+pass in one run), project name as suite, spec file as
+  class, `timedOut` counts as failed and `interrupted` as errored.
 - Skips, with a warning, files over 50 MB, files that are not well-formed XML, and files that
   declare a DOCTYPE or entities (JUnit never needs one; refusing them blocks XML entity attacks).
 - Cuts failure messages and output to 64 KB, as the platform does.

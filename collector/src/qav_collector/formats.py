@@ -108,6 +108,10 @@ def _parse_cucumber_file(path: str, parsed: ParsedFile) -> ParsedFile:
             data = json.load(fh)
     except (OSError, ValueError) as exc:
         return _skip(parsed, f"not well-formed JSON ({exc})")
+    if isinstance(data, dict) and isinstance(data.get("suites"), list) and "config" in data:
+        for suite in data["suites"]:
+            _playwright_suite(suite, parsed)
+        return parsed
     features = [f for f in data if isinstance(f, dict) and "elements" in f] if isinstance(data, list) else []
     if not features:
         return _skip(parsed, "not Cucumber JSON (no features with elements)")
@@ -166,6 +170,49 @@ def _cucumber_feature(feature: dict, parsed: ParsedFile) -> None:
             step_name = f"{failed_step.get('keyword', '')}{failed_step.get('name', '')}".strip()
             _attach(row, _first_line(message), "\n".join(part for part in (step_name, message.strip()) if part))
         parsed.results.append(row)
+
+
+# --- Playwright JSON reporter --------------------------------------------------
+
+# Playwright's own statuses; everything unexpected maps to failed, and every
+# retry attempt is its own result — a flaky spec shows up as fail+pass in one
+# run, exactly like Surefire reruns
+_PLAYWRIGHT_STATUS = {"passed": "passed", "failed": "failed", "timedOut": "failed",
+                      "interrupted": "errored", "skipped": "skipped"}
+
+
+def _playwright_suite(suite: dict, parsed: ParsedFile) -> None:
+    if not isinstance(suite, dict):
+        return
+    for child in suite.get("suites") or []:
+        _playwright_suite(child, parsed)
+    for spec in suite.get("specs") or []:
+        if not isinstance(spec, dict):
+            continue
+        name = str(spec.get("title") or "").strip()
+        if not name:
+            parsed.unnamed += 1
+            continue
+        for test in spec.get("tests") or []:
+            if not isinstance(test, dict):
+                continue
+            project = str(test.get("projectName") or "")
+            for attempt in test.get("results") or []:
+                if not isinstance(attempt, dict):
+                    continue
+                stamp = _timestamp(attempt.get("startTime"))
+                if stamp is not None:
+                    parsed.suite_timestamps.append(stamp)
+                status = _PLAYWRIGHT_STATUS.get(str(attempt.get("status") or ""), "skipped")
+                duration = attempt.get("duration")
+                seconds = duration / 1000 if isinstance(duration, (int, float)) and duration > 0 else 0.0
+                row = _row(project, str(spec.get("file") or ""), name, status, seconds)
+                errors = attempt.get("errors") or ([attempt["error"]] if isinstance(attempt.get("error"), dict) else [])
+                messages = [str(e.get("message") or "") for e in errors if isinstance(e, dict)]
+                if any(m.strip() for m in messages):
+                    joined = "\n\n".join(m for m in messages if m.strip())
+                    _attach(row, _first_line(joined), joined)
+                parsed.results.append(row)
 
 
 # --- TRX (Visual Studio / vstest) -------------------------------------------

@@ -76,8 +76,9 @@ class ResultIn(BaseModel):
     message: Optional[str] = None   # long text is truncated by the service, never rejected
     details: Optional[str] = None
     file: Optional[_text(1000)] = None
+    owner: Optional[_text(255)] = None  # from CODEOWNERS, e.g. "@org/qa-team"
 
-    _no_unstorable = field_validator("suite", "class_name", "name", "file", mode="before")(_reject_unstorable)
+    _no_unstorable = field_validator("suite", "class_name", "name", "file", "owner", mode="before")(_reject_unstorable)
     _clean_text = field_validator("message", "details", mode="after")(_replace_unstorable)
 
     @field_validator("status")

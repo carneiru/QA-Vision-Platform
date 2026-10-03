@@ -130,12 +130,12 @@
 Distribution
 - [~] Publish to PyPI: workflow ready (trusted publishing, gated on repo variable PYPI_PUBLISH=true); needs the one-off publisher config on pypi.org (project qav-collector, repo carneiru/QA-Vision-Platform, workflow release-collector.yml, environment pypi)
 - [x] Ready-made GitHub Action (`uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0`) and GitLab CI template (`templates/qav-collector.gitlab-ci.yml`) — both install the collector pinned to the tag
-- [ ] A Jenkins shared-library step
+- [x] A Jenkins shared-library step — `collector-jenkins/vars/qavCollectorUpload.groovy` (workspace venv install, PEP 668-safe; key via env only). Proven against a real Jenkins LTS in Docker: library loaded from a git repo via JCasC, pipeline build SUCCESS, run stored with ci_provider=jenkins and the build URL
 - [x] A Docker image and a single-file (zipapp) build for runners without pip — zipapp (`collector/scripts/build_zipapp.py`, stdlib-only, runs on any Python 3.9+) and `collector/Dockerfile` (python:3.12-slim + git). On every `collector-v*` tag the release workflow uploads sdist+wheel+pyz to a GitHub Release and pushes `ghcr.io/carneiru/qav-collector:<version>` + `:latest` (user-approved public surfaces, 2026-10-03)
 
 Formats
 - [x] Cucumber JSON (classic formatter) — scenarios map to the existing result shape (suite=feature, class=uri; background folds in; failed step fails, undefined/pending skip). Rich tags/steps columns still need ingestion fields — deferred until a consumer exists
-- [ ] Playwright JSON (retries, attachments, projects/browsers)
+- [x] Playwright JSON — own reporter format; retries kept as per-attempt results, projectName as suite, timedOut→failed, interrupted→errored. Attachments wait for artifact ingestion (below)
 - [x] TestNG XML, NUnit 3 XML, xUnit.net v2 XML, .NET TRX — dispatched on the XML root element (`formats.py`); same result shape, formats mix freely in one upload
 
 Richer data
@@ -143,16 +143,16 @@ Richer data
 - [x] Git metadata: commit author and message (git log -1, best effort), PR number + base branch (GitHub/GitLab env), stored per run and shown on run detail
 - [x] Code-change data, not just JUnit: changed files and diff stats per run — collector gitdiff module, ingestion migration 005 + run API, dashboard Changes card. Correlation analytics remain Phase 6 input.
 - [x] Components under test: `--component NAME@SHA` (or `QAV_COMPONENTS`) records which repo versions the run exercised (e.g. the product build an E2E suite ran against) — ingestion migration 008 + run API, "Under test" line on run detail. Dormant Phase 6 input; cross-repo correlation and Workspaces stay behind their triggers (ADR-018).
-- [ ] Test ownership from CODEOWNERS
-- [ ] Artifact upload (screenshots, videos, traces) once ingestion accepts them
+- [x] Test ownership from CODEOWNERS — collector matches each result's `file` (git semantics, last line wins; root/.github/docs locations), ingestion stores `owner` per result (migration 009), run detail shows it
+- [ ] Artifact upload (screenshots, videos, traces) — blocked behind the blueprint's MinIO adoption trigger (artifact storage); starts when the artifacts feature is pulled, not before
 
 Reliability and operations
 - [x] Keep a failed upload on disk and retry it later — automatic via `--spool` (below); a separate `retry` command adds nothing, the next upload resends first
-- [ ] Stream partial results during long runs instead of one upload at the end
+- [ ] Stream partial results during long runs — needs a long-running watch mode (the collector currently runs after the tests finish; multi-part uploads already flow sequentially). Revisit if a real pipeline shows the need
 - [x] `qav-collector check`: verifies URL shape, TLS trust, API key (GET /collect/key names the project) and report parsing, without uploading; exits 2 on the first failure
 - [x] Keep-and-retry failed uploads: `--spool DIR` / `QAV_SPOOL` stores undelivered parts (base64 JSON, capped at 100) and the next invocation resends them under their original Idempotency-Key; non-retryable rejections (401/409/4xx/TLS) are dropped, not respooled
-- [ ] A `.qav.yml` config file as an alternative to flags and environment variables
-- [ ] Client certificates (mTLS) — roadmap Phase 2
+- [x] A `.qav.yml` config file — flat keys + string lists, built-in reader (zero dependencies kept for the zipapp); precedence flags > env > file; API key never accepted in the file
+- [x] Client certificates (mTLS) — `--client-cert`/`--client-key` (`QAV_CLIENT_CERT`/`QAV_CLIENT_KEY`) load into the TLS context; server-side enforcement is a deployment concern (nginx `ssl_verify_client`), not in the local stack
 
 ### Microsoft SSO
 - [x] Sign in with Microsoft (Entra ID) ID tokens from an allowlist of tenants; link to an existing account
