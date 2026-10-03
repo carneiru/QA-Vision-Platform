@@ -1,8 +1,52 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiKeyCreated, createKey, listKeys, revokeKey } from "../api/keys";
 import ErrorBanner from "../components/ErrorBanner";
+
+const COLLECTOR_REF = "collector-v0.1.0";
+
+// Ready-to-paste CI wiring; the key itself always travels as a CI secret
+function ciSnippets(origin: string): Record<string, { label: string; code: string }> {
+  return {
+    github: {
+      label: "GitHub Actions",
+      code: `# .github/workflows/tests.yml — after the test step
+- uses: carneiru/QA-Vision-Platform/collector-action@${COLLECTOR_REF}
+  if: always()   # report results even when tests failed
+  with:
+    url: ${origin}
+    patterns: "reports/**/*.xml"
+  env:
+    QAV_API_KEY: \${{ secrets.QAV_API_KEY }}`,
+    },
+    gitlab: {
+      label: "GitLab CI",
+      code: `# .gitlab-ci.yml — set QAV_API_KEY as a masked CI/CD variable
+include:
+  - remote: https://raw.githubusercontent.com/carneiru/QA-Vision-Platform/${COLLECTOR_REF}/templates/qav-collector.gitlab-ci.yml
+
+qav-collector-upload:
+  variables:
+    QAV_URL: ${origin}
+    QAV_PATTERNS: "reports/**/*.xml"`,
+    },
+    jenkins: {
+      label: "Jenkins",
+      code: `// Jenkinsfile — needs the qa-vision shared library (collector-jenkins/)
+withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
+  withEnv(['QAV_URL=${origin}']) {
+    qavCollectorUpload(patterns: 'reports/**/*.xml')
+  }
+}`,
+    },
+    cli: {
+      label: "Any machine (CLI)",
+      code: `pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml"`,
+    },
+  };
+}
 
 export default function ProjectSettingsPage() {
   const { projectId } = useParams();
@@ -11,6 +55,9 @@ export default function ProjectSettingsPage() {
   const [name, setName] = useState("");
   const [created, setCreated] = useState<ApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
+  const [platform, setPlatform] = useState("github");
+  const [snippetCopied, setSnippetCopied] = useState(false);
+  const snippets = useMemo(() => ciSnippets(window.location.origin), []);
 
   const keys = useQuery({ queryKey: ["keys", id], queryFn: () => listKeys(id) });
 
@@ -107,6 +154,38 @@ export default function ProjectSettingsPage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="card" style={{ marginTop: 12 }}>
+        <h3>Wire up your CI</h3>
+        <p className="muted">
+          Paste this after your test step; store the API key as a CI secret named{" "}
+          <code>QAV_API_KEY</code>.
+        </p>
+        <label>
+          CI platform
+          <select value={platform} onChange={(e) => { setPlatform(e.target.value); setSnippetCopied(false); }}>
+            {Object.entries(snippets).map(([value, s]) => (
+              <option key={value} value={value}>{s.label}</option>
+            ))}
+          </select>
+        </label>
+        <pre data-testid="ci-snippet" style={{ overflowX: "auto" }}>
+          <code>{snippets[platform].code}</code>
+        </pre>
+        <button
+          aria-label="Copy the CI snippet"
+          onClick={async () => {
+            try {
+              await navigator.clipboard.writeText(snippets[platform].code);
+              setSnippetCopied(true);
+            } catch {
+              setSnippetCopied(false); // clipboard blocked: the snippet stays selectable
+            }
+          }}
+        >
+          {snippetCopied ? "Copied" : "Copy snippet"}
+        </button>
       </div>
     </section>
   );

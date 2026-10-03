@@ -76,3 +76,27 @@ test("revoking a key calls the API and refreshes", async () => {
   expect(await screen.findByText(/no api keys/i)).toBeInTheDocument();
   expect(revoked).toBe(true);
 });
+
+
+test("the CI snippet is ready to paste and follows the picked platform", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage();
+  await screen.findByText(/no api keys/i);
+
+  // GitHub Actions is the default; the snippet carries this deployment's origin
+  const snippet = screen.getByTestId("ci-snippet");
+  expect(snippet).toHaveTextContent("collector-action@collector-v0.1.0");
+  expect(snippet).toHaveTextContent("http://localhost:3000");
+  expect(snippet).toHaveTextContent("secrets.QAV_API_KEY");
+
+  await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "gitlab");
+  expect(snippet).toHaveTextContent("qav-collector.gitlab-ci.yml");
+
+  await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "jenkins");
+  expect(snippet).toHaveTextContent("qavCollectorUpload");
+
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.assign(navigator, { clipboard: { writeText } });
+  await userEvent.click(screen.getByRole("button", { name: /copy the ci snippet/i }));
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("qavCollectorUpload"));
+});
