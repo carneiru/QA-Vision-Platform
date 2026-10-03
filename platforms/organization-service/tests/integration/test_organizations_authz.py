@@ -29,7 +29,7 @@ def _make_org(client, owner_id: int, name="Acme", slug="acme") -> int:
 
 
 def _add_member(client, org_id: int, granter_id: int, user_id: int, role: str) -> int:
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/{user_id}").mock(
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/{user_id}").mock(
         return_value=httpx.Response(200, json={"id": user_id})
     )
     response = client.post(

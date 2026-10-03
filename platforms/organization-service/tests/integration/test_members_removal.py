@@ -29,7 +29,7 @@ def _make_org(client, owner_id: int) -> int:
 
 
 def _add_member(client, org_id: int, granter_id: int, user_id: int, role: str) -> int:
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/{user_id}").mock(
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/{user_id}").mock(
         return_value=httpx.Response(200, json={"id": user_id})
     )
     response = client.post(
@@ -127,7 +127,7 @@ def test_member_routes_404_after_org_soft_deleted(client):
     listed = client.get(f"/api/v1/organizations/{org_id}/members", headers=_auth(1))
     assert listed.status_code == 404
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/2").mock(
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/2").mock(
         return_value=httpx.Response(200, json={"id": 2})
     )
     added = client.post(

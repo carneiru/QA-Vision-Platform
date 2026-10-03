@@ -96,7 +96,7 @@
 ### Gateway follow-ups
 - [ ] Monitoring dashboards (Prometheus/Grafana) — *Phase 1, "Basic monitoring stack"*
 - [ ] Kubernetes ingress; real certificates — *Phase 1 infra, when a cluster exists*
-- [ ] Service-to-service token so organization-service can check users in auth-service — *soon: adding a member through the full stack needs a superuser `AUTH_SERVICE_TOKEN` until then*
+- [x] Service-to-service auth so organization-service can check users in auth-service — auth-service gained `GET /internal/v1/users/{id}` (HTTP Basic, same INTERNAL_API_PASSWORD pattern as project-service's retention API); the superuser `AUTH_SERVICE_TOKEN` is gone from config, compose and docs
 - [ ] Shared rate limits in Redis — *when more than one gateway instance runs*
 - [ ] JWT validation and per-user limits at the gateway — *when the gateway should reject bad tokens itself*
 - [ ] API docs through the gateway — *when a frontend or partner needs browsable docs*

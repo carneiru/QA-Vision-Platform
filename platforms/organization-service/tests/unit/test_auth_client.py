@@ -1,26 +1,44 @@
+"""user_exists asks auth-service's internal API with the shared Basic
+credentials — no superuser bearer token involved."""
+import base64
+
 import httpx
 import pytest
 import respx
+
 from src.organization.core.config import settings
-from src.organization.utils.auth_client import user_exists, AuthServiceUnavailable
+from src.organization.utils.auth_client import AuthServiceUnavailable, user_exists
+
+URL = f"{settings.AUTH_SERVICE_URL}/internal/v1/users/5"
+
+
+def expected_basic():
+    raw = f"{settings.INTERNAL_API_USERNAME}:{settings.INTERNAL_API_PASSWORD}".encode()
+    return f"Basic {base64.b64encode(raw).decode()}"
 
 
 @respx.mock
-def test_user_exists_true_on_200():
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/7").mock(
-        return_value=httpx.Response(200, json={"id": 7, "email": "a@b.com"})
-    )
-    assert user_exists(7) is True
+def test_an_existing_user_is_true_and_sends_basic_auth():
+    route = respx.get(URL).mock(return_value=httpx.Response(200, json={"id": 5, "email": "e", "is_active": True}))
+    assert user_exists(5) is True
+    assert route.calls.last.request.headers["Authorization"] == expected_basic()
 
 
 @respx.mock
-def test_user_exists_false_on_404():
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/999").mock(return_value=httpx.Response(404))
-    assert user_exists(999) is False
+def test_a_missing_user_is_false():
+    respx.get(URL).mock(return_value=httpx.Response(404))
+    assert user_exists(5) is False
 
 
 @respx.mock
-def test_user_exists_raises_on_timeout():
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/7").mock(side_effect=httpx.ConnectTimeout("timeout"))
+def test_any_other_answer_is_unavailable():
+    respx.get(URL).mock(return_value=httpx.Response(503))
     with pytest.raises(AuthServiceUnavailable):
-        user_exists(7)
+        user_exists(5)
+
+
+@respx.mock
+def test_a_connection_error_is_unavailable():
+    respx.get(URL).mock(side_effect=httpx.ConnectError("refused"))
+    with pytest.raises(AuthServiceUnavailable):
+        user_exists(5)

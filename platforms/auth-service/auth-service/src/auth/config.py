@@ -43,6 +43,12 @@ class Settings(BaseServiceSettings):
     FIRST_SUPERUSER: Optional[str] = None
     FIRST_SUPERUSER_PASSWORD: Optional[str] = None
 
+    # Internal API (service-to-service, never routed by the gateway). Same pattern as
+    # project-service's retention API: HTTP Basic with a shared secret. Unset password
+    # means the internal API answers 503 rather than accepting anything.
+    INTERNAL_API_USERNAME: str = "organization-service"
+    INTERNAL_API_PASSWORD: str = ""
+
     # Email (for notifications)
     SMTP_TLS: bool = True
     SMTP_PORT: int = 587

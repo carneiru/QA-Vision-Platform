@@ -512,7 +512,7 @@ key fetch), scoped project API keys, gateway rate zones (stricter on
 login/sso/mfa-verify), PII masking + retention, CodeQL in CI.
 
 Open, in rough order:
-1. Service-to-service token (organization-service -> auth-service user checks; today needs a superuser AUTH_SERVICE_TOKEN)
+1. ~~Service-to-service token (organization-service -> auth-service user checks)~~ — closed 2026-10-03: auth-service internal API (HTTP Basic, shared INTERNAL_API_PASSWORD), superuser token removed
 2. JWT validation + per-user limits at the gateway
 3. mTLS collector <-> platform
 4. Re-mask results stored before masking existed (one-off command)

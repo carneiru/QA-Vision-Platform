@@ -17,14 +17,15 @@ x-auth-env: &auth-env
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   # Links in verification emails must point at the gateway, the only published entry point
   BASE_URL: https://localhost:${GATEWAY_HTTPS_PORT:-8443}
+  # Internal API (GET /internal/v1/users/{id}), used by organization-service's member add
+  INTERNAL_API_PASSWORD: ${INTERNAL_API_PASSWORD:?set INTERNAL_API_PASSWORD (service-to-service internal APIs; URL-safe characters)}
 
 x-organization-env: &organization-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/organization_db
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   AUTH_SERVICE_URL: http://auth-service:8000
-  # Adding a member calls auth-service's GET /users/{id}, which needs a superuser token
-  # (known limitation, see TODO.md "Gateway follow-ups"). Empty means member-adds fail.
-  AUTH_SERVICE_TOKEN: ${AUTH_SERVICE_TOKEN:-}
+  # Credentials for auth-service's internal user-existence check (member add)
+  INTERNAL_API_PASSWORD: ${INTERNAL_API_PASSWORD:?set INTERNAL_API_PASSWORD (service-to-service internal APIs; URL-safe characters)}
 
 x-project-env: &project-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/project_db

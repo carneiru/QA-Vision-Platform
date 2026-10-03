@@ -11,9 +11,11 @@ class Settings(BaseServiceSettings):
     # Database
     POSTGRES_DB: str = "organization_db"
 
-    # Service-to-service call to auth-service for user existence checks
+    # Service-to-service call to auth-service's internal API for user existence
+    # checks (HTTP Basic, shared secret — replaced the superuser bearer token)
     AUTH_SERVICE_URL: str = "http://localhost:8000"
-    AUTH_SERVICE_TOKEN: str = ""
+    INTERNAL_API_USERNAME: str = "organization-service"
+    INTERNAL_API_PASSWORD: str = ""
 
 
 settings = Settings()

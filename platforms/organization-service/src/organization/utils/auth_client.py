@@ -6,14 +6,15 @@ class AuthServiceUnavailable(Exception):
     """Raised when auth-service cannot be reached to validate a user_id."""
 
 
-# Known limitation: this assumes auth-service returns 404 for a nonexistent user id, which it does not
-# currently do cleanly; fixing it requires changes in platforms/auth-service and is a documented follow-up.
 def user_exists(user_id: int) -> bool:
-    headers = {"Authorization": f"Bearer {settings.AUTH_SERVICE_TOKEN}"} if settings.AUTH_SERVICE_TOKEN else {}
+    """Asks auth-service's internal API (HTTP Basic, shared secret). A clean
+    404 means the user does not exist; anything but 200/404 — including an
+    unconfigured internal API answering 503 — is unavailability, never a
+    silent yes or no."""
     try:
         response = httpx.get(
-            f"{settings.AUTH_SERVICE_URL}/api/v1/users/{user_id}",
-            headers=headers,
+            f"{settings.AUTH_SERVICE_URL}/internal/v1/users/{user_id}",
+            auth=(settings.INTERNAL_API_USERNAME, settings.INTERNAL_API_PASSWORD),
             timeout=5.0,
         )
     except httpx.HTTPError as exc:

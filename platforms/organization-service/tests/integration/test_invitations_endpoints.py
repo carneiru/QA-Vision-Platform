@@ -49,7 +49,7 @@ def _create_invitation(client, org_id: int, inviter_id: int, email: str = "new@e
 
 
 def _add_member(client, org_id: int, granter_id: int, user_id: int, role: str) -> None:
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/{user_id}").mock(
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/{user_id}").mock(
         return_value=httpx.Response(200, json={"id": user_id})
     )
     response = client.post(
@@ -152,7 +152,7 @@ def test_accept_invitation_creates_member_with_invited_role(client):
     )
     token = create_response.json()["token"]
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/5").mock(return_value=httpx.Response(200, json={"id": 5}))
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/5").mock(return_value=httpx.Response(200, json={"id": 5}))
     response = client.post(f"/api/v1/invitations/{token}/accept", headers=_auth(5))
     assert response.status_code == 201
     body = response.json()
@@ -171,7 +171,7 @@ def test_list_invitations_shows_only_pending(client):
     )
     token = create_response.json()["token"]
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/9").mock(return_value=httpx.Response(200, json={"id": 9}))
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/9").mock(return_value=httpx.Response(200, json={"id": 9}))
     accept_response = client.post(f"/api/v1/invitations/{token}/accept", headers=_auth(9))
     assert accept_response.status_code == 201
 
@@ -193,7 +193,7 @@ def test_admin_invited_as_owner_by_real_owner_can_accept(client):
     assert create_response.status_code == 201
     token = create_response.json()["token"]
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/6").mock(return_value=httpx.Response(200, json={"id": 6}))
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/6").mock(return_value=httpx.Response(200, json={"id": 6}))
     response = client.post(f"/api/v1/invitations/{token}/accept", headers=_auth(6))
     assert response.status_code == 201
     assert response.json()["role"] == "owner"
@@ -214,11 +214,11 @@ def test_accept_already_accepted_invitation_returns_404(client):
     )
     token = create_response.json()["token"]
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/7").mock(return_value=httpx.Response(200, json={"id": 7}))
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/7").mock(return_value=httpx.Response(200, json={"id": 7}))
     first = client.post(f"/api/v1/invitations/{token}/accept", headers=_auth(7))
     assert first.status_code == 201
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/8").mock(return_value=httpx.Response(200, json={"id": 8}))
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/8").mock(return_value=httpx.Response(200, json={"id": 8}))
     second = client.post(f"/api/v1/invitations/{token}/accept", headers=_auth(8))
     assert second.status_code == 404
 
@@ -363,7 +363,7 @@ def test_failed_accept_leaves_invitation_pending(client):
     _add_member(client, org_id, granter_id=1, user_id=4, role="member")
 
     # user 4 is already a member, so accepting fails
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/4").mock(
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/4").mock(
         return_value=httpx.Response(200, json={"id": 4})
     )
     failed = client.post(f"/api/v1/invitations/{invitation['token']}/accept", headers=_auth(4))
@@ -373,7 +373,7 @@ def test_failed_accept_leaves_invitation_pending(client):
     listed = client.get(f"/api/v1/organizations/{org_id}/invitations", headers=_auth(1))
     assert [inv["id"] for inv in listed.json()] == [invitation["id"]]
 
-    respx.get(f"{settings.AUTH_SERVICE_URL}/api/v1/users/5").mock(
+    respx.get(f"{settings.AUTH_SERVICE_URL}/internal/v1/users/5").mock(
         return_value=httpx.Response(200, json={"id": 5})
     )
     accepted = client.post(f"/api/v1/invitations/{invitation['token']}/accept", headers=_auth(5))

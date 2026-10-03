@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from src.auth.api.v1.api import api_router
+from src.auth.api.v1.endpoints import internal
 from src.auth.config import settings
 from src.auth.db.session import SessionLocal
 from src.auth.service.bootstrap import bootstrap_first_superuser
@@ -30,6 +31,7 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(internal.router, prefix="/internal/v1", include_in_schema=False)
 
 @app.get("/health")
 def health_check():

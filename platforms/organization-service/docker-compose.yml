@@ -16,7 +16,7 @@ services:
       # auth-service runs in its own compose stack; override this to wherever it is actually
       # reachable (a shared external network, or host.docker.internal:8000 on Docker Desktop)
       - AUTH_SERVICE_URL=http://auth-service:8000
-      - AUTH_SERVICE_TOKEN=
+      - INTERNAL_API_PASSWORD=
     depends_on:
       db:
         condition: service_healthy
