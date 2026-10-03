@@ -180,7 +180,7 @@ Reliability and operations
 - [x] Mute / acknowledge flaky tests
 - [x] CSV export buttons on the tests and flaky views (client-side; tests view pages the API at limit=200, capped at 10k rows)
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
-- [x] Organization management UI — `/organizations/:orgId` (members list/remove, invite by email+role, pending invitations with revoke; controls gated on owner/admin via `GET /members/me`; the invite link with the single-use token is shown once, from the 201) and `/invitations/:token` accept page closing the self-service loop; Manage link per organization in the picker
+- [x] Organization management UI — `/organizations/:orgId` (members list/remove, invite by email+role, pending invitations with revoke; controls gated on owner/admin via `GET /members/me`; the invite link with the single-use token is shown once, from the 201) and `/invitations/:token` accept page closing the self-service loop; Manage link per organization in the picker. Audit follow-ups landed: member rows carry emails (auth batch internal lookup, best effort), the accept page previews organization+role via authenticated `GET /invitations/{token}` (dead token = unknown token), per-row accessible action names, copy button on the invite link
 
 ### Phase 4: Test Management
 51. [ ] Design test case and test suite data models
