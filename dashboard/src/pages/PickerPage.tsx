@@ -39,7 +39,8 @@ export default function PickerPage() {
           {orgs.data?.map((org) => (
             <li key={org.id}>
               <button onClick={() => setOrgId(org.id)}>{org.name}</button>{" "}
-              <span className="muted">{org.role}</span>
+              <span className="muted">{org.role}</span>{" "}
+              <Link to={`/organizations/${org.id}`}>Manage</Link>
             </li>
           ))}
         </ul>

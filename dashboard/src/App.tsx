@@ -11,6 +11,8 @@ import HistoryPage from "./pages/HistoryPage";
 import FlakyPage from "./pages/FlakyPage";
 import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
+import OrganizationPage from "./pages/OrganizationPage";
+import InvitationAcceptPage from "./pages/InvitationAcceptPage";
 
 // Recharts dominates the bundle; the chart-bearing views load on demand.
 const TrendsPage = lazy(() => import("./pages/TrendsPage"));
@@ -27,6 +29,8 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<RequireAuth><PickerPage /></RequireAuth>} />
       <Route path="/account/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
+      <Route path="/organizations/:orgId" element={<RequireAuth><OrganizationPage /></RequireAuth>} />
+      <Route path="/invitations/:token" element={<RequireAuth><InvitationAcceptPage /></RequireAuth>} />
       <Route path="/projects/:projectId" element={<RequireAuth><ProjectLayout /></RequireAuth>}>
         <Route index element={<Navigate to="trends" replace />} />
         <Route
