@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { verifyEmail } from "../api/auth";
 import ErrorBanner from "../components/ErrorBanner";
@@ -8,11 +8,18 @@ export default function VerifyEmailPage() {
   const token = params.get("token");
   const [state, setState] = useState<"working" | "done" | "failed">("working");
   const [error, setError] = useState<unknown>(null);
+  // The token is single-use: StrictMode's mount-unmount-mount must reuse the
+  // one in-flight request, or the second call burns the token and reports a
+  // verified person as failed
+  const inFlight = useRef<{ token: string; promise: Promise<void> } | null>(null);
 
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    verifyEmail(token)
+    if (inFlight.current?.token !== token) {
+      inFlight.current = { token, promise: verifyEmail(token) };
+    }
+    inFlight.current.promise
       .then(() => !cancelled && setState("done"))
       .catch((err) => {
         if (!cancelled) {

@@ -69,5 +69,7 @@ button.primary { background: var(--accent); color: #fff; border-color: transpare
   .tabs a { padding: 12px 16px; }
   table.data th, table.data td { padding: 12px; }
 }
+/* Code blocks sit one step below the card surface so code reads apart from prose */
+pre { background: var(--page); border: 1px solid var(--border); border-radius: 6px; padding: 12px; overflow-x: auto; }
 .tile-value { font-size: 28px; font-weight: 650; }
 .tile-label { font-size: 13px; color: var(--text-secondary); }

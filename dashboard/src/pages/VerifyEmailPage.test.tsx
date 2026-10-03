@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { http, HttpResponse } from "msw";
@@ -43,4 +44,27 @@ test("a dead token explains itself and offers registration again", async () => {
 test("a missing token never calls the API", async () => {
   renderPage("");
   expect(await screen.findByText(/link is incomplete/i)).toBeInTheDocument();
+});
+
+test("StrictMode's double effect never burns the single-use token twice", async () => {
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/auth/verify-email", () => {
+      calls += 1;
+      if (calls > 1) return HttpResponse.json({ detail: "Invalid token" }, { status: 400 });
+      return HttpResponse.json({ access_token: "fresh-acc", refresh_token: "r", token_type: "bearer" });
+    }),
+  );
+  render(
+    <StrictMode>
+      <MemoryRouter initialEntries={["/verify-email?token=tok-123"]}>
+        <Routes>
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/" element={<div>PICKER</div>} />
+        </Routes>
+      </MemoryRouter>
+    </StrictMode>,
+  );
+  expect(await screen.findByText("PICKER")).toBeInTheDocument();
+  expect(calls).toBe(1);
 });

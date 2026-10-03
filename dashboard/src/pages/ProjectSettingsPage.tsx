@@ -170,7 +170,7 @@ export default function ProjectSettingsPage() {
             ))}
           </select>
         </label>
-        <pre data-testid="ci-snippet" style={{ overflowX: "auto" }}>
+        <pre data-testid="ci-snippet">
           <code>{snippets[platform].code}</code>
         </pre>
         <button
