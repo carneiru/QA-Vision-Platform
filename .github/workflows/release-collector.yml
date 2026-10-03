@@ -53,6 +53,10 @@ jobs:
       - run: python -m pip install build twine
       - run: python -m build
       - run: python -m twine check dist/*
+      - name: Single-file build (zipapp)
+        run: |
+          python scripts/build_zipapp.py --out dist/qav-collector.pyz
+          python dist/qav-collector.pyz --version
       - uses: actions/upload-artifact@v4
         with:
           name: collector-dist
