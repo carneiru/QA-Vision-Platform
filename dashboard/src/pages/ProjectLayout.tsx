@@ -30,6 +30,7 @@ export default function ProjectLayout() {
         <NavLink to="flaky" className={({ isActive }) => (isActive ? "active" : "")}>Flaky</NavLink>
         <NavLink to="branches" className={({ isActive }) => (isActive ? "active" : "")}>Branches</NavLink>
         <NavLink to="runs" className={({ isActive }) => (isActive ? "active" : "")}>Runs</NavLink>
+        <NavLink to="settings" className={({ isActive }) => (isActive ? "active" : "")}>Settings</NavLink>
       </nav>
       <Outlet />
     </div>

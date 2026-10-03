@@ -12,6 +12,7 @@ import FlakyPage from "./pages/FlakyPage";
 import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import OrganizationPage from "./pages/OrganizationPage";
+import ProjectSettingsPage from "./pages/ProjectSettingsPage";
 import InvitationAcceptPage from "./pages/InvitationAcceptPage";
 
 // Recharts dominates the bundle; the chart-bearing views load on demand.
@@ -54,6 +55,7 @@ export function AppRoutes() {
         />
         <Route path="runs" element={<RunsPage />} />
         <Route path="runs/:runId" element={<RunDetailPage />} />
+        <Route path="settings" element={<ProjectSettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
