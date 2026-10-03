@@ -131,7 +131,7 @@ Distribution
 - [~] Publish to PyPI: workflow ready (trusted publishing, gated on repo variable PYPI_PUBLISH=true); needs the one-off publisher config on pypi.org (project qav-collector, repo carneiru/QA-Vision-Platform, workflow release-collector.yml, environment pypi)
 - [x] Ready-made GitHub Action (`uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0`) and GitLab CI template (`templates/qav-collector.gitlab-ci.yml`) — both install the collector pinned to the tag
 - [ ] A Jenkins shared-library step
-- [~] A Docker image and a single-file (zipapp) build for runners without pip — zipapp built and verified in the release workflow (`collector/scripts/build_zipapp.py`, stdlib-only so one .pyz runs on any Python 3.9+); `collector/Dockerfile` builds and verified locally. Publishing (GitHub Release assets, GHCR push) is a public surface: needs the user's go-ahead, jobs sketched but not committed
+- [x] A Docker image and a single-file (zipapp) build for runners without pip — zipapp (`collector/scripts/build_zipapp.py`, stdlib-only, runs on any Python 3.9+) and `collector/Dockerfile` (python:3.12-slim + git). On every `collector-v*` tag the release workflow uploads sdist+wheel+pyz to a GitHub Release and pushes `ghcr.io/carneiru/qav-collector:<version>` + `:latest` (user-approved public surfaces, 2026-10-03)
 
 Formats
 - [ ] Cucumber JSON (features, scenarios, tags, steps) — needs ingestion fields for tags and steps
