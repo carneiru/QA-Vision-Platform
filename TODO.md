@@ -134,7 +134,7 @@ Distribution
 - [x] A Docker image and a single-file (zipapp) build for runners without pip — zipapp (`collector/scripts/build_zipapp.py`, stdlib-only, runs on any Python 3.9+) and `collector/Dockerfile` (python:3.12-slim + git). On every `collector-v*` tag the release workflow uploads sdist+wheel+pyz to a GitHub Release and pushes `ghcr.io/carneiru/qav-collector:<version>` + `:latest` (user-approved public surfaces, 2026-10-03)
 
 Formats
-- [ ] Cucumber JSON (features, scenarios, tags, steps) — needs ingestion fields for tags and steps
+- [x] Cucumber JSON (classic formatter) — scenarios map to the existing result shape (suite=feature, class=uri; background folds in; failed step fails, undefined/pending skip). Rich tags/steps columns still need ingestion fields — deferred until a consumer exists
 - [ ] Playwright JSON (retries, attachments, projects/browsers)
 - [x] TestNG XML, NUnit 3 XML, xUnit.net v2 XML, .NET TRX — dispatched on the XML root element (`formats.py`); same result shape, formats mix freely in one upload
 

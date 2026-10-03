@@ -4,6 +4,7 @@ TestNG live here, all producing the same result-dict shape. TRX wraps its
 elements in a namespace, so matching is on the local name throughout."""
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
@@ -26,6 +27,8 @@ def parse_file(path: str) -> ParsedFile:
     try:
         if os.path.getsize(path) > MAX_FILE_BYTES:
             return _skip(parsed, "larger than 50 MB")
+        if _looks_like_json(path):
+            return _parse_cucumber_file(path, parsed)
         root = _read_xml(path)
     except _Refused as exc:
         return _skip(parsed, str(exc))
@@ -84,6 +87,85 @@ def _attach(row: dict, message: str, details: str) -> dict:
     if details.strip():
         row["details"] = _cut(details)
     return row
+
+
+# --- Cucumber JSON (classic formatter: cucumber-jvm/js/rb) --------------------
+
+# A failed step fails the scenario; an unimplemented one leaves it undecided
+_CUCUMBER_FAILED = ("failed",)
+_CUCUMBER_UNDECIDED = ("undefined", "pending", "ambiguous")
+
+
+def _looks_like_json(path: str) -> bool:
+    with open(path, "rb") as fh:
+        head = fh.read(64).lstrip(b"\xef\xbb\xbf \t\r\n")
+    return head.startswith((b"[", b"{"))
+
+
+def _parse_cucumber_file(path: str, parsed: ParsedFile) -> ParsedFile:
+    try:
+        with open(path, "rb") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError) as exc:
+        return _skip(parsed, f"not well-formed JSON ({exc})")
+    features = [f for f in data if isinstance(f, dict) and "elements" in f] if isinstance(data, list) else []
+    if not features:
+        return _skip(parsed, "not Cucumber JSON (no features with elements)")
+    for feature in features:
+        _cucumber_feature(feature, parsed)
+    if parsed.unnamed:
+        parsed.warnings.append(f"skipped {parsed.unnamed} test case(s) without a name in {path}")
+    return parsed
+
+
+def _cucumber_feature(feature: dict, parsed: ParsedFile) -> None:
+    suite = str(feature.get("name") or "")
+    uri = str(feature.get("uri") or "")
+    background: list = []
+    for element in feature.get("elements") or []:
+        if not isinstance(element, dict):
+            continue
+        if element.get("type") == "background":
+            # The classic formatter emits the background once, before each
+            # scenario it belongs to; its steps count into that scenario
+            background = list(element.get("steps") or [])
+            continue
+        name = str(element.get("name") or "").strip()
+        if not name:
+            parsed.unnamed += 1
+            continue
+        steps = background + list(element.get("steps") or [])
+        background = []
+        stamp = _timestamp(element.get("start_timestamp"))
+        if stamp is not None:
+            parsed.suite_timestamps.append(stamp)
+
+        statuses = [str((s.get("result") or {}).get("status") or "") for s in steps if isinstance(s, dict)]
+        if any(s in _CUCUMBER_FAILED for s in statuses):
+            status = "failed"
+        elif all(s == "passed" for s in statuses) and statuses:
+            status = "passed"
+        else:  # skipped, undefined, pending, ambiguous, or no steps at all
+            status = "skipped"
+
+        nanoseconds = sum(
+            result.get("duration") or 0
+            for step in steps if isinstance(step, dict)
+            for result in [step.get("result") or {}]
+            if isinstance(result.get("duration"), (int, float)) and result.get("duration") > 0
+        )
+        row = _row(suite, uri, name, status, nanoseconds / 1e9)
+        failed_step = next(
+            (s for s in steps if isinstance(s, dict)
+             and str((s.get("result") or {}).get("status") or "") in _CUCUMBER_FAILED),
+            None,
+        )
+        if failed_step is not None:
+            result = failed_step.get("result") or {}
+            message = str(result.get("error_message") or "")
+            step_name = f"{failed_step.get('keyword', '')}{failed_step.get('name', '')}".strip()
+            _attach(row, _first_line(message), "\n".join(part for part in (step_name, message.strip()) if part))
+        parsed.results.append(row)
 
 
 # --- TRX (Visual Studio / vstest) -------------------------------------------

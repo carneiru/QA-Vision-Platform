@@ -131,6 +131,9 @@ By default an unreachable platform never turns a build red; a misconfigured coll
 - Also reads, detected by the root element: .NET TRX (`<TestRun>`, vstest/`dotnet test`),
   NUnit 3 (`<test-run>`), xUnit.net v2 (`<assemblies>`) and TestNG (`<testng-results>`).
   Formats mix freely in one upload; every file lands in the same run.
+- Cucumber JSON (the classic formatter of cucumber-jvm/js/rb): each scenario becomes one
+  result (feature name as suite, feature uri as class), background steps count into their
+  scenario, a failed step fails the scenario, and undefined/pending steps leave it skipped.
 - Skips, with a warning, files over 50 MB, files that are not well-formed XML, and files that
   declare a DOCTYPE or entities (JUnit never needs one; refusing them blocks XML entity attacks).
 - Cuts failure messages and output to 64 KB, as the platform does.
