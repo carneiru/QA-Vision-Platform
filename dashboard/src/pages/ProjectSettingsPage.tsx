@@ -7,6 +7,20 @@ import ErrorBanner from "../components/ErrorBanner";
 
 const COLLECTOR_REF = "collector-v0.1.0";
 
+const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
+
+/** True when this page is served from the user's own machine: hosted CI runners cannot reach it. */
+export function isLocalOrigin(origin: string): boolean {
+  try {
+    return LOCAL_HOSTS.includes(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Platforms whose default runners live on the vendor's servers, never on this machine
+const HOSTED_RUNNERS = ["github", "gitlab"];
+
 // Ready-to-paste CI wiring; the key itself always travels as a CI secret
 function ciSnippets(origin: string): Record<string, { label: string; code: string }> {
   return {
@@ -43,7 +57,12 @@ withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')])
     },
     cli: {
       label: "Any machine (CLI)",
-      code: `pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+      code: isLocalOrigin(origin)
+        ? `pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+# The local stack uses a self-signed certificate; from the QA-Vision-Platform folder:
+docker compose cp gateway:/etc/nginx/certs/tls.crt qav-ca.crt
+QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml" --ca-file qav-ca.crt`
+        : `pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
 QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml"`,
     },
   };
@@ -56,7 +75,8 @@ export default function ProjectSettingsPage() {
   const [name, setName] = useState("");
   const [created, setCreated] = useState<ApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
-  const [platform, setPlatform] = useState("github");
+  const local = isLocalOrigin(window.location.origin);
+  const [platform, setPlatform] = useState(local ? "cli" : "github");
   const [snippetCopied, setSnippetCopied] = useState(false);
   const snippets = useMemo(() => ciSnippets(window.location.origin), []);
 
@@ -161,8 +181,14 @@ export default function ProjectSettingsPage() {
       <div className="card">
         <h3>Wire up your CI</h3>
         <p className="muted">
-          Paste this after your test step; store the API key as a CI secret named{" "}
-          <code>QAV_API_KEY</code>.
+          {platform === "cli" ? (
+            <>Run this on any machine with Python 3.9+, from the folder holding your test reports.</>
+          ) : (
+            <>
+              Paste this after your test step; store the API key as a CI secret named{" "}
+              <code>QAV_API_KEY</code>.
+            </>
+          )}
         </p>
         <label>
           CI platform
@@ -172,6 +198,13 @@ export default function ProjectSettingsPage() {
             ))}
           </select>
         </label>
+        {local && HOSTED_RUNNERS.includes(platform) && (
+          <p role="note" className="note">
+            Hosted {snippets[platform].label} runners cannot reach localhost, where this page is
+            served from. Use the CLI on this machine, a self-hosted runner here (add{" "}
+            <code>--ca-file</code> for the self-signed certificate), or a deployment with a public address.
+          </p>
+        )}
         <pre data-testid="ci-snippet" className="code-block">
           <code>{snippets[platform].code}</code>
         </pre>

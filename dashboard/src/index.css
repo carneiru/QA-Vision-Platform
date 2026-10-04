@@ -150,6 +150,8 @@ button.ghost { background: transparent; border-color: transparent; }
 .muted { color: var(--text-secondary); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .error-banner { border: 1px solid var(--danger-text); color: var(--danger-text); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; display: flex; gap: var(--space-3); align-items: center; background: color-mix(in srgb, var(--status-failed) 6%, transparent); }
+/* A caution beside a control: neutral surface, accent edge kept to a 1px border. */
+.note { border: 1px solid var(--border-strong); background: var(--accent-soft); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; }
 /* Copyable code (CI snippets): one step below the card surface so it reads apart from prose. */
 .code-block { background: var(--page); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); overflow-x: auto; font-size: 13px; }
 /* An expanded failure message inside a table cell: keeps line breaks, no box. */
