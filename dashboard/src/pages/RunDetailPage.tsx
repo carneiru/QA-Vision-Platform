@@ -25,18 +25,6 @@ export default function RunDetailPage() {
       <p>
         <Link to=".." relative="path">← All runs</Link>
       </p>
-      <FilterBar>
-        <label>
-          Status
-          <select value={status} onChange={(e) => setStatus(e.target.value as RunStatusFilter | "")}>
-            <option value="">all</option>
-            <option value="passed">passed</option>
-            <option value="failed">failed</option>
-            <option value="errored">errored</option>
-            <option value="skipped">skipped</option>
-          </select>
-        </label>
-      </FilterBar>
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading run…</p>}
@@ -121,6 +109,19 @@ export default function RunDetailPage() {
               )}
             </div>
           )}
+
+          <FilterBar>
+            <label>
+              Status
+              <select value={status} onChange={(e) => setStatus(e.target.value as RunStatusFilter | "")}>
+                <option value="">all</option>
+                <option value="passed">passed</option>
+                <option value="failed">failed</option>
+                <option value="errored">errored</option>
+                <option value="skipped">skipped</option>
+              </select>
+            </label>
+          </FilterBar>
 
           {run.results.length === 0 ? (
             <p className="muted">No {status || ""} results in this run.</p>

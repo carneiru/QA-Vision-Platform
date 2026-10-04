@@ -10,6 +10,8 @@ export interface MyOrganization {
 export interface Project {
   id: number;
   name: string;
+  organization_id?: number; // present on GET /projects/{id}; list rows may omit it
+  my_role?: string;
 }
 
 export interface Member {

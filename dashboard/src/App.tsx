@@ -1,7 +1,8 @@
 import { Suspense, lazy, useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { focusContent, pageTitle, useFocusOnNavigate } from "./routeFocus";
 import { bootstrapSession, setOnAuthFailure } from "./api/http";
+import AppShell from "./components/AppShell";
 import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
@@ -16,6 +17,7 @@ import RunsPage from "./pages/RunsPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import ProjectSettingsPage from "./pages/ProjectSettingsPage";
+import OverviewPage from "./pages/OverviewPage";
 import InvitationAcceptPage from "./pages/InvitationAcceptPage";
 
 // Recharts dominates the bundle; the chart-bearing views load on demand.
@@ -35,6 +37,15 @@ const TITLES: [string, string][] = [
 function titleFor(pathname: string): string {
   const match = TITLES.find(([prefix]) => pathname.startsWith(prefix));
   return pageTitle(match ? match[1] : "Projects");
+}
+
+/** Sign-in pages have no navigation: the whole page is the main content. */
+function PublicMain() {
+  return (
+    <main id="main" tabIndex={-1}>
+      <Outlet />
+    </main>
+  );
 }
 
 const outsideProjects = (pathname: string) => !pathname.startsWith("/projects/");
@@ -62,17 +73,20 @@ export function AppRoutes() {
       >
         Skip to content
       </a>
-      <main id="main" tabIndex={-1}>
-        <Routes>
+      <Routes>
+        <Route element={<PublicMain />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
-          <Route path="/" element={<RequireAuth><PickerPage /></RequireAuth>} />
-          <Route path="/account/security" element={<RequireAuth><SecurityPage /></RequireAuth>} />
-          <Route path="/organizations/:orgId" element={<RequireAuth><OrganizationPage /></RequireAuth>} />
-          <Route path="/invitations/:token" element={<RequireAuth><InvitationAcceptPage /></RequireAuth>} />
-          <Route path="/projects/:projectId" element={<RequireAuth><ProjectLayout /></RequireAuth>}>
-            <Route index element={<Navigate to="trends" replace />} />
+        </Route>
+        <Route element={<RequireAuth><AppShell /></RequireAuth>}>
+          <Route path="/" element={<PickerPage />} />
+          <Route path="/account/security" element={<SecurityPage />} />
+          <Route path="/organizations/:orgId" element={<OrganizationPage />} />
+          <Route path="/invitations/:token" element={<InvitationAcceptPage />} />
+          <Route path="/projects/:projectId" element={<ProjectLayout />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<OverviewPage />} />
             <Route
               path="trends"
               element={
@@ -96,9 +110,9 @@ export function AppRoutes() {
             <Route path="runs/:runId" element={<RunDetailPage />} />
             <Route path="settings" element={<ProjectSettingsPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </main>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </>
   );
 }

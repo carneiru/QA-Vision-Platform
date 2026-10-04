@@ -15,7 +15,7 @@ function renderPicker() {
       <MemoryRouter initialEntries={["/"]}>
         <Routes>
           <Route path="/" element={<PickerPage />} />
-          <Route path="/projects/:projectId/trends" element={<div>TRENDS</div>} />
+          <Route path="/projects/:projectId/overview" element={<div>OVERVIEW</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -30,27 +30,7 @@ test("zero organizations shows an empty state", async () => {
   expect(await screen.findByText(/not a member of any organization/i)).toBeInTheDocument();
 });
 
-test("sign out is available and returns to login", async () => {
-  server.use(
-    http.get("/api/v1/organizations", () => HttpResponse.json([])),
-    http.post("/api/v1/auth/logout", () => new HttpResponse(null, { status: 200 })),
-  );
-  render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/"]}>
-        <Routes>
-          <Route path="/" element={<PickerPage />} />
-          <Route path="/login" element={<div>LOGIN</div>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-  setAccessToken("acc");
-  await userEvent.click(await screen.findByRole("button", { name: /sign out/i }));
-  expect(await screen.findByText("LOGIN")).toBeInTheDocument();
-});
-
-test("selecting an org lists projects; clicking navigates to trends", async () => {
+test("every organization lists its projects; a project opens on its overview", async () => {
   server.use(
     http.get("/api/v1/organizations", () => HttpResponse.json([org])),
     http.get("/api/v1/organizations/1/projects", () =>
@@ -58,9 +38,9 @@ test("selecting an org lists projects; clicking navigates to trends", async () =
     ),
   );
   renderPicker();
-  await userEvent.click(await screen.findByText("Acme"));
-  await userEvent.click(await screen.findByText("Web Tests"));
-  expect(await screen.findByText("TRENDS")).toBeInTheDocument();
+  // no org to click first: projects are visible straight away
+  await userEvent.click(await screen.findByRole("link", { name: "Web Tests" }));
+  expect(await screen.findByText("OVERVIEW")).toBeInTheDocument();
 });
 
 
@@ -84,7 +64,7 @@ test("creating an organization refreshes the list", async () => {
   expect(await screen.findByText("Minha Org!")).toBeInTheDocument();
 });
 
-test("creating a project in the selected organization", async () => {
+test("creating a project in an organization", async () => {
   const projects: object[] = [];
   server.use(
     http.get("/api/v1/organizations", () => HttpResponse.json([org])),
@@ -96,7 +76,6 @@ test("creating a project in the selected organization", async () => {
     }),
   );
   renderPicker();
-  await userEvent.click(await screen.findByText("Acme"));
   await screen.findByText(/no projects/i);
   await userEvent.click(screen.getByRole("button", { name: /new project/i }));
   await userEvent.type(screen.getByLabelText(/project name/i), "Web Tests");

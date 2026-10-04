@@ -5,11 +5,12 @@ const COLOR: Record<string, string> = {
   skipped: "var(--status-skipped)",
 };
 
-export default function StatusDot({ status }: { status: string }) {
+/** A status colour is never alone: the word (or a label naming it) always follows. */
+export default function StatusDot({ status, label }: { status: string; label?: string }) {
   return (
     <span style={{ whiteSpace: "nowrap" }}>
       <span className="status-dot" style={{ background: COLOR[status] ?? "var(--text-muted)" }} />
-      {status}
+      {label ?? status}
     </span>
   );
 }

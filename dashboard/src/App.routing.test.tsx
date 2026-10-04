@@ -21,15 +21,11 @@ test("unauthenticated project route redirects to login", () => {
   expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
 });
 
-test("project index redirects to trends tab", async () => {
+test("project index redirects to the overview", async () => {
   setAccessToken("acc");
   renderAt("/projects/42");
-  // TrendsPage is lazy-loaded; allow for chunk resolution under parallel test load.
-  expect(
-    await screen.findByRole("heading", { name: /trends/i }, { timeout: 5000 }),
-  ).toBeInTheDocument();
+  expect(await screen.findByText(/loading overview/i)).toBeInTheDocument();
 });
-
 
 test("a skip link jumps past the header straight to the main content", async () => {
   clearTokens();
