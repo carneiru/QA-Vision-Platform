@@ -88,7 +88,12 @@ def require_project_role(*roles: str):
         if project is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
         # The organization comes from the project row, never from the URL
-        role = _role_in(project.organization_id, caller, "Project not found")
+        org_id = project.organization_id
+        # End the read-only transaction before the HTTP call: a slow
+        # organization-service must not hold this connection out of the pool.
+        # The project reloads on next access, on a fresh connection.
+        db.rollback()
+        role = _role_in(org_id, caller, "Project not found")
         if role not in roles:
             raise _forbidden()
         return ProjectAccess(project=project, user_id=caller.user_id, role=role)

@@ -85,7 +85,7 @@
 48. [x] Create API documentation
 49. [x] Add Docker support
 50. [x] Integrate with Auth and Organization services
-50.1. [ ] Release the DB session before outbound HTTP calls (members/me, provider verification) so slow upstreams cannot exhaust the connection pool
+50.1. [x] Release the DB session before outbound HTTP calls (members/me, provider verification) so slow upstreams cannot exhaust the connection pool — read-only transactions end (rollback) before org-service members/me and before the repository provider call; the same defect fixed in ingestion's run detail (access check via project-service). Tests assert no open transaction at the moment of each HTTP call
 50.2. [x] Map only uniqueness violations to 409 in project_service._commit; re-raise other IntegrityErrors — SQLSTATE 23505 on PostgreSQL (verified live: duplicate name → 409), SQLite message in tests; NOT NULL and other failures now surface as themselves
 
 ### API Gateway and full stack

@@ -35,7 +35,11 @@ def get_run(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
     # The project comes from the run row, never from the URL
-    check_project_role(run.project_id, caller, READ_ROLES, "Run not found")
+    project_id = run.project_id
+    # End the read-only transaction before the HTTP access check, so a slow
+    # project-service never holds this connection out of the pool
+    db.rollback()
+    check_project_role(project_id, caller, READ_ROLES, "Run not found")
     results = run_service.list_results(db, run.id, status_filter)
     changes = run_service.list_changes(db, run.id)
     components = run_service.list_components(db, run.id)
