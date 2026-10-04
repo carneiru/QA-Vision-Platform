@@ -19,8 +19,8 @@ numbers in platforms/ingestion-service/README.md.
 
 ## 2. Now / Next (small, unblocked — TODO.md carries the authoritative list)
 
-1. Git metadata on runs: commit author/message, PR number, base branch
-   (pairs with shipped code-change data).
+1. ~~Git metadata on runs~~ — done 2026-10-02: commit author/message, PR
+   number, base branch stored per run (migration 007) and shown on run detail.
 2. ~~Collector `--ca-file` fix~~ — done: `--ca-file` now pins trust exclusively (curl `--cacert` semantics); blending with the system store broke on Windows machines with CN=localhost dev certs in ROOT.
 3. ~~Confirmed-flaky pass optimization~~ — investigated 2026-10-02 and
    closed without change: on the 2M-row benchmark the current failure-driven

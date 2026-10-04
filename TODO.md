@@ -60,18 +60,18 @@
 
 ## In Progress / Next Steps
 
-### Phase 2: Organization Service
-29. [ ] Design organization and team management data models
-30. [ ] Implement organization CRUD operations
-31. [ ] Create team management functionality (creation, membership, roles)
-32. [ ] Implement role-based access control (RBAC) within organizations
-33. [ ] Develop invitation system for team members
-34. [ ] Create API endpoints for organization and team management
-35. [ ] Implement multi-tenancy data isolation
-36. [ ] Write comprehensive test suite
-37. [ ] Create API documentation
-38. [ ] Add Docker support
-39. [ ] Integrate with Auth Service for authentication and authorization
+### Phase 2: Organization Service (delivered; reconciled 2026-10-04)
+29. [x] Design organization and team management data models — organizations, organization_members (roles), organization_invitations
+30. [x] Implement organization CRUD operations (soft delete included)
+31. [~] Membership and roles done (owner/admin/member/viewer/billing_manager, last-owner protection); sub-teams inside an organization not built — no consumer yet
+32. [x] Implement role-based access control (RBAC) within organizations — require_org_role, grant policy (admins cannot grant/remove owners)
+33. [x] Develop invitation system for team members — single-use tokens, atomic claim, preview, dashboard accept page
+34. [x] Create API endpoints for organization and team management
+35. [x] Implement multi-tenancy data isolation — database per service; every project/ingestion read checks organization membership via /members/me
+36. [x] Write comprehensive test suite (101 tests)
+37. [x] Create API documentation — OpenAPI + platforms/organization-service/README.md
+38. [x] Add Docker support — root compose, migration job
+39. [x] Integrate with Auth Service for authentication and authorization — shared JWT, internal user lookup (single + batch)
 
 ### Phase 3: Project Service
 40. [x] Design project management data models
@@ -110,9 +110,9 @@
 - [x] Collector agent MVP (JUnit XML parser, uploader with retry) — `collector/`, see below
 - [ ] Queue-based processing for 1000+ events/second — *Phase 2 exit criterion*
 - [x] PII detection and redaction; retention policies — masking on ingest, `ingestion-retention` job
-- [ ] mTLS between agent and platform
+- [~] mTLS between agent and platform — collector side done (`--client-cert`/`--client-key`); server-side enforcement (nginx ssl_verify_client) is a deployment decision
 - [ ] Artifacts (screenshots, videos, traces, logs)
-- [ ] Per-test history endpoints (test_key is already indexed)
+- [x] Per-test history endpoints — analytics `tests/{test_key}/history`, dashboard History view
 - [x] Revoke a project's API keys when the project is deleted — done by the retention job
 - [ ] Re-mask results stored before masking existed (one-off command)
 - [ ] Custom masking patterns per project
@@ -171,12 +171,12 @@ Reliability and operations
 - [x] Weekly and monthly views — trends bucket=day|week|month (Monday weeks, local calendar), dashboard View select, window up to 365 days
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
 - [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls
-- [ ] CSV export
+- [x] CSV export — client-side, tests and flaky views (see Dashboard follow-ups)
 - [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
 
 ### Dashboard follow-ups
 - [x] SSO sign-in buttons (Google, Microsoft) in the login page — rendered only when `VITE_*` client ids are baked at build time; manual verification against a real tenant still pending
-- [ ] Refresh token in an httpOnly cookie (needs auth-service support)
+- [x] Refresh token in an httpOnly cookie — `qav_refresh`, Secure, SameSite=Strict, Path=/api/v1/auth (ADR-013)
 - [x] Mute / acknowledge flaky tests
 - [x] CSV export buttons on the tests and flaky views (client-side; tests view pages the API at limit=200, capped at 10k rows)
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
