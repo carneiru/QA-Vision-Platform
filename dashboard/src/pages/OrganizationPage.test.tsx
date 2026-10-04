@@ -91,6 +91,8 @@ test("revoking an invitation calls the API", async () => {
   renderPage();
   await screen.findByText("carol@example.com");
   await userEvent.click(screen.getByRole("button", { name: "Revoke invitation for carol@example.com" }));
+  expect(revoked).toBe(false); // the first click only asks
+  await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
   expect(await screen.findByText(/invitation revoked/i)).toBeInTheDocument();
   expect(revoked).toBe(true);
 });
@@ -107,6 +109,8 @@ test("removing a member calls the API", async () => {
   renderPage();
   await screen.findByText("user 11");
   await userEvent.click(screen.getByRole("button", { name: "Remove user 11" }));
+  expect(removed).toBe(false); // the first click only asks
+  await userEvent.click(screen.getByRole("button", { name: "Remove" }));
   expect(await screen.findByText(/member removed/i)).toBeInTheDocument();
   expect(removed).toBe(true);
 });

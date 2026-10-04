@@ -73,6 +73,8 @@ test("revoking a key calls the API and refreshes", async () => {
   renderPage();
   await screen.findByText("ci");
   await userEvent.click(screen.getByRole("button", { name: "Revoke key ci" }));
+  expect(revoked).toBe(false); // the first click only asks
+  await userEvent.click(screen.getByRole("button", { name: "Revoke" }));
   expect(await screen.findByText(/no api keys/i)).toBeInTheDocument();
   expect(revoked).toBe(true);
 });

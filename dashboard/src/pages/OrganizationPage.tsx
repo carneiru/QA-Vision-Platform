@@ -5,6 +5,7 @@ import {
   InvitationCreated, ROLES, createInvitation, listInvitations, listMembers,
   listMyOrganizations, myRole, removeMember, revokeInvitation,
 } from "../api/orgs";
+import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 
 const MANAGER_ROLES = ["owner", "admin"];
@@ -96,13 +97,14 @@ export default function OrganizationPage() {
                   <td>{new Date(member.created_at).toLocaleDateString()}</td>
                   {canManage && (
                     <td>
-                      <button
-                        aria-label={`Remove ${member.email ?? `user ${member.user_id}`}`}
-                        onClick={() => remove.mutate(member.id)}
+                      <ConfirmButton
+                        label="Remove"
+                        ariaLabel={`Remove ${member.email ?? `user ${member.user_id}`}`}
+                        question={`Remove ${member.email ?? `user ${member.user_id}`}? They lose access to every project in this organization.`}
+                        confirmLabel="Remove"
+                        onConfirm={() => remove.mutate(member.id)}
                         disabled={remove.isPending}
-                      >
-                        Remove
-                      </button>
+                      />
                     </td>
                   )}
                 </tr>
@@ -167,13 +169,14 @@ export default function OrganizationPage() {
                   <td>{new Date(invitation.expires_at).toLocaleDateString()}</td>
                   {canManage && (
                     <td>
-                      <button
-                        aria-label={`Revoke invitation for ${invitation.email}`}
-                        onClick={() => revoke.mutate(invitation.id)}
+                      <ConfirmButton
+                        label="Revoke"
+                        ariaLabel={`Revoke invitation for ${invitation.email}`}
+                        question={`Revoke the invitation for ${invitation.email}? The link stops working.`}
+                        confirmLabel="Revoke"
+                        onConfirm={() => revoke.mutate(invitation.id)}
                         disabled={revoke.isPending}
-                      >
-                        Revoke
-                      </button>
+                      />
                     </td>
                   )}
                 </tr>

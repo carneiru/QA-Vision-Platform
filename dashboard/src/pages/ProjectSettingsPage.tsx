@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiKeyCreated, createKey, listKeys, revokeKey } from "../api/keys";
+import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 
 const COLLECTOR_REF = "collector-v0.1.0";
@@ -140,13 +141,14 @@ export default function ProjectSettingsPage() {
                     {key.revoked_at ? (
                       <span className="muted">revoked</span>
                     ) : (
-                      <button
-                        aria-label={`Revoke key ${key.name}`}
-                        onClick={() => revoke.mutate(key.id)}
+                      <ConfirmButton
+                        label="Revoke"
+                        ariaLabel={`Revoke key ${key.name}`}
+                        question={`Revoke key ${key.name}? Uploads using it stop working immediately.`}
+                        confirmLabel="Revoke"
+                        onConfirm={() => revoke.mutate(key.id)}
                         disabled={revoke.isPending}
-                      >
-                        Revoke
-                      </button>
+                      />
                     )}
                   </td>
                 </tr>

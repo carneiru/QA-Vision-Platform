@@ -29,3 +29,18 @@ test("project index redirects to trends tab", async () => {
     await screen.findByRole("heading", { name: /trends/i }, { timeout: 5000 }),
   ).toBeInTheDocument();
 });
+
+
+test("a skip link jumps past the header straight to the main content", async () => {
+  clearTokens();
+  renderAt("/login");
+  const skip = screen.getByRole("link", { name: /skip to content/i });
+  await (await import("@testing-library/user-event")).default.click(skip);
+  expect(screen.getByRole("main")).toHaveFocus();
+});
+
+test("each view has its own document title", () => {
+  clearTokens();
+  renderAt("/register");
+  expect(document.title).toBe("Create account · QA Vision");
+});
