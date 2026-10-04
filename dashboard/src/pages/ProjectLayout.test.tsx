@@ -39,3 +39,8 @@ test("following a tab moves focus to the new view's content", async () => {
   expect(document.getElementById("content")).toHaveFocus();
   expect(document.title).toBe("Settings · Shop E2E · QA Vision");
 });
+
+test("header shows the project name once loaded", async () => {
+  renderAt("/projects/42/runs");
+  expect(await screen.findByRole("heading", { name: "Shop E2E" })).toBeInTheDocument();
+});
