@@ -18,13 +18,24 @@ def slugify(name: str) -> str:
     return slug[:100].rstrip("-")
 
 
+UNIQUE_VIOLATION = "23505"  # PostgreSQL SQLSTATE
+
+
+def _is_unique_violation(exc: IntegrityError) -> bool:
+    if getattr(exc.orig, "pgcode", None) == UNIQUE_VIOLATION:
+        return True
+    return "UNIQUE constraint failed" in str(exc.orig)  # SQLite, used by the test suite
+
+
 def _commit(db: Session) -> None:
     try:
         db.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         # roll back so the session stays usable for the rest of the request and the next one
         db.rollback()
-        raise DuplicateProject("A project with this name or slug already exists in the organization")
+        if _is_unique_violation(exc):
+            raise DuplicateProject("A project with this name or slug already exists in the organization")
+        raise  # any other integrity failure is a bug, not a duplicate: surface it as a 500
 
 
 def create_project(db: Session, org_id: int, user_id: int, data: ProjectCreate) -> Project:

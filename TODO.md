@@ -86,7 +86,7 @@
 49. [x] Add Docker support
 50. [x] Integrate with Auth and Organization services
 50.1. [ ] Release the DB session before outbound HTTP calls (members/me, provider verification) so slow upstreams cannot exhaust the connection pool
-50.2. [ ] Map only uniqueness violations to 409 in project_service._commit; re-raise other IntegrityErrors
+50.2. [x] Map only uniqueness violations to 409 in project_service._commit; re-raise other IntegrityErrors — SQLSTATE 23505 on PostgreSQL (verified live: duplicate name → 409), SQLite message in tests; NOT NULL and other failures now surface as themselves
 
 ### API Gateway and full stack
 - [x] NGINX gateway: routing, per-IP rate limits, self-signed TLS, JSON errors, request ids, JSON access log
