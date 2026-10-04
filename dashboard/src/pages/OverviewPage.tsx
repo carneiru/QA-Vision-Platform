@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, GitBranch, GitCommitHorizontal, Server, XCircle } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, GitBranch, GitCommitHorizontal, Server, XCircle } from "lucide-react";
 import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/analytics";
 import { getRun, listRuns, Run, RunResult } from "../api/runs";
 import ErrorBanner from "../components/ErrorBanner";
@@ -65,7 +65,7 @@ export default function OverviewPage() {
           Results appear here after the first upload from CI. Create an API key, paste the CI
           snippet into your pipeline, and the next build reports its tests.
         </p>
-        <Link to={`/projects/${id}/settings`}>Set up an API key and CI →</Link>
+        <Link className="link-arrow" to={`/projects/${id}/settings`}>Set up an API key and CI <ArrowRight size={14} aria-hidden="true" /></Link>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export default function OverviewPage() {
           <span><StatusDot status="skipped" label={`${latest.skipped} skipped`} /></span>
         </div>
         <div className="card-foot">
-          <Link to={`/projects/${id}/runs/${latest.id}`}>Open run #{latest.id} →</Link>
+          <Link className="link-arrow" to={`/projects/${id}/runs/${latest.id}`}>Open run #{latest.id} <ArrowRight size={14} aria-hidden="true" /></Link>
         </div>
       </section>
 
@@ -124,7 +124,7 @@ export default function OverviewPage() {
         )}
         {broken > MAX_FAILURES && (
           <div className="card-foot">
-            <Link to={`/projects/${id}/runs/${latest.id}`}>All {broken} failures →</Link>
+            <Link className="link-arrow" to={`/projects/${id}/runs/${latest.id}`}>All {broken} failures <ArrowRight size={14} aria-hidden="true" /></Link>
           </div>
         )}
       </section>
@@ -145,7 +145,7 @@ export default function OverviewPage() {
           </>
         )}
         <div className="card-foot">
-          <Link to={`/projects/${id}/trends`}>Trends →</Link>
+          <Link className="link-arrow" to={`/projects/${id}/trends`}>Trends <ArrowRight size={14} aria-hidden="true" /></Link>
         </div>
       </section>
 
@@ -159,7 +159,7 @@ export default function OverviewPage() {
           </>
         )}
         <div className="card-foot">
-          <Link to={`/projects/${id}/flaky`}>Flaky tests →</Link>
+          <Link className="link-arrow" to={`/projects/${id}/flaky`}>Flaky tests <ArrowRight size={14} aria-hidden="true" /></Link>
         </div>
       </section>
     </div>

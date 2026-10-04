@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { RunStatusFilter, getRun } from "../api/runs";
@@ -23,7 +24,7 @@ export default function RunDetailPage() {
   return (
     <section>
       <p>
-        <Link to=".." relative="path">← All runs</Link>
+        <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All runs</Link>
       </p>
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}

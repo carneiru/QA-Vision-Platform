@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { formatDuration, formatPassRate, getHistory } from "../api/analytics";
@@ -23,7 +24,7 @@ export default function HistoryPage() {
   return (
     <section>
       <p>
-        <Link to=".." relative="path">← All tests</Link>
+        <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All tests</Link>
       </p>
       <FilterBar>
         <label>
