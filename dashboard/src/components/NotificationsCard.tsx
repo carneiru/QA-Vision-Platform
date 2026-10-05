@@ -26,6 +26,10 @@ const KINDS: Record<ChannelKind, { label: string; hint: string }> = {
     label: "Webhook",
     hint: "Any public https:// address; it receives the run summary as JSON (event \"run.failed\").",
   },
+  email: {
+    label: "Email",
+    hint: "Up to 5 addresses, separated by commas. Sending needs SMTP configured on this server by the administrator; without it, Send test says so.",
+  },
 };
 
 function LastDelivery({ c }: { c: NotificationChannel }) {
@@ -179,10 +183,11 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
             <input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label>
-            Webhook URL
+            {kind === "email" ? "Email addresses" : "Webhook URL"}
             <input
               required
-              type="url"
+              type={kind === "email" ? "email" : "url"}
+              multiple={kind === "email"}
               autoComplete="off"
               spellCheck={false}
               aria-describedby={hintId}
@@ -190,7 +195,8 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
               onChange={(e) => setUrl(e.target.value)}
             />
             <span id={hintId} className="muted field-hint">
-              {KINDS[kind].hint} Treat it like a password: once saved, only its host and last characters are shown.
+              {KINDS[kind].hint}
+              {kind !== "email" && " Treat it like a password: once saved, only its host and last characters are shown."}
             </span>
           </label>
           <label>

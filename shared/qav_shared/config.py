@@ -29,6 +29,15 @@ class BaseServiceSettings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
+    # Outgoing email (qav_shared.mail). Empty SMTP_HOST: no email is sent
+    SMTP_TLS: bool = True
+    SMTP_PORT: int = 587
+    SMTP_HOST: str = ""
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAILS_FROM_EMAIL: str = ""
+    EMAILS_FROM_NAME: str = ""
+
     model_config = SettingsConfigDict(case_sensitive=True, env_file=".env")
 
     @property

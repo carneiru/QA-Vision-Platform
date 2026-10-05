@@ -192,3 +192,38 @@ def test_a_webhook_host_that_now_resolves_privately_is_not_called(client, db, ma
     assert route.call_count == 0
     db.expire_all()
     assert "public" in db.query(NotificationChannel).one().last_error
+
+
+def test_an_email_channel_mails_the_summary(client, db, make_key, monkeypatch):
+    from src.ingestion.service import notification_service
+
+    sent = []
+    monkeypatch.setattr(settings, "SMTP_HOST", "smtp.example.com")
+    monkeypatch.setattr(notification_service, "send_mail", lambda s, to, subject, body: sent.append((to, subject, body)))
+    _, key = make_key(project_id=1)
+    channel(db, kind="email", url="qa@example.com, lead@example.com")
+    created = send(client, key, upload(failed=2))
+    assert len(sent) == 1
+    to, subject, body = sent[0]
+    assert to == ["qa@example.com", "lead@example.com"]
+    assert subject == "QA: 2 of 3 tests failed"
+    assert "checkout › Cart › case 1" in body and "hunter2" not in body
+    assert f"https://qav.example.com/projects/1/runs/{created.json()['id']}" in body
+    db.expire_all()
+    assert db.query(NotificationChannel).one().last_status == "delivered"
+
+
+def test_email_without_smtp_is_a_recorded_failure_not_a_silent_drop(client, db, make_key, monkeypatch):
+    monkeypatch.setattr(settings, "SMTP_HOST", "")
+    _, key = make_key(project_id=1)
+    channel(db, kind="email", url="qa@example.com")
+    assert send(client, key, upload()).status_code == 201
+    db.expire_all()
+    stored = db.query(NotificationChannel).one()
+    assert stored.last_status == "failed" and "SMTP is not configured" in stored.last_error
+
+
+def test_an_email_channel_shows_its_addresses(client, auth, member):
+    created = add(client, auth, kind="email", url="qa@example.com")
+    assert created.status_code == 201, created.text
+    assert created.json()["target"] == "qa@example.com"

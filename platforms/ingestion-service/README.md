@@ -110,6 +110,8 @@ has the counts, branch and commit, the first 5 failing tests (masked as stored) 
   - `teams`: a Workflows (Power Automate) webhook on `*.logic.azure.com` or `*.powerplatform.com`,
     which gets an Adaptive Card.
   - `webhook`: any public `https` URL; it gets JSON with `event: "run.failed"`.
+  - `email`: one to five addresses, as plain text through the SMTP settings shared with auth
+    (`qav_shared.mail`). Without `SMTP_HOST` the delivery is recorded as failed, saying so.
 - **API:** `GET/POST /api/v1/projects/{id}/notification-channels`, `PATCH`/`DELETE …/{cid}`
   (`name`, `enabled`, `branch`), and `POST …/{cid}/test`. Members and up can change channels;
   viewers can read them. At most 10 per project.
@@ -127,7 +129,6 @@ has the counts, branch and commit, the first 5 failing tests (masked as stored) 
     network nor cloud metadata can be reached.
 - **URLs are bearer secrets.** They are stored to deliver, never returned: the API shows the
   host and the last 4 characters.
-- Email is not a channel yet: it needs a shared mail sender.
 
 ## Export
 

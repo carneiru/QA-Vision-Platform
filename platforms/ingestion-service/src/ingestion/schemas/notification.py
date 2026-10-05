@@ -11,7 +11,7 @@ class ChannelCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: Name
-    kind: Literal["slack", "teams", "webhook"]
+    kind: Literal["slack", "teams", "webhook", "email"]
     url: str = Field(max_length=2048)
     branch: Optional[Branch] = None
 

@@ -5,10 +5,11 @@ from src.ingestion.db.base import Base
 
 
 class NotificationChannel(Base):
-    """Where a project's failed runs are announced. `url` is a bearer secret: never returned."""
+    """Where a project's failed runs are announced. `url` is a webhook URL (a bearer secret: never
+    returned) or, for email, the recipient addresses."""
 
     __tablename__ = "notification_channels"
-    __table_args__ = (CheckConstraint("kind IN ('slack','teams','webhook')", name="chk_notification_kind"),)
+    __table_args__ = (CheckConstraint("kind IN ('slack','teams','webhook','email')", name="chk_notification_kind"),)
 
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, nullable=False, index=True)

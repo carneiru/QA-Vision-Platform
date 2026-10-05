@@ -2,13 +2,13 @@ import { apiFetch } from "./http";
 
 // Mirrors platforms/ingestion-service/src/ingestion/schemas/notification.py
 
-export type ChannelKind = "slack" | "teams" | "webhook";
+export type ChannelKind = "slack" | "teams" | "webhook" | "email";
 
 export interface NotificationChannel {
   id: number;
   name: string;
   kind: ChannelKind;
-  /** The URL's host and last 4 characters: the URL itself is never returned. */
+  /** A webhook URL's host and last 4 characters (the URL is never returned), or the email addresses. */
   target: string;
   branch: string | null;
   enabled: boolean;

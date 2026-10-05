@@ -4,11 +4,13 @@ Delivery never holds a database session open across the HTTP call: data is read,
 is released, messages are sent, and the outcomes are written in a new short transaction.
 """
 import logging
+import smtplib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Callable, List, Optional, Tuple
 
 import httpx
+from qav_shared.mail import MailNotConfigured, send_mail
 from sqlalchemy.orm import Session
 
 from src.ingestion.core.config import settings
@@ -153,13 +155,39 @@ def webhook_payload(channel_name: str, s: RunSummary) -> dict:
     }
 
 
-PAYLOADS = {"slack": slack_payload, "teams": teams_payload, "webhook": webhook_payload}
+def email_payload(channel_name: str, s: RunSummary) -> dict:
+    lines = [_headline(channel_name, s), ""]
+    if _context(s):
+        lines += [_context(s), ""]
+    if s.failures:
+        lines.append("Failing tests:")
+        lines += [f"  - {_test_label(f)}" for f in s.failures]
+        if s.broken > len(s.failures):
+            lines.append(f"  … and {s.broken - len(s.failures)} more")
+        lines.append("")
+    if s.link:
+        lines.append(f"Open in QA Vision: {s.link}")
+    if s.ci_run_url:
+        lines.append(f"CI job: {s.ci_run_url}")
+    lines += ["", "You get this because the address is a notification channel of this project in QA Vision."]
+    return {"subject": _headline(channel_name, s), "body": chr(10).join(lines)}
+
+
+PAYLOADS = {"slack": slack_payload, "teams": teams_payload, "webhook": webhook_payload, "email": email_payload}
 
 
 # --- delivery ----------------------------------------------------------------------------
 
 def deliver(kind: str, url: str, payload: dict) -> Tuple[str, Optional[str]]:
     """("delivered", None) or ("failed", reason). Never raises."""
+    if kind == "email":
+        try:
+            send_mail(settings, notify_targets.recipients(url), payload["subject"], payload["body"])
+        except MailNotConfigured as exc:
+            return "failed", str(exc)
+        except (smtplib.SMTPException, OSError) as exc:
+            return "failed", f"{type(exc).__name__}: {exc}"
+        return "delivered", None
     try:
         notify_targets.check_resolves_publicly(url)
         response = httpx.post(url, json=payload, timeout=settings.NOTIFY_TIMEOUT_SECONDS, follow_redirects=False)

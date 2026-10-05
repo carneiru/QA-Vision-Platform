@@ -8,7 +8,9 @@ import socket
 from typing import List
 from urllib.parse import urlsplit
 
-KINDS = ("slack", "teams", "webhook")
+KINDS = ("slack", "teams", "webhook", "email")
+MAX_RECIPIENTS = 5
+_EMAIL = re.compile(r"^[^@\s,<>\"]{1,64}@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,24}$")
 
 # Teams "Workflows" (Power Automate) webhooks; the retired Office 365 connectors are not accepted
 _TEAMS_HOSTS = (re.compile(r"^[a-z0-9-]+\.[a-z0-9-]+\.logic\.azure\.com$"),
@@ -34,6 +36,8 @@ def validate_target(kind: str, url: str) -> str:
     """The URL unchanged when it may be used for this kind; ValueError with the reason otherwise."""
     if kind not in KINDS:
         raise ValueError(f"Unknown kind; use one of {', '.join(KINDS)}")
+    if kind == "email":
+        return _validate_recipients(url)
     parts = urlsplit(url.strip()) if isinstance(url, str) else None
     if parts is None or parts.scheme != "https" or not parts.hostname:
         raise ValueError("The URL must start with https://")
@@ -82,8 +86,27 @@ def check_resolves_publicly(url: str) -> None:
         raise ValueError("The URL's host does not resolve to a public address only")
 
 
-def mask_target(url: str) -> str:
-    """Webhook URLs are bearer secrets: show the host and the last 4 characters, nothing else."""
+def recipients(target: str) -> list:
+    return [address.strip() for address in target.split(",") if address.strip()]
+
+
+def _validate_recipients(value: str) -> str:
+    if not isinstance(value, str) or chr(13) in value or chr(10) in value:
+        raise ValueError("Give one to five email addresses, separated by commas")
+    addresses = recipients(value)
+    if not 1 <= len(addresses) <= MAX_RECIPIENTS:
+        raise ValueError(f"Give one to {MAX_RECIPIENTS} email addresses, separated by commas")
+    for address in addresses:
+        if not _EMAIL.match(address):
+            raise ValueError(f"{address} is not an email address")
+    return ", ".join(addresses)
+
+
+def mask_target(url: str, kind: str = "") -> str:
+    """Webhook URLs are bearer secrets: show the host and the last 4 characters, nothing else.
+    Email addresses are not secrets and show as they are."""
+    if kind == "email":
+        return url
     parts = urlsplit(url)
     tail = url.rstrip("/")[-4:]
     return f"{parts.hostname}/…{tail}"

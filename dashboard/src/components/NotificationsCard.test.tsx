@@ -133,3 +133,26 @@ test("viewers read but cannot change", async () => {
   expect(within(row).queryByRole("button")).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/webhook url/i)).not.toBeInTheDocument();
 });
+
+test("an email channel takes addresses instead of a webhook URL", async () => {
+  let sent: unknown = null;
+  server.use(
+    http.get(BASE, () => HttpResponse.json([])),
+    http.post(BASE, async ({ request }) => {
+      sent = await request.json();
+      return HttpResponse.json(channel({ kind: "email", target: "qa@example.com" }), { status: 201 });
+    }),
+  );
+  renderCard();
+  await screen.findByText(/no channels yet/i);
+  await userEvent.selectOptions(screen.getByLabelText(/^send to/i), "email");
+  expect(screen.queryByLabelText(/webhook url/i)).not.toBeInTheDocument();
+  const addresses = screen.getByLabelText(/email addresses/i);
+  expect(addresses).toHaveAttribute("type", "email");
+  expect(addresses).toHaveAttribute("multiple");
+  expect(screen.getByText(/smtp/i)).toBeInTheDocument();
+  await userEvent.type(addresses, "qa@example.com,lead@example.com");
+  await userEvent.click(screen.getByRole("button", { name: /add channel/i }));
+  await vi.waitFor(() =>
+    expect(sent).toEqual({ name: "Web", kind: "email", url: "qa@example.com,lead@example.com" }));
+});

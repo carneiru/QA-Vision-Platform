@@ -12,7 +12,20 @@ x-app-healthcheck: &app-healthcheck
   start_period: 10s
 
 # Each service and its -migrate job share one environment block, so they cannot drift apart.
+
+# Outgoing email (qav_shared.mail), set in .env. Empty SMTP_HOST: no email is sent; auth logs
+# its links instead, and email notification channels record "SMTP is not configured"
+x-smtp-env: &smtp-env
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_TLS: ${SMTP_TLS:-true}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL:-}
+  EMAILS_FROM_NAME: ${EMAILS_FROM_NAME:-QA Vision}
+
 x-auth-env: &auth-env
+  <<: *smtp-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/auth_db
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   # Links in verification emails must point at the gateway, the only published entry point
@@ -35,6 +48,7 @@ x-project-env: &project-env
   INTERNAL_API_PASSWORD: ${INTERNAL_API_PASSWORD:?set INTERNAL_API_PASSWORD (project-service's internal API; URL-safe characters)}
 
 x-ingestion-env: &ingestion-env
+  <<: *smtp-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ingestion_db
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   PROJECT_SERVICE_URL: http://project-service:8000

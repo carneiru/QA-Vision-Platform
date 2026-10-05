@@ -29,13 +29,13 @@ def test_sends_via_smtp_when_configured(monkeypatch):
     mock_server = MagicMock()
     mock_server.__enter__.return_value = mock_server
     with patch(
-        "src.auth.service.email_sender.smtplib.SMTP", return_value=mock_server
+        "qav_shared.mail.smtplib.SMTP", return_value=mock_server
     ) as mock_smtp:
         EmailSender.send_verification_email(
             "person@example.com", "http://example.com/verify?token=abc"
         )
 
-    mock_smtp.assert_called_once_with("smtp.example.com", 587)
+    mock_smtp.assert_called_once_with("smtp.example.com", 587, timeout=10.0)
     mock_server.starttls.assert_called_once()
     mock_server.login.assert_called_once_with("user", "pass")
     mock_server.send_message.assert_called_once()

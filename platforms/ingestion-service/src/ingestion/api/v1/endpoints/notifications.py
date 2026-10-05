@@ -12,7 +12,7 @@ router = APIRouter()  # mounted at /projects/{project_id}/notification-channels
 
 def _out(row: NotificationChannel) -> ChannelOut:
     return ChannelOut(
-        id=row.id, name=row.name, kind=row.kind, target=mask_target(row.url), branch=row.branch,
+        id=row.id, name=row.name, kind=row.kind, target=mask_target(row.url, row.kind), branch=row.branch,
         enabled=row.enabled, last_status=row.last_status, last_error=row.last_error, last_sent_at=row.last_sent_at,
     )
 

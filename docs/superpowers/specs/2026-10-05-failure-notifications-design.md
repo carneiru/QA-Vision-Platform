@@ -17,9 +17,11 @@ Channel kinds:
 | `teams` | Microsoft Teams "Workflows" webhook (Power Automate), `https://*.logic.azure.com/…` or `https://*.powerplatform.com/…`. Office 365 connectors are retired | `{"type": "message", "attachments": [Adaptive Card 1.4]}` |
 | `webhook` | any public `https://` URL | JSON run summary (`event: "run.failed"`) |
 
-Email is **out of this slice**. The ingestion service has no SMTP settings, and duplicating auth's
-would split the configuration. Email follows once there is a shared mail sender. The roadmap's
-exit criterion stays open on email until then.
+Email (added the same day): `email`, with one to five addresses, sent as plain text through
+`qav_shared.mail`. The SMTP settings moved into the shared base settings, and compose passes
+them to auth and ingestion; before this, compose passed them to no container, so the
+documented "add SMTP to .env" could never reach auth-service. Without `SMTP_HOST` the delivery
+is recorded as failed with that reason. Addresses are not secrets and show in full.
 
 ## Decisions
 

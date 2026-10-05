@@ -56,3 +56,16 @@ def test_a_host_resolving_to_any_private_address_is_refused(monkeypatch):
 def test_masked_target_shows_host_and_last_four_only():
     assert nt.mask_target(SLACK) == "hooks.slack.com/…abcd"
     assert "s3cr3t" not in nt.mask_target(TEAMS)
+
+
+def test_email_targets_are_one_to_five_addresses():
+    assert nt.validate_target("email", " qa@example.com , lead@example.com ") == "qa@example.com, lead@example.com"
+    assert nt.recipients("qa@example.com, lead@example.com") == ["qa@example.com", "lead@example.com"]
+    assert nt.mask_target("qa@example.com, lead@example.com", kind="email") == "qa@example.com, lead@example.com"
+
+
+@pytest.mark.parametrize("value", ["", "not-an-email", "a@example.com, nope", "a@b", ",".join(["x@example.com"] * 6),
+                                   "a@example.com\r\nBcc: evil@example.com"])
+def test_bad_email_targets_are_refused(value):
+    with pytest.raises(ValueError):
+        nt.validate_target("email", value)

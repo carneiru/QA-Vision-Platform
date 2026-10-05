@@ -49,14 +49,7 @@ class Settings(BaseServiceSettings):
     INTERNAL_API_USERNAME: str = "organization-service"
     INTERNAL_API_PASSWORD: str = ""
 
-    # Email (for notifications)
-    SMTP_TLS: bool = True
-    SMTP_PORT: int = 587
-    SMTP_HOST: str = ""
-    SMTP_USER: str = ""
-    SMTP_PASSWORD: str = ""
-    EMAILS_FROM_EMAIL: str = ""
-    EMAILS_FROM_NAME: str = ""
+    # Email: SMTP_* and EMAILS_FROM_* come from qav_shared's BaseServiceSettings
 
     # Email verification (registration). BASE_URL has no other purpose in this service --
     # it exists so the verification link in the email points somewhere real. Defaulting to
