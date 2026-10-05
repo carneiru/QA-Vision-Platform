@@ -43,7 +43,7 @@
 19. [x] Create RESTful API endpoints for:
     - User registration and email/password authentication
     - Token refresh and secure logout
-    - Password reset endpoints (framework ready for SMTP integration)
+    - Password reset (emailed single-use link) and signed-in password change, both ending every session
     - Google SSO authentication (GitHub/Azure placeholders for future implementation)
     - User profile management (self-service and admin endpoints)
 20. [x] Implement comprehensive input validation with Pydantic models
@@ -55,7 +55,7 @@
 26. [x] Implement environment-based configuration management
 27. [x] Add security best practices: CORS protection, SQL injection prevention, input validation
 28. [x.1] [x] Implement refresh token rotation to prevent replay attacks
-28. [x.2] [x] Add password reset framework (email integration pending SMTP config)
+28. [x.2] [x] Password reset and change: hashed single-use 30-minute links, session revocation, dashboard pages (forgot / reset / Security), stricter gateway rate zone
 28. [x.3] [x] Establish SSO foundation for future provider implementations
 
 ## In Progress / Next Steps
@@ -318,7 +318,7 @@ All architectural specifications and design documents from the initial brainstor
 - Secure user authentication with email/password
 - JWT-based session management with refresh token rotation
 - Foundational SSO capabilities (Google implemented, framework ready for others)
-- Password reset framework (requires SMTP configuration for production)
+- Password reset and change (links are logged when SMTP is not configured)
 - Comprehensive user management with role-based access
 - Full test coverage and API documentation
 - Dockerized deployment ready

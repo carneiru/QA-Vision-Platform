@@ -7,6 +7,8 @@ import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import PickerPage from "./pages/PickerPage";
 import ProjectLayout from "./pages/ProjectLayout";
 import SecurityPage from "./pages/SecurityPage";
@@ -29,6 +31,8 @@ const TITLES: [string, string][] = [
   ["/login", "Sign in"],
   ["/register", "Create account"],
   ["/verify-email", "Verify email"],
+  ["/forgot-password", "Reset password"],
+  ["/reset-password", "Choose a new password"],
   ["/account/security", "Security"],
   ["/organizations/", "Organization"],
   ["/invitations/", "Invitation"],
@@ -78,6 +82,8 @@ export function AppRoutes() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
         <Route element={<RequireAuth><AppShell /></RequireAuth>}>
           <Route path="/" element={<PickerPage />} />

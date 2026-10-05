@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { isAuthenticated } from "../auth/tokens";
@@ -31,6 +31,25 @@ function renderLogin() {
     </MemoryRouter>,
   );
 }
+
+function ForgotEcho() {
+  const { state, search } = useLocation();
+  return <div>FORGOT {(state as { email: string }).email}{search}</div>;
+}
+
+test("forgot password carries the typed email to the request page", async () => {
+  render(
+    <MemoryRouter initialEntries={["/login"]}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotEcho />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await userEvent.type(screen.getByLabelText(/email/i), "ada@example.com");
+  await userEvent.click(screen.getByRole("link", { name: /forgot password/i }));
+  expect(await screen.findByText("FORGOT ada@example.com")).toBeInTheDocument();
+});
 
 test("successful login stores tokens and navigates home", async () => {
   server.use(

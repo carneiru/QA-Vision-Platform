@@ -182,7 +182,8 @@ QA-Vision-Platform/
 
 Not present, despite earlier claims here: brute-force protection or account
 lockout (no failed-attempt tracking exists), Redis token blacklisting (the URL
-is configurable and unused), and password reset (both endpoints return 501).
+is configurable and unused). Password reset (emailed single-use link, 30 minutes, stored as a
+SHA-256 hash) and password change both revoke every refresh session.
 Access tokens are not revocable — logging out revokes the refresh token, but an
 already-issued access token remains valid until it expires.
 

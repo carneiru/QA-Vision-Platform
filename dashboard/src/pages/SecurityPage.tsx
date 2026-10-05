@@ -1,11 +1,87 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import QRCode from "qrcode";
-import { mfaConfirm, mfaDisable, mfaEnroll } from "../api/auth";
+import { CircleCheck } from "lucide-react";
+import { changePassword, mfaConfirm, mfaDisable, mfaEnroll } from "../api/auth";
 import { downloadCsv } from "../lib/csv";
 import ErrorBanner from "../components/ErrorBanner";
+import NewPasswordFields from "../components/NewPasswordFields";
 
 type Step = "idle" | "enrolling" | "enrolled" | "disabling";
+
+function ChangePasswordCard() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [mismatch, setMismatch] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+  const [changed, setChanged] = useState(false);
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setChanged(false);
+    if (next !== confirm) {
+      setMismatch(true);
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      await changePassword(current, next);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setChanged(true);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="card form-stack" onSubmit={onSubmit}>
+      <h3>Password</h3>
+      <p className="muted">
+        Changing it signs out every other device. Accounts that sign in with Google or
+        Microsoft manage their password with that provider.
+      </p>
+      {error != null && <ErrorBanner error={error} />}
+      {changed && (
+        <p className="success-note" role="status">
+          <CircleCheck size={18} aria-hidden="true" />
+          <span>Password changed. Other devices have been signed out.</span>
+        </p>
+      )}
+      <label>
+        Current password
+        <input
+          type="password"
+          required
+          autoComplete="current-password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+        />
+      </label>
+      <NewPasswordFields
+        password={next}
+        confirm={confirm}
+        onPassword={setNext}
+        onConfirm={(value) => {
+          setConfirm(value);
+          setMismatch(false);
+        }}
+        mismatch={mismatch}
+      />
+      <div>
+        <button className="primary" type="submit" disabled={busy}>
+          {busy ? "Changing…" : "Change password"}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export default function SecurityPage() {
   const [step, setStep] = useState<Step>("idle");
@@ -80,6 +156,7 @@ export default function SecurityPage() {
         <h1>Security</h1>
         <Link to="/">Back to projects</Link>
       </div>
+      <ChangePasswordCard />
       <div className="card">
         <h3>Two-factor authentication (TOTP)</h3>
         {error != null && <ErrorBanner error={error} />}

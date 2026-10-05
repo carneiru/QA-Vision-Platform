@@ -138,6 +138,10 @@ export default function LoginPage() {
             />
           </label>
         </p>
+        {/* Router state, not a query string: an address in the URL ends up in history and access logs */}
+        <Link className="field-link" to="/forgot-password" state={{ email }}>
+          Forgot password?
+        </Link>
         {error != null && <ErrorBanner error={error} />}
         <button className="primary" type="submit" disabled={busy}>
           {busy ? "Signing in…" : "Sign in"}

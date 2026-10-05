@@ -23,7 +23,8 @@ what takes `/organizations/{id}/projects` away from organization-service.
 ## Limits
 
 - Per client IP: 20 requests/s (burst 40) on every `/api/v1` route; additionally 5 requests/s
-  (burst 10) on `login`, `register`, `forgot-password`, `reset-password`, `resend-verification`.
+  (burst 10) on `login`, `mfa/verify`, `register`, `forgot-password`, `reset-password`,
+  `change-password`, `resend-verification`.
   Over the limit: `429 {"detail":"Too Many Requests"}` with `Retry-After: 1`. Health routes are
   never limited.
 - `/api/v1/collect` has its own limit instead: 10 requests/s per IP (burst 20).

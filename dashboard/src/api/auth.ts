@@ -42,6 +42,27 @@ export async function verifyEmail(token: string): Promise<void> {
   setAccessToken(tokens.access_token);
 }
 
+/** Same answer whether or not the address has an account. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await apiFetch("/api/v1/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await apiFetch("/api/v1/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+/** Ends every other session; this one continues on the fresh tokens returned. */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const tokens = await apiFetch<TokenOut>("/api/v1/auth/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+  setAccessToken(tokens.access_token);
+}
+
 export async function mfaVerify(mfaToken: string, code: string): Promise<void> {
   const tokens = await apiFetch<TokenOut>("/api/v1/auth/mfa/verify", {
     method: "POST",

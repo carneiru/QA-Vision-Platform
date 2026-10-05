@@ -62,6 +62,8 @@ class Settings(BaseServiceSettings):
     # it exists so the verification link in the email points somewhere real. Defaulting to
     # localhost:8000 matches this service's own default port.
     EMAIL_VERIFICATION_EXPIRE_HOURS: int = 24
+    # Short on purpose: a reset link in a forwarded or leaked email should die quickly
+    PASSWORD_RESET_EXPIRE_MINUTES: int = 30
     BASE_URL: str = "http://localhost:8000"
 
     # SSO Providers

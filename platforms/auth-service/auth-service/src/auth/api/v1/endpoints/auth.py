@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
+import hashlib
 import logging
 import secrets
 from src.auth.api import deps
@@ -10,13 +11,14 @@ from src.auth.service.user_service import UserService
 from src.auth.service.email_sender import EmailSender
 from src.auth.schemas.auth import (
     LoginRequest, MfaCodeRequest, MfaVerifyRequest, Token, PasswordResetRequest,
-    PasswordResetConfirm, RefreshTokenRequest, ResendVerificationRequest,
+    PasswordResetConfirm, RefreshTokenRequest, ResendVerificationRequest, ChangePasswordRequest,
 )
 from src.auth.service import mfa_service
 from src.auth.schemas.user import RegisterRequest
 from src.auth.models.pending_registration import PendingRegistration
+from src.auth.models.password_reset import PasswordReset
 from src.auth.models.user import User
-from src.auth.utils.password import get_password_hash
+from src.auth.utils.password import get_password_hash, verify_password
 from src.auth.utils.refresh_cookie import REFRESH_COOKIE, clear_refresh_cookie, set_refresh_cookie
 from src.auth.config import settings
 
@@ -398,26 +400,86 @@ def logout_user(
     return {"message": "Successfully logged out"}
 
 
-# Password reset is not implemented. There is no reset-token model, no issuance, no
-# validation and no mail transport. Both handlers used to return success anyway:
-# /forgot-password promised a link it never sent, and /reset-password answered "Password has
-# been reset successfully" without touching the password. That is the worse half -- a user
-# told their password was reset stops treating the old one as live, and an operator reading
-# the endpoint list believes account recovery exists. They now fail honestly, the same way
-# the GitHub and Azure SSO handlers do.
+# Password reset: /forgot-password always answers the same thing, so it cannot be used to
+# learn which addresses have accounts. The emailed token is stored only as its SHA-256, works
+# once, and dies after PASSWORD_RESET_EXPIRE_MINUTES. Any successful reset or change ends every
+# refresh session: whoever knew the old password must not keep a session that outlives it.
+
+FORGOT_PASSWORD_MESSAGE = "If an account with a password exists for this email, a reset link has been sent"
 
 
-@router.post("/forgot-password")
-def initiate_password_reset(request: PasswordResetRequest):
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Password reset is not implemented",
-    )
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+def initiate_password_reset(request: PasswordResetRequest, db: Session = Depends(deps.get_db)):
+    user = db.query(User).filter(User.email == request.email).first()
+    # SSO-only accounts have no password to reset; they sign in with their provider
+    if user and user.hashed_password:
+        now = datetime.now(timezone.utc)
+        db.query(PasswordReset).filter(
+            PasswordReset.user_id == user.id, PasswordReset.used_at.is_(None)
+        ).update({PasswordReset.used_at: now})
+        token = secrets.token_urlsafe(32)
+        db.add(PasswordReset(
+            user_id=user.id,
+            token_hash=_hash_reset_token(token),
+            expires_at=now + timedelta(minutes=settings.PASSWORD_RESET_EXPIRE_MINUTES),
+        ))
+        db.commit()
+        EmailSender.send_password_reset_email(
+            user.email,
+            f"{settings.BASE_URL}/reset-password?token={token}",
+            settings.PASSWORD_RESET_EXPIRE_MINUTES,
+        )
+    return {"message": FORGOT_PASSWORD_MESSAGE}
 
 
 @router.post("/reset-password")
-def reset_password(request: PasswordResetConfirm):
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Password reset is not implemented",
-    )
+def reset_password(request: PasswordResetConfirm, db: Session = Depends(deps.get_db)):
+    now = datetime.now(timezone.utc)
+    reset = db.query(PasswordReset).filter(
+        PasswordReset.token_hash == _hash_reset_token(request.token),
+        PasswordReset.used_at.is_(None),
+        PasswordReset.expires_at > now,
+    ).first()
+    # Conditional update claims the link: two concurrent submissions cannot both succeed
+    claimed = reset is not None and db.query(PasswordReset).filter(
+        PasswordReset.id == reset.id, PasswordReset.used_at.is_(None)
+    ).update({PasswordReset.used_at: now}, synchronize_session=False) == 1
+    user = db.get(User, reset.user_id) if claimed else None
+    if not user:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+    user.hashed_password = get_password_hash(request.password)
+    db.commit()
+    AuthService.revoke_all_user_sessions(db, user.id)
+    return {"message": "Password has been reset. Sign in with the new password."}
+
+
+@router.post("/change-password", response_model=None)
+def change_password(
+    request: ChangePasswordRequest,
+    response: Response,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_active_user),
+):
+    if not current_user.hashed_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This account signs in with Google or Microsoft and has no password to change",
+        )
+    if not verify_password(request.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+    current_user.hashed_password = get_password_hash(request.new_password)
+    db.commit()
+    AuthService.revoke_all_user_sessions(db, current_user.id)
+    # This browser carries on with a fresh session; every other one is signed out
+    return _issue_tokens(db, current_user, response)

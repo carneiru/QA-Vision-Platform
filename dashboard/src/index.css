@@ -149,6 +149,16 @@ button.ghost { background: transparent; border-color: transparent; }
 /* Readable secondary text uses --text-secondary (AA); --text-muted is for chart ticks. */
 .muted { color: var(--text-secondary); }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+/* Error tied to one field (aria-describedby); colour is never the only signal — the text says it */
+.field-error { color: var(--danger-text); font-size: 13px; font-weight: 400; margin: 0; }
+input[aria-invalid="true"] { border-color: var(--danger-text); }
+/* A secondary action that belongs to the field above it (Forgot password?) */
+.field-link { display: block; width: fit-content; margin: calc(-1 * var(--space-2)) 0 var(--space-3) auto; font-size: 13px; padding-block: 2px; }
+/* Vertical form inside a wide card (Security): fields stack, inputs keep a readable width */
+.form-stack label { margin-bottom: var(--space-3); }
+.form-stack input { width: 100%; max-width: 360px; }
+.success-note { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0 0 var(--space-3); }
+.success-note svg { color: var(--status-passed); flex-shrink: 0; margin-top: 2px; }
 .error-banner { border: 1px solid var(--danger-text); color: var(--danger-text); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; display: flex; gap: var(--space-3); align-items: center; background: color-mix(in srgb, var(--status-failed) 6%, transparent); }
 /* A caution beside a control: neutral surface, accent edge kept to a 1px border. */
 .note { border: 1px solid var(--border-strong); background: var(--accent-soft); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; }

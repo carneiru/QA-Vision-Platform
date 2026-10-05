@@ -61,8 +61,10 @@ Data lives in Docker volumes (`qa-vision_*`): it survives `down` and restarts, n
 4. **Invite colleagues:** sidebar → **Organization** → invite by email → **Copy link** and send
    it to them; they open it after creating their own account.
 
-> Password reset is not implemented yet. If a password is lost on a local stack, an
-> administrator can set a new one in the database.
+> **Lost password:** sign-in page → **Forgot password?** Without SMTP the link is in the log:
+> `docker compose logs auth-service | Select-String "Password reset email"`. It works **once**
+> and expires after **30 minutes**; using it signs out every device. Signed in, change it
+> under **Security → Password**. Google/Microsoft accounts have no password here.
 
 ## 4. Send test results from your machine (CLI)
 

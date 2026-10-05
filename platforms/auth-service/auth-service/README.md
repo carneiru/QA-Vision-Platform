@@ -22,12 +22,13 @@ This service provides core authentication and authorization functionality for th
 - **User Management**: self-service profile read and update, restricted to non-privileged fields
 - **Administrative Functions**: superuser-only user listing
 - **Security**: bcrypt password hashing, CORS configuration, cross-user isolation on every identity-resolving path
-- **Testing**: 60 unit and integration tests, including the SSO verification path against a locally generated signing key
+- **Testing**: 137 unit and integration tests, including the SSO verification path against a locally generated signing key
 - **Documentation**: auto-generated OpenAPI/Swagger
 - **Deployment**: Dockerfile and docker-compose configuration
 
+- **Password reset and change**: emailed single-use link (30 minutes, only its SHA-256 stored); both end every refresh session
+
 ### ⛔ Not implemented — these endpoints return 501
-- **Password Reset** (`/forgot-password`, `/reset-password`): no reset-token model, no mail transport. Both previously returned success without doing anything.
 - **GitHub SSO**: requires an OAuth code exchange that does not exist
 
 ### 📝 Not built
@@ -133,9 +134,10 @@ Copy `.env.example` to `.env` and configure as needed:
 - `EMAILS_FROM_EMAIL`: Sender email address
 - `EMAILS_FROM_NAME`: Sender name
 - `EMAIL_VERIFICATION_EXPIRE_HOURS`: hours a registration's verification link stays valid (default: 24)
-- `BASE_URL`: base URL used to build the verification link in the email (default: `http://localhost:8000`)
+- `PASSWORD_RESET_EXPIRE_MINUTES`: minutes a password-reset link stays valid (default: 30)
+- `BASE_URL`: base URL used to build the verification and reset links in the email (default: `http://localhost:8000`)
 
-When `SMTP_HOST` is unset (the default), verification links are logged rather than emailed -- this keeps registration usable in development and tests without a real mail server. Configure `SMTP_HOST` to send real email. Password reset does not use these settings: it returns 501 and sends nothing.
+When `SMTP_HOST` is unset (the default), verification and reset links are logged at WARNING rather than emailed -- this keeps registration and recovery usable in development and tests without a real mail server. Configure `SMTP_HOST` to send real email.
 
 ### SSO Provider Configuration
 - `GOOGLE_CLIENT_ID`: Google OAuth Client ID
@@ -185,8 +187,9 @@ set it to any address). The address must be one the user model accepts; otherwis
 - `POST /api/v1/auth/login` - Login with email/password (returns access & refresh tokens)
 - `POST /api/v1/auth/refresh-token` - Refresh access token using refresh token
 - `POST /api/v1/auth/logout` - Logout by revoking refresh token
-- `POST /api/v1/auth/forgot-password` - **501, not implemented**
-- `POST /api/v1/auth/reset-password` - **501, not implemented**
+- `POST /api/v1/auth/forgot-password` - `{email}`. Always `202` with the same body, so it reveals no accounts. For an account with a password, cancels earlier unused links and emails a new one (`/reset-password?token=…`). SSO-only accounts get nothing.
+- `POST /api/v1/auth/reset-password` - `{token, password}` (min 8). Sets the password and revokes every refresh session. `400 "Invalid or expired reset token"` when used, expired, superseded or unknown.
+- `POST /api/v1/auth/change-password` - Signed in; `{current_password, new_password}`. Revokes every refresh session, then returns a fresh `Token` for this client. `400` on a wrong current password or an SSO-only account.
 
 ### SSO Authentication
 - `POST /api/v1/sso/google` - Authenticate with a Google ID token
