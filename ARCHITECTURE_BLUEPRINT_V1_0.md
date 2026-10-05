@@ -516,7 +516,7 @@ Open, in rough order:
 2. JWT validation + per-user limits at the gateway
 3. mTLS collector <-> platform
 4. ~~Re-mask results stored before masking existed (one-off command)~~ — closed 2026-10-05: `src.ingestion.jobs.remask`
-5. Custom masking patterns per project
+5. ~~Custom masking patterns per project~~ — closed 2026-10-05: RE2 patterns in project Settings (ADR-020)
 6. Legal hold and data export before deletion
 7. Single sign-out; personal Microsoft accounts; Entra groups -> org roles; SCIM
 8. SAML 2.0 (blocked on an IdP for honest verification)
@@ -1469,6 +1469,9 @@ Each ADR includes:
 | [ADR-015](docs/architecture/adr/ADR-015-idempotency-body-hash.md) | Idempotency keys with body-hash replay detection |
 | [ADR-016](docs/architecture/adr/ADR-016-sso-bypasses-mfa.md) | SSO sign-ins bypass platform MFA |
 | [ADR-017](docs/architecture/adr/ADR-017-gateway-spa-catchall.md) | Gateway catch-all serves the SPA; /api/ keeps the JSON 404 contract |
+| [ADR-018](docs/architecture/adr/ADR-018-components-under-test.md) | Capture components-under-test per run now; correlate in Phase 6 |
+| [ADR-019](docs/architecture/adr/ADR-019-single-vm-deployment.md) | First production deployment: one VM, Compose + Caddy TLS edge |
+| [ADR-020](docs/architecture/adr/ADR-020-custom-masking-re2.md) | Per-project masking patterns run on RE2 (linear time), not Python's `re` |
 
 **Proposed** (target architecture; each becomes an ADR when its adoption
 trigger fires — the previous index listed these as decided, including "Go for

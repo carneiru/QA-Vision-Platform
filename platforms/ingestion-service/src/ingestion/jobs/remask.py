@@ -17,12 +17,25 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.core.config import settings
 from src.ingestion.models import Run, RunResult
+from src.ingestion.service import masking_pattern_service
 from src.ingestion.service.ingest_service import CI_RUN_URL_LENGTH, mask, truncate_utf8
 
 
-def _remask_text(text: Optional[str], kinds: Counter) -> tuple[Optional[str], bool, bool]:
+class _ProjectPatterns:
+    """Each project's custom patterns, loaded once per pass."""
+
+    def __init__(self, db: Session):
+        self.db, self.cache = db, {}
+
+    def __call__(self, project_id: int) -> tuple:
+        if project_id not in self.cache:
+            self.cache[project_id] = tuple(masking_pattern_service.compiled_for(self.db, project_id))
+        return self.cache[project_id]
+
+
+def _remask_text(text: Optional[str], patterns: tuple, kinds: Counter) -> tuple[Optional[str], bool, bool]:
     """(new text, changed, cut). Masking can lengthen text past the stored limit: cut it back."""
-    masked, found = mask(text)
+    masked, found = mask(text, patterns)
     if not found:
         return text, False, False
     kinds.update(found)
@@ -30,21 +43,28 @@ def _remask_text(text: Optional[str], kinds: Counter) -> tuple[Optional[str], bo
     return masked, True, cut
 
 
-def _results_pass(db: Session, project_id: Optional[int], batch_size: int, dry_run: bool, kinds: Counter) -> tuple[int, int]:
+def _results_pass(
+    db: Session, project_id: Optional[int], batch_size: int, dry_run: bool, kinds: Counter, patterns_for: _ProjectPatterns
+) -> tuple[int, int]:
     scanned = changed = 0
     last_id = 0
     while True:
-        query = db.query(RunResult).filter(RunResult.id > last_id)
+        query = (
+            db.query(RunResult, Run.project_id)
+            .join(Run, Run.id == RunResult.run_id)
+            .filter(RunResult.id > last_id)
+        )
         if project_id is not None:
-            query = query.join(Run, Run.id == RunResult.run_id).filter(Run.project_id == project_id)
+            query = query.filter(Run.project_id == project_id)
         batch = query.order_by(RunResult.id).limit(batch_size).all()
         if not batch:
             return scanned, changed
-        for row in batch:
+        for row, row_project in batch:
             scanned += 1
+            patterns = patterns_for(row_project)
             row_kinds: Counter = Counter()
-            message, message_changed, message_cut = _remask_text(row.message, row_kinds)
-            details, details_changed, details_cut = _remask_text(row.details, row_kinds)
+            message, message_changed, message_cut = _remask_text(row.message, patterns, row_kinds)
+            details, details_changed, details_cut = _remask_text(row.details, patterns, row_kinds)
             if not (message_changed or details_changed):
                 continue
             changed += 1
@@ -54,20 +74,22 @@ def _results_pass(db: Session, project_id: Optional[int], batch_size: int, dry_r
                 row.message, row.details = message, details
                 row.redacted = True
                 row.truncated = row.truncated or message_cut or details_cut
-        last_id = batch[-1].id
+        last_id = batch[-1][0].id
         if dry_run:
             db.rollback()
         else:
             db.commit()
 
 
-def _runs_pass(db: Session, project_id: Optional[int], dry_run: bool, kinds: Counter) -> int:
+def _runs_pass(
+    db: Session, project_id: Optional[int], dry_run: bool, kinds: Counter, patterns_for: _ProjectPatterns
+) -> int:
     query = db.query(Run).filter(Run.ci_run_url.isnot(None))
     if project_id is not None:
         query = query.filter(Run.project_id == project_id)
     changed = 0
-    for run in query.yield_per(500):
-        masked, found = mask(run.ci_run_url)
+    for run in query.all():
+        masked, found = mask(run.ci_run_url, patterns_for(run.project_id))
         if not found:
             continue
         changed += 1
@@ -83,8 +105,9 @@ def _runs_pass(db: Session, project_id: Optional[int], dry_run: bool, kinds: Cou
 
 def run_pass(db: Session, *, project_id: Optional[int], batch_size: int, dry_run: bool) -> dict:
     kinds: Counter = Counter()
-    scanned, results_changed = _results_pass(db, project_id, batch_size, dry_run, kinds)
-    runs_changed = _runs_pass(db, project_id, dry_run, kinds)
+    patterns_for = _ProjectPatterns(db)
+    scanned, results_changed = _results_pass(db, project_id, batch_size, dry_run, kinds, patterns_for)
+    runs_changed = _runs_pass(db, project_id, dry_run, kinds, patterns_for)
     return {
         "event": "remask",
         "project_id": project_id,

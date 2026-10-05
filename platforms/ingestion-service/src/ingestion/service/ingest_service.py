@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from src.ingestion.core.config import settings
 from src.ingestion.models import ApiKey, Run, RunChangedFile, RunComponent, RunResult
 from src.ingestion.schemas.collect import RunUpload
-from src.ingestion.utils import metrics
+from src.ingestion.service import masking_pattern_service
+from src.ingestion.utils import custom_masking, metrics
 from src.ingestion.utils.redaction import redact
 
 CI_RUN_URL_LENGTH = 2048
@@ -31,8 +32,15 @@ def truncate_utf8(text: Optional[str], limit: int) -> tuple[Optional[str], bool]
     return encoded[:limit].decode("utf-8", errors="ignore"), True
 
 
-def mask(text: Optional[str]) -> tuple[Optional[str], set[str]]:
-    return (None, set()) if text is None else redact(text)
+def mask(
+    text: Optional[str], patterns: tuple[custom_masking.CustomPattern, ...] = ()
+) -> tuple[Optional[str], set[str]]:
+    """Built-in rules first, then the project's own patterns on what is left."""
+    if text is None:
+        return None, set()
+    text, found = redact(text)
+    text, custom_found = custom_masking.apply(text, patterns)
+    return text, found | custom_found
 
 
 def test_key(suite: str, class_name: str, name: str) -> str:
@@ -67,8 +75,9 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
 
     counts = Counter(result.status for result in upload.results)
     meta = upload.run
+    patterns = tuple(masking_pattern_service.compiled_for(db, key.project_id))
     # Masking can lengthen the URL (the marker is longer than most passwords): cut to the column
-    ci_run_url = mask(meta.ci_run_url)[0]
+    ci_run_url = mask(meta.ci_run_url, patterns)[0]
     if ci_run_url is not None:
         ci_run_url = ci_run_url[:CI_RUN_URL_LENGTH]
     masked_kinds: Counter = Counter()
@@ -109,8 +118,8 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
         rows = []
         for result in upload.results:
             # Mask before truncating: a cut through a secret would leave its first half unmatched
-            message, message_kinds = mask(result.message)
-            details, details_kinds = mask(result.details)
+            message, message_kinds = mask(result.message, patterns)
+            details, details_kinds = mask(result.details, patterns)
             kinds = message_kinds | details_kinds
             masked_kinds.update(kinds)
             message, cut_message = truncate_utf8(message, settings.MAX_TEXT_BYTES)
@@ -146,8 +155,10 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
 
         key.last_used_at = datetime.now(timezone.utc)
         db.commit()
+        custom_names = {pattern.name for pattern in patterns}
         for kind, results in masked_kinds.items():
-            metrics.REDACTIONS.labels(kind=kind).inc(results)
+            # Project-chosen names would give the metric unbounded label values: one "custom" label
+            metrics.REDACTIONS.labels(kind="custom" if kind in custom_names else kind).inc(results)
     except IntegrityError:
         db.rollback()
         # Two uploads raced with the same Idempotency-Key and this one lost: answer as if it had

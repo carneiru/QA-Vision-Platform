@@ -116,7 +116,7 @@
 - [x] Per-test history endpoints — analytics `tests/{test_key}/history`, dashboard History view
 - [x] Revoke a project's API keys when the project is deleted — done by the retention job
 - [x] Re-mask results stored before masking existed — `python -m src.ingestion.jobs.remask [--dry-run] [--project ID]`: id-ordered committed batches, JSON summary, idempotent; text lengthened past 64 KB is cut back and flagged. Pilot data (9,853 results) checked: nothing to change
-- [ ] Custom masking patterns per project
+- [x] Custom masking patterns per project — project Settings → Masking: up to 20 RE2 patterns (linear time, no ReDoS; ADR-020), refused with a reason when invalid or matching empty text, named markers `[REDACTED:customer_id]`, a preview showing the sample exactly as it would be stored; applied at ingest and by the re-mask command, never across projects
 - [ ] Legal hold and data export before deletion
 
 ### Collector agent (Phase 2, step 2)

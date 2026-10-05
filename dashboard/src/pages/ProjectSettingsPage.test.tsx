@@ -20,6 +20,7 @@ function renderPage(role = "member") {
     http.get("/api/v1/projects/42", () =>
       HttpResponse.json({ id: 42, name: "Web", organization_id: 1, my_role: role })),
     http.get("/api/v1/projects/42/repositories", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/42/masking-patterns", () => HttpResponse.json([])),
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -43,7 +44,7 @@ test("repositories come first, editable for members", async () => {
 test("a viewer gets the repositories read-only", async () => {
   server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
   renderPage("viewer");
-  expect(await screen.findByText(/only owners, admins and members/i)).toBeInTheDocument();
+  expect(await screen.findByText(/only owners, admins and members can add or remove repositories/i)).toBeInTheDocument();
   expect(screen.queryByLabelText(/repository url/i)).not.toBeInTheDocument();
 });
 
@@ -69,7 +70,7 @@ test("creating a key shows the full key exactly once", async () => {
   );
   renderPage();
   await screen.findByText(/no api keys/i);
-  await userEvent.type(screen.getByLabelText(/name/i), "new-ci");
+  await userEvent.type(screen.getByPlaceholderText("e.g. github-actions"), "new-ci");
   await userEvent.click(screen.getByRole("button", { name: /create key/i }));
   expect(await screen.findByText("qav_newnewnewFULLSECRET")).toBeInTheDocument();
   expect(screen.getByText(/only shown once/i)).toBeInTheDocument();

@@ -64,6 +64,12 @@ readable. Test names, suites, classes, files and branches are never changed.
 | `email` | email addresses |
 | `card_number` | 13–19 digit card numbers with a card prefix that pass the Luhn check |
 
+- **Project patterns:** `GET/POST /api/v1/projects/{id}/masking-patterns`, `DELETE …/{pattern_id}`
+  (owner/admin/member; viewers read), and `POST …/preview` `{name, pattern, sample}` → the sample as
+  it would be stored plus this pattern's match count. Up to 20 per project; RE2 syntax (no
+  backreferences or lookarounds), so no pattern can stall ingestion (ADR-020); a pattern that
+  matches empty text is refused. They run after the built-in rules, never inside an existing
+  marker, and produce `[REDACTED:<name>]`; metrics count them as `kind="custom"`.
 - Masking happens before the 64 KB cut, so a secret on the boundary is never half-stored.
 - Each result has a `redacted` flag; `qav_ingest_redactions_total{kind}` counts results by kind.
 - Results stored before masking existed (or before a new rule) are re-masked on demand:
