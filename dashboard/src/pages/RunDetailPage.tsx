@@ -127,7 +127,7 @@ export default function RunDetailPage() {
           {run.results.length === 0 ? (
             <p className="muted">No {status || ""} results in this run.</p>
           ) : (
-            <div className="card">
+            <div className="card" tabIndex={0} role="region" aria-label="Test results">
               <table className="data">
                 <thead>
                   <tr>

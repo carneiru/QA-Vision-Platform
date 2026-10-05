@@ -54,12 +54,12 @@ export default function RunsPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card">
+        <div className="card" tabIndex={0} role="region" aria-label="Runs">
           <table className="data">
             <thead>
               <tr>
-                <th>Run</th><th>Started</th><th>Branch</th><th>Commit</th><th>Environment</th>
-                <th>CI</th><th>Passed</th><th>Failed</th><th>Errored</th><th>Skipped</th><th>Duration</th>
+                <th>Run</th><th>Started</th><th>Branch</th><th className="hide-narrow">Commit</th><th className="hide-narrow">Environment</th>
+                <th className="hide-narrow">CI</th><th>Passed</th><th>Failed</th><th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th><th className="hide-narrow">Duration</th>
               </tr>
             </thead>
             <tbody>
@@ -70,9 +70,9 @@ export default function RunsPage() {
                   </td>
                   <td>{new Date(r.started_at).toLocaleString()}</td>
                   <td>{r.branch ?? "—"}</td>
-                  <td>{r.commit_sha ? r.commit_sha.slice(0, 7) : "—"}</td>
-                  <td>{r.environment ?? "—"}</td>
-                  <td>
+                  <td className="hide-narrow">{r.commit_sha ? r.commit_sha.slice(0, 7) : "—"}</td>
+                  <td className="hide-narrow">{r.environment ?? "—"}</td>
+                  <td className="hide-narrow">
                     {r.ci_run_url ? (
                       <a href={r.ci_run_url} target="_blank" rel="noreferrer">
                         {r.ci_provider}
@@ -83,9 +83,9 @@ export default function RunsPage() {
                   </td>
                   <td>{r.passed}</td>
                   <td>{r.failed}</td>
-                  <td>{r.errored}</td>
-                  <td>{r.skipped}</td>
-                  <td>{formatDuration(r.duration_ms)}</td>
+                  <td className="hide-narrow">{r.errored}</td>
+                  <td className="hide-narrow">{r.skipped}</td>
+                  <td className="hide-narrow">{formatDuration(r.duration_ms)}</td>
                 </tr>
               ))}
             </tbody>

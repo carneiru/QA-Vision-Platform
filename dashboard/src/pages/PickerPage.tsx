@@ -31,7 +31,7 @@ function OrgProjects({ org }: { org: MyOrganization }) {
         <div>
           <h2 id={`org-${org.id}`}>{org.name}</h2>
           <span className="muted">
-            Your role: {org.role} · <Link to={`/organizations/${org.id}`}>Members and invitations</Link>
+            Your role: {org.role} · <Link className="inline-link" to={`/organizations/${org.id}`}>Members and invitations</Link>
           </span>
         </div>
         {canCreate && !formOpen && (

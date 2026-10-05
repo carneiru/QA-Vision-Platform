@@ -156,6 +156,7 @@ export default function SecurityPage() {
         <h1>Security</h1>
         <Link to="/">Back to projects</Link>
       </div>
+      <h2 className="sr-only">Sign-in settings</h2>
       <ChangePasswordCard />
       <div className="card">
         <h3>Two-factor authentication (TOTP)</h3>

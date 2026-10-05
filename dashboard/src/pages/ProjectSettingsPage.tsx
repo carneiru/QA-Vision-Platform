@@ -231,7 +231,7 @@ export default function ProjectSettingsPage() {
             <code>--ca-file</code> for the self-signed certificate), or a deployment with a public address.
           </p>
         )}
-        <pre data-testid="ci-snippet" className="code-block">
+        <pre data-testid="ci-snippet" className="code-block" tabIndex={0} aria-label="CI configuration">
           <code>{snippets[platform].code}</code>
         </pre>
         <button

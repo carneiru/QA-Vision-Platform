@@ -98,12 +98,12 @@ export default function TestsPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card">
+        <div className="card" tabIndex={0} role="region" aria-label="Tests">
           <table className="data">
             <thead>
               <tr>
-                <th>Test</th><th>Runs</th><th>Pass rate</th><th>Failed</th>
-                <th>Errored</th><th>Avg duration</th><th>Last status</th><th>Last seen</th>
+                <th>Test</th><th className="hide-narrow">Runs</th><th>Pass rate</th><th>Failed</th>
+                <th className="hide-narrow">Errored</th><th className="hide-narrow">Avg duration</th><th>Last status</th><th className="hide-narrow">Last seen</th>
               </tr>
             </thead>
             <tbody>
@@ -115,13 +115,13 @@ export default function TestsPage() {
                     </Link>
                     <div className="muted">{r.suite} / {r.class_name}</div>
                   </td>
-                  <td>{r.runs}</td>
+                  <td className="hide-narrow">{r.runs}</td>
                   <td>{formatPassRate(r.pass_rate)}</td>
                   <td>{r.failed}</td>
-                  <td>{r.errored}</td>
-                  <td>{formatDuration(r.avg_duration_ms)}</td>
+                  <td className="hide-narrow">{r.errored}</td>
+                  <td className="hide-narrow">{formatDuration(r.avg_duration_ms)}</td>
                   <td><StatusDot status={r.last_status} /></td>
-                  <td>{new Date(r.last_seen).toLocaleString()}</td>
+                  <td className="hide-narrow">{new Date(r.last_seen).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

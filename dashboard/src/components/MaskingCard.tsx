@@ -151,7 +151,7 @@ export default function MaskingCard({ projectId, canEdit }: Props) {
                 Stored as ({preview.data.matches === 1 ? "1 match" : `${preview.data.matches} matches`} for
                 this pattern):
               </span>
-              <pre className="code-block"><code>{preview.data.masked}</code></pre>
+              <pre className="code-block" tabIndex={0} aria-label="Masked preview"><code>{preview.data.masked}</code></pre>
             </div>
           )}
           {preview.error != null && <ErrorBanner error={preview.error} />}

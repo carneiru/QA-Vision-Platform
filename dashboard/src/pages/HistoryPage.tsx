@@ -65,12 +65,12 @@ export default function HistoryPage() {
           {data.executions.length === 0 ? (
             <p className="muted">No executions in the last {days} days.</p>
           ) : (
-            <div className="card">
+            <div className="card" tabIndex={0} role="region" aria-label="Executions">
               <table className="data">
                 <thead>
                   <tr>
-                    <th>Run</th><th>Started</th><th>Branch</th><th>Commit</th>
-                    <th>Environment</th><th>Status</th><th>Duration</th><th>Message</th>
+                    <th>Run</th><th>Started</th><th>Branch</th><th className="hide-narrow">Commit</th>
+                    <th className="hide-narrow">Environment</th><th>Status</th><th className="hide-narrow">Duration</th><th className="hide-narrow">Message</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -79,11 +79,11 @@ export default function HistoryPage() {
                       <td>{x.run_id}</td>
                       <td>{new Date(x.started_at).toLocaleString()}</td>
                       <td>{x.branch ?? "—"}</td>
-                      <td>{x.commit_sha ? x.commit_sha.slice(0, 7) : "—"}</td>
-                      <td>{x.environment ?? "—"}</td>
+                      <td className="hide-narrow">{x.commit_sha ? x.commit_sha.slice(0, 7) : "—"}</td>
+                      <td className="hide-narrow">{x.environment ?? "—"}</td>
                       <td><StatusDot status={x.status} /></td>
-                      <td>{formatDuration(x.duration_ms)}</td>
-                      <td><Message text={x.message} /></td>
+                      <td className="hide-narrow">{formatDuration(x.duration_ms)}</td>
+                      <td className="hide-narrow"><Message text={x.message} /></td>
                     </tr>
                   ))}
                 </tbody>

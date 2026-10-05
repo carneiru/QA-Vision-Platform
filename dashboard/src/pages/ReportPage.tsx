@@ -30,7 +30,7 @@ function testLabel(r: { suite: string; class_name: string; name: string }): stri
 
 function Section({ title, children, loading, empty }: { title: string; children: ReactNode; loading: boolean; empty: boolean }) {
   return (
-    <section className="card report-section">
+    <section className="card report-section" tabIndex={0} aria-label={title}>
       <h3>{title}</h3>
       {loading ? <p className="muted">Loading…</p> : empty ? <p className="muted">Nothing in this period.</p> : children}
     </section>

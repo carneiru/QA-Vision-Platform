@@ -118,12 +118,12 @@ export default function FlakyPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card">
+        <div className="card" tabIndex={0} role="region" aria-label="Flaky tests">
           <table className="data">
             <thead>
               <tr>
-                <th>Test</th><th>Reason</th><th>Flips</th><th>Flip rate</th>
-                <th>Runs</th><th>Last status</th><th>Commits</th>
+                <th>Test</th><th className="hide-narrow">Reason</th><th className="hide-narrow">Flips</th><th>Flip rate</th>
+                <th className="hide-narrow">Runs</th><th>Last status</th><th className="hide-narrow">Commits</th>
                 <th><span className="sr-only">Mute</span></th>
               </tr>
             </thead>
@@ -136,12 +136,12 @@ export default function FlakyPage() {
                     </Link>
                     <div className="muted">{r.suite} / {r.class_name}</div>
                   </td>
-                  <td>{r.reason === "same_commit" ? "Confirmed" : "Suspected"}</td>
-                  <td>{r.flips ?? "—"}</td>
+                  <td className="hide-narrow">{r.reason === "same_commit" ? "Confirmed" : "Suspected"}</td>
+                  <td className="hide-narrow">{r.flips ?? "—"}</td>
                   <td>{formatPassRate(r.flip_rate)}</td>
-                  <td>{r.runs}</td>
+                  <td className="hide-narrow">{r.runs}</td>
                   <td><StatusDot status={r.last_status} /></td>
-                  <td>
+                  <td className="hide-narrow">
                     {r.commits.length === 0 ? (
                       <span className="muted">—</span>
                     ) : (

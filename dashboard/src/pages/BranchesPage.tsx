@@ -129,12 +129,12 @@ export default function BranchesPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card">
+        <div className="card" tabIndex={0} role="region" aria-label="Branches">
           <table className="data">
             <thead>
               <tr>
-                <th>Branch</th><th>Runs</th><th>Pass rate</th><th>Passed</th>
-                <th>Failed</th><th>Errored</th><th>Skipped</th><th>Last run</th>
+                <th>Branch</th><th>Runs</th><th>Pass rate</th><th className="hide-narrow">Passed</th>
+                <th>Failed</th><th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th><th className="hide-narrow">Last run</th>
               </tr>
             </thead>
             <tbody>
@@ -143,11 +143,11 @@ export default function BranchesPage() {
                   <td>{r.branch ?? <span className="muted">no branch</span>}</td>
                   <td>{r.runs}</td>
                   <td>{formatPassRate(r.pass_rate)}</td>
-                  <td>{r.passed}</td>
+                  <td className="hide-narrow">{r.passed}</td>
                   <td>{r.failed}</td>
-                  <td>{r.errored}</td>
-                  <td>{r.skipped}</td>
-                  <td>{new Date(r.last_seen).toLocaleString()}</td>
+                  <td className="hide-narrow">{r.errored}</td>
+                  <td className="hide-narrow">{r.skipped}</td>
+                  <td className="hide-narrow">{new Date(r.last_seen).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

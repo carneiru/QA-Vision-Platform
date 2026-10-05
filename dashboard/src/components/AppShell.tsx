@@ -68,7 +68,7 @@ export default function AppShell() {
 
   return (
     <div className="shell">
-      <div className="topbar">
+      <header className="topbar">
         <button
           ref={menuButton}
           className="ghost"
@@ -82,7 +82,7 @@ export default function AppShell() {
         <span className="brand">
           <ScanSearch size={18} aria-hidden="true" /> QA Vision
         </span>
-      </div>
+      </header>
 
       <aside
         id="sidebar"

@@ -189,7 +189,7 @@ export default function TrendsPage() {
       )}
 
       {showTable && query.data && (
-        <div className="card">
+        <div className="card" tabIndex={0} role="region" aria-label="Trend data">
           <table className="data">
             <thead>
               <tr>
