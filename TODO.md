@@ -115,7 +115,7 @@
 - [ ] Artifacts (screenshots, videos, traces, logs)
 - [x] Per-test history endpoints — analytics `tests/{test_key}/history`, dashboard History view
 - [x] Revoke a project's API keys when the project is deleted — done by the retention job
-- [ ] Re-mask results stored before masking existed (one-off command)
+- [x] Re-mask results stored before masking existed — `python -m src.ingestion.jobs.remask [--dry-run] [--project ID]`: id-ordered committed batches, JSON summary, idempotent; text lengthened past 64 KB is cut back and flagged. Pilot data (9,853 results) checked: nothing to change
 - [ ] Custom masking patterns per project
 - [ ] Legal hold and data export before deletion
 

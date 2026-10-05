@@ -1,0 +1,109 @@
+"""The one-off re-mask command: results stored before masking existed (or before a pattern was
+added) get the masking that ingest applies today. Safe to run more than once."""
+import json
+from datetime import datetime, timezone
+
+import pytest
+from sqlalchemy.orm import sessionmaker
+
+from src.ingestion.core.config import settings
+from src.ingestion.jobs import remask
+from src.ingestion.models import Run, RunResult
+
+WHEN = datetime(2026, 9, 1, tzinfo=timezone.utc)
+SECRET = "ghp_" + "a" * 36
+
+
+@pytest.fixture
+def session_factory(db):
+    return sessionmaker(bind=db.get_bind(), autocommit=False, autoflush=False)
+
+
+@pytest.fixture
+def add_run(db, make_key):
+    keys = {}
+
+    def _add(project_id=1, results=(), ci_run_url=None):
+        if project_id not in keys:
+            keys[project_id] = make_key(project_id=project_id)[0]
+        run = Run(project_id=project_id, api_key_id=keys[project_id].id, request_hash="h", ci_provider="local",
+                  ci_run_url=ci_run_url, started_at=WHEN, finished_at=WHEN, duration_ms=0,
+                  total=len(results), passed=0, failed=len(results), skipped=0, errored=0)
+        db.add(run)
+        db.flush()
+        for i, (message, details) in enumerate(results):
+            db.add(RunResult(run_id=run.id, test_key=f"{i:064d}", name=f"t{i}", status="failed",
+                             duration_ms=1, message=message, details=details))
+        db.commit()
+        return run.id
+
+    return _add
+
+
+def run_job(session_factory, *args):
+    return remask.main(list(args), session_factory=session_factory)
+
+
+def summary(capsys):
+    return json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+
+def results(db, run_id):
+    db.expire_all()
+    return db.query(RunResult).filter_by(run_id=run_id).order_by(RunResult.id).all()
+
+
+def test_masks_what_ingest_would_mask_today(db, session_factory, add_run, capsys):
+    run_id = add_run(results=[
+        (f"auth failed with {SECRET}", "password=hunter2 at line 3"),
+        ("plain assertion error", None),
+    ], ci_run_url="https://user:pw@ci.example.com/build/1")
+    assert run_job(session_factory, "--batch-size", "1") == 0
+
+    first, second = results(db, run_id)
+    assert SECRET not in first.message and "[REDACTED:github_token]" in first.message
+    assert "hunter2" not in first.details
+    assert first.redacted is True
+    assert second.message == "plain assertion error" and second.redacted is False
+    assert "pw@" not in db.get(Run, run_id).ci_run_url
+
+    report = summary(capsys)
+    assert report["event"] == "remask"
+    assert report["results_scanned"] == 2
+    assert report["results_changed"] == 1
+    assert report["runs_changed"] == 1
+    assert report["kinds"] == {"github_token": 1, "password": 1, "url_password": 1}
+
+
+def test_a_second_pass_changes_nothing(db, session_factory, add_run, capsys):
+    add_run(results=[(f"token {SECRET}", None)])
+    run_job(session_factory)
+    capsys.readouterr()
+    run_job(session_factory)
+    assert summary(capsys)["results_changed"] == 0
+
+
+def test_dry_run_reports_and_changes_nothing(db, session_factory, add_run, capsys):
+    run_id = add_run(results=[(f"token {SECRET}", None)])
+    assert run_job(session_factory, "--dry-run") == 0
+    assert results(db, run_id)[0].message == f"token {SECRET}"
+    report = summary(capsys)
+    assert report["dry_run"] is True and report["results_changed"] == 1
+
+
+def test_project_filter_leaves_other_projects_alone(db, session_factory, add_run):
+    mine = add_run(project_id=1, results=[(f"token {SECRET}", None)])
+    other = add_run(project_id=2, results=[(f"token {SECRET}", None)])
+    run_job(session_factory, "--project", "1")
+    assert SECRET not in results(db, mine)[0].message
+    assert results(db, other)[0].message == f"token {SECRET}"
+
+
+def test_masking_that_lengthens_text_is_cut_back_to_the_limit(db, session_factory, add_run, monkeypatch):
+    monkeypatch.setattr(settings, "MAX_TEXT_BYTES", 40)
+    run_id = add_run(results=[("x" * 26 + " password=ab", None)])  # 40 bytes until "ab" becomes a marker
+    run_job(session_factory)
+    row = results(db, run_id)[0]
+    assert len(row.message.encode()) <= 40
+    assert row.truncated is True and row.redacted is True
+    assert row.message == "x" * 26 + " password=[RED"  # the secret is gone; the cut lands in the marker

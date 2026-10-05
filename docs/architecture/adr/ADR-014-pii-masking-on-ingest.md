@@ -15,4 +15,4 @@ trustworthy policy answer deletes nothing.
 
 ## Consequences
 Raw secrets never persist; masking counts exported as metrics; old data
-pre-masking needs a one-off re-mask (open TODO).
+pre-masking is re-masked on demand by `python -m src.ingestion.jobs.remask` (idempotent).

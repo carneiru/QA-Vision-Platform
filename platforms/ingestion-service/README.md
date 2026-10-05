@@ -66,7 +66,12 @@ readable. Test names, suites, classes, files and branches are never changed.
 
 - Masking happens before the 64 KB cut, so a secret on the boundary is never half-stored.
 - Each result has a `redacted` flag; `qav_ingest_redactions_total{kind}` counts results by kind.
-- Results stored before masking existed are not re-masked.
+- Results stored before masking existed (or before a new rule) are re-masked on demand:
+  `python -m src.ingestion.jobs.remask [--dry-run] [--project ID] [--batch-size N]`
+  (`docker compose exec ingestion-service python -m src.ingestion.jobs.remask --dry-run`). It
+  walks results by id in committed batches, prints a JSON summary (`results_scanned`,
+  `results_changed`, `runs_changed`, `kinds`), and is safe to repeat: masked text is skipped.
+  Text that masking makes longer than 64 KB is cut back and marked `truncated`.
 
 ## Retention
 

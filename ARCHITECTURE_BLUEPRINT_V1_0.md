@@ -515,7 +515,7 @@ Open, in rough order:
 1. ~~Service-to-service token (organization-service -> auth-service user checks)~~ — closed 2026-10-03: auth-service internal API (HTTP Basic, shared INTERNAL_API_PASSWORD), superuser token removed
 2. JWT validation + per-user limits at the gateway
 3. mTLS collector <-> platform
-4. Re-mask results stored before masking existed (one-off command)
+4. ~~Re-mask results stored before masking existed (one-off command)~~ — closed 2026-10-05: `src.ingestion.jobs.remask`
 5. Custom masking patterns per project
 6. Legal hold and data export before deletion
 7. Single sign-out; personal Microsoft accounts; Entra groups -> org roles; SCIM
