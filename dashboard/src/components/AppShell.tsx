@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  Building2, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, LogOut, Menu,
+  Building2, FileText, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, LogOut, Menu,
   ScanSearch, Settings, ShieldCheck, Shuffle, TrendingUp, X,
 } from "lucide-react";
 import { logout } from "../api/auth";
@@ -15,6 +15,7 @@ const PROJECT_VIEWS = [
   { to: "flaky", label: "Flaky", icon: Shuffle },
   { to: "branches", label: "Branches", icon: GitBranch },
   { to: "trends", label: "Trends", icon: TrendingUp },
+  { to: "report", label: "Report", icon: FileText },
   { to: "settings", label: "Settings", icon: Settings },
 ];
 

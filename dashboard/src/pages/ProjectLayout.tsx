@@ -6,7 +6,7 @@ import { pageTitle, useFocusOnNavigate } from "../routeFocus";
 
 const VIEW_TITLES: Record<string, string> = {
   overview: "Overview", trends: "Trends", tests: "Tests", flaky: "Flaky", branches: "Branches",
-  runs: "Runs", settings: "Settings",
+  runs: "Runs", report: "Report", settings: "Settings",
 };
 
 /** "runs/7" -> "Run #7", "tests/<key>" -> "Test history", "flaky" -> "Flaky" */

@@ -207,6 +207,13 @@ Reliability and operations
 - [x] Keyboard and screen-reader navigation — skip link + <main> landmark (WCAG 2.4.1), per-view document titles e.g. "Runs · Shop E2E · QA Vision" (2.4.2), focus moves to the new view's content on navigation (not on load or redirects). Destructive actions (revoke API key, remove member, revoke invitation) confirm in place: the confirm button takes focus, Escape/Cancel return it to the trigger
 - [x] Error banner text in dark mode was 3.6:1 — new --danger-text token (#d03b3b light 4.6:1, #ec7272 dark 6.0:1); charts and status dots keep the validated status hue
 - [x] CI wiring snippets in project Settings — ready-to-paste GitHub Action / GitLab include / Jenkins step / plain CLI, with this deployment's origin filled in and the key always referenced as a CI secret. Decision 2026-10-03: ingestion stays push-based; a "connect repository" (GitHub App, webhooks, artifact pull) would still require the repo's CI to produce JUnit XML, adds third-party credential custody, and locks to one forge — deferred to the Phase 4/6 slice below
+- [x] Quality report (roadmap Phase 3, step 5). The project's **Report** view covers the last
+  7/30/90 days: a summary (runs, executions, pass rate without skipped tests, failures), a
+  weekly table, the most failing and slowest tests, flaky tests and branches. It is built on
+  the existing analytics API, with tables rather than charts, so it reads and prints well.
+  - **Save as PDF** prints through a print stylesheet: no app chrome, no page breaks inside rows.
+  - **Download CSV** gives the per-test data behind the report.
+  - Scheduled delivery by email (TODO 66) is still open; email channels exist now.
 - [x] Repositories in project Settings — attach the repository the tests live in by pasting a browser or clone URL (optional default branch, otherwise the provider's), status in words (Reachable / Not found or private / Not checked) with Check again, remove with an in-place confirm; viewers and billing managers read only. Rendered at 1280px and 375px
 - [x] CI snippet on a localhost deployment — the CLI leads by default with the self-signed certificate step, and choosing GitHub or GitLab shows that their hosted runners cannot reach localhost (CLI, self-hosted runner with --ca-file, or a public deployment)
 - [ ] GitHub App integration ("connect repository") — justified when cross-repo correlation starts (Phase 6 consumes product-repo commits via API; run_components/ADR-018 already capture the link). Scope then: app registration, webhook ingestion of commits/PRs for connected product repos, optional run discovery. Not an ingestion replacement
