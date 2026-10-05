@@ -286,7 +286,8 @@ def mfa_confirm(
     """Prove the authenticator works; returns the recovery codes exactly once."""
     recovery = mfa_service.confirm_enrollment(db, current_user, request.code)
     if recovery is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+        # 400: the caller is authenticated; 401 is reserved for "who are you"
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid code")
     return {"recovery_codes": recovery}
 
 
@@ -299,7 +300,7 @@ def mfa_disable(
 ):
     """Turn MFA off; requires a current TOTP or an unused recovery code."""
     if not mfa_service.disable(db, current_user, request.code):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid code")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid code")
     return {"message": "MFA disabled"}
 
 

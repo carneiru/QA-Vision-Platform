@@ -61,22 +61,43 @@ test("failed refresh clears the session and calls onAuthFailure", async () => {
   expect(getAccessToken()).toBeNull();
 });
 
-test("a 401 from an auth endpoint itself never enters the refresh flow", async () => {
+test.each([
+  "/api/v1/auth/login",
+  "/api/v1/auth/mfa/verify",
+  "/api/v1/auth/logout",
+  "/api/v1/sso/google",
+])("a 401 from sign-in endpoint %s is its own verdict, not an expired session", async (path) => {
   let refreshes = 0;
   server.use(
-    http.post("/api/v1/auth/login", () =>
-      HttpResponse.json({ detail: "Incorrect email or password" }, { status: 401 }),
-    ),
+    http.post(path, () => HttpResponse.json({ detail: "Incorrect email or password" }, { status: 401 })),
     http.post("/api/v1/auth/refresh-token", () => {
       refreshes += 1;
       return new HttpResponse(null, { status: 401 });
     }),
   );
-  await expect(apiFetch("/api/v1/auth/login", { method: "POST", body: "{}" })).rejects.toMatchObject(
+  await expect(apiFetch(path, { method: "POST", body: "{}" })).rejects.toMatchObject(
     { detail: "Incorrect email or password" },
   );
   expect(refreshes).toBe(0);
 });
+
+test.each(["/api/v1/auth/change-password", "/api/v1/auth/mfa/enroll"])(
+  "signed-in auth endpoint %s refreshes an expired access token and retries",
+  async (path) => {
+    setAccessToken("stale");
+    server.use(
+      http.post(path, ({ request }) =>
+        request.headers.get("Authorization") === "Bearer fresh"
+          ? HttpResponse.json({ ok: true })
+          : HttpResponse.json({ detail: "Could not validate credentials" }, { status: 401 }),
+      ),
+      http.post("/api/v1/auth/refresh-token", () =>
+        HttpResponse.json({ access_token: "fresh", refresh_token: "r2", token_type: "bearer" }),
+      ),
+    );
+    await expect(apiFetch(path, { method: "POST", body: "{}" })).resolves.toEqual({ ok: true });
+  },
+);
 
 test("bootstrapSession restores the access token from the cookie session", async () => {
   server.use(

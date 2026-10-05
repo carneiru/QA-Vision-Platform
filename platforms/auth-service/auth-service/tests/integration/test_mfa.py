@@ -75,7 +75,9 @@ def test_confirm_with_a_wrong_code_does_not_enable(client, register_and_verify):
     tokens = register_and_verify(EMAIL)
     client.post("/api/v1/auth/mfa/enroll", headers=_auth(tokens))
     confirm = client.post("/api/v1/auth/mfa/confirm", json={"code": "000000"}, headers=_auth(tokens))
-    assert confirm.status_code == 401
+    # 400, not 401: the caller is signed in, only the code is wrong. A 401 reads as an
+    # expired session, and the dashboard would refresh and resubmit the code
+    assert confirm.status_code == 400
 
     login = client.post("/api/v1/auth/login", json={"email": EMAIL, "password": "securepassword123"})
     assert "access_token" in login.json()  # MFA never became active
@@ -86,7 +88,7 @@ def test_disable_requires_a_valid_code_and_restores_plain_login(client, register
     secret, _ = _enroll_and_confirm(client, tokens)
 
     bad = client.post("/api/v1/auth/mfa/disable", json={"code": "000000"}, headers=_auth(tokens))
-    assert bad.status_code == 401
+    assert bad.status_code == 400
 
     ok = client.post(
         "/api/v1/auth/mfa/disable",

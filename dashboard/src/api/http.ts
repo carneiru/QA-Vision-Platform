@@ -71,8 +71,24 @@ export async function bootstrapSession(): Promise<void> {
   }
 }
 
+// Endpoints a person calls to get (or end) a session: their 401 means "wrong
+// credentials", never "your access token expired". Every other route,
+// including signed-in auth routes like change-password, refreshes on 401.
+const SIGN_IN_PATHS = [
+  "/api/v1/auth/login",
+  "/api/v1/auth/mfa/verify",
+  "/api/v1/auth/refresh-token",
+  "/api/v1/auth/logout",
+  "/api/v1/auth/register",
+  "/api/v1/auth/verify-email",
+  "/api/v1/auth/resend-verification",
+  "/api/v1/auth/forgot-password",
+  "/api/v1/auth/reset-password",
+];
+
 function isAuthPath(path: string): boolean {
-  return path.startsWith("/api/v1/auth/") || path.startsWith("/api/v1/sso/");
+  const route = path.split("?")[0];
+  return SIGN_IN_PATHS.includes(route) || route.startsWith("/api/v1/sso/");
 }
 
 async function rawFetch(path: string, init: RequestInit): Promise<Response> {

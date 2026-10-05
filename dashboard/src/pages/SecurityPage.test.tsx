@@ -44,7 +44,7 @@ test("a wrong confirm code surfaces the error", async () => {
       HttpResponse.json({ secret: "S", otpauth_uri: "otpauth://totp/x" }),
     ),
     http.post("/api/v1/auth/mfa/confirm", () =>
-      HttpResponse.json({ detail: "Invalid code" }, { status: 401 }),
+      HttpResponse.json({ detail: "Invalid code" }, { status: 400 }),
     ),
   );
   renderSecurity();
