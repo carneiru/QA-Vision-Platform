@@ -46,6 +46,9 @@ jobs:
       SECRET_KEY: ci-test-secret
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The parent commit lets the collector record which files the push changed
+          fetch-depth: 2
 
       - uses: actions/setup-python@v7
         with:
@@ -131,6 +134,9 @@ jobs:
         working-directory: dashboard
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The parent commit lets the collector record which files the push changed
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         with:
@@ -184,6 +190,9 @@ jobs:
         working-directory: collector
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The parent commit lets the collector record which files the push changed
+          fetch-depth: 2
 
       - uses: actions/setup-python@v7
         with:
@@ -191,7 +200,8 @@ jobs:
 
       # A regular (not editable) install, so the tests run against the package as customers get it
       - name: Install the collector and pytest
-        run: python -m pip install . pytest
+        # cryptography only for the mTLS test, which generates a real client certificate
+        run: python -m pip install . pytest cryptography
 
       - name: The entry point works
         run: qav-collector --version
