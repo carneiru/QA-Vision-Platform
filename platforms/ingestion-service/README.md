@@ -97,6 +97,38 @@ service runs it with `--loop`):
 - Without a trustworthy answer (unreachable, not 200, unexpected body) it deletes nothing and
   exits 1. Projects missing from the answer are never touched.
 
+## Failure notifications
+
+When a run with failed or errored tests is stored, each enabled channel of the project gets a
+message. Channels can be limited to one branch (exact match, for example `main`). The message
+has the counts, branch and commit, the first 5 failing tests (masked as stored) and a link
+`{DASHBOARD_URL}/projects/{id}/runs/{run_id}`. Design:
+`docs/superpowers/specs/2026-10-05-failure-notifications-design.md`.
+
+- **Kinds:**
+  - `slack`: an incoming webhook on `hooks.slack.com`.
+  - `teams`: a Workflows (Power Automate) webhook on `*.logic.azure.com` or `*.powerplatform.com`,
+    which gets an Adaptive Card.
+  - `webhook`: any public `https` URL; it gets JSON with `event: "run.failed"`.
+- **API:** `GET/POST /api/v1/projects/{id}/notification-channels`, `PATCH`/`DELETE …/{cid}`
+  (`name`, `enabled`, `branch`), and `POST …/{cid}/test`. Members and up can change channels;
+  viewers can read them. At most 10 per project.
+- **Delivery:**
+  - It runs after the collect response, as a background task, so the collector never waits.
+  - No database session is open during the call, and redirects are never followed.
+  - One attempt with `NOTIFY_TIMEOUT_SECONDS` (default 5); there is no queue (blueprint
+    trigger). The outcome (`last_status`, `last_error`, `last_sent_at`) shows in Settings.
+  - An idempotent replay sends nothing.
+- **SSRF guard:**
+  - Vendor hosts only, for Slack and Teams.
+  - Webhooks must use `https` on port 443, with no credentials in the URL.
+  - Every address the host resolves to must be public, checked again at send time: no
+    loopback, private, link-local, CGNAT, multicast or reserved ranges, so neither the Docker
+    network nor cloud metadata can be reached.
+- **URLs are bearer secrets.** They are stored to deliver, never returned: the API shows the
+  host and the last 4 characters.
+- Email is not a channel yet: it needs a shared mail sender.
+
 ## Export
 
 `GET /api/v1/projects/{id}/export` (owners and admins) streams everything stored for a project

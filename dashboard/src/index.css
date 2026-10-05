@@ -158,7 +158,8 @@ input[aria-invalid="true"] { border-color: var(--danger-text); }
 .form-stack label { margin-bottom: var(--space-3); }
 .form-stack input { width: 100%; max-width: 360px; }
 .form-stack textarea { width: 100%; max-width: 560px; resize: vertical; font: inherit; }
-.form-stack .field-hint { font-weight: 400; font-size: 12.5px; }
+.form-stack .field-hint { font-weight: 400; font-size: 12.5px; max-width: 560px; }
+.form-stack select { width: 100%; max-width: 360px; }
 input.mono { font-family: var(--font-mono); }
 .button-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
 /* A sub-form under a list in the same card: a rule and a smaller heading set it apart */
@@ -200,6 +201,8 @@ table.data tbody tr:hover td { background: var(--hover); }
 .badge-passed svg { color: var(--status-passed); }
 .badge-warn svg { color: var(--status-errored); }
 .badge-muted { color: var(--text-secondary); }
+/* A delivery error is a sentence, not a label: let it wrap inside the badge */
+.badge.delivery-error { white-space: normal; align-items: flex-start; border-radius: var(--radius-sm); }
 /* Field that takes the free width of an .inline-form row (a URL beside a short field) */
 .inline-form .grow { flex: 1 1 280px; }
 .inline-form .grow input { width: 100%; }

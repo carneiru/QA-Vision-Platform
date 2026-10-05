@@ -7,6 +7,7 @@ import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import DataCard from "../components/DataCard";
 import MaskingCard from "../components/MaskingCard";
+import NotificationsCard from "../components/NotificationsCard";
 import RepositoriesCard from "../components/RepositoriesCard";
 
 const COLLECTOR_REF = "collector-v0.2.0";
@@ -249,6 +250,9 @@ export default function ProjectSettingsPage() {
       </div>
 
       <MaskingCard projectId={id} canEdit={project.data == null ? undefined : canEdit} />
+      {project.data != null && (
+        <NotificationsCard projectId={id} projectName={project.data.name} canEdit={canEdit} />
+      )}
       {project.data != null && (
         <DataCard project={project.data} canManage={MANAGE_ROLES.includes(project.data.my_role ?? "")} />
       )}

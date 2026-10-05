@@ -8,7 +8,7 @@ Design: `docs/superpowers/specs/2026-09-28-api-gateway-design.md`.
 | Path | Service |
 |---|---|
 | `/api/v1/organizations/{id}/projects…` | project-service |
-| `/api/v1/projects/{id}/api-keys…`, `…/runs…`, `…/analytics…`, `…/masking-patterns…`, `…/export` | ingestion-service |
+| `/api/v1/projects/{id}/api-keys…`, `…/runs…`, `…/analytics…`, `…/masking-patterns…`, `…/export`, `…/notification-channels…` | ingestion-service |
 | `/api/v1/runs…`, `/api/v1/collect…` | ingestion-service |
 | `/api/v1/projects…` | project-service |
 | `/api/v1/organizations…`, `/api/v1/invitations…` | organization-service |

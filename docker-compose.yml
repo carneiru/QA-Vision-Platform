@@ -38,6 +38,8 @@ x-ingestion-env: &ingestion-env
   DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/ingestion_db
   SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
   PROJECT_SERVICE_URL: http://project-service:8000
+  # Run links in failure notifications (Slack/Teams/webhook) point at the gateway
+  DASHBOARD_URL: https://localhost:${GATEWAY_HTTPS_PORT:-8443}
 
 x-auth-build: &auth-build
   context: .

@@ -25,5 +25,9 @@ class Settings(BaseServiceSettings):
     # A deleted project's runs are kept this long after the deletion (it can still be undone)
     RETENTION_DELETED_GRACE_DAYS: int = 7
 
+    # Public origin of the dashboard, for the run link in failure notifications. Empty: no link
+    DASHBOARD_URL: str = ""
+    NOTIFY_TIMEOUT_SECONDS: float = 5.0
+
 
 settings = Settings()

@@ -21,6 +21,7 @@ function renderPage(role = "member") {
       HttpResponse.json({ id: 42, name: "Web", organization_id: 1, my_role: role })),
     http.get("/api/v1/projects/42/repositories", () => HttpResponse.json([])),
     http.get("/api/v1/projects/42/masking-patterns", () => HttpResponse.json([])),
+    http.get("/api/v1/projects/42/notification-channels", () => HttpResponse.json([])),
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(

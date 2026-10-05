@@ -1,13 +1,13 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response, status
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.api.deps import get_db
 from src.ingestion.api.key_auth import get_api_key
 from src.ingestion.models import ApiKey
 from src.ingestion.schemas.collect import KeyCheck, RunReceipt, RunUpload
-from src.ingestion.service import ingest_service
+from src.ingestion.service import ingest_service, notification_service
 from src.ingestion.utils import metrics
 
 router = APIRouter()  # mounted at /collect
@@ -23,6 +23,7 @@ def check_key(key: ApiKey = Depends(get_api_key)):
 def collect_run(
     upload: RunUpload,
     response: Response,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     key: ApiKey = Depends(get_api_key),
     idempotency_key: Optional[str] = Header(
@@ -40,6 +41,9 @@ def collect_run(
     if created:
         metrics.RUNS.inc()
         metrics.RESULTS.inc(run.total)
+        if run.failed + run.errored:
+            # After the response: the collector never waits on Slack or Teams
+            background.add_task(notification_service.notify_run, sessionmaker(bind=db.get_bind()), run.id)
     else:
         response.status_code = status.HTTP_200_OK
     return run

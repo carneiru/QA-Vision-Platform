@@ -20,6 +20,9 @@ services:
     restart: unless-stopped
   ingestion-service:
     restart: unless-stopped
+    environment:
+      # Run links in failure notifications must point at the public address
+      DASHBOARD_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
   ingestion-retention:
     restart: unless-stopped
   analytics-rollup:

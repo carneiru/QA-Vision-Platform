@@ -287,7 +287,15 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Compare two runs side by side *(suggested)*
 - [ ] Group failures by error signature, so one broken locator shows as one problem, not forty *(suggested)*
 - [ ] Shareable link to a failed run *(suggested)*
-- [ ] Failure notifications to Slack/Teams/email *(suggested)*
+- [~] Failure notifications to Slack/Teams/email. Slack, Microsoft Teams (Workflows webhook,
+  Adaptive Card) and generic https webhooks are done. Channels live in Settings → Notifications:
+  - per-branch filter, a test button, and the last delivery shown in words;
+  - delivery is a background task after the upload, one attempt, outcome recorded;
+  - an SSRF guard (vendor hosts, public addresses only, checked again at send time, no
+    redirects), and URLs are never returned.
+
+  Spec: `docs/superpowers/specs/2026-10-05-failure-notifications-design.md`. Email is still
+  open: it needs a mail sender shared with auth. Roadmap Phase 3, step 4.
 
 ### D. AI prompt chat
 - [ ] Create TCs from a prompt
