@@ -89,7 +89,7 @@ def test_rejected_inputs(raw):
 
 
 def test_rejection_message_names_the_supported_hosts():
-    with pytest.raises(ValueError, match="github.com and gitlab.com"):
+    with pytest.raises(ValueError, match="github.com, gitlab.com and dev.azure.com"):
         parse_repo_url("https://bitbucket.org/acme/shop")
 
 
@@ -115,3 +115,44 @@ def test_a_255_character_github_name_is_accepted():
     name = "a" * 255
     parsed = parse_repo_url(f"https://github.com/acme/{name}")
     assert parsed.name == name
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "https://dev.azure.com/acme/Shop%20QA/_git/e2e-tests",
+        "https://dev.azure.com/acme/Shop%20QA/_git/e2e-tests/",
+        "https://acme@dev.azure.com/acme/Shop%20QA/_git/e2e-tests",   # clone URLs carry the org as user
+        "https://dev.azure.com/acme/Shop%20QA/_git/e2e-tests?path=/README.md&version=GBmain",
+        "https://dev.azure.com/acme/Shop QA/_git/e2e-tests",
+        "https://acme.visualstudio.com/Shop%20QA/_git/e2e-tests",
+        "https://acme.visualstudio.com/DefaultCollection/Shop%20QA/_git/e2e-tests",
+        "git@ssh.dev.azure.com:v3/acme/Shop%20QA/e2e-tests",
+        "acme@vs-ssh.visualstudio.com:v3/acme/Shop%20QA/e2e-tests",
+    ],
+)
+def test_azure_devops_forms_parse_to_the_same_repository(raw):
+    parsed = parse_repo_url(raw)
+    assert parsed.provider == "azure_devops"
+    assert (parsed.owner, parsed.name) == ("acme/Shop QA", "e2e-tests")
+    assert parsed.full_name_key == "acme/shop qa/e2e-tests"
+    assert parsed.url == "https://dev.azure.com/acme/Shop%20QA/_git/e2e-tests"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "https://dev.azure.com/acme/Shop",                       # a project, not a repository
+        "https://dev.azure.com/acme/_git/e2e",                   # no project
+        "https://dev.azure.com/acme/Shop/_git/",
+        "https://user:pw@dev.azure.com/acme/Shop/_git/e2e",      # a password is a credential
+        "https://evil@dev.azure.com/acme/Shop/_git/e2e",         # a user that is not the organization
+        "https://dev.azure.com/acme/Sh%2Fop/_git/e2e",
+        "https://dev.azure.com/acme/../_git/e2e",
+        "https://evil.visualstudio.com.example/Shop/_git/e2e",
+        "git@ssh.dev.azure.com:v3/acme/e2e",
+    ],
+)
+def test_azure_devops_rejected_inputs(raw):
+    with pytest.raises(ValueError):
+        parse_repo_url(raw)

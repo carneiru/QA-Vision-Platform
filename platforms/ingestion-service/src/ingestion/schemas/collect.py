@@ -35,7 +35,7 @@ def _text(max_length: int):
 class RunIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    ci_provider: Literal["github_actions", "gitlab_ci", "jenkins", "other", "local"]
+    ci_provider: Literal["github_actions", "gitlab_ci", "jenkins", "azure_pipelines", "other", "local"]
     ci_run_url: Optional[Annotated[str, StringConstraints(max_length=2048, pattern=r"^https?://\S+$")]] = None
     commit_sha: Optional[Annotated[str, StringConstraints(pattern=r"^[0-9a-fA-F]{7,40}$")]] = None
     branch: Optional[_text(255)] = None

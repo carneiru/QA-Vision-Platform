@@ -63,3 +63,19 @@ def test_no_credentials_are_sent(http):
 def test_unknown_provider_is_a_programming_error():
     with pytest.raises(ValueError):
         verify("bitbucket", "acme", "shop", timeout=3.0)
+
+
+AZURE = "https://dev.azure.com/acme/Shop%20QA/_apis/git/repositories/e2e-tests"
+
+
+def test_azure_200_is_verified_with_the_branch_name(http):
+    http.get(AZURE).mock(return_value=httpx.Response(200, json={"defaultBranch": "refs/heads/develop"}))
+    result = verify("azure_devops", "acme/Shop QA", "e2e-tests", timeout=1)
+    assert (result.status, result.default_branch) == ("verified", "develop")
+
+
+@pytest.mark.parametrize("status_code", [401, 203, 404])
+def test_azure_private_or_missing_is_not_found(http, status_code):
+    # Anonymous calls to a private project get 401 or a 203 sign-in page, the same as missing
+    http.get(AZURE).mock(return_value=httpx.Response(status_code, text="<html>sign in</html>"))
+    assert verify("azure_devops", "acme/Shop QA", "e2e-tests", timeout=1).status == "not_found"

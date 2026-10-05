@@ -24,7 +24,7 @@ from qav_collector.upload import (
     ConfigError, UploadError, check_key, endpoint_for, make_context, upload_part,
 )
 
-CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "other", "local")
+CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "azure_pipelines", "other", "local")
 _TRUE = ("1", "true", "yes")
 _API_KEY = re.compile(r"^[\x21-\x7e]+$")
 

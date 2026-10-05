@@ -138,6 +138,19 @@ Distribution
 - [~] Publish to PyPI: workflow ready (trusted publishing, gated on repo variable PYPI_PUBLISH=true); needs the one-off publisher config on pypi.org (project qav-collector, repo carneiru/QA-Vision-Platform, workflow release-collector.yml, environment pypi)
 - [x] Ready-made GitHub Action (`uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0`) and GitLab CI template (`templates/qav-collector.gitlab-ci.yml`) — both install the collector pinned to the tag
 - [x] A Jenkins shared-library step — `collector-jenkins/vars/qavCollectorUpload.groovy` (workspace venv install, PEP 668-safe; key via env only). Proven against a real Jenkins LTS in Docker: library loaded from a git repo via JCasC, pipeline build SUCCESS, run stored with ci_provider=jenkins and the build URL
+- [x] Azure DevOps (collector 0.2.0). The collector detects Azure Pipelines (`TF_BUILD`):
+  commit, branch (the source branch on PRs), PR number (the visible number for GitHub-hosted
+  code), target branch and build URL (project names percent-encoded). A job retry is a new
+  run.
+  - Ingestion accepts `ci_provider=azure_pipelines` (migration 011).
+  - Repositories accept Azure DevOps URLs (`dev.azure.com`, legacy `visualstudio.com`, SSH v3,
+    and `org@` clone URLs), stored as owner `org/project`, project-service migration 003. They
+    are verified through the anonymous REST API; a private project's 401/203 reads as
+    "not found or private".
+  - Step template `templates/qav-collector.azure-pipelines.yml` and an Azure Pipelines CI
+    snippet in Settings.
+  - Verified live: an upload with an Azure PR environment was stored with every field, and a
+    real public Azure repository was verified.
 - [x] A Docker image and a single-file (zipapp) build for runners without pip — zipapp (`collector/scripts/build_zipapp.py`, stdlib-only, runs on any Python 3.9+) and `collector/Dockerfile` (python:3.12-slim + git). On every `collector-v*` tag the release workflow uploads sdist+wheel+pyz to a GitHub Release and pushes `ghcr.io/carneiru/qav-collector:<version>` + `:latest` (user-approved public surfaces, 2026-10-03)
 
 Formats

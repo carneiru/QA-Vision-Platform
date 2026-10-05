@@ -9,7 +9,7 @@ import DataCard from "../components/DataCard";
 import MaskingCard from "../components/MaskingCard";
 import RepositoriesCard from "../components/RepositoriesCard";
 
-const COLLECTOR_REF = "collector-v0.1.0";
+const COLLECTOR_REF = "collector-v0.2.0";
 
 // Mirrors EDIT_ROLES in platforms/project-service/src/project/api/deps.py
 const EDIT_ROLES = ["owner", "admin", "member"];
@@ -27,7 +27,7 @@ export function isLocalOrigin(origin: string): boolean {
 }
 
 // Platforms whose default runners live on the vendor's servers, never on this machine
-const HOSTED_RUNNERS = ["github", "gitlab"];
+const HOSTED_RUNNERS = ["github", "gitlab", "azure"];
 
 // Ready-to-paste CI wiring; the key itself always travels as a CI secret
 function ciSnippets(origin: string): Record<string, { label: string; code: string }> {
@@ -53,6 +53,19 @@ qav-collector-upload:
   variables:
     QAV_URL: ${origin}
     QAV_PATTERNS: "reports/**/*.xml"`,
+    },
+    azure: {
+      label: "Azure Pipelines",
+      code: `# azure-pipelines.yml — after the test step; add QAV_API_KEY as a secret pipeline variable
+- script: |
+    pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+    qav-collector upload "reports/**/*.xml"
+  displayName: Upload test results to QA Vision
+  condition: always()      # report results even when tests failed
+  continueOnError: true    # a failed upload does not fail the pipeline
+  env:
+    QAV_URL: ${origin}
+    QAV_API_KEY: $(QAV_API_KEY)   # secret variables reach scripts only when mapped here`,
     },
     jenkins: {
       label: "Jenkins",

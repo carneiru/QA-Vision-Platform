@@ -78,7 +78,7 @@ Data lives in Docker volumes (`qa-vision_*`): it survives `down` and restarts, n
    or its JSON reporter), `dotnet test --logger trx` (writes `TestResults/*.trx`).
 3. **Upload**, from the folder holding the reports:
    ```powershell
-   pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.1.0#subdirectory=collector"
+   pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
    # the local stack's certificate is self-signed; run this in the QA-Vision-Platform folder
    docker compose cp gateway:/etc/nginx/certs/tls.crt $HOME\qav-ca.crt
 
@@ -107,7 +107,7 @@ machine to the internet while it is open.
    - variable `QAV_URL` = the tunnel address, without a trailing slash
 3. **Add the upload step to the workflow**, after the tests (they must write JUnit XML):
    ```yaml
-   - uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0
+   - uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.2.0
      if: always()                       # report failing builds too
      with:
        url: ${{ vars.QAV_URL }}
@@ -125,7 +125,11 @@ green — the collector never fails a build because the platform is unreachable.
 
 GitLab: `include:` the template in `templates/qav-collector.gitlab-ci.yml` and set `QAV_URL`
 and a masked `QAV_API_KEY` as CI/CD variables. Jenkins: the shared library in
-`collector-jenkins/` (`qavCollectorUpload` step). The **Wire up your CI** card shows both.
+`collector-jenkins/` (`qavCollectorUpload` step). Azure Pipelines: add `QAV_API_KEY` as a
+**secret** pipeline variable and map it in the step's `env:` (Azure gives secrets to scripts
+only that way), or use the step template `templates/qav-collector.azure-pipelines.yml`;
+Microsoft-hosted agents need a public `QAV_URL`, as with GitHub. The **Wire up your CI** card
+shows every one of them with this deployment's address filled in.
 
 ## 6. Production
 

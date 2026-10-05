@@ -119,10 +119,15 @@ test("hosted CI runners on localhost get a warning, not a silent snippet", async
   await screen.findByText(/no api keys/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "github");
-  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("collector-action@collector-v0.1.0");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("collector-action@collector-v0.2.0");
   expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "gitlab");
+  expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
+
+  await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "azure");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("QAV_API_KEY: $(QAV_API_KEY)");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("condition: always()");
   expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "jenkins");

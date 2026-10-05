@@ -12,7 +12,7 @@ import {
 import ConfirmButton from "./ConfirmButton";
 import ErrorBanner from "./ErrorBanner";
 
-const PROVIDERS: Record<string, string> = { github: "GitHub", gitlab: "GitLab" };
+const PROVIDERS: Record<string, string> = { github: "GitHub", gitlab: "GitLab", azure_devops: "Azure DevOps" };
 
 const STATUS: Record<VerificationStatus, { label: string; className: string; Icon: typeof CheckCircle2; hint: string }> = {
   verified: {
@@ -88,8 +88,8 @@ export default function RepositoriesCard({ projectId, canEdit }: Props) {
     <div className="card">
       <h3>Repositories</h3>
       <p className="muted">
-        Where this project's test code lives, on github.com or gitlab.com. Paste the address
-        from the browser or a clone URL.
+        Where this project's test code lives, on github.com, gitlab.com or Azure DevOps. Paste
+        the address from the browser or a clone URL.
       </p>
 
       {canEdit === undefined ? null : canEdit ? (

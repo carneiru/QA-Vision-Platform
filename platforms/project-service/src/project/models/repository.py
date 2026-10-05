@@ -28,7 +28,7 @@ class Repository(Base):
 
     __table_args__ = (
         UniqueConstraint("project_id", "provider", "full_name_key", name="uq_repo_project_provider_key"),
-        CheckConstraint("provider IN ('github','gitlab')", name="chk_repo_provider"),
+        CheckConstraint("provider IN ('github','gitlab','azure_devops')", name="chk_repo_provider"),
         CheckConstraint(
             "verification_status IN ('verified','not_found','unchecked')", name="chk_repo_verification_status"
         ),

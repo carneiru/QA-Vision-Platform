@@ -6,7 +6,7 @@ Python 3.9 or newer, nothing else to install.
 ## Install
 
 ```bash
-pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.1.0#subdirectory=collector"
+pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
 ```
 
 ## Use
@@ -19,7 +19,7 @@ export QAV_URL=https://qav.example.com
 qav-collector upload "reports/**/*.xml"
 ```
 
-All matching files become **one run**. On GitHub Actions, GitLab CI and Jenkins the commit, branch
+All matching files become **one run**. On GitHub Actions, GitLab CI, Jenkins and Azure Pipelines the commit, branch
 and job URL are detected automatically. If an upload is retried after the platform stored it but
 the answer was lost, the collector's Idempotency-Key makes the platform return the stored run
 instead of storing it twice.
@@ -36,7 +36,7 @@ instead of storing it twice.
           QAV_URL: https://qav.example.com
           QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
         run: |
-          pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.1.0#subdirectory=collector"
+          pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
           qav-collector upload "reports/**/*.xml"
 ```
 
@@ -47,7 +47,7 @@ test:
   script:
     - pytest --junitxml=reports/junit.xml
   after_script:
-    - pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.1.0#subdirectory=collector"
+    - pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
     - qav-collector upload "reports/**/*.xml"
   variables:
     QAV_URL: https://qav.example.com
@@ -61,13 +61,35 @@ post {
   always {
     withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
       sh '''
-        pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.1.0#subdirectory=collector"
+        pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
         QAV_URL=https://qav.example.com qav-collector upload "target/surefire-reports/*.xml"
       '''
     }
   }
 }
 ```
+
+### Azure Pipelines
+
+```yaml
+steps:
+  - script: mvn test   # or pytest --junitxml=reports/junit.xml, dotnet test --logger trx, …
+  - script: |
+      pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+      qav-collector upload "**/TEST-*.xml"
+    displayName: Upload test results to QA Vision
+    condition: always()        # report results even when the tests failed
+    continueOnError: true      # a failed upload does not fail the pipeline
+    env:
+      QAV_URL: https://qav.example.com
+      QAV_API_KEY: $(QAV_API_KEY)   # a secret variable reaches scripts only when mapped like this
+```
+
+Commit, branch (the source branch on a pull request), PR number, target branch and the build URL
+are detected from `TF_BUILD` and the `BUILD_*` / `SYSTEM_*` variables; a retried job
+(`System.JobAttempt`) is a new run. Reusable step template: `templates/qav-collector.azure-pipelines.yml`.
+Hosted agents cannot reach a platform on `localhost`: use a self-hosted agent on that network or
+a deployment with a public address.
 
 ### See what would be sent
 

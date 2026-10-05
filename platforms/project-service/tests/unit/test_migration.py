@@ -82,6 +82,15 @@ def test_repository_provider_check(migrated_engine):
                     " VALUES (1, 'bitbucket', 'a', 'b', 'a/b', 'https://bitbucket.org/a/b', 'main', 0, 'unchecked')"
                 )
             )
+    with migrated_engine.begin() as conn:  # added by migration 003
+        conn.execute(
+            text(
+                "INSERT INTO repositories (project_id, provider, owner, name, full_name_key, url,"
+                " default_branch, default_branch_is_user_set, verification_status)"
+                " VALUES (1, 'azure_devops', 'a/p', 'r', 'a/p/r', 'https://dev.azure.com/a/p/_git/r', 'main', 0,"
+                " 'unchecked')"
+            )
+        )
 
 
 def test_repository_unique_per_project_provider_key(migrated_engine):

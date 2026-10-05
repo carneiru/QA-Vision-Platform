@@ -19,7 +19,11 @@ Non-members get 404, never 403. If organization-service cannot answer, requests 
 
 ## Repositories
 
-Only `github.com` and `gitlab.com` URLs are accepted. On save, the service checks the repository
+Only `github.com`, `gitlab.com` and Azure DevOps URLs are accepted. Azure DevOps takes browser
+and clone forms: `dev.azure.com/org/project/_git/repo` (an `org@` user name in clone URLs is
+allowed and dropped), legacy `org.visualstudio.com/[DefaultCollection/]project/_git/repo`, and
+SSH `git@ssh.dev.azure.com:v3/org/project/repo`. They are stored as owner `org/project`, and
+project names may contain spaces. On save, the service checks the repository
 through the provider's public API and records `verification_status`:
 
 - `verified` — reachable; the provider's default branch is used unless you supplied one

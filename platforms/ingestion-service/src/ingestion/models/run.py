@@ -5,7 +5,7 @@ from sqlalchemy.sql import func
 
 from src.ingestion.db.base import Base
 
-CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "other", "local")
+CI_PROVIDERS = ("github_actions", "gitlab_ci", "jenkins", "azure_pipelines", "other", "local")
 STATUSES = ("passed", "failed", "skipped", "errored")
 
 
@@ -50,7 +50,7 @@ class Run(Base):
     __table_args__ = (
         UniqueConstraint("project_id", "idempotency_key", name="uq_test_runs_project_idempotency"),
         CheckConstraint(
-            "ci_provider IN ('github_actions','gitlab_ci','jenkins','other','local')", name="chk_test_runs_ci_provider"
+            "ci_provider IN ('github_actions','gitlab_ci','jenkins','azure_pipelines','other','local')", name="chk_test_runs_ci_provider"
         ),
         Index("ix_test_runs_project_created", "project_id", "created_at"),
         Index("ix_test_runs_project_branch", "project_id", "branch"),

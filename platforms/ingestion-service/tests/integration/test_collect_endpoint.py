@@ -130,6 +130,13 @@ def test_invalid_idempotency_key_is_422(client, make_key, idem):
     assert client.post(URL, json=upload_body(), headers=key_headers(key, idem)).status_code == 422
 
 
+def test_azure_pipelines_runs_are_accepted(client, make_key, db):
+    _, key = make_key()
+    response = client.post(URL, json=upload_body(ci_provider="azure_pipelines"), headers=key_headers(key))
+    assert response.status_code == 201, response.text
+    assert db.query(Run).one().ci_provider == "azure_pipelines"
+
+
 def test_invalid_payload_is_422_and_counted(client, make_key, db):
     _, key = make_key()
     before = rejected("validation")

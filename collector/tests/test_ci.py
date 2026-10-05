@@ -114,3 +114,65 @@ def test_gitlab_merge_request_number_and_base():
     info = detect(env)
     assert info.pr_number == 45
     assert info.base_branch == "develop"
+
+
+AZURE = {
+    "TF_BUILD": "True",
+    "BUILD_SOURCEVERSION": "c" * 40,
+    "BUILD_SOURCEBRANCH": "refs/heads/main",
+    "BUILD_SOURCEBRANCHNAME": "main",
+    "SYSTEM_COLLECTIONURI": "https://dev.azure.com/acme/",
+    "SYSTEM_TEAMPROJECT": "Shop QA",
+    "BUILD_BUILDID": "321",
+    "SYSTEM_JOBID": "12f1170f-54f2-53f3-20dd-22fc7dff55f9",
+    "SYSTEM_JOBATTEMPT": "1",
+}
+
+
+def test_azure_pipelines():
+    assert detect(AZURE) == CIInfo(
+        provider="azure_pipelines",
+        commit="c" * 40,
+        branch="main",
+        # The team project name may hold spaces: it is a path segment, so it is encoded
+        run_url="https://dev.azure.com/acme/Shop%20QA/_build/results?buildId=321",
+        idempotency_key="az-321-1-12f1170f-54f2-53f3-20dd-22fc7dff55f9",
+    )
+
+
+def test_azure_branch_keeps_its_slashes():
+    assert detect({**AZURE, "BUILD_SOURCEBRANCH": "refs/heads/feature/cart"}).branch == "feature/cart"
+
+
+def test_azure_pull_request_uses_the_source_branch_number_and_target():
+    info = detect({
+        **AZURE,
+        "BUILD_REASON": "PullRequest",
+        "BUILD_SOURCEBRANCH": "refs/pull/42/merge",
+        "SYSTEM_PULLREQUEST_SOURCEBRANCH": "refs/heads/feature/cart",
+        "SYSTEM_PULLREQUEST_TARGETBRANCH": "refs/heads/main",
+        "SYSTEM_PULLREQUEST_PULLREQUESTID": "42",
+    })
+    assert (info.branch, info.pr_number, info.base_branch) == ("feature/cart", 42, "main")
+
+
+def test_azure_pull_request_from_a_github_repository_uses_the_pr_number():
+    # For GitHub-hosted code the id is GitHub's internal one; the number is what people see
+    info = detect({
+        **AZURE,
+        "BUILD_REASON": "PullRequest",
+        "SYSTEM_PULLREQUEST_SOURCEBRANCH": "feature/cart",
+        "SYSTEM_PULLREQUEST_TARGETBRANCH": "main",
+        "SYSTEM_PULLREQUEST_PULLREQUESTID": "1789012345",
+        "SYSTEM_PULLREQUEST_PULLREQUESTNUMBER": "7",
+    })
+    assert (info.branch, info.pr_number, info.base_branch) == ("feature/cart", 7, "main")
+
+
+def test_azure_job_retry_gets_a_new_key():
+    assert detect({**AZURE, "SYSTEM_JOBATTEMPT": "2"}).idempotency_key.startswith("az-321-2-")
+
+
+def test_azure_without_a_build_id_has_no_key_and_no_url():
+    info = detect({k: v for k, v in AZURE.items() if k != "BUILD_BUILDID"})
+    assert info.run_url is None and info.idempotency_key is None

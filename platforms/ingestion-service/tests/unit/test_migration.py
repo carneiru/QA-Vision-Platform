@@ -66,6 +66,8 @@ def test_ci_provider_check(migrated_engine):
     with pytest.raises(IntegrityError):
         with migrated_engine.begin() as conn:
             conn.execute(text(RUN), {"idem": None, "provider": "travis"})
+    with migrated_engine.begin() as conn:  # added by migration 011
+        conn.execute(text(RUN), {"idem": None, "provider": "azure_pipelines"})
 
 
 def test_idempotency_key_unique_per_project_but_nulls_do_not_collide(migrated_engine):

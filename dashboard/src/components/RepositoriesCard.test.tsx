@@ -37,6 +37,8 @@ test("lists repositories with provider, link, branch and a worded status", async
                url: "https://gitlab.com/acme/qa/api-tests", verification_status: "not_found" }),
         repo({ id: 3, name: "mobile", url: "https://github.com/acme/mobile",
                default_branch: "develop", verification_status: "unchecked" }),
+        repo({ id: 4, provider: "azure_devops", owner: "acme/Shop QA", name: "e2e",
+               url: "https://dev.azure.com/acme/Shop%20QA/_git/e2e", verification_status: "not_found" }),
       ])),
   );
   renderCard();
@@ -44,10 +46,11 @@ test("lists repositories with provider, link, branch and a worded status", async
   expect(link).toHaveAttribute("href", "https://github.com/acme/e2e-tests");
   expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
   expect(screen.getByText("GitLab")).toBeInTheDocument();
+  expect(screen.getByText("Azure DevOps")).toBeInTheDocument();
   expect(screen.getByText("develop")).toBeInTheDocument();
   // status is words, not just a colour
   expect(screen.getByText("Reachable")).toBeInTheDocument();
-  expect(screen.getByText(/not found or private/i)).toBeInTheDocument();
+  expect(screen.getAllByText(/not found or private/i)).toHaveLength(2);
   expect(screen.getByText(/not checked/i)).toBeInTheDocument();
 });
 

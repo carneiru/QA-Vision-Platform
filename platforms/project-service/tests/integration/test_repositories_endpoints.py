@@ -247,3 +247,21 @@ def test_blank_branch_is_422(client, auth, org_role, make_project):
         headers=auth(),
     )
     assert response.status_code == 422
+
+
+def test_add_an_azure_devops_repository(client, auth, org_role, make_project, http):
+    project = make_project()
+    org_role("member")
+    http.get("https://dev.azure.com/acme/Shop%20QA/_apis/git/repositories/e2e").mock(
+        return_value=httpx.Response(200, json={"defaultBranch": "refs/heads/develop"})
+    )
+    response = client.post(
+        f"/api/v1/projects/{project.id}/repositories",
+        json={"url": "https://acme@dev.azure.com/acme/Shop%20QA/_git/e2e"},
+        headers=auth(),
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert (body["provider"], body["owner"], body["name"]) == ("azure_devops", "acme/Shop QA", "e2e")
+    assert body["url"] == "https://dev.azure.com/acme/Shop%20QA/_git/e2e"
+    assert (body["verification_status"], body["default_branch"]) == ("verified", "develop")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Mapping, Optional
+from urllib.parse import quote
 
 # The server takes Idempotency-Keys up to 255 characters; this leaves room for "-part-N"
 MAX_KEY_LENGTH = 200
@@ -48,6 +49,25 @@ def detect(env: Mapping[str, str]) -> CIInfo:
             pr_number=_int_or_none(get("CI_MERGE_REQUEST_IID")),
             base_branch=get("CI_MERGE_REQUEST_TARGET_BRANCH_NAME"),
         )
+    if (get("TF_BUILD") or "").lower() == "true":
+        collection, team_project, build_id = get("SYSTEM_COLLECTIONURI"), get("SYSTEM_TEAMPROJECT"), get("BUILD_BUILDID")
+        pull_request = get("BUILD_REASON") == "PullRequest"
+        branch = _azure_branch(get("SYSTEM_PULLREQUEST_SOURCEBRANCH")) if pull_request else None
+        return CIInfo(
+            provider="azure_pipelines",
+            commit=get("BUILD_SOURCEVERSION"),
+            branch=branch or _azure_branch(get("BUILD_SOURCEBRANCH")) or get("BUILD_SOURCEBRANCHNAME"),
+            run_url=(
+                f"{collection.rstrip('/')}/{quote(team_project)}/_build/results?buildId={build_id}"
+                if collection and team_project and build_id else None
+            ),
+            # For code on GitHub, the PR id is GitHub's internal one; the number is the visible one
+            pr_number=_int_or_none(get("SYSTEM_PULLREQUEST_PULLREQUESTNUMBER") or get("SYSTEM_PULLREQUEST_PULLREQUESTID"))
+            if pull_request else None,
+            base_branch=_azure_branch(get("SYSTEM_PULLREQUEST_TARGETBRANCH")) if pull_request else None,
+            # A retried job is a new execution, so it gets a new key on purpose
+            idempotency_key=_key("az", build_id, get("SYSTEM_JOBATTEMPT") or "1", get("SYSTEM_JOBID")) if build_id else None,
+        )
     if get("JENKINS_URL"):
         branch, tag = get("GIT_BRANCH"), get("BUILD_TAG")
         if branch and branch.startswith("origin/"):
@@ -78,6 +98,16 @@ def _int_or_none(value: Optional[str]) -> Optional[int]:
         return number if number > 0 else None
     except ValueError:
         return None
+
+
+def _azure_branch(ref: Optional[str]) -> Optional[str]:
+    """refs/heads/feature/x -> feature/x. Azure Repos gives full refs, GitHub-hosted code plain
+    names; a refs/pull/... merge ref is not a branch anyone works on."""
+    if not ref:
+        return None
+    if ref.startswith("refs/heads/"):
+        return ref[len("refs/heads/"):]
+    return None if ref.startswith("refs/") else ref
 
 
 def _pr_from_ref(ref_name: Optional[str]) -> Optional[int]:
