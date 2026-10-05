@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { RunStatusFilter, getRun } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import FailureGroups from "../components/FailureGroups";
 import FilterBar from "../components/FilterBar";
 import Message from "../components/Message";
 import StatusDot from "../components/StatusDot";
@@ -81,6 +82,8 @@ export default function RunDetailPage() {
               <div className="tile-label">Duration</div>
             </div>
           </div>
+
+          {run.failed + run.errored > 0 && <FailureGroups runId={run.id} projectId={projectId} />}
 
           {run.change_base_ref !== null && (
             <div className="card">

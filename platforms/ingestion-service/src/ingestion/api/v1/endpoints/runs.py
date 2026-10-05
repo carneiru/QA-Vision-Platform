@@ -9,7 +9,7 @@ from src.ingestion.api.deps import (
 )
 from src.ingestion.api.v1.endpoints.analytics import NO_NUL
 from src.ingestion.models.run import CI_PROVIDERS
-from src.ingestion.schemas.run import ChangedFileOut, ComponentOut, ResultOut, RunDetail, RunOut
+from src.ingestion.schemas.run import ChangedFileOut, ComponentOut, FailureGroupsOut, ResultOut, RunDetail, RunOut
 from src.ingestion.service import run_service
 
 project_router = APIRouter()  # mounted at /projects/{project_id}/runs
@@ -64,3 +64,19 @@ def get_run(
         changes=[ChangedFileOut.model_validate(f) for f in changes],
         components=[ComponentOut.model_validate(c) for c in components],
     )
+
+
+@router.get("/{run_id}/failure-groups", response_model=FailureGroupsOut)
+def get_failure_groups(
+    run_id: int,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(get_caller),
+):
+    run = run_service.get_run(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    project_id = run.project_id
+    # As get_run: no connection held during the access check
+    db.rollback()
+    check_project_role(project_id, caller, READ_ROLES, "Run not found")
+    return run_service.failure_groups(db, run_id)

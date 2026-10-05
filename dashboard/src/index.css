@@ -320,6 +320,17 @@ table.data tbody tr:hover td { background: var(--hover); }
 .fail-list { list-style: none; margin: 0; padding: 0; }
 .fail-list li { padding: var(--space-2) 0; border-bottom: 1px solid var(--grid); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .fail-list li:last-child { border-bottom: 0; }
+/* Failures by cause on the run page */
+.cause-list { list-style: none; margin: 0; padding: 0; }
+.cause-list > li { padding: var(--space-3) 0; border-bottom: 1px solid var(--grid); }
+.cause-list > li:last-child { border-bottom: 0; padding-bottom: 0; }
+.cause-head { display: flex; gap: var(--space-3); align-items: baseline; min-width: 0; }
+.cause-count { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 2.5em; color: var(--text-primary); }
+.cause-line { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.cause-list details { margin: var(--space-1) 0 0 calc(2.5em + var(--space-3)); }
+.cause-list summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); min-height: 24px; }
+.cause-list summary:hover { color: var(--text-primary); }
+.cause-tests { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); font-size: 13.5px; }
 .fail-list .msg { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-secondary); overflow-wrap: anywhere; }
 .meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); color: var(--text-secondary); font-size: 13px; }
 .meta > span { display: inline-flex; align-items: center; gap: 6px; }

@@ -88,6 +88,31 @@ export function listRuns(
   return apiFetch(`/api/v1/projects/${projectId}/runs${q}`);
 }
 
+export interface GroupedTest {
+  id: number;
+  test_key: string;
+  suite: string;
+  class_name: string;
+  name: string;
+  status: string;
+}
+
+/** Failed and errored tests that share one cause: the same error once run-specific values are ignored. */
+export interface FailureGroup {
+  signature: string;
+  /** The first message's first line; null when the tests reported no message. */
+  headline: string | null;
+  count: number;
+  failed: number;
+  errored: number;
+  /** The first 100; `count` has them all. */
+  tests: GroupedTest[];
+}
+
+export function getFailureGroups(runId: number): Promise<{ total: number; groups: FailureGroup[] }> {
+  return apiFetch(`/api/v1/runs/${runId}/failure-groups`);
+}
+
 export function getRun(runId: number, status?: RunStatusFilter): Promise<RunDetail> {
   const q = buildQuery({ status });
   return apiFetch(`/api/v1/runs/${runId}${q}`);

@@ -4,11 +4,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LIVE_REFRESH_MS } from "../lib/live";
 import { ArrowRight, CheckCircle2, Clock, GitBranch, GitCommitHorizontal, Server, XCircle } from "lucide-react";
 import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/analytics";
-import { getRun, listRuns, Run, RunResult } from "../api/runs";
+import { getFailureGroups, listRuns, Run } from "../api/runs";
 import ErrorBanner from "../components/ErrorBanner";
 import StatusDot from "../components/StatusDot";
 
-const MAX_FAILURES = 8;
+const MAX_CAUSES = 5;
 // The Flaky view's defaults, so both screens count the same tests
 const FLAKY = { windowDays: 14, minRuns: 5, minFlipRate: 0.3 };
 
@@ -24,7 +24,6 @@ function ago(iso: string): string {
   return relative.format(Math.round(value), "year");
 }
 
-const firstLine = (text: string | null) => (text ?? "").split("\n")[0];
 
 /** "What is broken now" in one screen: the latest run's verdict and failures,
  *  then the week's pass rate and the flaky count, each one click from depth. */
@@ -49,15 +48,10 @@ export default function OverviewPage() {
     }
     shownRun.current = latest?.id;
   }, [latest?.id, id, queryClient]);
-  const failed = useQuery({
-    queryKey: ["run", latest?.id, "failed"],
-    queryFn: () => getRun(latest!.id, "failed"),
-    enabled: latest !== undefined && latest.failed > 0,
-  });
-  const errored = useQuery({
-    queryKey: ["run", latest?.id, "errored"],
-    queryFn: () => getRun(latest!.id, "errored"),
-    enabled: latest !== undefined && latest.errored > 0,
+  const causes = useQuery({
+    queryKey: ["failure-groups", latest?.id],
+    queryFn: () => getFailureGroups(latest!.id),
+    enabled: latest !== undefined && latest.failed + latest.errored > 0,
   });
   const weeks = useQuery({
     queryKey: ["trends", id, "overview-weeks", tz],
@@ -87,7 +81,7 @@ export default function OverviewPage() {
   }
 
   const broken = latest.failed + latest.errored;
-  const failures: RunResult[] = [...(failed.data?.results ?? []), ...(errored.data?.results ?? [])];
+  const groups = causes.data?.groups ?? [];
   const buckets = weeks.data?.days ?? [];
   const thisWeek = buckets[buckets.length - 1];
   const lastWeek = buckets.length > 1 ? buckets[buckets.length - 2] : undefined;
@@ -126,21 +120,33 @@ export default function OverviewPage() {
       <section className="card" aria-labelledby="failing">
         <h2 id="failing">Failing in this run</h2>
         {broken === 0 && <p className="muted">Nothing failed in the latest run.</p>}
-        {broken > 0 && failures.length === 0 && <p className="muted">Loading failures…</p>}
-        {failures.length > 0 && (
-          <ul className="fail-list">
-            {failures.slice(0, MAX_FAILURES).map((r) => (
-              <li key={`${r.status}-${r.id}`}>
-                <Link to={`/projects/${id}/tests/${encodeURIComponent(r.test_key)}`}>{r.name}</Link>
-                <span className="where">{r.suite} / {r.class_name}</span>
-                {r.message && <span className="msg">{firstLine(r.message)}</span>}
-              </li>
-            ))}
-          </ul>
+        {broken > 0 && causes.isPending && <p className="muted">Loading failures…</p>}
+        {causes.error != null && <ErrorBanner error={causes.error} onRetry={() => causes.refetch()} />}
+        {groups.length > 0 && (
+          <>
+            <p className="muted">
+              {causes.data!.total} {causes.data!.total === 1 ? "test" : "tests"} · {groups.length}{" "}
+              {groups.length === 1 ? "cause" : "causes"}
+            </p>
+            <ul className="fail-list">
+              {groups.slice(0, MAX_CAUSES).map((g) => {
+                const first = g.tests[0];
+                return (
+                  <li key={g.signature}>
+                    {g.headline ? <span className="msg">{g.headline}</span> : <span className="where">No error message</span>}
+                    <span>
+                      <Link to={`/projects/${id}/tests/${encodeURIComponent(first.test_key)}`}>{first.name}</Link>
+                      {g.count > 1 && <span className="where"> and {g.count - 1} more</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
-        {broken > MAX_FAILURES && (
+        {broken > 0 && (groups.length > MAX_CAUSES || groups.some((g) => g.count > 1)) && (
           <div className="card-foot">
-            <Link className="link-arrow" to={`/projects/${id}/runs/${latest.id}`}>All {broken} failures <ArrowRight size={14} aria-hidden="true" /></Link>
+            <Link className="link-arrow" to={`/projects/${id}/runs/${latest.id}`}>All {broken} failures by cause <ArrowRight size={14} aria-hidden="true" /></Link>
           </div>
         )}
       </section>

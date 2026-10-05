@@ -136,3 +136,36 @@ test("git metadata renders when present", async () => {
   expect(screen.getByText(/fix\(cart\): keep totals stable/)).toBeInTheDocument();
   expect(screen.getByText(/PR #123/)).toBeInTheDocument();
 });
+
+test("failures are grouped by cause, each group lists its tests", async () => {
+  server.use(
+    http.get("/api/v1/runs/61", () => HttpResponse.json(detail([result]))),
+    http.get("/api/v1/runs/61/failure-groups", () => HttpResponse.json({
+      total: 4,
+      groups: [
+        { signature: "a1", headline: "TimeoutError: waiting for locator('#pay')", count: 3, failed: 2, errored: 1,
+          tests: [
+            { id: 1, test_key: "k1", suite: "checkout", class_name: "Cart", name: "pays by card", status: "failed" },
+            { id: 2, test_key: "k2", suite: "checkout", class_name: "Cart", name: "pays by voucher", status: "failed" },
+            { id: 3, test_key: "k3", suite: "checkout", class_name: "Cart", name: "pays later", status: "errored" },
+          ] },
+        { signature: "none", headline: null, count: 1, failed: 1, errored: 0,
+          tests: [{ id: 4, test_key: "k4", suite: "auth", class_name: "Login", name: "logs in", status: "failed" }] },
+      ],
+    })),
+  );
+  renderDetail();
+  expect(await screen.findByRole("heading", { name: /failures by cause/i })).toBeInTheDocument();
+  expect(await screen.findByText("TimeoutError: waiting for locator('#pay')")).toBeInTheDocument();
+  expect(screen.getByText(/no error message/i)).toBeInTheDocument();
+  expect(screen.getByText(/4 failures, 2 causes/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByText(/3 tests/));
+  expect(screen.getByRole("link", { name: "pays later" })).toHaveAttribute("href", "/projects/42/tests/k3");
+});
+
+test("a green run shows no cause section", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json({ ...detail([]), failed: 0, errored: 0 })));
+  renderDetail();
+  await screen.findByText("abcdef1");
+  expect(screen.queryByRole("heading", { name: /failures by cause/i })).not.toBeInTheDocument();
+});

@@ -204,3 +204,54 @@ def test_list_filters_combine(client, auth, project_role, make_run):
 def test_list_rejects_bad_filters(client, auth, project_role, query):
     project_role("viewer")
     assert client.get(f"/api/v1/projects/1/runs?{query}", headers=auth()).status_code == 422
+
+
+def add_failures(db, run, failures):
+    for i, (status, message) in enumerate(failures):
+        db.add(RunResult(run_id=run.id, test_key=f"f{i:063d}", suite="checkout", class_name="Cart",
+                         name=f"fails {i}", status=status, duration_ms=1, message=message))
+    db.commit()
+
+
+def test_failure_groups_put_one_cause_together(client, auth, project_role, make_run, db):
+    run = make_run(statuses=("passed",))
+    add_failures(db, run, [
+        ("failed", "TimeoutError: Timeout 30000ms waiting for locator('#pay')\n  at a.ts:1"),
+        ("failed", "TimeoutError: Timeout 15000ms waiting for locator('#pay')\n  at b.ts:9"),
+        ("errored", "TimeoutError: Timeout 5000ms waiting for locator('#pay')"),
+        ("failed", "AssertionError: 41.99 != 42.00"),
+        ("failed", None),
+    ])
+    project_role("viewer")
+    body = client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth()).json()
+    assert body["total"] == 5
+    groups = body["groups"]
+    assert [g["count"] for g in groups] == [3, 1, 1]
+    first = groups[0]
+    assert first["headline"] == "TimeoutError: Timeout 30000ms waiting for locator('#pay')"
+    assert (first["failed"], first["errored"]) == (2, 1)
+    assert [t["name"] for t in first["tests"]] == ["fails 0", "fails 1", "fails 2"]
+    assert {"test_key", "suite", "class_name", "status"} <= set(first["tests"][0])
+    assert groups[-1]["headline"] is None and groups[-1]["signature"] == "none"
+
+
+def test_failure_groups_of_a_green_run_are_empty(client, auth, project_role, make_run):
+    run = make_run(statuses=("passed", "skipped"))
+    project_role("viewer")
+    assert client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth()).json() == {"total": 0, "groups": []}
+
+
+def test_failure_groups_cap_listed_tests_but_count_all(client, auth, project_role, make_run, db):
+    run = make_run(statuses=("passed",))
+    add_failures(db, run, [("failed", "Boom") for _ in range(120)])
+    project_role("viewer")
+    group = client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth()).json()["groups"][0]
+    assert group["count"] == 120 and len(group["tests"]) == 100
+
+
+def test_failure_groups_respect_access(client, auth, project_role, make_run):
+    run = make_run(project_id=3)
+    assert client.get("/api/v1/runs/999999/failure-groups", headers=auth()).status_code == 404
+    project_role(project_id=3, status_code=404, body={"detail": "Project not found"})
+    response = client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth())
+    assert response.status_code == 404 and response.json()["detail"] == "Run not found"

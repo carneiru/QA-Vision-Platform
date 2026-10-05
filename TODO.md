@@ -310,7 +310,7 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] View screenshots and screen recordings attached to a run
 - [ ] Playwright trace viewer and step-by-step logs per failed TC *(suggested)*
 - [ ] Compare two runs side by side *(suggested)*
-- [ ] Group failures by error signature, so one broken locator shows as one problem, not forty *(suggested)*
+- [x] Group failures by error signature, so one broken locator shows as one problem, not forty. The first error line, with numbers, ids and hashes ignored (`analytics/signature.py`), groups a run's failures: `GET /api/v1/runs/{id}/failure-groups`; the run page shows **Failures by cause**, the Overview lists causes instead of tests
 - [ ] Shareable link to a failed run *(suggested)*
 - [x] Failure notifications to Slack/Teams/email. Slack, Microsoft Teams (Workflows webhook,
   Adaptive Card), generic https webhooks and email (one to five addresses) are done. Channels live in Settings → Notifications:

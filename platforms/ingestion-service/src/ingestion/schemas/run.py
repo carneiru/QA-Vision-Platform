@@ -69,6 +69,31 @@ class ComponentOut(BaseModel):
     sha: str
 
 
+class GroupedTestOut(BaseModel):
+    id: int
+    test_key: str
+    suite: str
+    class_name: str
+    name: str
+    status: str
+
+
+class FailureGroupOut(BaseModel):
+    """Failed and errored tests that share one cause (analytics/signature.py)."""
+
+    signature: str
+    headline: Optional[str] = None  # the first message's first line; None when there is no message
+    count: int
+    failed: int
+    errored: int
+    tests: list[GroupedTestOut]  # the first MAX_GROUP_TESTS; `count` has them all
+
+
+class FailureGroupsOut(BaseModel):
+    total: int
+    groups: list[FailureGroupOut]
+
+
 class RunDetail(RunOut):
     results: list[ResultOut]
     changes: list[ChangedFileOut] = []

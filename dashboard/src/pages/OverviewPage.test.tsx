@@ -22,6 +22,10 @@ const failing = (status: string, name: string, message: string) => ({
   duration_ms: 10, message, details: null, truncated: false, redacted: false, file: null, owner: null,
 });
 
+const grouped = (name: string, status = "failed") => ({
+  id: name.length, test_key: `k-${name}`, suite: "checkout", class_name: "Cart", name, status,
+});
+
 function detail(results: object[]) {
   return { ...RUN, results, changes: [], components: [] };
 }
@@ -35,6 +39,14 @@ function mockProject({ runs = [RUN] }: { runs?: object[] } = {}) {
       if (status === "errored") return HttpResponse.json(detail([failing("errored", "applies coupon", "TimeoutError")]));
       return HttpResponse.json(detail([]));
     }),
+    http.get("/api/v1/runs/61/failure-groups", () => HttpResponse.json({
+      total: 4,
+      groups: [
+        { signature: "a1", headline: "AssertionError: 41.99 != 42.00", count: 3, failed: 3, errored: 0,
+          tests: [grouped("pays with stored card"), grouped("pays with new card"), grouped("pays with voucher")] },
+        { signature: "b2", headline: "TimeoutError", count: 1, failed: 0, errored: 1, tests: [grouped("applies coupon", "errored")] },
+      ],
+    })),
     http.get("/api/v1/projects/42/analytics/trends", () => HttpResponse.json({
       tz: "UTC", bucket: "week",
       days: [
@@ -71,8 +83,11 @@ test("the latest run leads, with its verdict in words and what broke", async () 
   expect(screen.getByText(/fix\(cart\): keep totals stable/)).toBeInTheDocument();
   expect(await screen.findByRole("link", { name: "pays with stored card" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "applies coupon" })).toBeInTheDocument();
-  // only the first line of the failure message
+  // failures grouped by cause: the cause, how many tests, the first of them
   expect(screen.getByText("AssertionError: 41.99 != 42.00")).toBeInTheDocument();
+  expect(screen.getByText(/4 tests · 2 causes/)).toBeInTheDocument();
+  expect(screen.getByText(/and 2 more/)).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "pays with voucher" })).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: /open run #61/i })).toBeInTheDocument();
 });
 
