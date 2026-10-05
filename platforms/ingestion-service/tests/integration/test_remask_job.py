@@ -107,3 +107,14 @@ def test_masking_that_lengthens_text_is_cut_back_to_the_limit(db, session_factor
     assert len(row.message.encode()) <= 40
     assert row.truncated is True and row.redacted is True
     assert row.message == "x" * 26 + " password=[RED"  # the secret is gone; the cut lands in the marker
+
+
+def test_commit_subjects_already_stored_are_masked(db, session_factory, add_run, capsys):
+    run_id = add_run(results=[("plain", None)])
+    run = db.get(Run, run_id)
+    run.commit_message = f"rotate {SECRET}"
+    db.commit()
+    run_job(session_factory)
+    db.expire_all()
+    assert SECRET not in db.get(Run, run_id).commit_message
+    assert summary(capsys)["runs_changed"] == 1

@@ -48,8 +48,8 @@ Every project role can read; roles come from project-service.
 
 ## Masking
 
-Before a result is stored, its `message` and `details` are masked, and so is a password inside
-the run's `ci_run_url`. Each masked value becomes `[REDACTED:<kind>]`; the text around it stays
+Before a result is stored, its `message` and `details` are masked, and so are the run's commit
+subject (`commit_message`) and a password inside its `ci_run_url`. Each masked value becomes `[REDACTED:<kind>]`; the text around it stays
 readable. Test names, suites, classes, files and branches are never changed.
 
 | Kind | Matches |
@@ -75,7 +75,7 @@ readable. Test names, suites, classes, files and branches are never changed.
 - Results stored before masking existed (or before a new rule) are re-masked on demand:
   `python -m src.ingestion.jobs.remask [--dry-run] [--project ID] [--batch-size N]`
   (`docker compose exec ingestion-service python -m src.ingestion.jobs.remask --dry-run`). It
-  walks results by id in committed batches, prints a JSON summary (`results_scanned`,
+  walks results by id in committed batches (then run CI URLs and commit subjects), prints a JSON summary (`results_scanned`,
   `results_changed`, `runs_changed`, `kinds`), and is safe to repeat: masked text is skipped.
   Text that masking makes longer than 64 KB is cut back and marked `truncated`.
 

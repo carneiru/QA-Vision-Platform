@@ -56,3 +56,20 @@ def test_invalid_metadata_is_422(client, make_key):
                        headers=headers).status_code == 422
     assert client.post("/api/v1/collect/runs", json=upload_body(commit_author="a\x00b"),
                        headers=headers).status_code == 422
+
+
+def test_a_secret_in_the_commit_subject_is_masked(client, db, make_key):
+    from src.ingestion.models import Run
+    from src.ingestion.models.masking_pattern import MaskingPattern
+
+    _, key = make_key(project_id=1)
+    db.add(MaskingPattern(project_id=1, name="ticket", pattern=r"JIRA-\d+"))
+    db.commit()
+    subject = "hotfix JIRA-77: rotate token=ghp_" + "a" * 36 + " for ana@example.com"
+    created = client.post("/api/v1/collect/runs", json=upload_body(commit_message=subject),
+                          headers={"Authorization": f"Bearer {key}"})
+    assert created.status_code == 201, created.text
+    stored = db.query(Run).one().commit_message
+    assert "ghp_" not in stored and "ana@example.com" not in stored and "JIRA-77" not in stored
+    assert stored.startswith("hotfix [REDACTED:ticket]: rotate token=[REDACTED:")
+    assert len(stored) <= 500

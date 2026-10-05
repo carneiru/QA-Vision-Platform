@@ -13,12 +13,13 @@ import sys
 from collections import Counter
 from typing import List, Optional
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.core.config import settings
 from src.ingestion.models import Run, RunResult
 from src.ingestion.service import masking_pattern_service
-from src.ingestion.service.ingest_service import CI_RUN_URL_LENGTH, mask, truncate_utf8
+from src.ingestion.service.ingest_service import CI_RUN_URL_LENGTH, COMMIT_MESSAGE_LENGTH, mask, truncate_utf8
 
 
 class _ProjectPatterns:
@@ -84,18 +85,24 @@ def _results_pass(
 def _runs_pass(
     db: Session, project_id: Optional[int], dry_run: bool, kinds: Counter, patterns_for: _ProjectPatterns
 ) -> int:
-    query = db.query(Run).filter(Run.ci_run_url.isnot(None))
+    query = db.query(Run).filter(or_(Run.ci_run_url.isnot(None), Run.commit_message.isnot(None)))
     if project_id is not None:
         query = query.filter(Run.project_id == project_id)
     changed = 0
     for run in query.all():
-        masked, found = mask(run.ci_run_url, patterns_for(run.project_id))
+        patterns = patterns_for(run.project_id)
+        url, url_found = mask(run.ci_run_url, patterns)
+        subject, subject_found = mask(run.commit_message, patterns)
+        found = url_found | subject_found
         if not found:
             continue
         changed += 1
         kinds.update({kind: 1 for kind in found})
         if not dry_run:
-            run.ci_run_url = masked[:CI_RUN_URL_LENGTH]
+            if url_found:
+                run.ci_run_url = url[:CI_RUN_URL_LENGTH]
+            if subject_found:
+                run.commit_message = subject[:COMMIT_MESSAGE_LENGTH]
     if dry_run:
         db.rollback()
     else:

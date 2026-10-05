@@ -16,6 +16,7 @@ from src.ingestion.utils import custom_masking, metrics
 from src.ingestion.utils.redaction import redact
 
 CI_RUN_URL_LENGTH = 2048
+COMMIT_MESSAGE_LENGTH = 500
 
 
 class IdempotencyConflict(Exception):
@@ -80,6 +81,10 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
     ci_run_url = mask(meta.ci_run_url, patterns)[0]
     if ci_run_url is not None:
         ci_run_url = ci_run_url[:CI_RUN_URL_LENGTH]
+    # A commit subject is free text people type: secrets end up there too
+    commit_message = mask(meta.commit_message, patterns)[0]
+    if commit_message is not None:
+        commit_message = commit_message[:COMMIT_MESSAGE_LENGTH]
     masked_kinds: Counter = Counter()
     run = Run(
         project_id=key.project_id,
@@ -93,7 +98,7 @@ def ingest(db: Session, key: ApiKey, upload: RunUpload, idempotency_key: Optiona
         environment=meta.environment,
         agent_version=meta.agent_version,
         commit_author=meta.commit_author,
-        commit_message=meta.commit_message,
+        commit_message=commit_message,
         pr_number=meta.pr_number,
         base_branch=meta.base_branch,
         started_at=meta.started_at,
