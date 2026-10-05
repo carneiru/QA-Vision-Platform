@@ -83,6 +83,22 @@ def update_settings(db: Session, project: Project, patch: dict) -> Project:
     return project
 
 
+def place_legal_hold(db: Session, project: Project, user_id: int, reason: str) -> Project:
+    project.legal_hold_at = datetime.now(timezone.utc)
+    project.legal_hold_by = user_id
+    project.legal_hold_reason = reason
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+def release_legal_hold(db: Session, project: Project) -> Project:
+    project.legal_hold_at = project.legal_hold_by = project.legal_hold_reason = None
+    db.commit()
+    db.refresh(project)
+    return project
+
+
 def soft_delete(db: Session, project: Project) -> None:
     project.deleted_at = datetime.now(timezone.utc)
     db.commit()

@@ -34,9 +34,9 @@ def test_correct_credentials_list_every_project_with_its_retention(client, confi
     # When it was deleted, so the retention job can wait out a grace period before emptying it
     assert projects[2].pop("deleted_at").startswith("2026-09-01T12:00:00")
     assert projects == [
-        {"project_id": default.id, "result_retention_days": 90, "deleted": False, "deleted_at": None},
-        {"project_id": custom.id, "result_retention_days": 30, "deleted": False, "deleted_at": None},
-        {"project_id": gone.id, "result_retention_days": 90, "deleted": True},
+        {"project_id": default.id, "result_retention_days": 90, "deleted": False, "deleted_at": None, "legal_hold": False},
+        {"project_id": custom.id, "result_retention_days": 30, "deleted": False, "deleted_at": None, "legal_hold": False},
+        {"project_id": gone.id, "result_retention_days": 90, "deleted": True, "legal_hold": False},
     ]
 
 

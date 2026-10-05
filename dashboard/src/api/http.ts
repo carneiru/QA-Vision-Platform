@@ -100,6 +100,17 @@ async function rawFetch(path: string, init: RequestInit): Promise<Response> {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const response = await authorizedFetch(path, init);
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
+}
+
+/** A file the API serves (an export): same auth and refresh as apiFetch, body kept as a Blob. */
+export async function apiBlob(path: string): Promise<Blob> {
+  return (await authorizedFetch(path, {})).blob();
+}
+
+async function authorizedFetch(path: string, init: RequestInit): Promise<Response> {
   let response = await rawFetch(path, init);
 
   // A 401 from login/refresh/logout/sso is that endpoint's own verdict, not
@@ -115,6 +126,5 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
 
   if (!response.ok) throw await errorFrom(response);
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
+  return response;
 }

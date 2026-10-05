@@ -5,6 +5,7 @@ import { ApiKeyCreated, createKey, listKeys, revokeKey } from "../api/keys";
 import { getProject } from "../api/orgs";
 import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
+import DataCard from "../components/DataCard";
 import MaskingCard from "../components/MaskingCard";
 import RepositoriesCard from "../components/RepositoriesCard";
 
@@ -12,6 +13,7 @@ const COLLECTOR_REF = "collector-v0.1.0";
 
 // Mirrors EDIT_ROLES in platforms/project-service/src/project/api/deps.py
 const EDIT_ROLES = ["owner", "admin", "member"];
+const MANAGE_ROLES = ["owner", "admin"];
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 
@@ -234,6 +236,9 @@ export default function ProjectSettingsPage() {
       </div>
 
       <MaskingCard projectId={id} canEdit={project.data == null ? undefined : canEdit} />
+      {project.data != null && (
+        <DataCard project={project.data} canManage={MANAGE_ROLES.includes(project.data.my_role ?? "")} />
+      )}
     </section>
   );
 }

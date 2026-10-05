@@ -91,8 +91,19 @@ service runs it with `--loop`):
 - Deletes runs uploaded (`created_at`) more than that many days ago. A deleted project's API keys
   are revoked at once; its runs are all deleted once it has been deleted for more than
   `RETENTION_DELETED_GRACE_DAYS` (default 7) — until then a soft delete can still be undone.
+- A project on **legal hold** (`legal_hold: true` in the answer) loses nothing, whatever its age
+  or deletion; its keys are still revoked if it is deleted (that deletes no data). Each pass
+  reports `projects_held`. The field is required: an answer without it is untrustworthy.
 - Without a trustworthy answer (unreachable, not 200, unexpected body) it deletes nothing and
   exits 1. Projects missing from the answer are never touched.
+
+## Export
+
+`GET /api/v1/projects/{id}/export` (owners and admins) streams everything stored for a project
+as NDJSON (`application/x-ndjson`, `attachment`): an `export` header line (`format: 1`), then each
+run (`type: run`, with its `changed_files` and `components`) followed by its results
+(`type: result`). Text is exported as stored, masked. For a legal request, or before deleting
+a project. The dashboard's Settings → Data has a download button.
 - `RETENTION_INTERVAL_HOURS` (default 24) between passes with `--loop`; `RETENTION_BATCH_SIZE`
   (default 500) runs per transaction. One pass at a time (PostgreSQL advisory lock).
 - Logs one JSON line per pass; the password is never logged (`user:***@host`).

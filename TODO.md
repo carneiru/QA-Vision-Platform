@@ -117,7 +117,12 @@
 - [x] Revoke a project's API keys when the project is deleted — done by the retention job
 - [x] Re-mask results stored before masking existed — `python -m src.ingestion.jobs.remask [--dry-run] [--project ID]`: id-ordered committed batches, JSON summary, idempotent; text lengthened past 64 KB is cut back and flagged. Pilot data (9,853 results) checked: nothing to change
 - [x] Custom masking patterns per project — project Settings → Masking: up to 20 RE2 patterns (linear time, no ReDoS; ADR-020), refused with a reason when invalid or matching empty text, named markers `[REDACTED:customer_id]`, a preview showing the sample exactly as it would be stored; applied at ingest and by the re-mask command, never across projects
-- [ ] Legal hold and data export before deletion
+- [x] Legal hold and data export before deletion. In Settings → Data, owners and admins can place
+  or release a legal hold. The hold is stored in project-service columns with who, when and why.
+  The retention list reports it, and the retention job deletes nothing of a held project; an
+  answer without the field stops the pass. The same card downloads an NDJSON export of every
+  run and result, streamed from ingestion and masked as stored. Verified live: the dry run
+  reports `projects_held: 1`, and the export runs through the gateway.
 
 ### Collector agent (Phase 2, step 2)
 - [x] `qav-collector upload`: JUnit XML (pytest, Surefire, Playwright, cucumber-js), one run per CI job

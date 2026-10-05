@@ -1,4 +1,5 @@
 """Retention: delete runs older than each project's retention period, and empty deleted projects.
+A project on legal hold loses nothing.
 
     python -m src.ingestion.jobs.retention [--dry-run] [--loop]
 
@@ -41,6 +42,7 @@ class Policy:
     days: int
     deleted: bool
     deleted_at: Optional[datetime] = None
+    legal_hold: bool = False
 
 
 @dataclass(frozen=True)
@@ -98,6 +100,8 @@ def _policy(item: object, endpoint: Endpoint) -> Policy:
         or not _is_int(item.get("result_retention_days"))
         or not 1 <= item["result_retention_days"] <= 365
         or not isinstance(item.get("deleted"), bool)
+        # Required, not defaulted: an answer that says nothing about holds could hide one
+        or not isinstance(item.get("legal_hold"), bool)
     ):
         raise RetentionError(f"{endpoint.display} returned an unexpected body")
     deleted_at = None
@@ -108,7 +112,7 @@ def _policy(item: object, endpoint: Endpoint) -> Policy:
             raise RetentionError(f"{endpoint.display} returned a deleted project without a usable deleted_at")
     return Policy(
         project_id=item["project_id"], days=item["result_retention_days"], deleted=item["deleted"],
-        deleted_at=deleted_at,
+        deleted_at=deleted_at, legal_hold=item["legal_hold"],
     )
 
 
@@ -126,16 +130,19 @@ def _aware_time(value: object) -> Optional[datetime]:
 def run_pass(
     db: Session, policies: List[Policy], now: datetime, *, batch_size: int, dry_run: bool, grace_days: int = 7
 ) -> dict:
-    runs_deleted = keys_revoked = 0
+    runs_deleted = keys_revoked = projects_held = 0
     for policy in policies:
+        if policy.legal_hold:
+            projects_held += 1
         runs = db.query(Run.id).filter(Run.project_id == policy.project_id)
         # A soft delete can be undone: a deleted project is emptied only once the grace period is
         # over; until then the usual retention applies (its keys are revoked at once, below)
         empty_it = policy.deleted and policy.deleted_at <= now - timedelta(days=grace_days)
         if not empty_it:
             runs = runs.filter(Run.created_at < now - timedelta(days=policy.days))
-        runs_deleted += runs.count() if dry_run else _delete_in_batches(db, runs, batch_size)
-        if policy.deleted:
+        if not policy.legal_hold:  # on hold: nothing of it is deleted, whatever its age
+            runs_deleted += runs.count() if dry_run else _delete_in_batches(db, runs, batch_size)
+        if policy.deleted:  # revoking keys deletes no data, so a hold does not stop it
             keys = db.query(ApiKey).filter(ApiKey.project_id == policy.project_id, ApiKey.revoked_at.is_(None))
             if dry_run:
                 keys_revoked += keys.count()
@@ -152,6 +159,7 @@ def run_pass(
         "runs_deleted": runs_deleted,
         "keys_revoked": keys_revoked,
         "projects_skipped": len(known - listed),
+        "projects_held": projects_held,
         "dry_run": dry_run,
     }
 

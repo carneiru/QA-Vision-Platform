@@ -30,13 +30,21 @@ The repository is saved in every case. `POST .../repositories/{id}/verify` re-ch
 once per `REPO_VERIFY_COOLDOWN_SECONDS` (default 60): GitHub allows 60 anonymous requests per hour
 per server IP, shared by every user.
 
+## Legal hold
+
+`PUT /api/v1/projects/{id}/legal-hold` `{"reason": "…"}` places a hold, and `DELETE` releases it.
+Both are for owners and admins only, and the reason is required. While held, retention deletes
+nothing of the project. Every `GET /projects/{id}` shows `legal_hold: {since, by, reason}`, or
+`null` when there is no hold. The hold is stored in its own columns, not in `settings`: settings
+are editable by members, and a hold must record who placed it, when and why.
+
 ## Internal API
 
 `GET /internal/v1/projects/retention` lists every project — deleted ones too — with its effective
-`result_retention_days`, for ingestion-service's retention job:
+`result_retention_days` and whether it is on legal hold, for ingestion-service's retention job:
 
 ```json
-{"projects": [{"project_id": 7, "result_retention_days": 90, "deleted": false, "deleted_at": null}]}
+{"projects": [{"project_id": 7, "result_retention_days": 90, "deleted": false, "deleted_at": null, "legal_hold": false}]}
 ```
 
 - HTTP Basic, checked against `INTERNAL_API_USERNAME` (default `ingestion-service`) and

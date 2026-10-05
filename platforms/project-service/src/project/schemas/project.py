@@ -30,6 +30,16 @@ class ProjectUpdate(BaseModel):
         return self
 
 
+class LegalHoldIn(BaseModel):
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+
+
+class LegalHoldOut(BaseModel):
+    since: datetime
+    by: Optional[int] = None
+    reason: Optional[str] = None
+
+
 class ProjectOut(BaseModel):
     id: int
     organization_id: int
@@ -41,3 +51,4 @@ class ProjectOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     my_role: str
+    legal_hold: Optional[LegalHoldOut] = None

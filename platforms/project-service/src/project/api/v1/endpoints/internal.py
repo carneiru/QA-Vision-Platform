@@ -27,6 +27,8 @@ class ProjectRetention(BaseModel):
     deleted: bool
     # When it was deleted: the retention job waits a grace period before emptying it
     deleted_at: Optional[datetime] = None
+    # On legal hold: the retention job must delete nothing of it, whatever its age or deletion
+    legal_hold: bool
 
 
 class RetentionList(BaseModel):
@@ -61,6 +63,7 @@ def list_retention(_: None = Depends(require_internal_caller), db: Session = Dep
             result_retention_days=settings_view(project.settings).result_retention_days,
             deleted=project.deleted_at is not None,
             deleted_at=project.deleted_at,
+            legal_hold=project.legal_hold_at is not None,
         )
         for project in projects
     ])

@@ -76,12 +76,14 @@ def summary(capsys):
 
 
 def live(project_id, days):
-    return {"project_id": project_id, "result_retention_days": days, "deleted": False, "deleted_at": None}
+    return {"project_id": project_id, "result_retention_days": days, "deleted": False, "deleted_at": None,
+            "legal_hold": False}
 
 
 def gone(project_id, days_ago, days=30):
     deleted_at = (NOW - timedelta(days=days_ago)).isoformat()
-    return {"project_id": project_id, "result_retention_days": days, "deleted": True, "deleted_at": deleted_at}
+    return {"project_id": project_id, "result_retention_days": days, "deleted": True, "deleted_at": deleted_at,
+            "legal_hold": False}
 
 
 def test_runs_older_than_the_retention_period_are_deleted(db, session_factory, answer, add_run, capsys):
@@ -95,7 +97,7 @@ def test_runs_older_than_the_retention_period_are_deleted(db, session_factory, a
     assert remaining(db) == [recent]
     assert db.query(RunResult).count() == 1
     assert summary(capsys) == {"event": "retention", "projects": 1, "runs_deleted": 3, "keys_revoked": 0,
-                               "projects_skipped": 0, "dry_run": False}
+                               "projects_skipped": 0, "projects_held": 0, "dry_run": False}
 
 
 def test_a_deleted_projects_runs_are_deleted_and_its_keys_revoked(db, session_factory, answer, add_run, make_key):
@@ -233,7 +235,41 @@ def test_a_recently_deleted_project_keeps_its_runs_for_the_grace_period(db, sess
 def test_a_deleted_project_without_a_usable_deletion_time_fails_the_pass(db, session_factory, answer, add_run,
                                                                        deleted_at):
     old = add_run(1, 400)
-    answer([{"project_id": 1, "result_retention_days": 30, "deleted": True, "deleted_at": deleted_at}])
+    answer([{"project_id": 1, "result_retention_days": 30, "deleted": True, "deleted_at": deleted_at,
+             "legal_hold": False}])
 
+    assert run_job(session_factory) == 1
+    assert remaining(db) == [old]
+
+
+def held(policy):
+    return {**policy, "legal_hold": True}
+
+
+def test_a_project_on_legal_hold_loses_nothing(db, session_factory, answer, add_run, capsys):
+    old = add_run(1, 400)
+    answer([held(live(1, 30))])
+    assert run_job(session_factory) == 0
+    assert remaining(db) == [old]
+    assert summary(capsys)["projects_held"] == 1
+
+
+def test_a_deleted_project_on_legal_hold_is_not_emptied(db, session_factory, answer, add_run, make_key):
+    kept = add_run(1, 1)
+    key, _ = make_key(project_id=1)
+    answer([held(gone(1, days_ago=60))])
+    assert run_job(session_factory) == 0
+    assert remaining(db) == [kept]
+    # Keys still stop working: revoking a key deletes no data
+    db.expire_all()
+    assert db.get(ApiKey, key.id).revoked_at is not None
+
+
+def test_a_project_without_a_legal_hold_answer_stops_the_pass(db, session_factory, answer, add_run):
+    # An older project-service that does not report holds: deleting could destroy held data
+    old = add_run(1, 400)
+    policy = live(1, 30)
+    del policy["legal_hold"]
+    answer([policy])
     assert run_job(session_factory) == 1
     assert remaining(db) == [old]

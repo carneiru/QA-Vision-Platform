@@ -6,7 +6,7 @@ from src.project.api.deps import (
     EDIT_ROLES, MANAGE_ROLES, READ_ROLES, OrgAccess, ProjectAccess, get_db, require_org_role, require_project_role,
 )
 from src.project.models.project import Project
-from src.project.schemas.project import ProjectCreate, ProjectOut, ProjectUpdate
+from src.project.schemas.project import LegalHoldIn, LegalHoldOut, ProjectCreate, ProjectOut, ProjectUpdate
 from src.project.schemas.settings import settings_view
 from src.project.service import project_service
 
@@ -26,6 +26,10 @@ def _out(project: Project, role: str) -> ProjectOut:
         created_at=project.created_at,
         updated_at=project.updated_at,
         my_role=role,
+        legal_hold=(
+            LegalHoldOut(since=project.legal_hold_at, by=project.legal_hold_by, reason=project.legal_hold_reason)
+            if project.legal_hold_at is not None else None
+        ),
     )
 
 
@@ -89,6 +93,25 @@ def update_settings(
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
     return _out(project, access.role)
+
+
+@router.put("/{project_id}/legal-hold", response_model=ProjectOut)
+def place_legal_hold(
+    payload: LegalHoldIn,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*MANAGE_ROLES)),
+):
+    """Retention deletes nothing of a held project until the hold is released."""
+    project = project_service.place_legal_hold(db, access.project, access.user_id, payload.reason)
+    return _out(project, access.role)
+
+
+@router.delete("/{project_id}/legal-hold", response_model=ProjectOut)
+def release_legal_hold(
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*MANAGE_ROLES)),
+):
+    return _out(project_service.release_legal_hold(db, access.project), access.role)
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

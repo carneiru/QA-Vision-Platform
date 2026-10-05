@@ -26,6 +26,11 @@ class Project(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    # Legal hold: while set, retention deletes nothing of this project. Columns, not a settings
+    # key: only owners and admins may change it, and who/when/why must be recorded.
+    legal_hold_at = Column(DateTime(timezone=True), nullable=True)
+    legal_hold_by = Column(Integer, nullable=True)
+    legal_hold_reason = Column(String(500), nullable=True)
 
     __table_args__ = (
         # Unique among live projects only, so a deleted project's name and slug can be reused

@@ -12,6 +12,26 @@ export interface Project {
   name: string;
   organization_id?: number; // present on GET /projects/{id}; list rows may omit it
   my_role?: string;
+  settings?: { result_retention_days: number };
+  legal_hold?: LegalHold | null;
+}
+
+export interface LegalHold {
+  since: string;
+  by: number | null;
+  reason: string | null;
+}
+
+/** While on hold, retention deletes nothing of the project. Owners and admins only. */
+export function placeLegalHold(projectId: number, reason: string): Promise<Project> {
+  return apiFetch(`/api/v1/projects/${projectId}/legal-hold`, {
+    method: "PUT",
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function releaseLegalHold(projectId: number): Promise<Project> {
+  return apiFetch(`/api/v1/projects/${projectId}/legal-hold`, { method: "DELETE" });
 }
 
 export interface Member {

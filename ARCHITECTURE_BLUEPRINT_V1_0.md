@@ -517,7 +517,7 @@ Open, in rough order:
 3. mTLS collector <-> platform
 4. ~~Re-mask results stored before masking existed (one-off command)~~ — closed 2026-10-05: `src.ingestion.jobs.remask`
 5. ~~Custom masking patterns per project~~ — closed 2026-10-05: RE2 patterns in project Settings (ADR-020)
-6. Legal hold and data export before deletion
+6. ~~Legal hold and data export before deletion~~: closed 2026-10-05. A project-service hold that the retention job honours, plus an NDJSON export from ingestion.
 7. Single sign-out; personal Microsoft accounts; Entra groups -> org roles; SCIM
 8. SAML 2.0 (blocked on an IdP for honest verification)
 9. Real certificates at the gateway (with the Kubernetes trigger)
