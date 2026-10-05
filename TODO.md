@@ -124,6 +124,7 @@
 - [x] Retries with backoff and a 2-minute budget; HTTPS and verified TLS; the key never printed
 - [x] CI: tests on Python 3.9 and 3.12; end-to-end upload through the gateway in the smoke test
 - [x] Tag `collector-v0.1.0` — release workflow builds+verifies on the tag
+- [x] Dogfooding: this repository's CI reports its own results (four service suites, dashboard, collector on 3.9/3.12) through the collector built from the same commit; enabled by the QAV_URL repository variable + QAV_API_KEY secret, push and same-repo PRs only, never fails the build
 - [ ] Phase 2 exit criteria: agents on 3 CI platforms in real projects; 10k test executions ingested
 
 ### Collector — nice to have

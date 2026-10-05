@@ -4,3 +4,4 @@
 .claude/proven-config.json
 .playwright-mcp/
 .env
+reports/
