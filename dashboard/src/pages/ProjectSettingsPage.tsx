@@ -2,10 +2,15 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiKeyCreated, createKey, listKeys, revokeKey } from "../api/keys";
+import { getProject } from "../api/orgs";
 import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
+import RepositoriesCard from "../components/RepositoriesCard";
 
 const COLLECTOR_REF = "collector-v0.1.0";
+
+// Mirrors EDIT_ROLES in platforms/project-service/src/project/api/deps.py
+const EDIT_ROLES = ["owner", "admin", "member"];
 
 const LOCAL_HOSTS = ["localhost", "127.0.0.1", "[::1]"];
 
@@ -81,6 +86,9 @@ export default function ProjectSettingsPage() {
   const snippets = useMemo(() => ciSnippets(window.location.origin), []);
 
   const keys = useQuery({ queryKey: ["keys", id], queryFn: () => listKeys(id) });
+  // Same key as ProjectLayout, so this is served from its cache
+  const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
+  const canEditRepos = EDIT_ROLES.includes(project.data?.my_role ?? "");
 
   const create = useMutation({
     mutationFn: () => createKey(id, name.trim()),
@@ -108,6 +116,7 @@ export default function ProjectSettingsPage() {
   return (
     <section>
       <h2 className="sr-only">Project settings</h2>
+      <RepositoriesCard projectId={id} canEdit={project.data == null ? undefined : canEditRepos} />
       <div className="card">
         <h3>API keys</h3>
         <p className="muted">

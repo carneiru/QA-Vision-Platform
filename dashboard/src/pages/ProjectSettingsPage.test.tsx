@@ -14,8 +14,13 @@ const KEYS = [
     last_used_at: null, revoked_at: "2026-09-15T10:00:00Z" },
 ];
 
-function renderPage() {
+function renderPage(role = "member") {
   setAccessToken("acc");
+  server.use(
+    http.get("/api/v1/projects/42", () =>
+      HttpResponse.json({ id: 42, name: "Web", organization_id: 1, my_role: role })),
+    http.get("/api/v1/projects/42/repositories", () => HttpResponse.json([])),
+  );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
@@ -27,6 +32,20 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+test("repositories come first, editable for members", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage("member");
+  expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Repositories");
+  expect(await screen.findByLabelText(/repository url/i)).toBeInTheDocument();
+});
+
+test("a viewer gets the repositories read-only", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage("viewer");
+  expect(await screen.findByText(/only owners, admins and members/i)).toBeInTheDocument();
+  expect(screen.queryByLabelText(/repository url/i)).not.toBeInTheDocument();
+});
 
 test("lists keys with prefix, last use, and revoked state", async () => {
   server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json(KEYS)));

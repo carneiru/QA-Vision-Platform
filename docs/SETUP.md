@@ -57,7 +57,8 @@ Data lives in Docker volumes (`qa-vision_*`): it survives `down` and restarts, n
    ```
    Open the `https://localhost:8443/verify-email?token=…` link: it signs you in. A link works
    **once** and expires after **24 hours**. To send real email, see `deploy/README.md` §5.
-3. **Projects → New organization**, then **New project** under it.
+3. **Projects → New organization**, then **New project** under it. In the project's
+   **Settings → Repositories**, paste the address of the repository your tests live in.
 4. **Invite colleagues:** sidebar → **Organization** → invite by email → **Copy link** and send
    it to them; they open it after creating their own account.
 
