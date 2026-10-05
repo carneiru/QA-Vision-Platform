@@ -123,7 +123,7 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
           <tbody>
             {channels.data.map((c) => (
               <tr key={c.id}>
-                <td>
+                <td className="channel-cell">
                   <strong>{c.name}</strong>
                   <div className="muted">{KINDS[c.kind]?.label ?? c.kind}</div>
                 </td>

@@ -229,6 +229,8 @@ table.data tbody tr:hover td { background: var(--hover); }
 /* Long user-supplied identifiers (nested GitLab groups) wrap instead of widening the table */
 .wrap-anywhere { overflow-wrap: anywhere; }
 .row-actions { white-space: nowrap; text-align: right; }
+/* A name cell beside a block of actions: wide enough that short names stay on one line */
+.channel-cell { min-width: 9rem; }
 .row-actions > * + * { margin-left: var(--space-2); }
 /* A column whose content is repeated elsewhere in the row: dropped on phones so the rest fits */
 @media (max-width: 640px) { table.data .hide-narrow { display: none; } }

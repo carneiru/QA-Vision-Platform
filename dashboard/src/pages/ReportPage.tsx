@@ -167,17 +167,17 @@ export default function ReportPage() {
         <table className="data">
           <caption className="sr-only">Pass rate by week</caption>
           <thead>
-            <tr><th>Week of</th><th>Runs</th><th>Executions</th><th>Failures</th><th>Pass rate</th><th>Average run</th></tr>
+            <tr><th>Week of</th><th>Runs</th><th className="hide-narrow">Executions</th><th>Failures</th><th>Pass rate</th><th className="hide-narrow">Average run</th></tr>
           </thead>
           <tbody>
             {weeks.map((w) => (
               <tr key={w.date}>
                 <td>{new Date(`${w.date}T00:00:00`).toLocaleDateString()}</td>
                 <td>{number.format(w.runs)}</td>
-                <td>{number.format(w.total)}</td>
+                <td className="hide-narrow">{number.format(w.total)}</td>
                 <td>{number.format(w.failed + w.errored)}</td>
                 <td>{formatPassRate(w.pass_rate)}</td>
-                <td>{formatDuration(w.avg_run_duration_ms)}</td>
+                <td className="hide-narrow">{formatDuration(w.avg_run_duration_ms)}</td>
               </tr>
             ))}
           </tbody>
