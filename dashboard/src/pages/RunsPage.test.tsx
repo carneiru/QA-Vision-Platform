@@ -7,6 +7,11 @@ import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
 import RunsPage from "./RunsPage";
 
+// The live tests poll fast; the others never poll during the test
+const live = vi.hoisted(() => ({ ms: 60_000 }));
+vi.mock("../lib/live", () => ({ get LIVE_REFRESH_MS() { return live.ms; } }));
+afterEach(() => { live.ms = 60_000; });
+
 const run = (id: number) => ({
   id, project_id: 42, ci_provider: "github_actions",
   ci_run_url: "https://ci.example/run/" + id, commit_sha: "abcdef1234567890",
@@ -137,4 +142,37 @@ test("clear filters drops every filter and refetches", async () => {
   expect([...q.keys()].sort()).toEqual(["limit", "offset"]);
   expect(screen.getByTestId("location")).toBeEmptyDOMElement();
   expect(screen.getByLabelText(/branch/i)).toHaveValue("");
+});
+
+test("first page refreshes on its own and announces new runs", async () => {
+  live.ms = 60;
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/projects/42/runs", () => {
+      calls += 1;
+      return HttpResponse.json(calls === 1 ? [run(1)] : [run(3), run(2), run(1)]);
+    }),
+  );
+  renderRuns();
+  await screen.findByRole("link", { name: /#1\b/ });
+  expect(await screen.findByRole("link", { name: /#3\b/ })).toBeInTheDocument();
+  expect(await screen.findByText("2 new runs")).toHaveAttribute("role", "status");
+});
+
+test("later pages do not refresh on their own", async () => {
+  live.ms = 60;
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/projects/42/runs", ({ request }) => {
+      const offset = Number(new URL(request.url).searchParams.get("offset"));
+      if (offset > 0) calls += 1;
+      return HttpResponse.json(offset === 0 ? Array.from({ length: 50 }, (_, i) => run(i + 1)) : [run(99)]);
+    }),
+  );
+  renderRuns();
+  await screen.findByRole("link", { name: /#1\b/ });
+  await userEvent.click(screen.getByRole("button", { name: /next/i }));
+  await screen.findByRole("link", { name: /#99/ });
+  await new Promise((r) => setTimeout(r, 300));
+  expect(calls).toBe(1);
 });

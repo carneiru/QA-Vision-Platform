@@ -1,5 +1,7 @@
 import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LIVE_REFRESH_MS } from "../lib/live";
 import { ArrowRight, CheckCircle2, Clock, GitBranch, GitCommitHorizontal, Server, XCircle } from "lucide-react";
 import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/analytics";
 import { getRun, listRuns, Run, RunResult } from "../api/runs";
@@ -31,8 +33,22 @@ export default function OverviewPage() {
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-  const runs = useQuery({ queryKey: ["runs", id, "latest"], queryFn: () => listRuns(id, { limit: 1, offset: 0 }) });
+  const queryClient = useQueryClient();
+  const runs = useQuery({
+    queryKey: ["runs", id, "latest"],
+    queryFn: () => listRuns(id, { limit: 1, offset: 0 }),
+    refetchInterval: LIVE_REFRESH_MS,
+  });
   const latest: Run | undefined = runs.data?.[0];
+  // A new upload moves the week's pass rate and the flaky count too
+  const shownRun = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (shownRun.current !== undefined && latest?.id !== shownRun.current) {
+      queryClient.invalidateQueries({ queryKey: ["trends", id] });
+      queryClient.invalidateQueries({ queryKey: ["flaky", id] });
+    }
+    shownRun.current = latest?.id;
+  }, [latest?.id, id, queryClient]);
   const failed = useQuery({
     queryKey: ["run", latest?.id, "failed"],
     queryFn: () => getRun(latest!.id, "failed"),

@@ -101,7 +101,7 @@
 - [ ] Shared rate limits in Redis — *when more than one gateway instance runs*
 - [ ] JWT validation and per-user limits at the gateway — *when the gateway should reject bad tokens itself*
 - [ ] API docs through the gateway — *when a frontend or partner needs browsable docs*
-- [ ] WebSockets — *Phase 3, real-time features*
+- [ ] WebSockets / SSE — *Phase 3, real-time features*. Deferred by ADR-021: new runs reach the dashboard by polling every 30 s; push starts (SSE first, Redis fan-out) when the collector streams partial results
 
 ### Ingestion (Phase 2, step 1)
 - [x] ingestion-service: project API keys, POST /collect/runs (validation, idempotency, truncation), run read API, Prometheus metrics
@@ -214,6 +214,10 @@ Reliability and operations
   - **Save as PDF** prints through a print stylesheet: no app chrome, no page breaks inside rows.
   - **Download CSV** gives the per-test data behind the report.
   - Scheduled delivery by email (TODO 66) is still open; email channels exist now.
+- [x] Live runs (roadmap Phase 3, step 7, by polling: ADR-021). The first page of **Runs** and
+  the **Overview** refresh every 30 s while the tab is visible. New runs get a short tint and a
+  polite "N new runs" announcement; later pages never move under the reader. A new latest run
+  also refreshes the Overview's weekly pass rate and flaky count.
 - [x] Run filters and search (roadmap Phase 3, step 8). The **Runs** view filters by status
   (with failures / all green) and branch, and **More filters** adds environment, CI, commit
   prefix, pull request, author and a date range. Filters live in the URL, so a filtered view

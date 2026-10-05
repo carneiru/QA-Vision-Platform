@@ -6,6 +6,8 @@ import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
 import OverviewPage from "./OverviewPage";
 
+vi.mock("../lib/live", () => ({ LIVE_REFRESH_MS: 60 }));
+
 const RUN = {
   id: 61, project_id: 42, ci_provider: "github_actions", ci_run_url: null, commit_sha: "abcdef1234567890",
   branch: "main", environment: "staging", agent_version: "0.1.0", commit_author: "Ada",
@@ -88,4 +90,19 @@ test("a project without runs explains the next step instead of empty cards", asy
   renderPage();
   expect(await screen.findByText(/no runs yet/i)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /set up an api key/i })).toHaveAttribute("href", "/projects/42/settings");
+});
+
+test("a new run replaces the latest one without a reload", async () => {
+  mockProject();
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/projects/42/runs", () => {
+      calls += 1;
+      return HttpResponse.json([calls === 1 ? RUN : { ...RUN, id: 62, failed: 0, errored: 0, passed: 24 }]);
+    }),
+    http.get("/api/v1/runs/62", () => HttpResponse.json({ ...RUN, id: 62, results: [], changes: [], components: [] })),
+  );
+  renderPage();
+  expect(await screen.findByRole("link", { name: /open run #61/i })).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: /open run #62/i })).toBeInTheDocument();
 });

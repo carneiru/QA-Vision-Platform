@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
@@ -6,6 +6,7 @@ import { listRuns, RunFilters } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
+import { LIVE_REFRESH_MS } from "../lib/live";
 
 const PAGE = 50;
 
@@ -73,7 +74,26 @@ export default function RunsPage() {
     queryKey: ["runs", id, filters, offset],
     queryFn: () => listRuns(id, { limit: PAGE, offset, ...filters }),
     placeholderData: keepPreviousData,
+    // Only the first page follows new uploads; later pages would shift under the reader
+    refetchInterval: offset === 0 ? LIVE_REFRESH_MS : false,
   });
+
+  // Runs that arrived since the first page was last shown, announced once
+  const newest = useRef<{ view: string; top: number } | null>(null);
+  const [fresh, setFresh] = useState<Set<number>>(new Set());
+  const view = `${id}?${search}`;
+  useEffect(() => {
+    const data = query.data;
+    if (!data || offset !== 0 || query.isPlaceholderData) return;
+    const top = data.length > 0 ? data[0].id : 0;
+    const seen = newest.current;
+    if (seen && seen.view === view && top > seen.top) {
+      setFresh(new Set(data.filter((r) => r.id > seen.top).map((r) => r.id)));
+    } else if (!seen || seen.view !== view) {
+      setFresh(new Set());
+    }
+    newest.current = { view, top: Math.max(top, seen?.view === view ? seen.top : 0) };
+  }, [query.data, query.isPlaceholderData, offset, view]);
 
   function set(key: Key, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -168,6 +188,9 @@ export default function RunsPage() {
         </details>
       </form>
 
+      <p role="status" className="muted live-note">
+        {fresh.size > 0 && `${fresh.size} new run${fresh.size === 1 ? "" : "s"}`}
+      </p>
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading runs…</p>}
       {query.data && rows.length === 0 && (
@@ -196,7 +219,7 @@ export default function RunsPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} className={fresh.has(r.id) ? "row-new" : undefined}>
                   <td>
                     <Link to={`${r.id}`}>#{r.id}</Link>
                   </td>
