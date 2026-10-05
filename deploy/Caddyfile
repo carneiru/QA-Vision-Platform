@@ -1,0 +1,20 @@
+{
+	# Let's Encrypt account: certificate expiry notices go here
+	email {$ACME_EMAIL}
+}
+
+{$QAV_DOMAIN} {
+	encode zstd gzip
+
+	# Browsers keep to HTTPS for a year once they have seen the site over it
+	header Strict-Transport-Security "max-age=31536000"
+
+	# The gateway stays the application edge (routing, rate limits, JSON errors, request
+	# ids); Caddy only terminates public TLS and renews the certificate. Inside the compose
+	# network the gateway's certificate is self-signed, so this one hop skips verification.
+	reverse_proxy https://gateway:443 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}

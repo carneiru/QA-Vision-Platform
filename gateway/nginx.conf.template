@@ -33,7 +33,11 @@ http {
     '}';
     access_log /dev/stdout json;
 
-    # Keyed on the TCP peer, never on a header a client could set
+    # Empty unless GATEWAY_TRUSTED_PROXIES is set (see entrypoint.sh)
+    include /etc/nginx/real_ip.conf;
+
+    # Keyed on the client address: the TCP peer, or the real client behind a trusted
+    # edge proxy - never a header a client could set
     limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
     limit_req_zone $binary_remote_addr zone=auth:10m rate=5r/s;
     limit_req_zone $binary_remote_addr zone=collect:10m rate=10r/s;

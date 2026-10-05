@@ -127,6 +127,9 @@ curl -k https://localhost:8443/health          # {"status":"healthy"}
 
 Each service's own `docker-compose.yml` under `platforms/` still works for developing it alone.
 
+**Production on a VM:** see [`deploy/README.md`](deploy/README.md) — the same stack behind a
+Caddy TLS edge with a Let's Encrypt certificate, strong generated secrets and daily backups.
+
 ## Project Structure
 
 Services are grouped by domain at the repository root. Only the four under

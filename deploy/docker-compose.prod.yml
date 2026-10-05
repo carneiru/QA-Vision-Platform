@@ -1,0 +1,75 @@
+# Production overrides for one VM. Caddy terminates public TLS with a Let's Encrypt
+# certificate and is the only published service; everything else stays on the compose
+# network. Always used together with the base file, from the repository root:
+#
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# deploy/README.md is the installation guide.
+
+services:
+  postgres:
+    restart: unless-stopped
+  auth-service:
+    restart: unless-stopped
+    environment:
+      # Verification links in emails must point at the public address
+      BASE_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+  organization-service:
+    restart: unless-stopped
+  project-service:
+    restart: unless-stopped
+  ingestion-service:
+    restart: unless-stopped
+  ingestion-retention:
+    restart: unless-stopped
+  analytics-rollup:
+    restart: unless-stopped
+  dashboard:
+    restart: unless-stopped
+
+  gateway:
+    restart: unless-stopped
+    # Reachable only through the edge proxy
+    ports: !reset []
+    environment:
+      # The public HTTPS port, which service redirects are rewritten to
+      GATEWAY_HTTPS_PORT: "443"
+      # Believe X-Forwarded-For from the edge proxy's fixed address and nothing else, so
+      # per-IP rate limits see each real client instead of one shared proxy address. Not
+      # the whole subnet: that includes the Docker host's bridge address.
+      GATEWAY_TRUSTED_PROXIES: "172.30.0.10"
+
+  edge:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "${EDGE_HTTP_PORT:-80}:80"
+      - "${EDGE_HTTPS_PORT:-443}:443"
+    environment:
+      QAV_DOMAIN: ${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL (Let's Encrypt expiry notices)}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - qav_caddy_data:/data
+      - qav_caddy_config:/config
+    networks:
+      default:
+        # The one address the gateway trusts for X-Forwarded-For
+        ipv4_address: 172.30.0.10
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+networks:
+  # A fixed subnet, so the edge proxy can hold a fixed address. Dynamic addresses come
+  # from the upper half only: otherwise a service starting first can take .10.
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          ip_range: 172.30.0.128/25
+
+volumes:
+  # Certificates and the ACME account: losing this volume means re-issuing, not data loss
+  qav_caddy_data:
+  qav_caddy_config:

@@ -44,7 +44,8 @@ numbers in platforms/ingestion-service/README.md.
 
 - SAML 2.0 sign-in and real-tenant SSO verification: need an IdP / client
   IDs (note: `collaboration/` vendors an xmlsec source tree usable for SAML).
-- Production deployment target (cluster, domain, real certificates).
+- Production deployment: the package is ready and verified (`deploy/`, ADR-019: one VM,
+  Compose + Caddy TLS edge); waiting on a VM and a domain.
 
 ## 4. Later — target-architecture slices, each behind its blueprint trigger
 

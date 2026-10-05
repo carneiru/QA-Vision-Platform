@@ -95,6 +95,7 @@
 
 ### Gateway follow-ups
 - [ ] Monitoring dashboards (Prometheus/Grafana) — *Phase 1, "Basic monitoring stack"*
+- [x] Single-VM production deployment package — `deploy/` (ADR-019): Caddy TLS edge with Let's Encrypt as the only published service, gateway real-IP rate limits trusting only Caddy's fixed address, restart policies, `init-env.sh` strong secrets, daily `backup.sh` with restore verified, installation guide. Waiting on a VM + domain
 - [ ] Kubernetes ingress; real certificates — *Phase 1 infra, when a cluster exists*
 - [x] Service-to-service auth so organization-service can check users in auth-service — auth-service gained `GET /internal/v1/users/{id}` (HTTP Basic, same INTERNAL_API_PASSWORD pattern as project-service's retention API); the superuser `AUTH_SERVICE_TOKEN` is gone from config, compose and docs
 - [ ] Shared rate limits in Redis — *when more than one gateway instance runs*

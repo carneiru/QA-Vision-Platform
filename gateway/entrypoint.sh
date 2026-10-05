@@ -9,6 +9,22 @@ export GATEWAY_HTTPS_PORT
 # Substitute ONLY this variable, so NGINX's own $host, $request_uri, ... are left alone
 envsubst '${GATEWAY_HTTPS_PORT}' < /etc/qav/nginx.conf.template > /etc/nginx/nginx.conf
 
+# Behind a TLS edge proxy (deploy/ on a VM) every request arrives from the proxy's
+# address, so per-IP rate limits would be shared by all users. GATEWAY_TRUSTED_PROXIES
+# (space-separated CIDRs) names the proxies whose X-Forwarded-For is believed; nginx
+# then takes the right-most address no trusted proxy added - the real client - so a
+# client-supplied header can never pick its own bucket. Unset: the TCP peer, as before.
+: "${GATEWAY_TRUSTED_PROXIES:=}"
+REAL_IP=/etc/nginx/real_ip.conf
+: > "$REAL_IP"
+if [ -n "$GATEWAY_TRUSTED_PROXIES" ]; then
+  for cidr in $GATEWAY_TRUSTED_PROXIES; do
+    echo "set_real_ip_from $cidr;" >> "$REAL_IP"
+  done
+  echo "real_ip_header X-Forwarded-For;" >> "$REAL_IP"
+  echo "real_ip_recursive on;" >> "$REAL_IP"
+fi
+
 CERT_DIR=/etc/nginx/certs
 mkdir -p "$CERT_DIR"
 if [ ! -s "$CERT_DIR/tls.crt" ] || [ ! -s "$CERT_DIR/tls.key" ]; then
