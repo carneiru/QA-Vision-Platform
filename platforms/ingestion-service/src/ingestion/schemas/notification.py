@@ -14,6 +14,8 @@ class ChannelCreate(BaseModel):
     kind: Literal["slack", "teams", "webhook", "email"]
     url: str = Field(max_length=2048)
     branch: Optional[Branch] = None
+    on_failure: bool = True
+    weekly_summary: bool = False
 
 
 class ChannelUpdate(BaseModel):
@@ -22,6 +24,8 @@ class ChannelUpdate(BaseModel):
     name: Optional[Name] = None
     enabled: Optional[bool] = None
     branch: Optional[Branch] = None
+    on_failure: Optional[bool] = None
+    weekly_summary: Optional[bool] = None
 
 
 class ChannelOut(BaseModel):
@@ -33,6 +37,8 @@ class ChannelOut(BaseModel):
     target: str
     branch: Optional[str] = None
     enabled: bool
+    on_failure: bool
+    weekly_summary: bool
     last_status: Optional[str] = None
     last_error: Optional[str] = None
     last_sent_at: Optional[datetime] = None

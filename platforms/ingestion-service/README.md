@@ -113,12 +113,23 @@ has the counts, branch and commit, the first 5 failing tests (masked as stored) 
   - `slack`: an incoming webhook on `hooks.slack.com`.
   - `teams`: a Workflows (Power Automate) webhook on `*.logic.azure.com` or `*.powerplatform.com`,
     which gets an Adaptive Card.
-  - `webhook`: any public `https` URL; it gets JSON with `event: "run.failed"`.
+  - `webhook`: any public `https` URL; it gets JSON with `event: "run.failed"` or, for the
+    weekly summary, `event: "weekly.summary"`.
   - `email`: one to five addresses, as plain text through the SMTP settings shared with auth
     (`qav_shared.mail`). Without `SMTP_HOST` the delivery is recorded as failed, saying so.
 - **API:** `GET/POST /api/v1/projects/{id}/notification-channels`, `PATCH`/`DELETE …/{cid}`
-  (`name`, `enabled`, `branch`), and `POST …/{cid}/test`. Members and up can change channels;
-  viewers can read them. At most 10 per project.
+  (`name`, `enabled`, `branch`, `on_failure`, `weekly_summary`), and `POST …/{cid}/test`
+  (`?message=weekly` sends last week's real summary instead of a sample). Members and up can
+  change channels; viewers can read them. At most 10 per project.
+- **Weekly summary** (spec `docs/superpowers/specs/2026-10-05-weekly-summary-design.md`):
+  - Channels with `weekly_summary` on get the previous ISO week's numbers: runs, executions,
+    pass rate against the week before, failures and the five most-failing tests, with a link
+    to the Report. The channel's branch filter applies.
+  - The `weekly-summary` compose service runs `python -m src.ingestion.jobs.weekly_summary --loop`.
+    From Monday `WEEKLY_SUMMARY_HOUR_UTC` (default 7) it sends each channel once per week;
+    `last_weekly_week` remembers it across restarts and copies (advisory lock).
+  - A failed delivery is recorded and not retried that week.
+  - `on_failure` off turns a channel into summary-only.
 - **Delivery:**
   - It runs after the collect response, as a background task, so the collector never waits.
   - No database session is open during the call, and redirects are never followed.

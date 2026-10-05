@@ -12,6 +12,10 @@ export interface NotificationChannel {
   target: string;
   branch: string | null;
   enabled: boolean;
+  /** Failed runs as they arrive. */
+  on_failure: boolean;
+  /** Last week's numbers every Monday. */
+  weekly_summary: boolean;
   last_status: "delivered" | "failed" | null;
   last_error: string | null;
   last_sent_at: string | null;
@@ -25,7 +29,7 @@ export function listChannels(projectId: number): Promise<NotificationChannel[]> 
 
 export function addChannel(
   projectId: number,
-  body: { name: string; kind: ChannelKind; url: string; branch?: string },
+  body: { name: string; kind: ChannelKind; url: string; branch?: string; on_failure: boolean; weekly_summary: boolean },
 ): Promise<NotificationChannel> {
   return apiFetch(base(projectId), { method: "POST", body: JSON.stringify(body) });
 }
@@ -33,13 +37,19 @@ export function addChannel(
 export function updateChannel(
   projectId: number,
   channelId: number,
-  changes: Partial<Pick<NotificationChannel, "name" | "enabled" | "branch">>,
+  changes: Partial<Pick<NotificationChannel, "name" | "enabled" | "branch" | "on_failure" | "weekly_summary">>,
 ): Promise<NotificationChannel> {
   return apiFetch(`${base(projectId)}/${channelId}`, { method: "PATCH", body: JSON.stringify(changes) });
 }
 
-export function testChannel(projectId: number, channelId: number): Promise<{ status: string; error: string | null }> {
-  return apiFetch(`${base(projectId)}/${channelId}/test`, { method: "POST", body: "{}" });
+/** "test" sends a sample message; "weekly" sends last week's real summary now. */
+export function testChannel(
+  projectId: number,
+  channelId: number,
+  message: "test" | "weekly" = "test",
+): Promise<{ status: string; error: string | null }> {
+  const q = message === "weekly" ? "?message=weekly" : "";
+  return apiFetch(`${base(projectId)}/${channelId}/test${q}`, { method: "POST", body: "{}" });
 }
 
 export function removeChannel(projectId: number, channelId: number): Promise<void> {

@@ -11,6 +11,7 @@ const BASE = "/api/v1/projects/42/notification-channels";
 function channel(overrides: Record<string, unknown> = {}) {
   return {
     id: 1, name: "Web", kind: "slack", target: "hooks.slack.com/…abcd", branch: "main", enabled: true,
+    on_failure: true, weekly_summary: false,
     last_status: "delivered", last_error: null, last_sent_at: "2026-10-05T10:00:00Z", ...overrides,
   };
 }
@@ -64,7 +65,10 @@ test("adding sends kind, name (prefilled with the project), URL and branch", asy
   await userEvent.type(screen.getByLabelText(/only branch/i), "main");
   await userEvent.click(screen.getByRole("button", { name: /add channel/i }));
   expect(await screen.findByText("hooks.slack.com/…abcd")).toBeInTheDocument();
-  expect(sent).toEqual({ name: "Web", kind: "teams", url: "https://prod-1.westeurope.logic.azure.com/x", branch: "main" });
+  expect(sent).toEqual({
+    name: "Web", kind: "teams", url: "https://prod-1.westeurope.logic.azure.com/x", branch: "main",
+    on_failure: true, weekly_summary: false,
+  });
   expect(screen.getByLabelText(/webhook url/i)).toHaveValue("");
 });
 
@@ -154,5 +158,59 @@ test("an email channel takes addresses instead of a webhook URL", async () => {
   await userEvent.type(addresses, "qa@example.com,lead@example.com");
   await userEvent.click(screen.getByRole("button", { name: /add channel/i }));
   await vi.waitFor(() =>
-    expect(sent).toEqual({ name: "Web", kind: "email", url: "qa@example.com,lead@example.com" }));
+    expect(sent).toEqual({
+      name: "Web", kind: "email", url: "qa@example.com,lead@example.com", on_failure: true, weekly_summary: false,
+    }));
+});
+
+test("each channel shows what it sends; switching weekly on is a PATCH", async () => {
+  let patched: unknown = null;
+  server.use(
+    http.get(BASE, () => HttpResponse.json([channel()])),
+    http.patch(`${BASE}/1`, async ({ request }) => {
+      patched = await request.json();
+      return HttpResponse.json(channel({ weekly_summary: true }));
+    }),
+  );
+  renderCard();
+  const failed = await screen.findByRole("checkbox", { name: /failed runs to web/i });
+  expect(failed).toBeChecked();
+  const weekly = screen.getByRole("checkbox", { name: /weekly summary to web/i });
+  expect(weekly).not.toBeChecked();
+  await userEvent.click(weekly);
+  expect(patched).toEqual({ weekly_summary: true });
+});
+
+test("a new channel can ask for the weekly summary only", async () => {
+  let sent: Record<string, unknown> | null = null;
+  server.use(
+    http.get(BASE, () => HttpResponse.json([])),
+    http.post(BASE, async ({ request }) => {
+      sent = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json(channel(), { status: 201 });
+    }),
+  );
+  renderCard();
+  await screen.findByText(/no channels yet/i);
+  await userEvent.type(screen.getByLabelText(/webhook url/i), "https://hooks.slack.com/services/T/B/x");
+  await userEvent.click(screen.getByRole("checkbox", { name: /^failed runs$/i }));
+  await userEvent.click(screen.getByRole("checkbox", { name: /^weekly summary/i }));
+  await userEvent.click(screen.getByRole("button", { name: /add channel/i }));
+  await vi.waitFor(() => expect(sent).not.toBeNull());
+  expect(sent).toMatchObject({ on_failure: false, weekly_summary: true });
+});
+
+test("send last week's summary on demand", async () => {
+  let message: string | null = null;
+  server.use(
+    http.get(BASE, () => HttpResponse.json([channel({ weekly_summary: true })])),
+    http.post(`${BASE}/1/test`, ({ request }) => {
+      message = new URL(request.url).searchParams.get("message");
+      return HttpResponse.json({ status: "delivered", error: null });
+    }),
+  );
+  renderCard();
+  await userEvent.click(await screen.findByRole("button", { name: /send last week's summary to web/i }));
+  expect(await screen.findByText(/summary to web delivered/i)).toBeInTheDocument();
+  expect(message).toBe("weekly");
 });

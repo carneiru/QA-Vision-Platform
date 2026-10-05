@@ -27,6 +27,11 @@ services:
     restart: unless-stopped
   analytics-rollup:
     restart: unless-stopped
+  weekly-summary:
+    restart: unless-stopped
+    environment:
+      # Report links in weekly summaries must point at the public address
+      DASHBOARD_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
   dashboard:
     restart: unless-stopped
 

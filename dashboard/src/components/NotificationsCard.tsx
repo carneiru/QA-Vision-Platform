@@ -24,7 +24,7 @@ const KINDS: Record<ChannelKind, { label: string; hint: string }> = {
   },
   webhook: {
     label: "Webhook",
-    hint: "Any public https:// address; it receives the run summary as JSON (event \"run.failed\").",
+    hint: "Any public https:// address; it receives JSON: event \"run.failed\" for failed runs, \"weekly.summary\" for the summary.",
   },
   email: {
     label: "Email",
@@ -63,6 +63,8 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
   const [name, setName] = useState(projectName);
   const [url, setUrl] = useState("");
   const [branch, setBranch] = useState("");
+  const [onFailure, setOnFailure] = useState(true);
+  const [weekly, setWeekly] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const hintId = useId();
 
@@ -71,7 +73,10 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
 
   const add = useMutation({
     mutationFn: () =>
-      addChannel(projectId, { name: name.trim(), kind, url: url.trim(), ...(branch.trim() ? { branch: branch.trim() } : {}) }),
+      addChannel(projectId, {
+        name: name.trim(), kind, url: url.trim(), ...(branch.trim() ? { branch: branch.trim() } : {}),
+        on_failure: onFailure, weekly_summary: weekly,
+      }),
     onSuccess: () => {
       setUrl("");
       setBranch("");
@@ -82,11 +87,20 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
     mutationFn: (c: NotificationChannel) => updateChannel(projectId, c.id, { enabled: !c.enabled }),
     onSuccess: refresh,
   });
+  const sends = useMutation({
+    mutationFn: ({ c, changes }: { c: NotificationChannel; changes: { on_failure?: boolean; weekly_summary?: boolean } }) =>
+      updateChannel(projectId, c.id, changes),
+    onSuccess: refresh,
+  });
   const test = useMutation({
-    mutationFn: (c: NotificationChannel) => testChannel(projectId, c.id).then((r) => ({ c, r })),
-    onSuccess: ({ c, r }) => {
+    mutationFn: ({ c, message }: { c: NotificationChannel; message: "test" | "weekly" }) =>
+      testChannel(projectId, c.id, message).then((r) => ({ c, r, message })),
+    onSuccess: ({ c, r, message }) => {
+      const what = message === "weekly" ? "Last week's summary" : "Test";
       setTestResult(
-        r.status === "delivered" ? `Test to ${c.name} delivered.` : `Test to ${c.name} failed: ${r.error ?? "unknown error"}`,
+        r.status === "delivered"
+          ? `${what} to ${c.name} delivered.`
+          : `${what} to ${c.name} failed: ${r.error ?? "unknown error"}`,
       );
       return refresh();
     },
@@ -102,20 +116,22 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
     <div className="card">
       <h3>Notifications</h3>
       <p className="muted">
-        When a run with failed tests arrives, QA Vision posts the counts, the first failing tests and a
-        link to the run. Messages carry masked text only.
+        Each channel can get <strong>failed runs</strong> as they arrive (counts, the first failing tests and a
+        link to the run) and a <strong>weekly summary</strong> on Mondays at 07:00 UTC (last week's pass rate,
+        failures and most-failing tests, with a link to the report). Messages carry masked text only.
       </p>
 
       {channels.error != null && <ErrorBanner error={channels.error} onRetry={() => channels.refetch()} />}
       {channels.isPending && <p className="muted">Loading channels…</p>}
       {channels.data?.length === 0 && <p className="muted">No channels yet.</p>}
       {channels.data != null && channels.data.length > 0 && (
-        <table className="data">
+        <table className="data notify-table">
           <thead>
             <tr>
               <th>Channel</th>
               <th className="hide-narrow">Sends to</th>
               <th>Branch</th>
+              <th>Sends</th>
               <th>Last delivery</th>
               {canEdit && <th><span className="sr-only">Actions</span></th>}
             </tr>
@@ -129,16 +145,48 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
                 </td>
                 <td className="hide-narrow wrap-anywhere"><code>{c.target}</code></td>
                 <td>{c.branch ? <code>{c.branch}</code> : <span className="muted">All branches</span>}</td>
+                <td className="sends-cell">
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={c.on_failure}
+                      disabled={!canEdit || sends.isPending}
+                      aria-label={`Send failed runs to ${c.name}`}
+                      onChange={() => sends.mutate({ c, changes: { on_failure: !c.on_failure } })}
+                    />
+                    <span aria-hidden="true">Failed runs</span>
+                  </label>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={c.weekly_summary}
+                      disabled={!canEdit || sends.isPending}
+                      aria-label={`Send the weekly summary to ${c.name}`}
+                      onChange={() => sends.mutate({ c, changes: { weekly_summary: !c.weekly_summary } })}
+                    />
+                    <span aria-hidden="true">Weekly summary</span>
+                  </label>
+                </td>
                 <td><LastDelivery c={c} /></td>
                 {canEdit && (
                   <td className="row-actions">
+                    <div>
                     <button
                       aria-label={`Send a test message to ${c.name}`}
-                      onClick={() => test.mutate(c)}
+                      onClick={() => test.mutate({ c, message: "test" })}
                       disabled={test.isPending}
                     >
-                      {test.isPending && test.variables?.id === c.id ? "Sending…" : "Send test"}
+                      {test.isPending && test.variables?.c.id === c.id && test.variables.message === "test" ? "Sending…" : "Send test"}
                     </button>
+                    {c.weekly_summary && (
+                      <button
+                        aria-label={`Send last week's summary to ${c.name}`}
+                        onClick={() => test.mutate({ c, message: "weekly" })}
+                        disabled={test.isPending}
+                      >
+                        {test.isPending && test.variables?.c.id === c.id && test.variables.message === "weekly" ? "Sending…" : "Send summary"}
+                      </button>
+                    )}
                     <button
                       aria-label={`${c.enabled ? "Pause" : "Resume"} ${c.name}`}
                       onClick={() => toggle.mutate(c)}
@@ -149,11 +197,12 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
                     <ConfirmButton
                       label="Remove"
                       ariaLabel={`Remove ${c.name}`}
-                      question={`Remove ${c.name}? Failed runs stop being posted there.`}
+                      question={`Remove ${c.name}? Nothing more is posted there.`}
                       confirmLabel="Remove"
                       onConfirm={() => remove.mutate(c.id)}
                       disabled={remove.isPending}
                     />
+                    </div>
                   </td>
                 )}
               </tr>
@@ -164,6 +213,7 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
       {testResult && <p role="status" className="muted">{testResult}</p>}
       {test.error != null && <ErrorBanner error={test.error} />}
       {toggle.error != null && <ErrorBanner error={toggle.error} />}
+      {sends.error != null && <ErrorBanner error={sends.error} />}
       {remove.error != null && <ErrorBanner error={remove.error} />}
 
       {canEdit === false && <p className="muted">Only owners, admins and members can change notifications.</p>}
@@ -212,6 +262,17 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
               onChange={(e) => setBranch(e.target.value)}
             />
           </label>
+          <fieldset className="check-group">
+            <legend>Send</legend>
+            <label className="check">
+              <input type="checkbox" checked={onFailure} onChange={(e) => setOnFailure(e.target.checked)} />
+              Failed runs
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={weekly} onChange={(e) => setWeekly(e.target.checked)} />
+              Weekly summary <span className="muted">(Mondays, 07:00 UTC)</span>
+            </label>
+          </fieldset>
           {add.error != null && <ErrorBanner error={add.error} />}
           <div className="button-row">
             <button type="submit" disabled={add.isPending}>

@@ -32,12 +32,13 @@ def list_channels(db: Session, project_id: int) -> List[NotificationChannel]:
 
 
 def add_channel(db: Session, project_id: int, name: str, kind: str, url: str, branch: Optional[str],
-                user_id: int) -> NotificationChannel:
+                user_id: int, on_failure: bool = True, weekly_summary: bool = False) -> NotificationChannel:
     url = notify_targets.validate_target(kind, url)  # ValueError -> 422
     if db.query(NotificationChannel).filter_by(project_id=project_id).count() >= MAX_CHANNELS_PER_PROJECT:
         raise ValueError(f"A project has at most {MAX_CHANNELS_PER_PROJECT} notification channels")
     row = NotificationChannel(project_id=project_id, name=name, kind=kind, url=url, branch=branch or None,
-                              enabled=True, created_by_user_id=user_id)
+                              enabled=True, on_failure=on_failure, weekly_summary=weekly_summary,
+                              created_by_user_id=user_id)
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -49,7 +50,7 @@ def get_channel(db: Session, project_id: int, channel_id: int) -> Optional[Notif
 
 
 def update_channel(db: Session, row: NotificationChannel, changes: dict) -> NotificationChannel:
-    for key in ("name", "enabled", "branch"):
+    for key in ("name", "enabled", "branch", "on_failure", "weekly_summary"):
         if key in changes:
             value = changes[key]
             setattr(row, key, (value or None) if key == "branch" else value)
@@ -200,7 +201,7 @@ def deliver(kind: str, url: str, payload: dict) -> Tuple[str, Optional[str]]:
     return "failed", f"The endpoint answered {response.status_code}"
 
 
-def _record(db: Session, channel_id: int, outcome: Tuple[str, Optional[str]]) -> None:
+def record(db: Session, channel_id: int, outcome: Tuple[str, Optional[str]]) -> None:
     row = db.get(NotificationChannel, channel_id)
     if row is None:  # removed while the message was in flight
         return
@@ -234,14 +235,14 @@ def notify_run(session_factory: Callable[[], Session], run_id: int) -> None:
             targets = [
                 (c.id, c.name, c.kind, c.url)
                 for c in list_channels(db, run.project_id)
-                if c.enabled and (c.branch is None or c.branch == run.branch)
+                if c.enabled and c.on_failure and (c.branch is None or c.branch == run.branch)
             ]
         if not targets:
             return
         outcomes = [(cid, deliver(kind, url, PAYLOADS[kind](name, summary))) for cid, name, kind, url in targets]
         with session_factory() as db:
             for cid, outcome in outcomes:
-                _record(db, cid, outcome)
+                record(db, cid, outcome)
             db.commit()
     except Exception:  # a background task has nobody to raise to: log it
         logger.exception("failure notification for run %s could not be completed", run_id)
@@ -253,6 +254,6 @@ def send_test(db: Session, row: NotificationChannel) -> Tuple[str, Optional[str]
     sample = RunSummary(project_id=project_id, run_id=None, total=0, failed=0, errored=0, branch=None,
                         commit_sha=None, commit_message=None, ci_run_url=None, test=True)
     outcome = deliver(kind, url, PAYLOADS[kind](name, sample))
-    _record(db, cid, outcome)
+    record(db, cid, outcome)
     db.commit()
     return outcome

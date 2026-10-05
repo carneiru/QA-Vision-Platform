@@ -213,7 +213,16 @@ Reliability and operations
   the existing analytics API, with tables rather than charts, so it reads and prints well.
   - **Save as PDF** prints through a print stylesheet: no app chrome, no page breaks inside rows.
   - **Download CSV** gives the per-test data behind the report.
-  - Scheduled delivery by email (TODO 66) is still open; email channels exist now.
+  - Scheduled delivery (TODO 66) is done: the weekly summary below.
+- [x] Weekly summary (TODO 66). Any notification channel (email, Slack, Teams, webhook) can get
+  last ISO week's numbers every Monday from 07:00 UTC, alongside failed-run alerts or instead of
+  them. It covers runs, executions, pass rate against the week before, failures, the five
+  most-failing tests and a link to the Report.
+  - A quiet week says "no runs", so a pipeline that stopped uploading is noticed.
+  - The `weekly-summary` job sends once per channel per week (`last_weekly_week`, advisory lock).
+  - "Send summary" in Settings sends it on demand.
+  - Spec: `docs/superpowers/specs/2026-10-05-weekly-summary-design.md`. Verified against Mailpit:
+    one email with the right numbers, and no resend after a restart.
 - [x] Live runs (roadmap Phase 3, step 7, by polling: ADR-021). The first page of **Runs** and
   the **Overview** refresh every 30 s while the tab is visible. New runs get a short tint and a
   polite "N new runs" announcement; later pages never move under the reader. A new latest run
@@ -246,7 +255,7 @@ Reliability and operations
 63. [ ] Implement test execution analytics and trends
 64. [ ] Create defect analysis and reporting capabilities
 65. [ ] Develop dashboard and visualization framework
-66. [ ] Implement scheduled report generation and delivery
+66. [x] Implement scheduled report generation and delivery: weekly summary on notification channels (see below)
 67. [ ] Create API endpoints for analytics and reporting
 68. [ ] Implement integration with all previous services
 69. [ ] Write comprehensive test suite

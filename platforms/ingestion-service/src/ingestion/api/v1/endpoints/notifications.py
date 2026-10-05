@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.ingestion.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
 from src.ingestion.models.notification_channel import NotificationChannel
 from src.ingestion.schemas.notification import ChannelCreate, ChannelOut, ChannelUpdate, TestOutcome
-from src.ingestion.service import notification_service
+from src.ingestion.service import notification_service, weekly_summary
 from src.ingestion.utils.notify_targets import mask_target
 
 router = APIRouter()  # mounted at /projects/{project_id}/notification-channels
@@ -13,7 +15,8 @@ router = APIRouter()  # mounted at /projects/{project_id}/notification-channels
 def _out(row: NotificationChannel) -> ChannelOut:
     return ChannelOut(
         id=row.id, name=row.name, kind=row.kind, target=mask_target(row.url, row.kind), branch=row.branch,
-        enabled=row.enabled, last_status=row.last_status, last_error=row.last_error, last_sent_at=row.last_sent_at,
+        enabled=row.enabled, on_failure=row.on_failure, weekly_summary=row.weekly_summary,
+        last_status=row.last_status, last_error=row.last_error, last_sent_at=row.last_sent_at,
     )
 
 
@@ -40,7 +43,8 @@ def add_notification_channel(
 ):
     try:
         row = notification_service.add_channel(
-            db, access.project_id, payload.name, payload.kind, payload.url, payload.branch, access.user_id
+            db, access.project_id, payload.name, payload.kind, payload.url, payload.branch, access.user_id,
+            on_failure=payload.on_failure, weekly_summary=payload.weekly_summary,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
@@ -61,10 +65,15 @@ def update_notification_channel(
 @router.post("/{channel_id}/test", response_model=TestOutcome)
 def send_test_notification(
     channel_id: int,
+    message: Literal["test", "weekly"] = Query("test"),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
 ):
-    status_, error = notification_service.send_test(db, _channel_or_404(db, access, channel_id))
+    row = _channel_or_404(db, access, channel_id)
+    if message == "weekly":
+        status_, error = weekly_summary.send_now(db, row)
+    else:
+        status_, error = notification_service.send_test(db, row)
     return TestOutcome(status=status_, error=error)
 
 

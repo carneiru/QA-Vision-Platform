@@ -66,8 +66,8 @@ Open `https://qa-vision.example.com`, create the first account, organization and
 Without SMTP settings the platform still works: verification and password-reset links are
 written to the auth-service log (`qav logs auth-service | grep "Verification email"`), and
 email notification channels report "SMTP is not configured". To send real email, add to `.env`
-and recreate `auth-service` and `ingestion-service` (`qav up -d auth-service ingestion-service`).
-Compose passes these variables to both services:
+and recreate the services that send mail (`qav up -d auth-service ingestion-service weekly-summary`).
+Compose passes these variables to all three:
 
 ```
 SMTP_HOST=smtp.example.com

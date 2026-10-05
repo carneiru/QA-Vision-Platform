@@ -28,6 +28,8 @@ class Settings(BaseServiceSettings):
     # Public origin of the dashboard, for the run link in failure notifications. Empty: no link
     DASHBOARD_URL: str = ""
     NOTIFY_TIMEOUT_SECONDS: float = 5.0
+    # Weekly summaries go out on Mondays from this hour (UTC), for the previous ISO week
+    WEEKLY_SUMMARY_HOUR_UTC: int = 7
 
 
 settings = Settings()
