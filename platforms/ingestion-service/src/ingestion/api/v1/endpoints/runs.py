@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -6,6 +7,8 @@ from sqlalchemy.orm import Session
 from src.ingestion.api.deps import (
     READ_ROLES, Caller, ProjectAccess, check_project_role, get_caller, get_db, require_project_role,
 )
+from src.ingestion.api.v1.endpoints.analytics import NO_NUL
+from src.ingestion.models.run import CI_PROVIDERS
 from src.ingestion.schemas.run import ChangedFileOut, ComponentOut, ResultOut, RunDetail, RunOut
 from src.ingestion.service import run_service
 
@@ -17,11 +20,23 @@ router = APIRouter()          # mounted at /runs
 def list_runs(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    branch: Optional[str] = Query(None, max_length=255),
+    branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
+    status_filter: Optional[Literal["failing", "passing"]] = Query(None, alias="status"),
+    environment: Optional[str] = Query(None, max_length=100, pattern=NO_NUL),
+    ci_provider: Optional[Literal[CI_PROVIDERS]] = Query(None),
+    commit: Optional[str] = Query(None, pattern=r"^[0-9a-fA-F]{4,40}$"),
+    pr: Optional[int] = Query(None, ge=1),
+    author: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
+    since: Optional[datetime] = Query(None),
+    until: Optional[datetime] = Query(None),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
-    return run_service.list_runs(db, access.project_id, limit, offset, branch)
+    filters = run_service.RunFilters(
+        branch=branch, status=status_filter, environment=environment, ci_provider=ci_provider,
+        commit=commit, pr=pr, author=author, since=since, until=until,
+    )
+    return run_service.list_runs(db, access.project_id, limit, offset, filters)
 
 
 @router.get("/{run_id}", response_model=RunDetail)

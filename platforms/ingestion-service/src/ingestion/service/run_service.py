@@ -1,14 +1,51 @@
-from typing import Optional
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Literal, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.ingestion.models import Run, RunChangedFile, RunComponent, RunResult
+from src.ingestion.service.analytics_service import _escape_like
 
 
-def list_runs(db: Session, project_id: int, limit: int, offset: int, branch: Optional[str]) -> list[Run]:
+@dataclass(frozen=True)
+class RunFilters:
+    branch: Optional[str] = None
+    # failing: at least one failed or errored result; passing: none
+    status: Optional[Literal["failing", "passing"]] = None
+    environment: Optional[str] = None
+    ci_provider: Optional[str] = None
+    commit: Optional[str] = None  # hex prefix, any case
+    pr: Optional[int] = None
+    author: Optional[str] = None  # substring, case-insensitive
+    since: Optional[datetime] = None  # started_at >= since
+    until: Optional[datetime] = None  # started_at < until
+
+
+def list_runs(db: Session, project_id: int, limit: int, offset: int, filters: RunFilters = RunFilters()) -> list[Run]:
     query = db.query(Run).filter(Run.project_id == project_id)
-    if branch is not None:
-        query = query.filter(Run.branch == branch)
+    f = filters
+    if f.branch is not None:
+        query = query.filter(Run.branch == f.branch)
+    if f.status == "failing":
+        query = query.filter((Run.failed + Run.errored) > 0)
+    elif f.status == "passing":
+        query = query.filter(Run.failed == 0, Run.errored == 0)
+    if f.environment is not None:
+        query = query.filter(Run.environment == f.environment)
+    if f.ci_provider is not None:
+        query = query.filter(Run.ci_provider == f.ci_provider)
+    if f.commit is not None:
+        query = query.filter(func.lower(Run.commit_sha).like(f"{f.commit.lower()}%"))
+    if f.pr is not None:
+        query = query.filter(Run.pr_number == f.pr)
+    if f.author is not None:
+        query = query.filter(Run.commit_author.ilike(f"%{_escape_like(f.author)}%", escape="\\"))
+    if f.since is not None:
+        query = query.filter(Run.started_at >= f.since)
+    if f.until is not None:
+        query = query.filter(Run.started_at < f.until)
     return query.order_by(Run.created_at.desc(), Run.id.desc()).offset(offset).limit(limit).all()
 
 

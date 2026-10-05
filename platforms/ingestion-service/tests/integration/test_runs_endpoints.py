@@ -12,12 +12,12 @@ ALL_ROLES = ("owner", "admin", "member", "viewer", "billing_manager")
 def make_run(db, make_key):
     key_row, _ = make_key()
 
-    def _make(project_id=1, branch="main", statuses=("passed", "failed"), minutes_ago=0):
+    def _make(project_id=1, branch="main", statuses=("passed", "failed"), minutes_ago=0, **fields):
         now = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
-        run = Run(project_id=project_id, api_key_id=key_row.id, request_hash="h", ci_provider="local",
+        run = Run(project_id=project_id, api_key_id=key_row.id, request_hash="h",
                   branch=branch, started_at=now - timedelta(seconds=1), finished_at=now, duration_ms=1000,
                   total=len(statuses), passed=statuses.count("passed"), failed=statuses.count("failed"),
-                  skipped=statuses.count("skipped"), errored=statuses.count("errored"), created_at=now)
+                  skipped=statuses.count("skipped"), errored=statuses.count("errored"), created_at=now, **{"ci_provider": "local", **fields})
         db.add(run)
         db.flush()
         for i, st in enumerate(statuses):
@@ -126,3 +126,81 @@ def test_non_member_listing_is_404(client, auth, project_role):
 def test_missing_token_is_401(client):
     assert client.get("/api/v1/projects/1/runs").status_code == 401
     assert client.get("/api/v1/runs/1").status_code == 401
+
+
+
+def ids(client, auth, query):
+    response = client.get(f"/api/v1/projects/1/runs?{query}", headers=auth())
+    assert response.status_code == 200, response.text
+    return {r["id"] for r in response.json()}
+
+
+def test_list_filters_failing_and_passing(client, auth, project_role, make_run):
+    red = make_run(statuses=("passed", "failed"))
+    broken = make_run(statuses=("errored",))
+    green = make_run(statuses=("passed", "skipped"))
+    project_role("viewer")
+    assert ids(client, auth, "status=failing") == {red.id, broken.id}
+    assert ids(client, auth, "status=passing") == {green.id}
+
+
+def test_list_filters_by_environment_and_ci(client, auth, project_role, make_run):
+    staging = make_run(environment="staging", ci_provider="azure_pipelines")
+    make_run(environment="prod", ci_provider="azure_pipelines")
+    make_run(environment="staging", ci_provider="github_actions")
+    project_role("viewer")
+    assert ids(client, auth, "environment=staging&ci_provider=azure_pipelines") == {staging.id}
+
+
+def test_list_filters_by_commit_prefix_any_case(client, auth, project_role, make_run):
+    hit = make_run(commit_sha="abc1234def")
+    make_run(commit_sha="ffff000")
+    project_role("viewer")
+    assert ids(client, auth, "commit=ABC12") == {hit.id}
+
+
+@pytest.mark.parametrize("commit", ["abc", "xyz12", "a%25bc1"])
+def test_list_rejects_bad_commit_prefix(client, auth, project_role, commit):
+    project_role("viewer")
+    assert client.get(f"/api/v1/projects/1/runs?commit={commit}", headers=auth()).status_code == 422
+
+
+def test_list_filters_by_pull_request(client, auth, project_role, make_run):
+    pr = make_run(pr_number=42)
+    make_run(pr_number=7)
+    project_role("viewer")
+    assert ids(client, auth, "pr=42") == {pr.id}
+
+
+def test_list_filters_by_author_substring_with_literal_wildcards(client, auth, project_role, make_run):
+    ana = make_run(commit_author="Ana Silva")
+    make_run(commit_author="Bruno")
+    odd = make_run(commit_author="100%_bot")
+    project_role("viewer")
+    assert ids(client, auth, "author=silva") == {ana.id}
+    # % and _ match themselves, not "anything"
+    assert ids(client, auth, "author=%25_") == {odd.id}
+
+
+def test_list_filters_by_started_date_range(client, auth, project_role, make_run):
+    old = make_run(minutes_ago=3 * 24 * 60)
+    recent = make_run(minutes_ago=5)
+    project_role("viewer")
+    since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    assert ids(client, auth, f"since={since.replace('+', '%2B')}") == {recent.id}
+    until = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
+    assert ids(client, auth, f"until={until.replace('+', '%2B')}") == {old.id}
+
+
+def test_list_filters_combine(client, auth, project_role, make_run):
+    hit = make_run(branch="main", statuses=("failed",), environment="qa")
+    make_run(branch="main", statuses=("passed",), environment="qa")
+    make_run(branch="dev", statuses=("failed",), environment="qa")
+    project_role("viewer")
+    assert ids(client, auth, "branch=main&status=failing&environment=qa") == {hit.id}
+
+
+@pytest.mark.parametrize("query", ["status=red", "ci_provider=travis", "pr=0", "since=yesterday"])
+def test_list_rejects_bad_filters(client, auth, project_role, query):
+    project_role("viewer")
+    assert client.get(f"/api/v1/projects/1/runs?{query}", headers=auth()).status_code == 422

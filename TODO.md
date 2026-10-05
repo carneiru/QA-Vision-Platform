@@ -214,6 +214,11 @@ Reliability and operations
   - **Save as PDF** prints through a print stylesheet: no app chrome, no page breaks inside rows.
   - **Download CSV** gives the per-test data behind the report.
   - Scheduled delivery by email (TODO 66) is still open; email channels exist now.
+- [x] Run filters and search (roadmap Phase 3, step 8). The **Runs** view filters by status
+  (with failures / all green) and branch, and **More filters** adds environment, CI, commit
+  prefix, pull request, author and a date range. Filters live in the URL, so a filtered view
+  can be shared and survives back/forward. The Tests view already had name search.
+  "From/to" are whole days in the viewer's time zone; the API takes instants.
 - [x] Repositories in project Settings — attach the repository the tests live in by pasting a browser or clone URL (optional default branch, otherwise the provider's), status in words (Reachable / Not found or private / Not checked) with Check again, remove with an in-place confirm; viewers and billing managers read only. Rendered at 1280px and 375px
 - [x] CI snippet on a localhost deployment — the CLI leads by default with the self-signed certificate step, and choosing GitHub or GitLab shows that their hosted runners cannot reach localhost (CLI, self-hosted runner with --ca-file, or a public deployment)
 - [ ] GitHub App integration ("connect repository") — justified when cross-repo correlation starts (Phase 6 consumes product-repo commits via API; run_components/ADR-018 already capture the link). Scope then: app registration, webhook ingestion of commits/PRs for connected product repos, optional run discovery. Not an ingestion replacement

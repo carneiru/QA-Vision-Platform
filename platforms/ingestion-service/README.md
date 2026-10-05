@@ -41,7 +41,11 @@ Receives test results from CI. Design: `docs/superpowers/specs/2026-09-29-ingest
 
 ## Reading results
 
-- `GET /api/v1/projects/<id>/runs?branch=&limit=&offset=` — newest first, with counts.
+- `GET /api/v1/projects/<id>/runs?limit=&offset=` — newest first, with counts. Optional filters,
+  combined with AND: `branch`, `status=failing|passing` (failing means at least one failed or
+  errored result), `environment`, `ci_provider`, `commit` (hex prefix of 4+ characters, any
+  case), `pr`, `author` (case-insensitive substring; `%` and `_` match themselves), `since`
+  (inclusive) and `until` (exclusive) on `started_at`, as ISO 8601 instants.
 - `GET /api/v1/runs/<run_id>?status=failed` — one run with its results.
 
 Every project role can read; roles come from project-service.

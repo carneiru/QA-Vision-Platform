@@ -67,11 +67,24 @@ export interface RunDetail extends Run {
 
 export type RunStatusFilter = "passed" | "failed" | "skipped" | "errored";
 
+/** Server-side filters for the runs list; every field is optional. */
+export interface RunFilters {
+  branch?: string;
+  status?: "failing" | "passing";
+  environment?: string;
+  ci_provider?: string;
+  commit?: string;
+  pr?: number;
+  author?: string;
+  since?: string; // ISO instant, inclusive
+  until?: string; // ISO instant, exclusive
+}
+
 export function listRuns(
   projectId: number,
-  opts: { limit: number; offset: number; branch?: string },
+  opts: { limit: number; offset: number } & RunFilters,
 ): Promise<Run[]> {
-  const q = buildQuery({ limit: opts.limit, offset: opts.offset, branch: opts.branch });
+  const q = buildQuery({ ...opts });
   return apiFetch(`/api/v1/projects/${projectId}/runs${q}`);
 }
 

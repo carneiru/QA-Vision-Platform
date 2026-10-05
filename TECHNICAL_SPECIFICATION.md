@@ -58,7 +58,8 @@ retention job.
   detection, PII masking before truncation, server-computed counts, optional
   `changes` block (base ref + ≤1000 changed files; git name-status letters;
   null additions/deletions for binary).
-- **Read**: runs list per project, run detail with status filter and changed
+- **Read**: runs list per project (filters: branch, failing/passing, environment, CI, commit
+  prefix, PR, author, started-at range), run detail with status filter and changed
   files. Access: user JWT + project role via project-service.
 - **Analytics** (read roles): trends (`bucket=day|week|month`, Monday weeks,
   any IANA tz, ≤365 d), per-test list (sort/search/limit≤200/offset),
