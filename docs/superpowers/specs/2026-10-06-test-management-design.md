@@ -69,7 +69,7 @@ The gateway routes `cases`, `case-labels` and `suites` under a project to the ne
 ## Out of scope (later slices)
 
 - Versioning and history.
-- Import from Gherkin or JUnit.
+- JUnit import.
 - Dynamic (label-query) suites.
 - Links to tickets.
 - Bulk actions.

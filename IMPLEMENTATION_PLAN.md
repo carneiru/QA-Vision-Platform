@@ -56,7 +56,7 @@ numbers in platforms/ingestion-service/README.md.
 | ClickHouse analytics warehouse | rollups stop holding at ~10× data |
 | Artifact storage (MinIO) | artifacts feature starts (screenshots/videos/traces) |
 | Kubernetes + real certs + monitoring stack (Prometheus server/Grafana) | first multi-node deployment |
-| ~~Test Management service (blueprint capability)~~ | started 2026-10-06 on product pull (ADR-022): cases, suites, link to automated tests. Next slices: versioning, Gherkin import, dynamic suites, ticket links |
+| ~~Test Management service (blueprint capability)~~ | started 2026-10-06 on product pull (ADR-022): cases, suites, link to automated tests. Gherkin import done (ADR-023). Next slices: `qav-collector import-features`, versioning, dynamic suites, ticket links |
 | Workspaces: group QA projects with the product repos they test (Phase 4) | product pull, after Phase 2 exit; components-under-test data (ADR-018) is already being captured |
 | GitHub App "connect repository" (commits/PRs of product repos via API + webhooks) | cross-repo correlation work begins (Phase 6); ingestion stays push-based regardless |
 | Phase 6 AI engine, QIP services, vector/graph stores | AI work begins; revive or replace the `intelligence/` prototype deliberately — failure↔product-commit correlation feeds on run components (ADR-018) |
