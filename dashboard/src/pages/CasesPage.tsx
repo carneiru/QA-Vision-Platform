@@ -1,14 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Bot, Plus, Upload } from "lucide-react";
+import { Bot, FileCode, Plus, Upload } from "lucide-react";
 import { CaseStatus, PRIORITIES, Priority, listCases, listLabels } from "../api/cases";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import { useCanEdit } from "../lib/useCanEdit";
 
 const PAGE = 50;
-const KEYS = ["q", "label", "status", "priority"] as const;
+const KEYS = ["q", "label", "status", "priority", "origin"] as const;
 type Values = Record<(typeof KEYS)[number], string>;
 
 const read = (p: URLSearchParams): Values =>
@@ -46,6 +46,7 @@ export default function CasesPage() {
       listCases(id, {
         search: applied.q || undefined, label: applied.label || undefined, status,
         priority: (PRIORITIES as string[]).includes(applied.priority) ? (applied.priority as Priority) : undefined,
+        origin: applied.origin === "manual" || applied.origin === "imported" ? applied.origin : undefined,
         limit: PAGE, offset,
       }),
     placeholderData: keepPreviousData,
@@ -111,6 +112,14 @@ export default function CasesPage() {
               {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
             </select>
           </label>
+          <label>
+            Origin
+            <select value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value })}>
+              <option value="">All</option>
+              <option value="manual">Manual</option>
+              <option value="imported">Imported</option>
+            </select>
+          </label>
           <button type="submit">Apply</button>
         </FilterBar>
       </form>
@@ -144,6 +153,7 @@ export default function CasesPage() {
                 <tr key={c.number}>
                   <td><Link to={`${c.number}`}>{c.key}</Link></td>
                   <td className="wrap-anywhere">
+                    {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
                     {c.title}
                     <Labels labels={c.labels} />
                   </td>

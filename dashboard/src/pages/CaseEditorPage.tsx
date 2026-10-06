@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useId, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Bot, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Bot, FileCode, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Case, CaseInput, PRIORITIES, Priority, STATUSES, CaseStatus, Step, createCase, getCase, parseLabels, updateCase } from "../api/cases";
 import { getHistory, getTests } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import GherkinBlock from "../components/GherkinBlock";
 import StatusDot from "../components/StatusDot";
 import { useCanEdit } from "../lib/useCanEdit";
 
@@ -35,6 +36,11 @@ function toInput(d: Draft): CaseInput {
     priority: d.priority,
     status: d.status,
   };
+}
+
+/** An imported case's title, steps and labels belong to its .feature file: save only what QA Vision owns. */
+function toOwnedInput(d: Draft): CaseInput {
+  return { description: d.description.trim() || null, priority: d.priority, status: d.status };
 }
 
 /** The automated test a case is linked to: its latest result, or a search to link one. */
@@ -159,7 +165,7 @@ export default function CaseEditorPage() {
   }
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    save.mutate(toInput(draft));
+    save.mutate(existing.data?.source_path ? toOwnedInput(draft) : toInput(draft));
   }
 
   if (number !== null && existing.error != null) {
@@ -168,6 +174,7 @@ export default function CaseEditorPage() {
   if (number !== null && existing.isPending) return <p className="muted">Loading the case…</p>;
   const c = existing.data;
   const readOnly = !canEdit;
+  const imported = c?.source_path != null;
 
   return (
     <section>
@@ -186,17 +193,32 @@ export default function CaseEditorPage() {
         </p>
       )}
 
+      {c?.source_path && (
+        <div className="card source-badge">
+          <FileCode size={16} aria-hidden="true" />
+          <p>Imported from <code>{c.source_path}</code></p>
+          <p className="muted">Title, steps and labels come from the .feature file.</p>
+        </div>
+      )}
+
       <form className="card form-stack case-form" onSubmit={onSubmit}>
         <fieldset disabled={readOnly} className="plain-fieldset">
           <label>
             Title
-            <input required maxLength={200} value={draft.title} onChange={(e) => change("title", e.target.value)} />
+            <input required maxLength={200} readOnly={imported} value={draft.title} onChange={(e) => change("title", e.target.value)} />
           </label>
           <label>
             <span>Preconditions and context <span className="muted">(optional)</span></span>
             <textarea rows={3} maxLength={10000} value={draft.description} onChange={(e) => change("description", e.target.value)} />
           </label>
 
+          {imported ? (
+            <>
+              <h3>Gherkin</h3>
+              <GherkinBlock text={c?.gherkin ?? ""} />
+            </>
+          ) : (
+            <>
           <h3 id={`${ids}-steps`}>Steps</h3>
           <ol className="steps" aria-labelledby={`${ids}-steps`}>
             {draft.steps.map((s, i) => (
@@ -237,9 +259,12 @@ export default function CaseEditorPage() {
             </div>
           )}
 
+            </>
+          )}
+
           <label>
             <span>Labels <span className="muted">(comma separated)</span></span>
-            <input value={draft.labels} onChange={(e) => change("labels", e.target.value)} placeholder="e.g. checkout, smoke"
+            <input readOnly={imported} value={draft.labels} onChange={(e) => change("labels", e.target.value)} placeholder="e.g. checkout, smoke"
               spellCheck={false} autoComplete="off" />
           </label>
           <div className="filters">

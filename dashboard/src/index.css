@@ -27,6 +27,12 @@
   --status-skipped: #898781;
   /* Error text on surfaces; the status colour stays the validated chart/dot hue. */
   --danger-text: #c23434;
+  /* Gherkin highlighting; each is >= 4.5:1 on --surface-2 */
+  --gk-keyword: #1f66bd;
+  --gk-tag: #8a4b00;
+  --gk-table: #0b6b5c;
+  --gk-docstring: #7a3d8f;
+  --gk-comment: #6b6a64;
   --shadow-1: 0 1px 2px rgba(17, 17, 16, 0.04), 0 1px 3px rgba(17, 17, 16, 0.06);
   --shadow-2: 0 8px 24px rgba(17, 17, 16, 0.12), 0 2px 6px rgba(17, 17, 16, 0.08);
 
@@ -63,6 +69,11 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --danger-text: #ec7272;
+    --gk-keyword: #6aa6ef;
+    --gk-tag: #e0a15c;
+    --gk-table: #5cc9b4;
+    --gk-docstring: #c79ae0;
+    --gk-comment: #a3a299;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
@@ -343,6 +354,16 @@ a.button.primary:hover { background: var(--accent-fill-hover); }
 .view-tabs > .button, .view-tabs > .view-tabs-actions { margin-left: auto; }
 .chip-list { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--hover-strong); color: var(--text-secondary); }
+.gherkin { margin: 0 0 var(--space-3); padding: var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font-family: var(--font-mono); font-size: 13px; line-height: 1.6; overflow-x: auto; white-space: pre; }
+.gk-keyword { color: var(--gk-keyword); font-weight: 600; }
+.gk-tag { color: var(--gk-tag); }
+.gk-table { color: var(--gk-table); }
+.gk-docstring { color: var(--gk-docstring); }
+.gk-comment { color: var(--gk-comment); font-style: italic; }
+.source-badge { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
+.source-badge code { overflow-wrap: anywhere; }
+input[readonly] { background: var(--surface-2); }
 .linked { display: inline-flex; align-items: center; gap: 4px; }
 .empty-state h3 { margin-top: 0; }
 /* Case editor */

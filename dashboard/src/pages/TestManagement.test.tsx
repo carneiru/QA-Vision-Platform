@@ -16,7 +16,7 @@ const KEY = "b".repeat(64);
 const kase = (number: number, extra: object = {}) => ({
   number, key: `TC-${number}`, title: `Case ${number}`, description: null, steps: [], labels: [], priority: "medium",
   status: "draft", automated_test_key: null, automated_name: null, created_by: 1, created_at: "2026-10-06T10:00:00Z",
-  updated_by: null, updated_at: null, suites: [], ...extra,
+  updated_by: null, updated_at: null, suites: [], source_path: null, gherkin: null, ...extra,
 });
 
 function asRole(role: string) {
@@ -206,4 +206,44 @@ test("a suite's cases are added, reordered and saved as one ordered list", async
   await userEvent.click(screen.getByRole("button", { name: /add tc-3 to the suite/i }));
   await userEvent.click(screen.getByRole("button", { name: /save order and cases/i }));
   await vi.waitFor(() => expect(order).toEqual([2, 1, 3]));
+});
+
+test("an imported case shows its source and Gherkin read-only", async () => {
+  asRole("member");
+  server.use(http.get(`${P}/cases/7`, () => HttpResponse.json(kase(7, {
+    source_path: "tests/features/a.feature", gherkin: "Scenario: Pay\n  Given a cart", labels: ["smoke"],
+  }))));
+  renderAt("/projects/42/cases/7");
+  expect(await screen.findByText(/imported from/i)).toHaveTextContent("tests/features/a.feature");
+  expect(screen.getByText("Given")).toBeInTheDocument();
+  expect(screen.getByLabelText(/title/i)).toHaveAttribute("readonly");
+  expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
+});
+
+test("saving an imported case sends only the fields QA Vision owns", async () => {
+  asRole("member");
+  let sent: any = null;
+  server.use(
+    http.get(`${P}/cases/7`, () => HttpResponse.json(kase(7, { source_path: "a.feature", gherkin: "Scenario: x" }))),
+    http.patch(`${P}/cases/7`, async ({ request }) => { sent = await request.json(); return HttpResponse.json(kase(7)); }),
+  );
+  renderAt("/projects/42/cases/7");
+  const user = userEvent.setup();
+  await user.selectOptions(await screen.findByLabelText(/priority/i), "high");
+  await user.click(screen.getByRole("button", { name: /save/i }));
+  await vi.waitFor(() => expect(sent).not.toBeNull());
+  expect(Object.keys(sent).sort()).toEqual(["description", "priority", "status"]);
+});
+
+test("the origin filter reaches the API", async () => {
+  asRole("member");
+  const seen: string[] = [];
+  server.use(
+    http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams.get("origin") ?? ""); return HttpResponse.json({ total: 0, items: [] }); }),
+    http.get(`${P}/case-labels`, () => HttpResponse.json([])),
+  );
+  renderAt("/projects/42/cases");
+  await userEvent.setup().selectOptions(await screen.findByLabelText(/origin/i), "imported");
+  await userEvent.setup().click(screen.getByRole("button", { name: /apply/i }));
+  await vi.waitFor(() => expect(seen).toContain("imported"));
 });
