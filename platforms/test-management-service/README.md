@@ -33,7 +33,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 |---|---|---|
 | `GET` | `/cases?search=&label=&label=&status=&priority=&origin=&include_archived=&limit=&offset=` | `{total, items}`; archived hidden unless asked; `origin=manual` or `imported`; search also matches the Gherkin text |
 | `POST` | `/cases` | `title`, `description`, `steps[{action, expected}]`, `labels`, `priority`, `status`, `automated_test_key`, `automated_name` |
-| `POST` | `/cases/import?dry_run=` | `{files:[{path, content}], full, expected_plan_hash}`; returns `{plan_hash, summary, items, errors}`; a dry run writes nothing; roles as for `POST /cases` |
+| `POST` | `/cases/import?dry_run=` | `{files:[{path, content}], full, expected_plan_hash}` (`full` defaults to `false`); returns `{plan_hash, summary, items, errors, warnings}`; a dry run writes nothing; roles as for `POST /cases` |
 | `GET` / `PATCH` | `/cases/{number}` | the single read also lists the case's suites; `automated_test_key: null` unlinks |
 | `GET` | `/case-labels` | labels in use (archived cases left out), with counts |
 | `GET` / `POST` | `/suites` | name unique per project (409) |
@@ -50,9 +50,17 @@ Limits:
 ## Gherkin import
 
 `POST /cases/import` reads `.feature` files, one case per scenario. The repository owns an imported
-case: title, Gherkin and labels are read-only (422), the rest stays editable. A scenario that
-disappears is archived. A confirm with `expected_plan_hash` applies exactly the plan that was
-previewed, or answers 409 `plan_changed`. See ADR-023.
+case: title, steps, labels and Gherkin are read-only (422), the rest stays editable. A scenario that
+disappears from an uploaded file is archived. A confirm with `expected_plan_hash` applies exactly the
+plan that was previewed, or answers 409 `plan_changed`. See ADR-023.
+
+- `full` defaults to `false`: only the uploaded paths are compared. The dashboard always sends
+  `false`, so the cases of a deleted or renamed `.feature` file are not archived or moved (a renamed
+  file's scenarios are created again). Upload the old and new location together, or archive those
+  cases by hand; the CLI's `--full` will handle it.
+- The response carries `errors` (files skipped for a syntax error) and `warnings` (skipped
+  scenarios and tags).
+- The automated link the import sets follows a move; a link picked by hand is never changed.
 
 ```
 curl -k -X POST "https://localhost:8443/api/v1/projects/1/cases/import?dry_run=true" \

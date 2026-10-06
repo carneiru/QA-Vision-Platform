@@ -57,7 +57,7 @@ Each `Scenario`, `Example` or `Scenario Outline`, including those inside a `Rule
 | scenario description | `description` (on create only; editable afterwards) |
 | tags of the Feature, the Rule and the scenario, de-duplicated | see "Tags" |
 | — | `steps` stays empty |
-| — | `automated_test_key = test_key(feature name, source_path, scenario name)`, only when the case has no link yet |
+| — | `automated_test_key = test_key(feature name, source_path, scenario name)` when the link is import-owned (see below) |
 
 ### Tags
 
@@ -78,9 +78,17 @@ name = scenario name. cucumber-js names each row of an outline after the outline
 - When it has placeholders, the link uses the name filled from the first Examples row. The other
   rows can still be found through the test search in the editor.
 
+**Who owns the link.** A link is import-owned when it is empty, or equals
+`test_key(feature name, the case's current source_path, its automated_name)`. Create, update, move
+and reactivate refresh an import-owned link to the scenario's key, and the plan counts a stale one
+as an `update`. Any other link was picked by hand and is never touched. If the `Feature:` name
+changes, an import-set link no longer looks import-owned and is kept (the user relinks by hand).
+Unlinking an imported case by hand is undone by the next import that touches it.
+
 It only matches when `source_path` equals the `uri` the runner reports, which is the path from the
 directory cucumber-js runs in. It also only matches results uploaded as Cucumber JSON: cucumber-js
-JUnit output identifies tests differently.
+JUnit output identifies tests differently. The collector normalises a Cucumber `uri` to
+`/`-separated, so results from Windows runners match too.
 
 `test_key()` moves from `ingestion/service/ingest_service.py` into `qav_shared`. Both services
 import it from there, so the formula has one definition. A contract test (see Testing) holds the
@@ -90,7 +98,8 @@ two sides together.
 
 These are reported and never block the rest of the batch:
 
-- **Syntax error:** the whole file is skipped, with the parser's line and message.
+- **Syntax error:** the whole file is skipped, with the parser's line and message. A leading
+  byte-order mark is dropped first, so it is not one.
 - **Two scenarios with the same name in one file:** the second is skipped, since both would have
   the same `source_key`.
 
@@ -111,8 +120,9 @@ These are reported and never block the rest of the batch:
   `GATEWAY_HTTPS_PORT`). The other routes keep 10 MB.
 - To raise the limits, change these variables in `.env` and restart the gateway and the
   test-management service. No code changes. The service README and `.env.example` list them.
-- Paths: `\` becomes `/` and a leading `./` is dropped. An absolute path, `..`, or the same path
-  twice is 422.
+- Paths: `\` becomes `/`, and empty and `.` segments are dropped (`tests//a.feature` and
+  `./tests/./a.feature` are `tests/a.feature`). An absolute path, a drive letter, `..`, a NUL
+  character in a path or content, or the same path twice is 422.
 - Roles: owner, admin and member, as for `POST /cases`. Viewer is 403. A project the caller cannot
   see is 404.
 - Authentication is the user's JWT. API-key access for the CLI comes with the CLI command.
@@ -137,8 +147,9 @@ Manual cases are never part of the plan. A file that fails to parse never archiv
 - **`dry_run=false`** rebuilds the plan and applies it in **one transaction**. If
   `expected_plan_hash` is given and differs from the rebuilt plan's hash, it is 409
   `plan_changed` and nothing is written.
-- `plan_hash` is a sha256 over the plan's actions, sorted by path then scenario. File order in the
-  request does not change it.
+- `plan_hash` is a sha256 over the plan's actions (action, path, scenario, case number), sorted.
+  File order in the request does not change it. It does not cover content; the confirm re-sends
+  the same files.
 - Two imports racing into the same project hit the unique `source_key` index. The loser gets 409
   `import_conflict` ("another import is running, try again").
 
@@ -169,7 +180,9 @@ Response, 200:
 - Only `*.feature` files are kept, read as text, with their relative paths.
 - An optional **path prefix** is added in front of every path. Its hint explains that paths must
   match what the runner reports, for example `tests/` when the chosen folder is `features/`.
-- "Preview" calls the dry run.
+- "Preview" calls the dry run with `full=false`. So the cases of a deleted or renamed `.feature`
+  file are not archived or moved (a renamed file's scenarios are created again); the page says to
+  upload the old and new location together, or archive by hand. The CLI's `--full` will handle it.
 
 **Preview:**
 

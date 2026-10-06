@@ -294,7 +294,7 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Dynamic suites defined by a label query, e.g. `smoke AND checkout` *(suggested)*
 - [ ] TC versioning: who changed what, and when *(suggested)*
 - [x] Import existing TCs from the repo (Gherkin `.feature` files, JUnit XML) *(suggested)* (Gherkin done 2026-10-06, ADR-023; JUnit still open)
-- [ ] qav-collector import-features: CI keeps cases in sync; API-key access to test-management; refuse a full import that would archive over half the imported cases without --allow-mass-archive *(suggested)*
+- [ ] qav-collector import-features: CI keeps cases in sync; API-key access to test-management; refuse a full import that would archive over half the imported cases without --allow-mass-archive, and a 'complete folder' (full=true) option in the dashboard *(suggested)*
 - [ ] Link TCs to requirements/tickets (Azure DevOps, Jira) *(suggested)*
 - [ ] Bulk actions: label, move, archive many TCs at once *(suggested)*
 

@@ -15,13 +15,17 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
 `qav-collector import-features` CI command, with the repository as the source of truth.
 
 ## Decision
-- **Field ownership.** For an imported case, title, Gherkin text and labels come from the file and
-  are read-only in QA Vision (`PATCH` answers 422). Priority, status, description, suites and the
+- **Field ownership.** For an imported case, title, steps, labels and Gherkin text come from the
+  file and are read-only in QA Vision (`PATCH` answers 422). Steps stay empty: the Gherkin text
+  replaces them. Priority, status, description, suites and the
   automated-test link stay editable. A `@priority:` tag sets the priority; without one the case
   keeps its current priority.
 - **`source_key`.** `sha256(source_path \0 scenario name)`, unique per project. A case with no
   `source_key` is manual and behaves as before. `source_path` is relative to the repository root and
-  `/`-separated.
+  `/`-separated; empty and `.` segments are dropped, and an absolute path or `..` is 422.
+- **Path prefix.** The dashboard has an optional path prefix that it puts in front of every path,
+  so the paths match the `uri` the runner reports (for example `tests/` when the chosen folder is
+  `features/`).
 - **Moves are matched on the Gherkin text.** If an imported case would be archived and a new
   scenario with exactly the same Gherkin text (which includes the scenario name) appears at another
   path in the same batch, the case keeps its number and gets the new path and key. Matching is
@@ -29,14 +33,21 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
 - **Reactivation.** If the key belongs to an archived case, the case returns to `draft`, and is
   updated if needed. A scenario that disappears is archived, never deleted.
 - **`plan_hash`.** The import builds a plan (create, update, unchanged, move, reactivate, archive,
-  skip). A dry run returns it with a sha256 over its actions, sorted by path and scenario, so file
-  order does not change it. A confirm sends `expected_plan_hash`; if the rebuilt plan differs, it is
+  skip). A dry run returns it with `plan_hash`: a sha256 over the plan's actions (action, path,
+  scenario, case number), sorted, so file order never changes it. It does not cover content; the
+  confirm re-sends the same files. A confirm sends `expected_plan_hash`; if the rebuilt plan differs, it is
   409 `plan_changed` and nothing is written. The user applies exactly what they previewed.
 - **One transaction.** A real import applies the whole plan or nothing. Archiving is scoped to the
   uploaded paths, so uploading one folder never archives cases from another. Only `full=true` also
-  archives imported cases whose path is not in the batch. Manual cases are never touched, and a file
+  archives imported cases whose path is not in the batch. The dashboard always sends `full=false`
+  (the CLI's `--full` will send `true`). Manual cases are never touched, and a file
   that fails to parse never archives its cases. Two imports racing hit the unique `source_key`
   index; the loser gets 409 `import_conflict`.
+- **Import-owned links.** The import sets a case's automated link to
+  `test_key(feature name, source_path, scenario name)`. A link is import-owned when it is empty or
+  equals `test_key(feature name, the case's current source_path, its automated_name)`; an update,
+  move or reactivation refreshes an import-owned link, and the plan counts a stale one as an
+  update. Any other link was picked by hand and is never touched. No column records who set it.
 - **`test_key` lives in `qav_shared`.** It moved out of ingestion's `ingest_service.py`. Ingestion
   and test-management import the same function, and a contract test (a `.feature` fixture and its
   Cucumber JSON) holds the two sides together.
@@ -56,8 +67,19 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
   the other rows are found through the test search in the editor.
 - An archived case that reappears at a new path becomes a new case, not a move: moves are only
   detected against cases that would be archived in the same batch. The old case stays archived.
-- When a case moves, its automated link is kept only when it was set by hand. A link the import
-  computed itself is refreshed for the new path.
+- When a case moves, or an outline's first Examples row changes, an import-owned link is refreshed
+  to the new key; a hand-picked link is kept.
+- If the `Feature:` name itself changes, the old link no longer looks import-owned, so it is kept;
+  the user relinks the case by hand.
+- Unlinking an imported case by hand (setting the link to null) does not stick: the next import
+  that touches the case fills it again.
+- Because the dashboard sends `full=false`, the cases of a deleted or renamed `.feature` file are
+  not archived or moved, and a renamed file's scenarios are created again. Upload the old and new
+  location together, or archive those cases by hand; the CLI's `--full` will handle it.
+- A leading byte-order mark (as Windows editors save) is dropped before parsing.
+- The collector normalises a Cucumber `uri` to `/`, so results uploaded from Windows link to
+  imported cases. Results uploaded from Windows before that change keep their backslash keys and
+  do not link.
 - A `full=true` import can archive many cases at once. A mass-archive guard (refuse to archive more
   than half of the imported cases without `--allow-mass-archive`) is due with the CLI command.
 - API-key access for the CLI and JUnit import are later slices.
