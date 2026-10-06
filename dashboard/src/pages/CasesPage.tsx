@@ -5,16 +5,18 @@ import { Bot, FileCode, Plus, Upload } from "lucide-react";
 import {
   CaseStatus, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
 } from "../api/cases";
-import { getLatestKeys } from "../api/analytics";
+import { getLatestKeys, getRunStrip } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
 import FolderSelect from "../components/FolderSelect";
+import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
 import { useCanEdit } from "../lib/useCanEdit";
 
 const PAGE = 50;
 const MAX_KEYS = 20000;
 const RESULTS = ["passed", "failed", "skipped", "never"];
+const LEGEND = [["passed", "Passed"], ["failed", "Failed"], ["rerun", "Re-run"], ["skipped", "Skipped"], ["none", "Didn't run"]] as const;
 const KEYS = ["q", "label", "status", "priority", "origin", "folder", "linked", "result", "feature", "ado"] as const;
 type Values = Record<(typeof KEYS)[number], string>;
 
@@ -117,6 +119,16 @@ export default function CasesPage() {
   }
 
   const data = query.data?.page;
+  const stripKeys = useMemo(
+    () => [...new Set((data?.items ?? []).flatMap((c) => (c.automated_test_key ? [c.automated_test_key] : [])))].sort(),
+    [data],
+  );
+  const strip = useQuery({
+    queryKey: ["run-strip", id, stripKeys],
+    queryFn: () => getRunStrip(id, stripKeys),
+    enabled: stripKeys.length > 0,
+    staleTime: 60_000,
+  });
   const filtered = KEYS.some((k) => applied[k] !== "");
 
   return (
@@ -186,11 +198,17 @@ export default function CasesPage() {
         )
       )}
       {data && data.items.length > 0 && (
+        <>
+        <ul className="run-legend hide-narrow" aria-label="Last runs legend">
+          {LEGEND.map(([kind, text]) => (
+            <li key={kind}><span className={`run-bar bar-${kind}`} aria-hidden="true" /> {text}</li>
+          ))}
+        </ul>
         <div className="card" tabIndex={0} role="region" aria-label="Test cases">
           <table className="data">
             <thead>
               <tr>
-                <th>Title</th><th className="hide-narrow">Priority</th><th>Status</th>
+                <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow">Priority</th><th>Status</th>
                 <th className="hide-narrow">Automated</th>
               </tr>
             </thead>
@@ -201,6 +219,17 @@ export default function CasesPage() {
                     {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
                     <Link to={`${c.number}`}>{c.title}</Link>
                     <Labels labels={c.labels} />
+                  </td>
+                  <td className="hide-narrow">
+                    {!c.automated_test_key ? (
+                      <span className="muted">not linked</span>
+                    ) : strip.isError ? (
+                      <span aria-label="Last runs unavailable">—</span>
+                    ) : strip.data ? (
+                      <RunStrip projectId={id} runs={strip.data.runs} statuses={strip.data.statuses[c.automated_test_key.toLowerCase()] ?? strip.data.runs.map(() => null)} />
+                    ) : (
+                      <RunStripSkeleton />
+                    )}
                   </td>
                   <td className="hide-narrow">{c.priority}</td>
                   <td>{c.status}</td>
@@ -221,6 +250,7 @@ export default function CasesPage() {
             <button disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>Next</button>
           </div>
         </div>
+        </>
       )}
     </section>
   );

@@ -1,4 +1,5 @@
 import { apiFetch, buildQuery } from "./http";
+import type { StripRun, StripStatus } from "../components/RunStrip";
 
 // Types mirror platforms/ingestion-service/src/ingestion/schemas/analytics.py
 
@@ -105,6 +106,18 @@ export function getLatestKeys(
   status: "passed" | "failed" | "skipped" | "any",
 ): Promise<{ keys: string[] }> {
   return apiFetch(`/api/v1/projects/${projectId}/analytics/latest-keys${buildQuery({ status })}`);
+}
+
+/** Each test's status in the project's last runs (oldest to newest); statuses are keyed by lowercase test key. */
+export function getRunStrip(
+  projectId: number,
+  testKeys: string[],
+  limit = 10,
+): Promise<{ runs: StripRun[]; statuses: Record<string, StripStatus[]> }> {
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/run-strip`, {
+    method: "POST",
+    body: JSON.stringify({ test_keys: testKeys, limit }),
+  });
 }
 
 export function getTests(

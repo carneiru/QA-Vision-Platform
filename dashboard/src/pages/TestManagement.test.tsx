@@ -41,6 +41,7 @@ beforeEach(() => {
     http.get(`${P}/case-folders`, () => HttpResponse.json([])),
     http.get(`${P}/case-labels`, () => HttpResponse.json([])),
     http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })),
+    http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({ runs: [], statuses: {} })),
   );
 });
 
@@ -433,4 +434,47 @@ test("an unknown result value is ignored without asking ingestion", async () => 
   await waitFor(() => expect(listed).toBe(true));
   expect(asked).toBe(false);
   await settled();
+});
+
+test("linked cases show their last runs; unlinked say not linked", async () => {
+  asRole("member");
+  const stripKey = "b".repeat(64);
+  let asked: string[] = [];
+  server.use(
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 2, items: [kase(1, { automated_test_key: stripKey }), kase(2)] })),
+    http.post(`${P}/analytics/run-strip`, async ({ request }) => {
+      asked = ((await request.json()) as { test_keys: string[] }).test_keys;
+      return HttpResponse.json({ runs: [{ id: 9, started_at: "2026-10-06T10:00:00Z", branch: "main" }], statuses: { [stripKey]: ["failed"] } });
+    }),
+  );
+  renderAt("/projects/42/cases");
+  expect(await screen.findByRole("link", { name: /^Last 1 runs?: 1 failed/ })).toBeInTheDocument();
+  expect(asked).toEqual([stripKey]);
+  expect(screen.getByText("not linked")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: /last runs/i })).toBeInTheDocument();
+  expect(screen.getByText("Didn't run")).toBeInTheDocument();
+});
+
+test("no linked cases means no run-strip request", async () => {
+  asRole("member");
+  let called = false;
+  server.use(
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1)] })),
+    http.post(`${P}/analytics/run-strip`, () => { called = true; return HttpResponse.json({ runs: [], statuses: {} }); }),
+  );
+  renderAt("/projects/42/cases");
+  await screen.findByText("not linked");
+  expect(called).toBe(false);
+});
+
+test("a failing run-strip leaves the list usable", async () => {
+  asRole("member");
+  const stripKey = "c".repeat(64);
+  server.use(
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1, { automated_test_key: stripKey })] })),
+    http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({ detail: "down" }, { status: 503 })),
+  );
+  renderAt("/projects/42/cases");
+  expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
+  expect(await screen.findByLabelText(/last runs unavailable/i)).toBeInTheDocument();
 });
