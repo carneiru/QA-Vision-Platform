@@ -222,17 +222,17 @@ test("an imported case shows its source and Gherkin read-only", async () => {
 
 test("saving an imported case sends only the fields QA Vision owns", async () => {
   asRole("member");
-  let sent: any = null;
+  let sent: Record<string, unknown> | null = null;
   server.use(
     http.get(`${P}/cases/7`, () => HttpResponse.json(kase(7, { source_path: "a.feature", gherkin: "Scenario: x" }))),
-    http.patch(`${P}/cases/7`, async ({ request }) => { sent = await request.json(); return HttpResponse.json(kase(7)); }),
+    http.patch(`${P}/cases/7`, async ({ request }) => { sent = (await request.json()) as Record<string, unknown>; return HttpResponse.json(kase(7)); }),
   );
   renderAt("/projects/42/cases/7");
   const user = userEvent.setup();
   await user.selectOptions(await screen.findByLabelText(/priority/i), "high");
   await user.click(screen.getByRole("button", { name: /save/i }));
   await vi.waitFor(() => expect(sent).not.toBeNull());
-  expect(Object.keys(sent).sort()).toEqual(["description", "priority", "status"]);
+  expect(Object.keys(sent ?? {}).sort()).toEqual(["description", "priority", "status"]);
 });
 
 test("the origin filter reaches the API", async () => {

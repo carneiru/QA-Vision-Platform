@@ -42,19 +42,19 @@ async function readFeatures(files: File[]): Promise<ImportFile[]> {
 /** Walks a dropped folder (or file) entry into Files; browsers without entries fall back to dataTransfer.files. */
 async function filesFromDrop(e: DragEvent): Promise<File[]> {
   const entries = Array.from(e.dataTransfer.items ?? [])
-    .map((i) => (i as DataTransferItem & { webkitGetAsEntry?: () => any }).webkitGetAsEntry?.())
-    .filter(Boolean);
+    .map((i) => i.webkitGetAsEntry?.())
+    .filter((entry): entry is FileSystemEntry => Boolean(entry));
   if (entries.length === 0) return Array.from(e.dataTransfer.files);
   const out: File[] = [];
-  async function walk(entry: any, dir: string): Promise<void> {
+  async function walk(entry: FileSystemEntry, dir: string): Promise<void> {
     if (entry.isFile) {
-      const file: File = await new Promise((res, rej) => entry.file(res, rej));
+      const file: File = await new Promise((res, rej) => (entry as FileSystemFileEntry).file(res, rej));
       Object.defineProperty(file, "webkitRelativePath", { value: dir + file.name });
       out.push(file);
     } else if (entry.isDirectory) {
-      const reader = entry.createReader();
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
       for (;;) {
-        const batch: any[] = await new Promise((res, rej) => reader.readEntries(res, rej));
+        const batch: FileSystemEntry[] = await new Promise((res, rej) => reader.readEntries(res, rej));
         if (batch.length === 0) break;
         for (const child of batch) await walk(child, `${dir}${entry.name}/`);
       }

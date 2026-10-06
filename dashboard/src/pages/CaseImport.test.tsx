@@ -47,10 +47,10 @@ function featureFile(name: string, text: string, relative: string) {
 
 test("previews the chosen .feature files with the prefix, then imports with the previewed hash", async () => {
   asRole("member");
-  const bodies: any[] = [];
+  const bodies: { dry: string | null; json: Record<string, unknown> }[] = [];
   server.use(http.post(`${P}/cases/import`, async ({ request }) => {
     const url = new URL(request.url);
-    const json = await request.json();
+    const json = (await request.json()) as Record<string, unknown>;
     bodies.push({ dry: url.searchParams.get("dry_run"), json });
     return HttpResponse.json(url.searchParams.get("dry_run") === "true"
       ? preview : { ...preview, items: [{ ...preview.items[0], case_number: 9 }] });
