@@ -99,11 +99,11 @@ qav-import-features:
       code: `// Jenkinsfile — needs the qa-vision shared library (collector-jenkins/)
 withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
   withEnv(['QAV_URL=${origin}']) {
-    qavCollectorUpload(patterns: 'reports/**/*.xml')
+    qavCollectorUpload(patterns: 'reports/**/*.xml', ref: '${COLLECTOR_REF}')
     // syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+    // reuses the .qav-venv that qavCollectorUpload creates, so keep it after the upload step
     sh '''
-      pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
-      qav-collector import-features "tests/features/**/*.feature"
+      .qav-venv/bin/python -m qav_collector import-features "tests/features/**/*.feature"
     '''
   }
 }`,

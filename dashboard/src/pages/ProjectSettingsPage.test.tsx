@@ -165,6 +165,10 @@ test("every CI snippet syncs test cases from .feature files with the pinned coll
       // Groovy comments are //, never #
       const lines = (snippet.textContent ?? "").split(/\r?\n/).map((l) => l.trim());
       expect(lines.filter((l) => l.startsWith("#"))).toEqual([]);
+      // reuses the venv qavCollectorUpload creates; no bare pip / qav-collector (PEP 668 agents)
+      expect(snippet).toHaveTextContent('.qav-venv/bin/python -m qav_collector import-features "tests/features/**/*.feature"');
+      expect(snippet.textContent).not.toMatch(/^\s*pip install/m);
+      expect(snippet.textContent).not.toMatch(/^\s*qav-collector/m);
     }
   }
 });
