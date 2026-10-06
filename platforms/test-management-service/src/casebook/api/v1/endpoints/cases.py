@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ def list_cases(
     status_filter: Optional[Status] = Query(None, alias="status"),
     priority: Optional[Priority] = Query(None),
     include_archived: bool = Query(False),
+    origin: Optional[Literal["manual", "imported"]] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -34,7 +35,7 @@ def list_cases(
 ):
     total, rows = case_service.list_cases(
         db, access.project_id, search=search, labels=label, status=status_filter, priority=priority,
-        include_archived=include_archived, limit=limit, offset=offset,
+        include_archived=include_archived, origin=origin, limit=limit, offset=offset,
     )
     return {"total": total, "items": [case_service.out(r) for r in rows]}
 
@@ -67,7 +68,12 @@ def update_case(
     access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
 ):
     row = _case_or_404(db, access, number)
-    row = case_service.update_case(db, row, access.user_id, payload.model_dump(exclude_unset=True))
+    changes = payload.model_dump(exclude_unset=True)
+    owned = case_service.repository_owned(row, changes)
+    if owned:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"{', '.join(owned)} come from {row.source_path}; change the .feature file instead")
+    row = case_service.update_case(db, row, access.user_id, changes)
     return case_service.out(row, case_service.suites_of(db, row))
 
 

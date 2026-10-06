@@ -32,6 +32,7 @@ class CaseCreate(BaseModel):
     status: Status = "draft"
     automated_test_key: Optional[TestKey] = None
     automated_name: Optional[str] = Field(None, max_length=1500)
+    gherkin: Optional[str] = None  # accepted so the 422 for imported cases can name it; manual cases ignore it
 
     _norm_labels = field_validator("labels")(_labels)
 
@@ -83,6 +84,8 @@ class CaseOut(BaseModel):
     created_at: datetime
     updated_by: Optional[int] = None
     updated_at: Optional[datetime] = None
+    source_path: Optional[str] = None
+    gherkin: Optional[str] = None
     suites: List[SuiteRef] = []  # filled on the single-case read
 
 

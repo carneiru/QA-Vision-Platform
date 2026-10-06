@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -23,7 +23,8 @@ def out(row: Case, suites: Optional[list] = None) -> dict:
         "steps": row.steps or [], "labels": [label.label for label in row.labels], "priority": row.priority,
         "status": row.status, "automated_test_key": row.automated_test_key, "automated_name": row.automated_name,
         "created_by": row.created_by, "created_at": row.created_at, "updated_by": row.updated_by,
-        "updated_at": row.updated_at, "suites": suites or [],
+        "updated_at": row.updated_at, "source_path": row.source_path, "gherkin": row.gherkin,
+        "suites": suites or [],
     }
 
 
@@ -66,6 +67,17 @@ def create_case(db: Session, project_id: int, user_id: int, data: dict) -> Case:
     raise RuntimeError("unreachable")
 
 
+REPOSITORY_FIELDS = ("title", "steps", "labels", "gherkin")
+
+
+def repository_owned(row: Case, changes: dict) -> list:
+    """Fields a PATCH may not change on an imported case: its .feature file owns them (ADR-023)."""
+    if row.source_key is None:
+        changes.pop("gherkin", None)
+        return []
+    return [f for f in REPOSITORY_FIELDS if f in changes]
+
+
 def update_case(db: Session, row: Case, user_id: int, changes: dict) -> Case:
     if "labels" in changes:
         labels = changes.pop("labels") or []
@@ -87,7 +99,8 @@ def update_case(db: Session, row: Case, user_id: int, changes: dict) -> Case:
 
 
 def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: List[str], status: Optional[str],
-               priority: Optional[str], include_archived: bool, limit: int, offset: int):
+               priority: Optional[str], include_archived: bool, limit: int, offset: int,
+               origin: Optional[str] = None):
     query = db.query(Case).filter(Case.project_id == project_id)
     if status is not None:
         query = query.filter(Case.status == status)
@@ -95,8 +108,13 @@ def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: L
         query = query.filter(Case.status != "archived")
     if priority is not None:
         query = query.filter(Case.priority == priority)
+    if origin == "imported":
+        query = query.filter(Case.source_key.isnot(None))
+    elif origin == "manual":
+        query = query.filter(Case.source_key.is_(None))
     if search:
-        query = query.filter(Case.title.ilike(f"%{_escape_like(search)}%", escape="\\"))
+        pattern = f"%{_escape_like(search)}%"
+        query = query.filter(or_(Case.title.ilike(pattern, escape="\\"), Case.gherkin.ilike(pattern, escape="\\")))
     for label in {label.lower() for label in labels}:
         query = query.filter(exists().where(CaseLabel.case_id == Case.id, CaseLabel.label == label))
     total = query.count()
