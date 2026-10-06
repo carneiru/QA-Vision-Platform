@@ -124,7 +124,8 @@ def _parse_cucumber_file(path: str, parsed: ParsedFile) -> ParsedFile:
 
 def _cucumber_feature(feature: dict, parsed: ParsedFile) -> None:
     suite = str(feature.get("name") or "")
-    uri = str(feature.get("uri") or "")
+    # Windows runners report "tests\features\a.feature"; the key must not depend on the OS (ADR-023)
+    uri = str(feature.get("uri") or "").replace("\\", "/")
     background: list = []
     for element in feature.get("elements") or []:
         if not isinstance(element, dict):

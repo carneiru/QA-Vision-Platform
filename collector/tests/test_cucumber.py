@@ -102,3 +102,10 @@ def test_broken_json_is_skipped(tmp_path):
     path.write_text("[{", encoding="utf-8")
     parsed = parse_file(str(path))
     assert parsed.skipped
+
+
+def test_a_windows_uri_is_reported_with_forward_slashes(tmp_path):
+    """Results uploaded from Windows must carry the same key as those from Linux and the Gherkin import."""
+    feature = {**CUCUMBER[0], "uri": "tests\\features\\a.feature"}
+    parsed = parse_file(write(tmp_path, [feature]))
+    assert {r["class_name"] for r in parsed.results} == {"tests/features/a.feature"}
