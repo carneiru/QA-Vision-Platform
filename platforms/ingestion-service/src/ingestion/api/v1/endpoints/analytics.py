@@ -140,3 +140,14 @@ def unmute_flaky(
 ):
     if not analytics_service.unmute_test(db, access.project_id, test_key):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test is not muted")
+
+
+@router.get("/latest-keys")
+def latest_keys(
+    status: Literal["passed", "failed", "skipped", "any"] = Query(...),
+    branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    """Keys of the tests whose latest result has `status`; the dashboard passes them to test-management."""
+    return {"keys": analytics_service.latest_keys(db, access.project_id, status, branch)}

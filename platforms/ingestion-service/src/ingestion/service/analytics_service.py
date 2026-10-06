@@ -3,7 +3,7 @@ grouping live in src/ingestion/analytics."""
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from sqlalchemy import case, func, literal, select
+from sqlalchemy import case, distinct, func, literal, select
 from sqlalchemy.orm import Session, aliased
 
 from src.ingestion.analytics.flaky import FlipCount, LatestExecution, MixedCommit
@@ -295,3 +295,23 @@ def mixed_commits(db: Session, project_id: int, since: datetime, branch: Optiona
     ).all()
     mixed = [MixedCommit(key, sha, env, as_utc(seen)) for key, sha, env, seen in mixed_rows]
     return mixed
+
+
+def latest_keys(db: Session, project_id: int, status: str, branch: Optional[str] = None) -> List[str]:
+    """Test keys whose most recent result (by run start) has `status`; failed includes errored.
+    `any`: every test with at least one result. Used by the dashboard's latest-result case filter."""
+    filters = [Run.project_id == project_id]
+    if branch:
+        filters.append(Run.branch == branch)
+    if status == "any":
+        rows = db.execute(select(distinct(RunResult.test_key)).join(Run, Run.id == RunResult.run_id).where(*filters))
+        return sorted(k for (k,) in rows)
+    ranked = (
+        select(RunResult.test_key, RunResult.status,
+               func.row_number().over(partition_by=RunResult.test_key,
+                                      order_by=(Run.started_at.desc(), Run.id.desc())).label("position"))
+        .join(Run, Run.id == RunResult.run_id).where(*filters)
+    ).subquery()
+    wanted = ("failed", "errored") if status == "failed" else (status,)
+    rows = db.execute(select(ranked.c.test_key).where(ranked.c.position == 1, ranked.c.status.in_(wanted)))
+    return sorted(k for (k,) in rows)
