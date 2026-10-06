@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Bot, Plus } from "lucide-react";
+import { Bot, Plus, Upload } from "lucide-react";
 import { CaseStatus, PRIORITIES, Priority, listCases, listLabels } from "../api/cases";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
@@ -69,9 +69,14 @@ export default function CasesPage() {
         <span aria-current="page">Cases</span>
         <Link to="../suites" relative="path">Suites</Link>
         {canEdit && (
-          <Link className="button primary" to="new">
-            <Plus size={16} aria-hidden="true" /> New case
-          </Link>
+          <div className="button-row view-tabs-actions">
+            <Link className="button" to="import">
+              <Upload size={16} aria-hidden="true" /> Import from Gherkin
+            </Link>
+            <Link className="button primary" to="new">
+              <Plus size={16} aria-hidden="true" /> New case
+            </Link>
+          </div>
         )}
       </div>
 

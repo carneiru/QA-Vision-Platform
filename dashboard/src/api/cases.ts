@@ -27,6 +27,9 @@ export interface Case {
   created_at: string;
   updated_by: number | null;
   updated_at: string | null;
+  /** Repo-relative .feature path, for a case imported from Gherkin. */
+  source_path: string | null;
+  gherkin: string | null;
   /** Filled on the single-case read. */
   suites: { id: number; name: string }[];
 }
@@ -41,6 +44,7 @@ export interface CaseQuery {
   status?: CaseStatus;
   priority?: Priority;
   include_archived?: boolean;
+  origin?: "manual" | "imported";
   limit: number;
   offset: number;
 }
@@ -126,4 +130,26 @@ export const STATUSES: CaseStatus[] = ["draft", "ready", "archived"];
 /** "checkout, Smoke" -> ["checkout", "smoke"]: what the label field accepts. */
 export function parseLabels(text: string): string[] {
   return [...new Set(text.split(/[,\s]+/).map((l) => l.trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+export type ImportAction = "create" | "update" | "unchanged" | "move" | "reactivate" | "archive" | "skip";
+export interface ImportIssue { path: string; line: number | null; message: string }
+export interface ImportItem { action: ImportAction; path: string; scenario: string | null; case_number: number | null }
+export interface ImportResult {
+  plan_hash: string;
+  summary: Record<"created" | "updated" | "moved" | "reactivated" | "archived" | "unchanged" | "skipped", number>;
+  items: ImportItem[];
+  errors: ImportIssue[];
+  warnings: ImportIssue[];
+}
+export interface ImportFile { path: string; content: string }
+
+/** Plans (dryRun) or applies an import of Gherkin files; apply passes the previewed plan's hash. */
+export function importCases(
+  projectId: number,
+  files: ImportFile[],
+  opts: { dryRun: boolean; expectedPlanHash?: string },
+): Promise<ImportResult> {
+  const body = { files, full: false, ...(opts.expectedPlanHash ? { expected_plan_hash: opts.expectedPlanHash } : {}) };
+  return apiFetch(`${base(projectId)}/cases/import?dry_run=${opts.dryRun}`, { method: "POST", body: JSON.stringify(body) });
 }

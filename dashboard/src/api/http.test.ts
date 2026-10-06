@@ -145,3 +145,15 @@ test("JSON error detail is surfaced", async () => {
   );
   await expect(apiFetch("/api/v1/thing")).rejects.toMatchObject({ detail: "Project not found" });
 });
+
+test("an object detail surfaces its message and code", async () => {
+  setAccessToken("acc");
+  server.use(
+    http.post("/api/v1/thing", () =>
+      HttpResponse.json({ detail: { code: "plan_changed", message: "Something changed" } }, { status: 409 }),
+    ),
+  );
+  await expect(apiFetch("/api/v1/thing", { method: "POST" })).rejects.toMatchObject({
+    status: 409, detail: "Something changed", code: "plan_changed",
+  });
+});

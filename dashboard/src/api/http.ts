@@ -4,6 +4,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     public detail: string,
+    /** Machine-readable reason, when the API sends an object detail ({code, message}). */
+    public code?: string,
   ) {
     super(detail);
     this.name = "ApiError";
@@ -29,13 +31,18 @@ export function buildQuery(params: Record<string, string | number | undefined | 
 
 async function errorFrom(response: Response): Promise<ApiError> {
   let detail = `Request failed with status ${response.status}`;
+  let code: string | undefined;
   try {
     const body = await response.json();
     if (typeof body?.detail === "string") detail = body.detail;
+    else if (typeof body?.detail?.message === "string") {
+      detail = body.detail.message;
+      if (typeof body.detail.code === "string") code = body.detail.code;
+    }
   } catch {
     // non-JSON body (gateway HTML error page): keep the generic detail
   }
-  return new ApiError(response.status, detail);
+  return new ApiError(response.status, detail, code);
 }
 
 // A single in-flight refresh shared by every 401 that hits while it runs.

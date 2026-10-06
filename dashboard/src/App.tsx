@@ -18,6 +18,7 @@ import FlakyPage from "./pages/FlakyPage";
 import RunsPage from "./pages/RunsPage";
 import ComparePage from "./pages/ComparePage";
 import CaseEditorPage from "./pages/CaseEditorPage";
+import CaseImportPage from "./pages/CaseImportPage";
 import CasesPage from "./pages/CasesPage";
 import SuiteDetailPage from "./pages/SuiteDetailPage";
 import SuitesPage from "./pages/SuitesPage";
@@ -124,6 +125,7 @@ export function AppRoutes() {
             <Route path="report" element={<ReportPage />} />
             <Route path="cases" element={<CasesPage />} />
             <Route path="cases/new" element={<CaseEditorPage />} />
+            <Route path="cases/import" element={<CaseImportPage />} />
             <Route path="cases/:caseNumber" element={<CaseEditorPage />} />
             <Route path="suites" element={<SuitesPage />} />
             <Route path="suites/:suiteId" element={<SuiteDetailPage />} />
