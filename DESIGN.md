@@ -302,17 +302,18 @@ A destructive action never runs on the first click. The trigger is a default but
 ### Run Strip
 A compact visual history of a test across recent runs, as a minimum 24px-tall link to the newest run. The strip holds one 6×18px bar per run with a 2px gap, oldest on the left.
 
-- **Link:** the only keyboard-focusable element, its label reads "Last 10 runs: 7 passed, 2 failed, 1 re-run" (counting non-null statuses). Navigates to the newest run's detail page.
+- **Link:** the only keyboard-focusable element, its accessible name reads "Last 10 runs: 7 passed, 2 failed, 1 re-run, opens run #435". The summary counts every status, including "not run". It goes to the newest run the test was in (the last non-null status). Bars are `aria-hidden`.
 - **Bars** are non-interactive spans with hover tooltips. Colours signal the last attempt's outcome in that run:
   - **Passed:** `--status-passed` (green).
   - **Failed:** `--status-failed` (red) with a notch cut from the top to signal failure without colour alone.
-  - **Re-run:** `--status-rerun` (amber: #b07800 light, #e0a000 dark) with diagonal stripes to distinguish it without relying on hue.
+  - **Re-run:** `--status-rerun` (amber: #b07800 light, #e0a000 dark) with diagonal stripes to distinguish it without relying on hue (dark stripe tone #8a6200, 3.2:1 on the surface).
   - **Skipped:** a dashed outline with no fill, since the test did not run.
-  - **Not in run:** a solid hairline outline with no fill.
+  - **Not in run:** a solid hairline outline in `--text-muted` (3.6:1 light, 4.9:1 dark) with no fill.
   - Each bar colour meets at least 3:1 non-text contrast against the cell's background in both themes.
-- **Accessibility:** a visually-hidden ordered list of all runs and their statuses follows the link (screen readers announce "Last 10 runs: 7 passed, 2 failed, 1 re-run" then list each bar's details). With no results, the strip has `role="img"`.
-- **Rendering:** until data arrives, the column shows 10 grey skeleton bars. If the request fails, a dash appears and the rest of the page continues working.
-- **Column placement:** "Last runs" goes after Title as `hide-narrow`, hidden at 640px and below. A legend next to the table header explains the colours and shapes.
+- **WCAG:** the notch, stripes and outlines satisfy 1.4.1 (use of colour); the single 24px-tall link satisfies 2.5.8 (target size).
+- **Accessibility:** a visually-hidden ordered list of all runs and their statuses follows the link (screen readers announce "Last 10 runs: 7 passed, 2 failed, 1 re-run" then list each bar's details). When the test is in none of the runs, the strip has `role="img"` with the summary only. With zero runs in the project, the cell shows the muted text "No runs yet".
+- **Rendering:** until data arrives, the column shows 10 outlined skeleton bars (`--surface-2` fill, `--border-strong` outline). If the request fails, a dash appears and the rest of the page continues working.
+- **Column placement:** "Last runs" goes after Title as `hide-narrow`, hidden at 640px and below. A legend above the table explains the colours and shapes. It is hidden when no case on the page is linked. An unlinked case shows only the text "not linked", with no empty strip.
 
 ### Cards / Containers
 - **Corner Style:** 10px.

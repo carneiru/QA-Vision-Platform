@@ -455,6 +455,34 @@ test("linked cases show their last runs; unlinked say not linked", async () => {
   expect(screen.getByText("Didn't run")).toBeInTheDocument();
 });
 
+test("the run-strip request keys are deduplicated and sorted, and the skeleton shows while loading", async () => {
+  asRole("member");
+  const a = "a".repeat(64), z = "z".repeat(64);
+  let body: { test_keys: string[] } | undefined;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => { release = r; });
+  server.use(
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 3, items: [kase(1, { automated_test_key: z }), kase(2, { automated_test_key: a }), kase(3, { automated_test_key: z })] })),
+    http.post(`${P}/analytics/run-strip`, async ({ request }) => {
+      body = (await request.json()) as { test_keys: string[] };
+      await gate;
+      return HttpResponse.json({ runs: [], statuses: {} });
+    }),
+  );
+  renderAt("/projects/42/cases");
+  expect((await screen.findAllByText("Loading last runs")).length).toBe(3);
+  release();
+  await waitFor(() => expect(body?.test_keys).toEqual([a, z]));
+});
+
+test("the legend is hidden when no case on the page is linked", async () => {
+  asRole("member");
+  server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1)] })));
+  renderAt("/projects/42/cases");
+  await screen.findByText("not linked");
+  expect(screen.queryByText("Didn't run")).toBeNull();
+});
+
 test("no linked cases means no run-strip request", async () => {
   asRole("member");
   let called = false;
@@ -476,5 +504,5 @@ test("a failing run-strip leaves the list usable", async () => {
   );
   renderAt("/projects/42/cases");
   expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
-  expect(await screen.findByLabelText(/last runs unavailable/i)).toBeInTheDocument();
+  expect(await screen.findByLabelText(/last runs unavailable/i, undefined, { timeout: 4000 })).toBeInTheDocument();
 });

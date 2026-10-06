@@ -75,3 +75,25 @@ def test_other_projects_runs_are_invisible(runs, auth, make_key, project_role):
                                   {"test_keys": [A], "limit": 21}, {"test_keys": [A], "branch": "a\x00"}])
 def test_bad_bodies_are_422(runs, auth, body):
     assert runs.post(URL, json=body, headers=auth()).status_code == 422
+
+
+def test_runs_with_identical_started_at_are_ordered_by_id(client, make_key, project_role, auth):
+    project_role("viewer", project_id=7)
+    _, key = make_key(project_id=7)
+    same = datetime.now(timezone.utc) - timedelta(hours=1)
+    upload(client, key, started=same, results=[{"name": "A", "status": "passed"}])
+    upload(client, key, started=same, results=[{"name": "A", "status": "failed"}])
+    data = strip(client, auth)
+    assert [r["id"] for r in data["runs"]] == sorted(r["id"] for r in data["runs"])
+    assert len(data["runs"]) == 2
+    assert data["statuses"][A] == ["passed", "failed"]
+
+
+def test_duplicate_and_mixed_case_keys_map_to_one_lowercased_entry(runs, auth):
+    r = runs.post(URL, json={"test_keys": [A, A.upper(), A.title()]}, headers=auth())
+    assert r.status_code == 200, r.text
+    assert list(r.json()["statuses"]) == [A]
+
+
+def test_unknown_body_fields_are_422(runs, auth):
+    assert runs.post(URL, json={"test_keys": [A], "extra": 1}, headers=auth()).status_code == 422

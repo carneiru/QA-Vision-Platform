@@ -1,7 +1,6 @@
 import { apiFetch, buildQuery } from "./http";
-import type { StripRun, StripStatus } from "../components/RunStrip";
 
-// Types mirror platforms/ingestion-service/src/ingestion/schemas/analytics.py
+// Types mirror platforms/ingestion-service/src/ingestion/schemas/analytics.py (the run-strip types below are hand-written; see the run-strip route).
 
 export interface TrendDay {
   date: string;
@@ -107,6 +106,9 @@ export function getLatestKeys(
 ): Promise<{ keys: string[] }> {
   return apiFetch(`/api/v1/projects/${projectId}/analytics/latest-keys${buildQuery({ status })}`);
 }
+
+export type StripStatus = "passed" | "failed" | "rerun" | "skipped" | null;
+export interface StripRun { id: number; started_at: string; branch: string | null }
 
 /** Each test's status in the project's last runs (oldest to newest); statuses are keyed by lowercase test key. */
 export function getRunStrip(

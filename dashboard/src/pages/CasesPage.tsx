@@ -128,6 +128,7 @@ export default function CasesPage() {
     queryFn: () => getRunStrip(id, stripKeys),
     enabled: stripKeys.length > 0,
     staleTime: 60_000,
+    retry: 1,
   });
   const filtered = KEYS.some((k) => applied[k] !== "");
 
@@ -199,11 +200,13 @@ export default function CasesPage() {
       )}
       {data && data.items.length > 0 && (
         <>
+        {stripKeys.length > 0 && (
         <ul className="run-legend hide-narrow" aria-label="Last runs legend">
           {LEGEND.map(([kind, text]) => (
             <li key={kind}><span className={`run-bar bar-${kind}`} aria-hidden="true" /> {text}</li>
           ))}
         </ul>
+        )}
         <div className="card" tabIndex={0} role="region" aria-label="Test cases">
           <table className="data">
             <thead>

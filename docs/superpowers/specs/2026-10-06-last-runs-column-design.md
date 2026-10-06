@@ -62,22 +62,22 @@ run, oldest on the left and newest on the right.
   - Colours: `--status-passed`, `--status-failed`, and a new `--status-rerun` (amber) with light and
     dark values. Each bar has at least 3:1 non-text contrast against the cell background in both
     themes.
-  - **Colour is never the only signal.** A failed bar has a notch cut into its top (WCAG 2.5.8). A re-run bar has
+  - **Colour is never the only signal.** Notch, stripes and outlines serve WCAG 1.4.1 (use of colour). A failed bar has a notch cut into its top. A re-run bar has
     diagonal stripes. A skipped bar has a dashed outline. A "not in run" bar has a solid hairline
     outline and no fill.
-  - The strip is one link (minimum 24px tall) to the newest run's detail page, labelled
-    "Last 10 runs: 7 passed, 2 failed, 1 re-run" (counting non-zero kinds, including not-run and
-    skipped). A visually-hidden ordered list of all runs and their statuses follows the link for
-    screen readers. With no results, the strip has `role="img"` (WCAG 2.5.8).
+  - The strip is one link (minimum 24px tall) to the newest run's detail page, named
+    "Last 10 runs: 7 passed, 2 failed, 1 re-run, opens run #435" (the summary counts every status, including "not run" and
+    skipped; "Last 1 run:" when singular). The link goes to the newest run the test was in. The single 24px link serves WCAG 2.5.8 (target size); bars are `aria-hidden`. A visually-hidden ordered list of all runs and their statuses follows the link for
+    screen readers. When the test is in none of the runs, the strip has `role="img"` with the summary only. With zero runs in the project, the cell shows the muted text "No runs yet".
   - Bars don't animate, so there's nothing to change for `prefers-reduced-motion`.
 - **Cases page:** once the page of cases has loaded, it collects the linked keys and calls `run-strip`.
   - The query key is `["run-strip", id, keys]`.
   - Until the strip data arrives, the column shows a skeleton of 10 grey bars.
-  - If the call fails, the column shows a dash, the rest of the page keeps working, and nothing
+  - If the call fails, the column shows a dash (after one retry), the rest of the page keeps working, and nothing
     blocks.
   - The column is `hide-narrow`, so it is hidden at 640px and below.
 - **Legend:** a small legend next to the table header explains the colours and shapes. It is
-  visible text, not only a tooltip.
+  visible text, not only a tooltip. It is hidden when no case on the page is linked, and an unlinked case shows only the text "not linked" (no empty strip).
 
 ## Testing
 
@@ -90,11 +90,12 @@ run, oldest on the left and newest on the right.
   - fewer runs than `limit`;
   - the `branch` filter;
   - project isolation;
-  - a 422 for 201 keys or a bad key.
+  - a 422 for 201 keys, a bad key or an unknown body field;
+  - identical `started_at` ordered by id; duplicate and mixed-case keys collapse to one lowercased entry.
 - **dashboard (vitest):**
-  - RunStrip: each status's class and shape, the group label summary, and the per-bar label and link.
+  - RunStrip: each status's class and shape, the summary (singular and plural), the link name with its target, `aria-hidden` bars, "No runs yet" for zero runs and the skeleton.
   - Cases page: the column renders with the strip data; a case with no link shows "not linked"; a
-    failing `run-strip` call shows a dash and the list still works.
+    failing `run-strip` call shows a dash and the list still works; keys are deduplicated and sorted in the request; the skeleton shows while loading; the legend is hidden with no linked case.
 - **Gateway smoke:** `run-strip` through the gateway returns 200.
 
 ## Out of scope
