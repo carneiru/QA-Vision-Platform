@@ -315,3 +315,34 @@ def latest_keys(db: Session, project_id: int, status: str, branch: Optional[str]
     wanted = ("failed", "errored") if status == "failed" else (status,)
     rows = db.execute(select(ranked.c.test_key).where(ranked.c.position == 1, ranked.c.status.in_(wanted)))
     return sorted(k for (k,) in rows)
+
+
+def run_strip(db: Session, project_id: int, keys: List[str], limit: int = 10,
+              branch: Optional[str] = None) -> dict:
+    """Each test's status in the project's last `limit` runs, oldest to newest (Cases 'Last runs').
+    More than one result row for a test in a run is a re-run; errored counts as failed."""
+    filters = [Run.project_id == project_id]
+    if branch:
+        filters.append(Run.branch == branch)
+    recent = db.execute(
+        select(Run.id, Run.started_at, Run.branch).where(*filters)
+        .order_by(Run.started_at.desc(), Run.id.desc()).limit(limit)
+    ).all()
+    recent = list(reversed(recent))
+    keys = sorted({k.lower() for k in keys})
+    statuses = {k: [None] * len(recent) for k in keys}
+    if recent and keys:
+        position = {run.id: i for i, run in enumerate(recent)}
+        rows = db.execute(
+            select(RunResult.run_id, RunResult.test_key, func.count(RunResult.id), func.max(RunResult.status))
+            .where(RunResult.run_id.in_(list(position)), RunResult.test_key.in_(keys))
+            .group_by(RunResult.run_id, RunResult.test_key)
+        ).all()
+        for run_id, key, count, status in rows:
+            if count > 1:
+                value = "rerun"
+            else:
+                value = "failed" if status in ("failed", "errored") else status
+            statuses[key][position[run_id]] = value
+    return {"runs": [{"id": r.id, "started_at": r.started_at, "branch": r.branch} for r in recent],
+            "statuses": statuses}

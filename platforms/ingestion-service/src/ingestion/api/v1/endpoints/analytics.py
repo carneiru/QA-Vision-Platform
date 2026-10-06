@@ -1,10 +1,11 @@
 """Read-only analytics over a project's runs, with the run endpoints' access rule."""
 from datetime import datetime, timedelta, timezone
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 from functools import lru_cache
 from zoneinfo import ZoneInfo, available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from sqlalchemy.orm import Session
 
 from src.ingestion.analytics import rollup
@@ -151,3 +152,20 @@ def latest_keys(
 ):
     """Keys of the tests whose latest result has `status`; the dashboard passes them to test-management."""
     return {"keys": analytics_service.latest_keys(db, access.project_id, status, branch)}
+
+
+class RunStripIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    test_keys: List[Annotated[str, StringConstraints(pattern=r"^[0-9a-fA-F]{64}$")]] = Field(min_length=1, max_length=200)
+    limit: int = Field(10, ge=1, le=20)
+    branch: Optional[Annotated[str, StringConstraints(max_length=255, pattern=NO_NUL)]] = None
+
+
+@router.post("/run-strip")
+def run_strip(
+    body: RunStripIn,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    """Last-runs strip for the Cases list: the page's keys against the project's last runs."""
+    return analytics_service.run_strip(db, access.project_id, body.test_keys, body.limit, body.branch)
