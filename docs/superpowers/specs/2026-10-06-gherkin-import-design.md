@@ -96,7 +96,16 @@ These are reported and never block the rest of the batch:
 - It sits under `/cases/`, so the gateway regex already routes it. It is declared before
   `/cases/{number}`.
 - Body: `{files: [{path, content}], full: false, expected_plan_hash?: string}`.
-- Limits: up to 2 000 files, 256 KB per file, 10 MB in total. Over any limit is 413.
+- Limits: up to 2 000 files, 256 KB per file, 10 MB of file content in total. Over any limit is
+  413, and the message names the limit and its setting. Each limit is a service setting, read from
+  the environment like ingestion's `MAX_RESULTS_PER_RUN`: `IMPORT_MAX_FILES`,
+  `IMPORT_MAX_FILE_BYTES` and `IMPORT_MAX_TOTAL_BYTES`.
+- The gateway caps every request body at 10 MB, and JSON escaping makes the body larger than the
+  file content. So the import path gets its own NGINX `location`, with `client_max_body_size` set
+  from `GATEWAY_IMPORT_MAX_BODY` (default `25m`, substituted by `entrypoint.sh` like
+  `GATEWAY_HTTPS_PORT`). The other routes keep 10 MB.
+- To raise the limits, change these variables in `.env` and restart the gateway and the
+  test-management service. No code changes. The service README and `.env.example` list them.
 - Paths: `\` becomes `/` and a leading `./` is dropped. An absolute path, `..`, or the same path
   twice is 422.
 - Roles: owner, admin and member, as for `POST /cases`. Viewer is 403. A project the caller cannot
@@ -198,7 +207,8 @@ Service, pytest:
   collector parse plus `qav_shared.test_key` produce must equal the key the import computes.
 - `shared/tests`: `test_key` moved, with its existing behaviour.
 
-Gateway smoke: import one minimal feature (`created: 1`).
+Gateway smoke: import one minimal feature (`created: 1`). A body over 10 MB on the import path
+must reach the service rather than get NGINX's 413.
 
 Dashboard, vitest:
 
