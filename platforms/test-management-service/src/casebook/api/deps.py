@@ -66,7 +66,35 @@ def require_project_role(*roles: str):
     return dependency
 
 
+IMPORT_SCOPE = "cases:import"
+CI_USER_ID = 0  # created_by / updated_by for changes made by a CI service token (ADR-024)
+
+
+def require_import_access(project_id: int, token: str = Depends(oauth2_scheme)) -> ProjectAccess:
+    """The import route's callers: an editor's JWT, or the 5-minute service token ingestion trades
+    for the project's API key (ADR-024). Only this route accepts the service token."""
+    if token is None:
+        raise _unauthorized()
+    try:
+        claims = decode_token(token)
+    except ValueError:
+        raise _unauthorized()
+    if claims.get("token_type") == "service":
+        if claims.get("scope") != IMPORT_SCOPE:
+            raise _unauthorized()
+        if claims.get("project_id") != project_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        return ProjectAccess(project_id=project_id, organization_id=int(claims.get("organization_id") or 0),
+                             user_id=CI_USER_ID, role="ci")
+    try:
+        caller = Caller(user_id=int(claims["sub"]), token=token)
+    except (KeyError, TypeError, ValueError):
+        raise _unauthorized()
+    return check_project_role(project_id, caller, EDIT_ROLES, "Project not found")
+
+
 __all__ = [
     "get_db", "get_caller", "check_project_role", "require_project_role",
+    "require_import_access", "CI_USER_ID", "IMPORT_SCOPE",
     "Caller", "ProjectAccess", "READ_ROLES", "EDIT_ROLES",
 ]

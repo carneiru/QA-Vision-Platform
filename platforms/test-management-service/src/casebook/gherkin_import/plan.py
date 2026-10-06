@@ -79,6 +79,13 @@ def plan_hash(items: List[Item]) -> str:
     return hashlib.sha256(json.dumps(rows, separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
+def is_mass_archive(summary: dict, full: bool) -> bool:
+    """A full import that would archive more than half of the imported cases that are live today
+    (each of them is in a full plan as unchanged, updated, moved or archived). ADR-023."""
+    live = summary["archived"] + summary["unchanged"] + summary["updated"] + summary["moved"]
+    return full and live > 0 and summary["archived"] * 2 > live
+
+
 def build_plan(files: List[ParsedFile], existing: List[Existing], full: bool) -> Plan:
     plan = Plan(items=[])
     by_key: Dict[str, Existing] = {c.source_key: c for c in existing}

@@ -29,6 +29,7 @@ class ImportRequest(BaseModel):
 
     files: List[ImportFile] = Field(min_length=1)
     full: bool = False
+    allow_mass_archive: bool = False
     expected_plan_hash: Optional[str] = Field(None, pattern=r"^[0-9a-f]{64}$")
 
     @field_validator("files")
