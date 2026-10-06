@@ -13,7 +13,7 @@ test("the strip is one link named by the summary, to the newest run with a resul
   expect(screen.getAllByRole("link")).toHaveLength(1);
 });
 
-test("each bar is a span with a title, and the link holds a hidden per-run list", () => {
+test("each bar is a span with a title, and a hidden per-run list follows the link", () => {
   const { container } = render(<MemoryRouter><RunStrip projectId={5} runs={runs} statuses={["passed", "failed", "rerun", "skipped"]} /></MemoryRouter>);
   const bars = container.querySelectorAll("span.run-bar");
   expect(bars).toHaveLength(4);
@@ -21,7 +21,9 @@ test("each bar is a span with a title, and the link holds a hidden per-run list"
   expect(bars[1].getAttribute("title")).toMatch(/run #434.*failed/i);
   expect(bars[2]).toHaveClass("bar-rerun");
   expect(bars[3]).toHaveClass("bar-skipped");
-  const items = container.querySelectorAll("a ol.sr-only li");
+  // Outside the link: the link's aria-label would otherwise hide the list from screen readers.
+  expect(container.querySelector("a ol")).toBeNull();
+  const items = container.querySelectorAll("ol.sr-only li");
   expect(items).toHaveLength(4);
   expect(items[1].textContent).toMatch(/run #434.*failed/i);
   expect(items[2].textContent).toMatch(/run #435.*re-run/i);

@@ -31,11 +31,14 @@ export default function RunStrip({ projectId, runs, statuses }: { projectId: num
   if (!newest) {
     return <div className="run-strip" role="img" aria-label={summary}>{bars}</div>;
   }
+  // The per-run list sits after the link: inside it, the link's aria-label would hide it from screen readers.
   return (
-    <Link className="run-strip" to={`/projects/${projectId}/runs/${newest.id}`} aria-label={summary}>
-      {bars}
+    <>
+      <Link className="run-strip" to={`/projects/${projectId}/runs/${newest.id}`} aria-label={summary}>
+        {bars}
+      </Link>
       <ol className="sr-only">{labels.map((l, i) => <li key={runs[i].id}>{l}</li>)}</ol>
-    </Link>
+    </>
   );
 }
 
