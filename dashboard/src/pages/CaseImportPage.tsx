@@ -98,7 +98,9 @@ export default function CaseImportPage() {
       setPreview(null);
       setChanged(false);
       void queryClient.invalidateQueries({ queryKey: ["cases"] });
-      void queryClient.invalidateQueries({ queryKey: ["case-labels"] });
+      for (const key of ["case-labels", "case-folders", "case-features", "cases-total"]) {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      }
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409 && err.code === "plan_changed") {

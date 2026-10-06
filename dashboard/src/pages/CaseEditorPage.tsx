@@ -141,7 +141,9 @@ export default function CaseEditorPage() {
     mutationFn: (input: CaseInput) => (number === null ? createCase(id, input) : updateCase(id, number, input)),
     onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: ["cases", id] });
-      qc.invalidateQueries({ queryKey: ["case-labels", id] });
+      for (const key of ["case-labels", "case-folders", "case-features", "cases-total"]) {
+        qc.invalidateQueries({ queryKey: [key, id] });
+      }
       qc.setQueryData(["case", id, c.number], c);
       setSaved(true);
       if (number === null) navigate(`../${c.number}`, { relative: "path", replace: true });

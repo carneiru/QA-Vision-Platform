@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import FolderTree, { FolderCount, buildTree, countFolders, displayPath, filterTree } from "./FolderTree";
+import { norm } from "./FilterSelect";
+import FolderTree, { FolderCount, FolderNode, buildTree, countFolders, displayPath, filterTree } from "./FolderTree";
 
 interface Props {
   label?: string;
@@ -7,6 +8,16 @@ interface Props {
   total?: number;
   value: string;
   onChange: (path: string) => void;
+}
+
+/** The first folder, top to bottom, whose own name matches the search (ancestors that only lead to a match don't count). */
+function firstMatch(tree: FolderNode[], q: string): string | null {
+  for (const n of tree) {
+    if (norm(n.name).includes(q)) return n.path;
+    const inner = firstMatch(n.children, q);
+    if (inner) return inner;
+  }
+  return null;
 }
 
 /** The folder filter: looks like the other filters; opens a popup with a search box and the folder tree. */
@@ -45,6 +56,13 @@ export default function FolderSelect({ label = "Folder", folders, total, value, 
   };
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault(); // inside the Cases form this would submit it
+      const q = norm(query.trim());
+      const first = q ? firstMatch(filterTree(tree, query), q) : null;
+      if (first) pick(first);
+      return;
+    }
     if (e.key === "ArrowDown") {
       e.preventDefault();
       fieldRef.current?.querySelector<HTMLElement>('[role="treeitem"]')?.focus();

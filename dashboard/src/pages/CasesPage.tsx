@@ -102,17 +102,18 @@ export default function CasesPage() {
     [features.data],
   );
 
-  function pickFolder(path: string) {
-    const next = new URLSearchParams(params);
-    if (path) next.set("folder", path); else next.delete("folder");
+  // Picking a folder applies it together with whatever else is typed in the form
+  function submit(values: Values) {
+    const next = new URLSearchParams();
+    for (const k of KEYS) if (values[k].trim()) next.set(k, values[k].trim());
     setParams(next);
   }
 
+  const pickFolder = (path: string) => submit({ ...form, folder: path });
+
   function apply(e: FormEvent) {
     e.preventDefault();
-    const next = new URLSearchParams();
-    for (const k of KEYS) if (form[k].trim()) next.set(k, form[k].trim());
-    setParams(next);
+    submit(form);
   }
 
   const data = query.data?.page;
@@ -157,7 +158,9 @@ export default function CasesPage() {
           <FilterSelect label="Feature" value={form.feature} options={featureOptions} onChange={(v) => setForm({ ...form, feature: v })} />
           <FilterSelect label="Azure DevOps" value={form.ado} options={adoOptions} onChange={(v) => setForm({ ...form, ado: v })} />
           <button type="submit">Apply</button>
-          <button type="button" onClick={() => setParams(new URLSearchParams())}>Clear filters</button>
+          {filtered && (
+            <button type="button" className="ghost" onClick={() => setParams(new URLSearchParams())}>Clear filters</button>
+          )}
         </FilterBar>
       </form>
 

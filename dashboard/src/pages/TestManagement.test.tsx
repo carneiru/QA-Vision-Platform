@@ -311,6 +311,31 @@ test("picking a folder from the dropdown puts it in the URL and the API call, ke
   expect(screen.getByRole("button", { name: /^folder/i })).toHaveTextContent("hotels");
 });
 
+test("picking a folder also applies edits made to the other filters but not yet applied", async () => {
+  asRole("member");
+  server.use(http.get(`${P}/case-folders`, () => HttpResponse.json([{ path: "tests", count: 3 }, { path: "tests/hotels", count: 2 }])));
+  renderAt("/projects/42/cases");
+  await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Priority" }), "high");
+  await userEvent.click(screen.getByRole("button", { name: /^folder/i }));
+  await userEvent.click(await screen.findByRole("treeitem", { name: /hotels 2/i }));
+  await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("folder=tests%2Fhotels"));
+  expect(screen.getByTestId("where")).toHaveTextContent("priority=high");
+});
+
+test("Clear filters is only shown while a filter is active", async () => {
+  asRole("member");
+  renderAt("/projects/42/cases");
+  await screen.findByRole("button", { name: "Apply" });
+  expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+});
+
+test("Clear filters appears with a filter and resets the URL", async () => {
+  asRole("member");
+  renderAt("/projects/42/cases?priority=high");
+  await userEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
+  await waitFor(() => expect(screen.getByTestId("where")).not.toHaveTextContent("priority"));
+});
+
 test("link, feature and ADO filters reach the API", async () => {
   asRole("member"); facets();
   const seen: URLSearchParams[] = [];

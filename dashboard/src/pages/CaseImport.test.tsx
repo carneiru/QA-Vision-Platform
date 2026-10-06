@@ -25,6 +25,7 @@ function renderAt(url: string) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return qc;
 }
 
 const preview = {
@@ -212,4 +213,20 @@ test("a refused mass archive shows the server's message", async () => {
   await user.click(screen.getByRole("button", { name: /preview/i }));
   await user.click(await screen.findByRole("button", { name: /import 2 changes/i }));
   expect(await screen.findByText(/this would archive 9 of 10/i)).toBeInTheDocument();
+});
+
+test("a finished import refreshes the label, folder, feature and total counts too", async () => {
+  asRole("member");
+  server.use(http.post(`${P}/cases/import`, ({ request }) =>
+    HttpResponse.json(new URL(request.url).searchParams.get("dry_run") === "true"
+      ? preview : { ...preview, items: [{ ...preview.items[0], case_number: 9 }] })));
+  const qc = renderAt("/projects/42/cases/import");
+  const spy = vi.spyOn(qc, "invalidateQueries");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  await user.click(await screen.findByRole("button", { name: /import 2 changes/i }));
+  await screen.findByText(/imported: 1 created/i);
+  const keys = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
+  expect(keys).toEqual(expect.arrayContaining(["cases", "case-labels", "case-folders", "case-features", "cases-total"]));
 });

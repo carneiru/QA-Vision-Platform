@@ -136,3 +136,24 @@ test("the All cases count is left out until the total is known; chevrons hide wh
   await user.type(screen.getByRole("searchbox", { name: "Search folders" }), "hotels");
   expect(document.querySelector(".folder-chevron")).toBeNull();
 });
+
+test("Enter in the search box inside a form does not submit it and picks the first match", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+  render(<form onSubmit={onSubmit}><FolderSelect folders={folders} total={7} value="" onChange={onChange} /></form>);
+  await user.click(screen.getByRole("button", { name: /^folder/i }));
+  await user.type(screen.getByRole("searchbox", { name: "Search folders" }), "hotels{Enter}");
+  expect(onSubmit).not.toHaveBeenCalled();
+  expect(onChange).toHaveBeenCalledWith("tests/features/hotels");
+});
+
+test("Enter with no matching folder does nothing", async () => {
+  const user = userEvent.setup();
+  const onChange = vi.fn();
+  render(<FolderSelect folders={folders} total={7} value="" onChange={onChange} />);
+  await user.click(screen.getByRole("button", { name: /^folder/i }));
+  await user.type(screen.getByRole("searchbox", { name: "Search folders" }), "zzz{Enter}");
+  expect(onChange).not.toHaveBeenCalled();
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+});
