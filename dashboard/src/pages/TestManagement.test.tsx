@@ -30,7 +30,10 @@ function Location() {
 
 // The feature list loads on every Cases page; tests that don't care get an empty one
 beforeEach(() => {
-  server.use(http.get(`${P}/case-features`, () => HttpResponse.json([])));
+  server.use(
+    http.get(`${P}/case-features`, () => HttpResponse.json([])),
+    http.get(`${P}/case-folders`, () => HttpResponse.json([])),
+  );
 });
 
 function renderAt(url: string) {
@@ -58,7 +61,7 @@ test("lists cases with their key, labels and whether they are automated; filters
   const seen: URLSearchParams[] = [];
   server.use(
     http.get(`${P}/cases`, ({ request }) => {
-      seen.push(new URL(request.url).searchParams);
+      if (new URL(request.url).searchParams.get("limit") !== "1") seen.push(new URL(request.url).searchParams);
       return HttpResponse.json({ total: 2, items: [kase(1, { labels: ["smoke"], automated_test_key: KEY }), kase(2)] });
     }),
     http.get(`${P}/case-labels`, () => HttpResponse.json([{ label: "smoke", count: 1 }])),
@@ -244,7 +247,7 @@ test("the origin filter reaches the API", async () => {
   asRole("member");
   const seen: string[] = [];
   server.use(
-    http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams.get("origin") ?? ""); return HttpResponse.json({ total: 0, items: [] }); }),
+    http.get(`${P}/cases`, ({ request }) => { if (new URL(request.url).searchParams.get("limit") !== "1") seen.push(new URL(request.url).searchParams.get("origin") ?? ""); return HttpResponse.json({ total: 0, items: [] }); }),
     http.get(`${P}/case-labels`, () => HttpResponse.json([])),
   );
   renderAt("/projects/42/cases");
@@ -271,16 +274,38 @@ function facets() {
 test("a folder in the URL reaches the API", async () => {
   asRole("member"); facets();
   const seen: URLSearchParams[] = [];
-  server.use(http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 0, items: [] }); }));
+  server.use(http.get(`${P}/cases`, ({ request }) => { if (new URL(request.url).searchParams.get("limit") !== "1") seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 0, items: [] }); }));
   renderAt("/projects/42/cases?folder=tests%2Ffeatures");
   await waitFor(() => expect(seen.at(-1)?.get("folder")).toBe("tests/features"));
   await screen.findByRole("option", { name: "Hotels (2)" });
 });
 
+test("picking a folder from the dropdown puts it in the URL and the API call, keeping other filters", async () => {
+  asRole("member");
+  const seen: URLSearchParams[] = [];
+  server.use(
+    http.get(`${P}/case-folders`, () => HttpResponse.json([
+      { path: "tests", count: 3 }, { path: "tests/hotels", count: 2 }, { path: "tests/flights", count: 1 },
+    ])),
+    http.get(`${P}/cases`, ({ request }) => {
+      if (new URL(request.url).searchParams.get("limit") !== "1") seen.push(new URL(request.url).searchParams);
+      return HttpResponse.json({ total: 3, items: [kase(1)] });
+    }),
+  );
+  renderAt("/projects/42/cases?priority=high");
+  await userEvent.click(await screen.findByRole("button", { name: /^folder/i }));
+  await userEvent.type(await screen.findByRole("searchbox", { name: "Search folders" }), "hotels");
+  await userEvent.click(await screen.findByRole("treeitem", { name: /hotels 2/i }));
+  await vi.waitFor(() => expect(seen[seen.length - 1].get("folder")).toBe("tests/hotels"));
+  expect(seen[seen.length - 1].get("priority")).toBe("high");
+  expect(screen.getByTestId("where")).toHaveTextContent("folder=tests%2Fhotels");
+  expect(screen.getByRole("button", { name: /^folder/i })).toHaveTextContent("hotels");
+});
+
 test("link, feature and ADO filters reach the API", async () => {
   asRole("member"); facets();
   const seen: URLSearchParams[] = [];
-  server.use(http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 0, items: [] }); }));
+  server.use(http.get(`${P}/cases`, ({ request }) => { if (new URL(request.url).searchParams.get("limit") !== "1") seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 0, items: [] }); }));
   renderAt("/projects/42/cases?linked=false&feature=Hotels&ado=81284");
   await waitFor(() => expect(seen.at(-1)?.get("feature")).toBe("Hotels"));
   expect(seen.at(-1)?.get("linked")).toBe("false");
@@ -320,7 +345,7 @@ test("when ingestion is down the result filter is skipped with a banner", async 
   const seen: URLSearchParams[] = [];
   server.use(
     http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ detail: "down" }, { status: 503 })),
-    http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
+    http.get(`${P}/cases`, ({ request }) => { if (new URL(request.url).searchParams.get("limit") !== "1") seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
   );
   renderAt("/projects/42/cases?result=passed&label=smoke");
   expect(await screen.findByText(/latest result filter unavailable right now/i)).toBeInTheDocument();

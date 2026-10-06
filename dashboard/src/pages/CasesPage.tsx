@@ -3,12 +3,13 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Bot, FileCode, Plus, Upload } from "lucide-react";
 import {
-  CaseStatus, PRIORITIES, Priority, listCases, listFeatures, listLabels, searchCases,
+  CaseStatus, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
 } from "../api/cases";
 import { getLatestKeys } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
+import FolderSelect from "../components/FolderSelect";
 import { useCanEdit } from "../lib/useCanEdit";
 
 const PAGE = 50;
@@ -83,6 +84,8 @@ export default function CasesPage() {
   });
   const labels = useQuery({ queryKey: ["case-labels", id], queryFn: () => listLabels(id) });
   const features = useQuery({ queryKey: ["case-features", id], queryFn: () => listFeatures(id) });
+  const folders = useQuery({ queryKey: ["case-folders", id], queryFn: () => listFolders(id) });
+  const casesTotal = useQuery({ queryKey: ["cases-total", id], queryFn: async () => (await listCases(id, { limit: 1, offset: 0 })).total });
   const labelOptions = useMemo(
     () => (labels.data ?? []).filter((l) => !/^ado-\d+$/.test(l.label)).map((l) => ({ value: l.label, label: `${l.label} (${l.count})` })),
     [labels.data],
@@ -98,6 +101,12 @@ export default function CasesPage() {
     () => (features.data ?? []).map((f) => ({ value: f.feature, label: `${f.feature} (${f.count})` })),
     [features.data],
   );
+
+  function pickFolder(path: string) {
+    const next = new URLSearchParams(params);
+    if (path) next.set("folder", path); else next.delete("folder");
+    setParams(next);
+  }
 
   function apply(e: FormEvent) {
     e.preventDefault();
@@ -133,6 +142,7 @@ export default function CasesPage() {
             Search
             <input type="search" value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} placeholder="title" />
           </label>
+          <FolderSelect folders={folders.data ?? []} total={casesTotal.data ?? 0} value={applied.folder} onChange={pickFolder} />
           <FilterSelect label="Label" value={form.label} options={labelOptions} onChange={(v) => setForm({ ...form, label: v })} />
           <FilterSelect label="Status" value={form.status} emptyLabel="Draft and ready" onChange={(v) => setForm({ ...form, status: v })}
             options={[{ value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" }]} />

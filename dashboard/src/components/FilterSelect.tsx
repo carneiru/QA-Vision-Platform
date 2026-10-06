@@ -5,7 +5,7 @@ export interface FilterOption { value: string; label: string }
 /** Up to this many options a native select is used; above it, a searchable list. */
 export const SEARCHABLE_OVER = 15;
 
-const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+export const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
 interface Props {
   label: string;

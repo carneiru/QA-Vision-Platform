@@ -480,4 +480,11 @@ input[readonly] { background: var(--surface-2); }
 .folder-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .folder-count { flex: none; margin-left: auto; font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .folder-chevron::before { transition: none; } }
+/* FolderSelect: the tree inside a combo popup; search and count stay put, the body scrolls */
+.folder-popup { min-width: min(320px, calc(100vw - 32px)); }
+.folder-popup input[type="search"] { width: 100%; }
+.combo-body { max-height: 280px; overflow: auto; }
+.combo-popup .folder-tree, .combo-popup .folder-tree ul { max-height: none; overflow: visible; }
+.folder-name mark { background: var(--accent-soft); color: inherit; font-weight: 600; border-radius: 2px; }
+@media (max-width: 640px) { .folder-popup { min-width: 0; } }
 @media (pointer: coarse) { .folder-tree .folder-row { min-height: 44px; } }
