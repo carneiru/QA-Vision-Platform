@@ -11,9 +11,11 @@ URL = "/api/v1/projects/1/cases/import"
 ONE = "Feature: A\n  Scenario: one\n    Given x\n"
 
 
-def service(project_id=1, scope="cases:import", token_type="service"):
-    claims = {"sub": "apikey:9", "project_id": project_id, "organization_id": 10, "scope": scope,
+def service(project_id=1, scope="cases:import", token_type="service", organization_id=10, with_exp=True):
+    claims = {"sub": "apikey:9", "project_id": project_id, "organization_id": organization_id, "scope": scope,
               "token_type": token_type, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}
+    if not with_exp:
+        del claims["exp"]
     return {"Authorization": f"Bearer {jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM)}"}
 
 
@@ -42,6 +44,22 @@ def test_a_service_token_imports_without_asking_project_service(client, http, db
 def test_a_token_for_another_project_is_404(client, http):
     assert client.post(URL, json=body(("a.feature", ONE)), headers=service(project_id=2)).status_code == 404
     assert not http.calls
+
+
+def test_a_boolean_project_id_is_not_project_one(client, http):
+    r = client.post(URL, json=body(("a.feature", ONE)), headers=service(project_id=True))
+    assert r.status_code in (401, 404)  # True == 1 in Python; it must not pass for project 1
+    assert not http.calls
+
+
+def test_a_garbage_organization_id_is_never_a_500(client, db):
+    # organization_id is unused on this route, so it is not parsed at all
+    r = client.post(URL, json=body(("a.feature", ONE)), headers=service(organization_id="x"))
+    assert r.status_code == 200, r.text
+
+
+def test_a_service_token_without_exp_is_401(client):
+    assert client.post(URL, json=body(("a.feature", ONE)), headers=service(with_exp=False)).status_code == 401
 
 
 @pytest.mark.parametrize("headers", [service(scope="cases:read"), service(scope=None), service(token_type="access")])

@@ -85,10 +85,13 @@ def require_import_access(project_id: int, token: str = Depends(oauth2_scheme)) 
     if claims.get("token_type") == "service":
         if claims.get("scope") != IMPORT_SCOPE:
             raise _unauthorized()
-        if claims.get("project_id") != project_id:
+        if "exp" not in claims:  # a service token is short-lived by contract; never accept an eternal one
+            raise _unauthorized()
+        claim_project = claims.get("project_id")
+        if type(claim_project) is not int or claim_project != project_id:  # bool is an int: True == 1
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-        return ProjectAccess(project_id=project_id, organization_id=int(claims.get("organization_id") or 0),
-                             user_id=CI_USER_ID, role="ci")
+        # organization_id is unused on the import route, so it is not parsed (a garbage value cannot 500)
+        return ProjectAccess(project_id=project_id, organization_id=0, user_id=CI_USER_ID, role="ci")
     if not is_access_token(claims):
         raise _unauthorized()
     try:
