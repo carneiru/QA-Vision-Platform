@@ -58,25 +58,24 @@ run, oldest on the left and newest on the right.
 ## Dashboard
 
 - **`components/RunStrip.tsx`** takes `{ runs, statuses: (Status | null)[], projectId }`.
-  - Bars are 6×18px with a 2px gap.
+  - Bars are 6×18px with a 2px gap, non-interactive spans with hover tooltips ("Run #433, 6 Oct 14:02: failed").
   - Colours: `--status-passed`, `--status-failed`, and a new `--status-rerun` (amber) with light and
     dark values. Each bar has at least 3:1 non-text contrast against the cell background in both
     themes.
-  - **Colour is never the only signal.** A failed bar has a notch cut into its top. A re-run bar has
+  - **Colour is never the only signal.** A failed bar has a notch cut into its top (WCAG 2.5.8). A re-run bar has
     diagonal stripes. A skipped bar has a dashed outline. A "not in run" bar has a solid hairline
     outline and no fill.
-  - Each bar is a link to `/projects/{id}/runs/{runId}`. Its tooltip and `aria-label` read
-    "Run #433, 6 Oct 14:02: failed".
-  - The strip is a `role="group"` labelled "Last 10 runs: 7 passed, 2 failed, 1 re-run". Not-run and
-    skipped runs are counted in that label when present.
-  - The links are keyboard-focusable in order.
+  - The strip is one link (minimum 24px tall) to the newest run's detail page, labelled
+    "Last 10 runs: 7 passed, 2 failed, 1 re-run" (counting non-zero kinds, including not-run and
+    skipped). A visually-hidden ordered list of all runs and their statuses follows the link for
+    screen readers. With no results, the strip has `role="img"` (WCAG 2.5.8).
   - Bars don't animate, so there's nothing to change for `prefers-reduced-motion`.
 - **Cases page:** once the page of cases has loaded, it collects the linked keys and calls `run-strip`.
   - The query key is `["run-strip", id, keys]`.
   - Until the strip data arrives, the column shows a skeleton of 10 grey bars.
   - If the call fails, the column shows a dash, the rest of the page keeps working, and nothing
     blocks.
-  - The column is `hide-narrow`, so it is hidden under 900px.
+  - The column is `hide-narrow`, so it is hidden at 640px and below.
 - **Legend:** a small legend next to the table header explains the colours and shapes. It is
   visible text, not only a tooltip.
 

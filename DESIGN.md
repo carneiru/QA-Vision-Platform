@@ -299,6 +299,21 @@ A destructive action never runs on the first click. The trigger is a default but
 - **Status dot:** an 8px circle in the status hue, always followed by its word or count label ("3 failed").
 - **Badge:** a Paper pill with a Hairline border, 12.5px/600, holding a 14px lucide icon and a word. *Passed* has Ink text with a green icon. *Failed* has Danger Text and a border at 40% of the failed red.
 
+### Run Strip
+A compact visual history of a test across recent runs, as a minimum 24px-tall link to the newest run. The strip holds one 6×18px bar per run with a 2px gap, oldest on the left.
+
+- **Link:** the only keyboard-focusable element, its label reads "Last 10 runs: 7 passed, 2 failed, 1 re-run" (counting non-null statuses). Navigates to the newest run's detail page.
+- **Bars** are non-interactive spans with hover tooltips. Colours signal the last attempt's outcome in that run:
+  - **Passed:** `--status-passed` (green).
+  - **Failed:** `--status-failed` (red) with a notch cut from the top to signal failure without colour alone.
+  - **Re-run:** `--status-rerun` (amber: #b07800 light, #e0a000 dark) with diagonal stripes to distinguish it without relying on hue.
+  - **Skipped:** a dashed outline with no fill, since the test did not run.
+  - **Not in run:** a solid hairline outline with no fill.
+  - Each bar colour meets at least 3:1 non-text contrast against the cell's background in both themes.
+- **Accessibility:** a visually-hidden ordered list of all runs and their statuses follows the link (screen readers announce "Last 10 runs: 7 passed, 2 failed, 1 re-run" then list each bar's details). With no results, the strip has `role="img"`.
+- **Rendering:** until data arrives, the column shows 10 grey skeleton bars. If the request fails, a dash appears and the rest of the page continues working.
+- **Column placement:** "Last runs" goes after Title as `hide-narrow`, hidden at 640px and below. A legend next to the table header explains the colours and shapes.
+
 ### Cards / Containers
 - **Corner Style:** 10px.
 - **Background:** Paper on the Stone Page.

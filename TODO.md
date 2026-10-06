@@ -297,6 +297,7 @@ requested ones. Each group needs its own design spec before implementation.
 - [x] qav-collector import-features: CI keeps cases in sync; API-key access to test-management; refuse a full import that would archive over half the imported cases without --allow-mass-archive (2026-10-06, ADR-024)
 - [x] Dashboard 'complete features folder' option (full=true): archives cases of missing files, keeps renamed files' numbers; the confirm button names the archive count (2026-10-06)
 - [x] Case filters: folder dropdown with the tree, feature, Azure DevOps item, link and latest-result filters on All Cases (`/cases/search`, `/case-folders`, `/case-features`, `latest-keys`), the searchable `FilterSelect`, gateway route and smoke checks (2026-10-06)
+- [x] Last runs column: run-strip endpoint, RunStrip component with one-link design and shape cues, Cases column with skeleton and error states, legend, DESIGN.md and TODO docs (2026-10-06)
 - [ ] Bound latest-keys (window over full history) — time-bound or DISTINCT ON when projects get large (suggested)
 - [ ] Link TCs to requirements/tickets (Azure DevOps, Jira) *(suggested)*
 - [ ] Bulk actions: label, move, archive many TCs at once *(suggested)*
