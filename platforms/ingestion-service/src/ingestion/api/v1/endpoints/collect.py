@@ -1,10 +1,13 @@
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import jwt
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response, status
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.api.deps import get_db
 from src.ingestion.api.key_auth import get_api_key
+from src.ingestion.core.config import settings
 from src.ingestion.models import ApiKey
 from src.ingestion.schemas.collect import KeyCheck, RunReceipt, RunUpload
 from src.ingestion.service import ingest_service, notification_service, run_service
@@ -12,11 +15,32 @@ from src.ingestion.utils import metrics
 
 router = APIRouter()  # mounted at /collect
 
+SERVICE_TOKEN_SECONDS = 300
+IMPORT_SCOPE = "cases:import"
+
 
 @router.get("/key", response_model=KeyCheck)
 def check_key(key: ApiKey = Depends(get_api_key)):
     """Proof the key works, for `qav-collector check` — uploads nothing."""
     return key
+
+
+@router.post("/token")
+def import_token(db: Session = Depends(get_db), key: ApiKey = Depends(get_api_key)):
+    """Trades the project's API key for a 5-minute token that test-management accepts on its
+    import route only (ADR-024). `sub` is not a number, so every user route rejects it."""
+    now = datetime.now(timezone.utc)
+    claims = {
+        "sub": f"apikey:{key.id}", "project_id": key.project_id, "organization_id": key.organization_id,
+        "scope": IMPORT_SCOPE, "token_type": "service",
+        "iat": now, "exp": now + timedelta(seconds=SERVICE_TOKEN_SECONDS),
+    }
+    key.last_used_at = now
+    db.commit()
+    return {
+        "token": jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM),
+        "expires_in": SERVICE_TOKEN_SECONDS, "project_id": key.project_id,
+    }
 
 
 @router.post("/runs", response_model=RunReceipt, status_code=status.HTTP_201_CREATED)
