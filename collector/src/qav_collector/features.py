@@ -60,6 +60,14 @@ def _detail(raw: bytes) -> str:
     return str(detail)
 
 
+def _code(raw: bytes) -> Optional[str]:
+    try:
+        detail = json.loads(raw or b"{}").get("detail")
+    except (ValueError, AttributeError):
+        return None
+    return detail.get("code") if isinstance(detail, dict) else None
+
+
 def _parse(raw: bytes, what: str) -> dict:
     try:
         data = json.loads(raw)
@@ -100,7 +108,8 @@ def run_import(base: str, grant: dict, files: list, *, full: bool, allow_mass_ar
     status, raw, _ = _post(url, json.dumps(payload).encode("utf-8"), grant["token"], context)
     if status == 200:
         return _parse(raw, "the import result")
-    raise ImportFailed(f"the import answered {status}: {_detail(raw)}")
+    hint = " (pass --allow-mass-archive to go ahead)" if status == 409 and _code(raw) == "mass_archive" else ""
+    raise ImportFailed(f"the import answered {status}: {_detail(raw)}{hint}")
 
 
 def report(result: dict, say: Callable[[str], None], dry_run: bool) -> None:
@@ -148,7 +157,7 @@ def run(args, env: Mapping[str, str], api_key: str, say: Callable[[str], None], 
     except ImportFailed as exc:
         say(str(exc))
         return 1
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, AttributeError):
         say("the platform sent an unexpected response (the import result has the wrong shape)")
         return 1
     return 1 if result["errors"] and args.strict else 0

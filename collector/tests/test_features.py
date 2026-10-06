@@ -91,7 +91,9 @@ def test_a_refused_mass_archive_fails_the_build(platform, repo, capsys):
     platform.reply(409, {"detail": {"code": "mass_archive", "message": "This would archive 9 of 10 imported cases.",
                                     "archived": 9, "live": 10}})
     assert main(["import-features"], env(platform)) == 1
-    assert "This would archive 9 of 10" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "This would archive 9 of 10" in err
+    assert "(pass --allow-mass-archive to go ahead)" in err
 
 
 def test_a_bad_key_fails_the_build(platform, repo):
@@ -137,6 +139,13 @@ def test_a_token_reply_without_project_id_fails_the_build(platform, repo, capsys
 def test_a_malformed_import_result_fails_the_build(platform, repo, capsys):
     platform.reply(200, GRANT)
     platform.reply(200, {"summary": {}})
+    assert main(["import-features"], env(platform)) == 1
+    assert "unexpected response" in capsys.readouterr().err
+
+
+def test_a_non_object_error_entry_fails_the_build(platform, repo, capsys):
+    platform.reply(200, GRANT)
+    platform.reply(200, {**RESULT, "errors": ["boom"]})
     assert main(["import-features"], env(platform)) == 1
     assert "unexpected response" in capsys.readouterr().err
 

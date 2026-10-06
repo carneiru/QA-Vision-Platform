@@ -69,6 +69,11 @@ post {
 }
 ```
 
+`import-features` skips itself when the branch is not the sync branch (`master`, or `QAV_IMPORT_BRANCH`).
+If the agent provides no branch (a pipeline without SCM, `GIT_BRANCH` unset) the command cannot tell and
+runs. Guard the stage with `when { branch 'master' }` or make sure `GIT_BRANCH` is set; the server's
+mass-archive guard is the backstop.
+
 ### Azure Pipelines
 
 ```yaml
