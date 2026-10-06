@@ -8,6 +8,7 @@ from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from qav_shared.keys import test_key
 from src.ingestion.core.config import settings
 from src.ingestion.models import ApiKey, Run, RunChangedFile, RunComponent, RunResult
 from src.ingestion.schemas.collect import RunUpload
@@ -42,14 +43,6 @@ def mask(
     text, found = redact(text)
     text, custom_found = custom_masking.apply(text, patterns)
     return text, found | custom_found
-
-
-def test_key(suite: str, class_name: str, name: str) -> str:
-    """Stable identity of a test across runs; the NUL separator keeps ("a","bc") and ("ab","c") apart."""
-    return hashlib.sha256(f"{suite}\0{class_name}\0{name}".encode("utf-8")).hexdigest()
-
-
-test_key.__test__ = False  # not a pytest test, despite the name
 
 
 def _request_hash(upload: RunUpload) -> str:
