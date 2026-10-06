@@ -5,6 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from qav_shared.keys import test_key
 from src.casebook.gherkin_import.parse import Issue, ParsedFile, ParsedScenario
 
 SUMMARY_NAMES = {"create": "created", "update": "updated", "move": "moved", "reactivate": "reactivated",
@@ -46,17 +47,34 @@ class Existing:
     gherkin: str
     labels: tuple
     priority: str
+    automated_test_key: Optional[str] = None
+    automated_name: Optional[str] = None
+
+
+def link_is_import_owned(key: Optional[str], name: Optional[str], feature_name: str, source_path: str) -> bool:
+    """True when the case's automated link is empty or is the one an import computed for its current path.
+
+    A link picked by hand never equals that key, so it is never touched. If the Feature name changes,
+    an import-set link no longer looks import-owned either and is kept (ADR-023)."""
+    if not key:
+        return True
+    return key == test_key(feature_name, source_path, name or "")
 
 
 def _differs(case: Existing, scenario: ParsedScenario) -> bool:
+    stale_link = (
+        link_is_import_owned(case.automated_test_key, case.automated_name, scenario.feature_name, case.source_path)
+        and case.automated_test_key != scenario.test_key
+    )
     return (
         case.title != scenario.title or case.gherkin != scenario.gherkin or case.labels != scenario.labels
-        or (scenario.priority is not None and scenario.priority != case.priority)
+        or (scenario.priority is not None and scenario.priority != case.priority) or stale_link
     )
 
 
 def plan_hash(items: List[Item]) -> str:
-    """Over the sorted actions, so the order files arrived in never changes it."""
+    """Over the sorted actions (action, path, scenario, case number), so the order files arrived in never
+    changes it. It does not cover content: the confirm re-sends the same files."""
     rows = sorted([i.action, i.path, i.scenario or "", i.case_number or 0] for i in items)
     return hashlib.sha256(json.dumps(rows, separators=(",", ":")).encode("utf-8")).hexdigest()
 

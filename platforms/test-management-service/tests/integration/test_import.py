@@ -48,6 +48,13 @@ def test_paths_outside_the_repository_are_422(client, auth, member, path):
     assert client.post(URL, json=body((path, FEATURE)), headers=auth()).status_code == 422
 
 
+@pytest.mark.parametrize("field", ["path", "content"])
+def test_a_nul_character_is_422(client, auth, member, field):
+    file = {"path": "a.feature", "content": FEATURE}
+    file[field] = file[field][:3] + "\x00" + file[field][3:]
+    assert client.post(f"{URL}?dry_run=true", json={"files": [file]}, headers=auth()).status_code == 422
+
+
 def test_the_same_path_twice_is_422(client, auth, member):
     r = client.post(URL, json=body(("a.feature", FEATURE), ("./a.feature", FEATURE)), headers=auth())
     assert r.status_code == 422

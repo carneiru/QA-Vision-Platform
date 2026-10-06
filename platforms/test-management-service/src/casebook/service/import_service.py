@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.casebook.gherkin_import.parse import parse_feature
-from src.casebook.gherkin_import.plan import Existing, Plan, build_plan
+from src.casebook.gherkin_import.plan import Existing, Plan, build_plan, link_is_import_owned
 from src.casebook.models import Case, CaseLabel
 
 PATH_LENGTH = 500
@@ -20,20 +20,23 @@ class ImportConflict(Exception):
 
 
 def normalise_path(path: str) -> str:
-    clean = path.replace("\\", "/")
-    while clean.startswith("./"):
-        clean = clean[2:]
-    if not clean or clean.startswith("/") or DRIVE.match(clean) or ".." in clean.split("/") or len(clean) > PATH_LENGTH:
+    slashed = path.replace("\\", "/")
+    # Empty and "." segments name the same file: "tests//a.feature" and "./tests/./a.feature" are "tests/a.feature"
+    clean = "/".join(part for part in slashed.split("/") if part not in ("", "."))
+    if (not clean or slashed.startswith("/") or DRIVE.match(clean) or ".." in clean.split("/")
+            or len(clean) > PATH_LENGTH):
         raise ValueError(f"path not allowed: {path!r} (relative to the repository root, no '..')")
     return clean
 
 
 def load_existing(db: Session, project_id: int) -> List[Existing]:
+    # Case.labels is lazy="selectin": the labels of all these rows load in one extra query, not one per case
     rows = db.query(Case).filter(Case.project_id == project_id, Case.source_key.isnot(None)).all()
     return [
         Existing(id=r.id, number=r.number, source_key=r.source_key, source_path=r.source_path or "",
                  status=r.status, title=r.title, gherkin=r.gherkin or "",
-                 labels=tuple(sorted(l.label for l in r.labels)), priority=r.priority)
+                 labels=tuple(sorted(l.label for l in r.labels)), priority=r.priority,
+                 automated_test_key=r.automated_test_key, automated_name=r.automated_name)
         for r in rows
     ]
 
@@ -44,6 +47,9 @@ def plan_import(db: Session, project_id: int, files: List[Tuple[str, str]], full
 
 
 def _content(row: Case, scenario) -> None:
+    """Call before row.source_path is overwritten: whether the link is import-owned depends on the old path."""
+    if link_is_import_owned(row.automated_test_key, row.automated_name, scenario.feature_name, row.source_path or ""):
+        row.automated_test_key, row.automated_name = scenario.test_key, scenario.test_name[:1500]
     row.title = scenario.title
     row.gherkin = scenario.gherkin
     wanted = set(scenario.labels)
@@ -56,8 +62,6 @@ def _content(row: Case, scenario) -> None:
             row.labels.append(CaseLabel(label=label))
     if scenario.priority is not None:
         row.priority = scenario.priority
-    if not row.automated_test_key:
-        row.automated_test_key, row.automated_name = scenario.test_key, scenario.test_name[:1500]
 
 
 def apply_plan(db: Session, project_id: int, user_id: int, plan: Plan) -> Plan:

@@ -11,6 +11,13 @@ class ImportFile(BaseModel):
     path: str
     content: str
 
+    @field_validator("path", "content")
+    @classmethod
+    def _no_nul(cls, value: str) -> str:
+        if "\x00" in value:
+            raise ValueError("must not contain a NUL character")  # PostgreSQL text cannot store it
+        return value
+
     @field_validator("path")
     @classmethod
     def _path(cls, value: str) -> str:

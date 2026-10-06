@@ -1,6 +1,7 @@
 """The import must compute the very key ingestion stores for the same scenario (ADR-023).
 
 The collector has no dependencies, so its parser is loaded straight from the repository."""
+import json
 import sys
 from pathlib import Path
 
@@ -20,3 +21,16 @@ def test_imported_cases_link_to_the_keys_results_are_stored_under():
     imported = parse_feature("tests/features/checkout.feature", feature).scenarios
     assert {s.test_key for s in imported} <= stored
     assert len(imported) == 3
+
+
+def test_a_report_written_on_windows_links_to_the_same_cases(tmp_path):
+    report = json.loads((FIXTURES / "cucumber_report.json").read_text(encoding="utf-8"))
+    report[0]["uri"] = report[0]["uri"].replace("/", "\\")
+    windows = tmp_path / "cucumber_report.json"
+    windows.write_text(json.dumps(report), encoding="utf-8")
+    stored = {test_key(r["suite"], r["class_name"], r["name"]) for r in parse_file(str(windows)).results}
+    feature = (FIXTURES / "checkout.feature").read_text(encoding="utf-8")
+    imported = {s.name: s.test_key for s in parse_feature("tests/features/checkout.feature", feature).scenarios}
+    assert set(imported.values()) <= stored
+    # the outline links through its first Examples row
+    assert imported["Apply <code>"] == test_key("Checkout", "tests/features/checkout.feature", "Apply SAVE10")

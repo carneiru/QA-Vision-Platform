@@ -64,6 +64,14 @@ def test_edit_changes_only_what_is_sent_and_records_who(client, auth, member):
     assert body["updated_by"] == 2 and body["updated_at"] is not None
 
 
+def test_keeping_one_label_and_adding_another_succeeds(client, auth, member):
+    create(client, auth, labels=["a", "b"])
+    response = client.patch(f"{URL}/1", json={"labels": ["a", "c"]}, headers=auth())
+    assert response.status_code == 200, response.text
+    assert response.json()["labels"] == ["a", "c"]
+    assert client.get(f"{URL}/1", headers=auth()).json()["labels"] == ["a", "c"]
+
+
 def test_link_and_unlink_an_automated_test(client, auth, member):
     create(client, auth)
     linked = client.patch(f"{URL}/1", json={"automated_test_key": KEY.upper(), "automated_name": "checkout › Cart › pays"},

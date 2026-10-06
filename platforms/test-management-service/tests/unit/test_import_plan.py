@@ -1,6 +1,7 @@
 """The import plan (pure) and its application to the database."""
 import pytest
 
+from qav_shared.keys import test_key
 from src.casebook.gherkin_import.parse import parse_feature
 from src.casebook.gherkin_import.plan import Existing, build_plan
 from src.casebook.models import Case, CaseLabel
@@ -133,12 +134,67 @@ def test_another_project_is_invisible(db):
     ("tests\\features\\a.feature", "tests/features/a.feature"),
     ("./tests/features/a.feature", "tests/features/a.feature"),
     ("tests/features/a.feature", "tests/features/a.feature"),
+    ("tests//features/a.feature", "tests/features/a.feature"),
+    ("a/./b.feature", "a/b.feature"),
 ])
 def test_paths_are_normalised_before_keys_are_computed(raw, clean):
     assert import_service.normalise_path(raw) == clean
 
 
-@pytest.mark.parametrize("bad", ["", "/etc/a.feature", "C:/a.feature", "a/../b.feature", "x" * 501])
+@pytest.mark.parametrize("bad", ["", "/etc/a.feature", "/abs", "\\abs", "C:/a.feature", "a/../b.feature", "x" * 501, "./"])
 def test_paths_that_are_not_allowed(bad):
     with pytest.raises(ValueError):
         import_service.normalise_path(bad)
+
+
+OUTLINE = ("Feature: A\n  Scenario Outline: Apply <code>\n    When I apply \"<code>\"\n"
+           "    Examples:\n      | code |\n      | {first} |\n      | SAVE20 |\n")
+
+
+def test_a_move_refreshes_the_link_the_import_set(db):
+    run(db, [(A, FEATURE)])
+    moved = "features/moved/a.feature"
+    run(db, [(moved, FEATURE)], full=True)
+    one = db.query(Case).filter(Case.title == "one").one()
+    assert (one.automated_test_key, one.automated_name) == (test_key("A", moved, "one"), "one")
+
+
+def test_a_hand_picked_link_survives_an_update_and_a_move(db):
+    run(db, [(A, FEATURE)])
+    one = db.query(Case).filter(Case.title == "one").one()
+    one.automated_test_key, one.automated_name = "f" * 64, "picked by hand"
+    db.commit()
+    changed = FEATURE.replace("Given x", "Given x2")
+    assert ("update", A, "one") in actions(run(db, [(A, changed)]))
+    assert ("move", "features/moved/a.feature", "one") in actions(run(db, [("features/moved/a.feature", changed)], full=True))
+    db.refresh(one)
+    assert (one.automated_test_key, one.automated_name) == ("f" * 64, "picked by hand")
+
+
+def test_an_outline_whose_first_row_changes_is_updated_and_relinked(db):
+    run(db, [(A, OUTLINE.format(first="SAVE10"))])
+    plan = run(db, [(A, OUTLINE.format(first="SAVE15"))])
+    assert actions(plan) == [("update", A, "Apply <code>")]
+    case = db.query(Case).one()
+    assert (case.automated_test_key, case.automated_name) == (test_key("A", A, "Apply SAVE15"), "Apply SAVE15")
+
+
+def test_a_link_unlinked_by_hand_is_refilled_by_the_next_import(db):
+    run(db, [(A, FEATURE)])
+    one = db.query(Case).filter(Case.title == "one").one()
+    one.automated_test_key, one.automated_name = None, None
+    db.commit()
+    plan = run(db, [(A, FEATURE)])
+    assert ("update", A, "one") in actions(plan) and ("unchanged", A, "two") in actions(plan)
+    db.refresh(one)
+    assert one.automated_test_key == test_key("A", A, "one")
+
+
+def test_a_stale_import_set_link_alone_makes_an_update(db):
+    """Same Gherkin, but the stored link was computed for another key: the plan refreshes it."""
+    run(db, [(A, FEATURE)])
+    one = db.query(Case).filter(Case.title == "one").one()
+    # an import-owned link for the same path but an older name, as an outline's first row would leave
+    one.automated_test_key, one.automated_name = test_key("A", A, "old"), "old"
+    db.commit()
+    assert ("update", A, "one") in actions(import_service.plan_import(db, 1, [(A, FEATURE)], False))

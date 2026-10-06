@@ -58,6 +58,8 @@ def source_key(path: str, name: str) -> str:
 
 def parse_feature(path: str, content: str) -> ParsedFile:
     result = ParsedFile(path=path)
+    if content.startswith("\ufeff"):
+        content = content[1:]  # editors on Windows often save a byte-order mark; the parser rejects it
     try:
         document = Parser().parse(content)
     except CompositeParserException as exc:
@@ -113,6 +115,8 @@ def _add(result: ParsedFile, seen: set, feature: dict, feature_name: str, rule: 
     background = _background_steps(feature.get("children", []))
     if rule is not None:
         background += _background_steps(rule.get("children", []))
+    # The collector cuts suite to 500 and name to 1000 characters before hashing
+    # (collector/src/qav_collector/junit.py), so a scenario name over 1000 characters never links
     test_name = _first_example_name(name, scenario)
     description = (scenario.get("description") or "").strip() or None
     result.scenarios.append(ParsedScenario(

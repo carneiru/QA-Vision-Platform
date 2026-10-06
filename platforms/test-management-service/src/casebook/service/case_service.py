@@ -80,8 +80,16 @@ def repository_owned(row: Case, changes: dict) -> list:
 
 def update_case(db: Session, row: Case, user_id: int, changes: dict) -> Case:
     if "labels" in changes:
-        labels = changes.pop("labels") or []
-        row.labels = [CaseLabel(label=label) for label in labels]
+        # Diff, not replace: replacing inserts a kept label before its old row is deleted (unique case_id, label)
+        wanted = changes.pop("labels") or []
+        for existing in list(row.labels):
+            if existing.label not in wanted:
+                row.labels.remove(existing)
+        have = {existing.label for existing in row.labels}
+        for label in wanted:
+            if label not in have:
+                row.labels.append(CaseLabel(label=label))
+                have.add(label)
     if "steps" in changes:
         row.steps = [dict(s) for s in (changes.pop("steps") or [])]
     if "automated_test_key" in changes and not changes["automated_test_key"]:

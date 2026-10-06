@@ -121,3 +121,12 @@ def test_a_syntax_error_skips_the_file_and_reports_the_line():
 def test_an_empty_file_or_one_without_a_feature_has_no_scenarios_and_no_error():
     assert parse_feature("e.feature", "").scenarios == []
     assert parse_feature("e.feature", "# only a comment\n").errors == []
+
+
+def test_a_leading_byte_order_mark_is_ignored():
+    plain = "Feature: A\n  Scenario: s\n    Given x\n"
+    with_bom = parse_feature("a.feature", "\ufeff" + plain)
+    without = parse_feature("a.feature", plain)
+    assert with_bom.errors == []
+    assert [(s.source_key, s.test_key) for s in with_bom.scenarios] == [(s.source_key, s.test_key) for s in without.scenarios]
+    assert with_bom.scenarios[0].feature_name == "A"
