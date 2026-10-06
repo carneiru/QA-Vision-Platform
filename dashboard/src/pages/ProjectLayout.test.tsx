@@ -17,6 +17,7 @@ function renderAt(path: string) {
           <Route path="/projects/:projectId" element={<ProjectLayout />}>
             <Route path="runs" element={<h2>Runs view</h2>} />
             <Route path="settings" element={<h2>Settings view</h2>} />
+            <Route path="cases/import" element={<h2>Import view</h2>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -33,4 +34,10 @@ test("the title names the view and the project", async () => {
 test("header shows the project name once loaded", async () => {
   renderAt("/projects/42/runs");
   expect(await screen.findByRole("heading", { name: "Shop E2E" })).toBeInTheDocument();
+});
+
+test("the import page is titled as such, not as a case number", async () => {
+  renderAt("/projects/42/cases/import");
+  await screen.findByRole("heading", { name: "Shop E2E" });
+  expect(document.title).toBe("Import from Gherkin · Shop E2E · QA Vision");
 });

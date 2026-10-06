@@ -196,7 +196,7 @@ export default function CaseImportPage() {
           </p>
         </div>
 
-        <div>
+        <div className="check-field">
           <label className="check">
             <input
               type="checkbox"
@@ -212,7 +212,7 @@ export default function CaseImportPage() {
             />
             This is my complete features folder
           </label>
-          <span id={`${ids}-full-hint`} className="muted">
+          <span id={`${ids}-full-hint`} className="muted field-hint">
             {full
               ? "Cases whose .feature file is not in this folder are archived, and renamed files keep their case numbers. Check the preview before importing."
               : "Off: only the files you choose are compared, so cases of a deleted or renamed .feature file are left as they are, and a renamed file's scenarios are created again."}

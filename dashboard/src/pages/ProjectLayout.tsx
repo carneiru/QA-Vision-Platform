@@ -15,7 +15,9 @@ function viewTitle(rest: string): string {
   if (view === "runs" && detail && sub === "compare" && other) return `Run #${detail} vs #${other}`;
   if (view === "runs" && detail) return `Run #${detail}`;
   if (view === "tests" && detail) return "Test history";
-  if (view === "cases" && detail) return detail === "new" ? "New test case" : `TC-${detail}`;
+  if (view === "cases" && detail === "new") return "New test case";
+  if (view === "cases" && detail === "import") return "Import from Gherkin";
+  if (view === "cases" && detail) return `TC-${detail}`;
   if (view === "suites" && detail) return "Suite";
   return VIEW_TITLES[view] ?? "Project";
 }

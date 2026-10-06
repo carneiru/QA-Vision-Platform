@@ -347,6 +347,12 @@ a.button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px
 a.button:hover { background: var(--hover-strong); text-decoration: none; }
 a.button.primary { background: var(--accent-fill); color: #fff; border-color: transparent; }
 a.button.primary:hover { background: var(--accent-fill-hover); }
+/* A label that wraps a hidden file input (Import from Gherkin's pickers): looks like a button too.
+   .card label stacks a form label over its field; a picker stays one row */
+label.button, .card label.button { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; min-height: 34px; margin-bottom: 0; padding: 6px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--text-primary); font-size: 14px; font-weight: 500; }
+label.button:hover { background: var(--hover-strong); }
+/* A checkbox with its explanation underneath, spaced from the next field */
+.check-field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
 /* Cases and suites share one view with two tabs */
 .view-tabs { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap; }
 .view-tabs > span[aria-current] { font-weight: 600; border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
