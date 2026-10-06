@@ -267,9 +267,9 @@ table.data th { color: var(--text-secondary); font-weight: 600; font-size: 12.5p
 table.data tbody tr:last-child td { border-bottom: 0; }
 table.data tbody tr:hover td { background: var(--hover); }
 /* ---- Run strip: colour plus shape (notch, stripes, dashed, hairline) so status never relies on hue ---- */
-.run-strip { display: inline-flex; gap: 2px; vertical-align: middle; }
+.run-strip { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; padding-block: 3px; min-height: 24px; } /* link hit area >= 24px tall (WCAG 2.5.8) */
 .run-bar { display: inline-block; width: 6px; height: 18px; border-radius: 1px; }
-a.run-bar:hover { filter: brightness(1.15); }
+a.run-strip:hover .run-bar { filter: brightness(1.15); }
 .bar-passed { background: var(--status-passed); }
 .bar-failed { background: var(--status-failed); clip-path: polygon(0 3px, 50% 0, 100% 3px, 100% 100%, 0 100%); }
 .bar-rerun { background: repeating-linear-gradient(135deg, var(--status-rerun) 0 2px, var(--status-rerun-stripe) 2px 4px); }

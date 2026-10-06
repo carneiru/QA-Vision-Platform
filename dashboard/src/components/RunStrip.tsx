@@ -23,16 +23,19 @@ export function stripSummary(statuses: StripStatus[]): string {
 }
 
 export default function RunStrip({ projectId, runs, statuses }: { projectId: number; runs: StripRun[]; statuses: StripStatus[] }) {
+  const summary = stripSummary(statuses);
+  const labels = runs.map((run, i) => `Run #${run.id}, ${dateFormat.format(new Date(run.started_at))}: ${WORD[statuses[i] ?? "none"]}`);
+  const bars = runs.map((run, i) => <span key={run.id} className={`run-bar bar-${statuses[i] ?? "none"}`} title={labels[i]} />);
+  // Runs arrive oldest to newest, so the newest run the test was in is the last non-null status.
+  const newest = [...runs].reverse().find((_, i) => statuses[runs.length - 1 - i] != null);
+  if (!newest) {
+    return <div className="run-strip" role="img" aria-label={summary}>{bars}</div>;
+  }
   return (
-    <div className="run-strip" role="group" aria-label={stripSummary(statuses)}>
-      {runs.map((run, i) => {
-        const key = statuses[i] ?? "none";
-        const label = `Run #${run.id}, ${dateFormat.format(new Date(run.started_at))}: ${WORD[key]}`;
-        return (
-          <Link key={run.id} className={`run-bar bar-${key}`} to={`/projects/${projectId}/runs/${run.id}`} aria-label={label} title={label} />
-        );
-      })}
-    </div>
+    <Link className="run-strip" to={`/projects/${projectId}/runs/${newest.id}`} aria-label={summary}>
+      {bars}
+      <ol className="sr-only">{labels.map((l, i) => <li key={runs[i].id}>{l}</li>)}</ol>
+    </Link>
   );
 }
 
