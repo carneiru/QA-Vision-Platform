@@ -1473,6 +1473,7 @@ Each ADR includes:
 | [ADR-019](docs/architecture/adr/ADR-019-single-vm-deployment.md) | First production deployment: one VM, Compose + Caddy TLS edge |
 | [ADR-020](docs/architecture/adr/ADR-020-custom-masking-re2.md) | Per-project masking patterns run on RE2 (linear time), not Python's `re` |
 | [ADR-021](docs/architecture/adr/ADR-021-live-runs-by-polling.md) | New runs reach the dashboard by polling every 30 s; push (SSE first) when the collector streams partial results |
+| [ADR-022](docs/architecture/adr/ADR-022-test-management-service.md) | Test management is its own service (cases, suites, link to automated tests), started on product pull before the Phase 2 exit |
 
 **Proposed** (target architecture; each becomes an ADR when its adoption
 trigger fires — the previous index listed these as decided, including "Go for

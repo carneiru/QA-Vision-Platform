@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import {
-  Building2, FileText, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, LogOut, Menu,
+  Building2, ClipboardList, FileText, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, LogOut, Menu,
   ScanSearch, Settings, ShieldCheck, Shuffle, TrendingUp, X,
 } from "lucide-react";
 import { logout } from "../api/auth";
@@ -16,6 +16,7 @@ const PROJECT_VIEWS = [
   { to: "branches", label: "Branches", icon: GitBranch },
   { to: "trends", label: "Trends", icon: TrendingUp },
   { to: "report", label: "Report", icon: FileText },
+  { to: "cases", label: "Test cases", icon: ClipboardList },
   { to: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -129,7 +130,12 @@ export default function AppShell() {
         {projectId !== null && (
           <nav className="nav-section" aria-label="Project views">
             {PROJECT_VIEWS.map(({ to, label, icon: Icon }) => (
-              <NavLink key={to} to={`/projects/${projectId}/${to}`} className={navClass}>
+              <NavLink
+                key={to}
+                to={`/projects/${projectId}/${to}`}
+                // Suites live under Test cases: the tab stays lit there too
+                className={({ isActive }) => navClass({ isActive: isActive || (to === "cases" && /\/suites(\/|$)/.test(pathname)) })}
+              >
                 <Icon size={17} aria-hidden="true" /> {label}
               </NavLink>
             ))}

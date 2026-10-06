@@ -70,7 +70,7 @@ AUTH=(-H "Authorization: Bearer ${TOKEN}")
 # ---- gateway and health ----
 check "gateway /health" 200 GET "$BASE/health"
 body_has "gateway /health body" '{"status":"healthy"}'
-for svc in auth organizations projects ingestion; do
+for svc in auth organizations projects ingestion test-management; do
   check "/health/$svc reaches the service" 200 GET "$BASE/health/$svc"
 done
 
@@ -104,6 +104,11 @@ check "create an API key -> ingestion-service (overlap route)" 201 POST \
   "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}" -H "Content-Type: application/json" -d '{"name":"smoke"}'
 API_KEY="$(sed -n 's/.*"key":"\(qav_[^"]*\)".*/\1/p' "$TMP/body")"
 KEY_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+# ---- test-management-service: a case through the gateway (ADR-022) ----
+check "create a test case -> test-management-service (overlap route)" 201 POST   "$BASE/api/v1/projects/$PROJECT_ID/cases" "${AUTH[@]}" -H "Content-Type: application/json"   -d '{"title":"Smoke case","labels":["smoke"]}'
+body_has "... numbered in the project" '"key":"TC-1"'
+check "list case labels -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-labels" "${AUTH[@]}"
+check "list suites -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/suites" "${AUTH[@]}"
 check "list API keys -> ingestion-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}"
 body_has "... listing hides the key" "\"key_prefix\""
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

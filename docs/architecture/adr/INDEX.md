@@ -16,6 +16,7 @@ TODO.md, commit messages and benchmark rulings:
 | [ADR-019](ADR-019-single-vm-deployment.md) | First production deployment: one VM, Compose + Caddy TLS edge, real-IP rate limits |
 | [ADR-020](ADR-020-custom-masking-re2.md) | Per-project masking patterns run on RE2 (linear time), not Python's `re` |
 | [ADR-021](ADR-021-live-runs-by-polling.md) | New runs reach the dashboard by polling every 30 s; push (SSE first) when the collector streams partial results |
+| [ADR-022](ADR-022-test-management-service.md) | Test management is its own service (cases, suites, link to automated tests), started on product pull before the Phase 2 exit |
 
 **Proposed** — ADR-001..010 describe the TARGET architecture (DDD, Kafka,
 Kubernetes, Go services, Neo4j, Qdrant, ...). Reclassified 2026-10-02: their

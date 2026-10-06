@@ -1,0 +1,209 @@
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { http, HttpResponse } from "msw";
+import { server } from "../test/server";
+import { setAccessToken } from "../auth/tokens";
+import CasesPage from "./CasesPage";
+import CaseEditorPage from "./CaseEditorPage";
+import SuitesPage from "./SuitesPage";
+import SuiteDetailPage from "./SuiteDetailPage";
+
+const P = "/api/v1/projects/42";
+const KEY = "b".repeat(64);
+
+const kase = (number: number, extra: object = {}) => ({
+  number, key: `TC-${number}`, title: `Case ${number}`, description: null, steps: [], labels: [], priority: "medium",
+  status: "draft", automated_test_key: null, automated_name: null, created_by: 1, created_at: "2026-10-06T10:00:00Z",
+  updated_by: null, updated_at: null, suites: [], ...extra,
+});
+
+function asRole(role: string) {
+  server.use(http.get(P, () => HttpResponse.json({ id: 42, organization_id: 1, name: "Web", my_role: role })));
+}
+
+function Location() {
+  const { pathname, search } = useLocation();
+  return <output data-testid="where">{pathname + search}</output>;
+}
+
+function renderAt(url: string) {
+  setAccessToken("acc");
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[url]}>
+        <Routes>
+          <Route path="/projects/:projectId/cases" element={<><CasesPage /><Location /></>} />
+          <Route path="/projects/:projectId/cases/new" element={<><CaseEditorPage /><Location /></>} />
+          <Route path="/projects/:projectId/cases/:caseNumber" element={<><CaseEditorPage /><Location /></>} />
+          <Route path="/projects/:projectId/suites" element={<><SuitesPage /><Location /></>} />
+          <Route path="/projects/:projectId/suites/:suiteId" element={<><SuiteDetailPage /><Location /></>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+// --- cases list ----------------------------------------------------------------------------
+
+test("lists cases with their key, labels and whether they are automated; filters reach the API", async () => {
+  asRole("member");
+  const seen: URLSearchParams[] = [];
+  server.use(
+    http.get(`${P}/cases`, ({ request }) => {
+      seen.push(new URL(request.url).searchParams);
+      return HttpResponse.json({ total: 2, items: [kase(1, { labels: ["smoke"], automated_test_key: KEY }), kase(2)] });
+    }),
+    http.get(`${P}/case-labels`, () => HttpResponse.json([{ label: "smoke", count: 1 }])),
+  );
+  renderAt("/projects/42/cases");
+  const row = (await screen.findByRole("link", { name: "TC-1" })).closest("tr")!;
+  expect(within(row).getByText("smoke")).toBeInTheDocument();
+  expect(within(row).getByText(/linked/i)).toBeInTheDocument();
+  expect(within(screen.getByRole("link", { name: "TC-2" }).closest("tr")!).getByText(/manual/i)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /new case/i })).toHaveAttribute("href", "/projects/42/cases/new");
+
+  await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Label" }), "smoke");
+  await userEvent.selectOptions(screen.getByLabelText(/^status/i), "ready");
+  await userEvent.click(screen.getByRole("button", { name: /apply/i }));
+  await vi.waitFor(() => expect(seen[seen.length - 1].get("label")).toBe("smoke"));
+  expect(seen[seen.length - 1].get("status")).toBe("ready");
+  expect(screen.getByTestId("where")).toHaveTextContent("label=smoke");
+});
+
+test("an empty project invites editors to write the first case; viewers just read", async () => {
+  asRole("viewer");
+  server.use(
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })),
+    http.get(`${P}/case-labels`, () => HttpResponse.json([])),
+  );
+  renderAt("/projects/42/cases");
+  expect(await screen.findByText(/no test cases yet/i)).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: /write the first case|new case/i })).not.toBeInTheDocument();
+});
+
+// --- case editor ---------------------------------------------------------------------------
+
+test("a new case is created with its steps and labels, then opens", async () => {
+  asRole("member");
+  let sent: Record<string, unknown> | null = null;
+  server.use(
+    http.post(`${P}/cases`, async ({ request }) => {
+      sent = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json(kase(7, { title: "Pays" }), { status: 201 });
+    }),
+    http.get(`${P}/cases/7`, () => HttpResponse.json(kase(7, { title: "Pays" }))),
+  );
+  renderAt("/projects/42/cases/new");
+  await userEvent.type(await screen.findByLabelText(/^title/i), "Pays");
+  await userEvent.type(screen.getByLabelText(/^action 1/i), "Open the cart");
+  await userEvent.type(screen.getByLabelText(/^expected result 1/i), "The total shows");
+  await userEvent.click(screen.getByRole("button", { name: /add step/i }));
+  await userEvent.type(screen.getByLabelText(/^action 2/i), "Pay");
+  await userEvent.type(screen.getByLabelText(/^labels/i), "Checkout, smoke");
+  await userEvent.click(screen.getByRole("button", { name: /create case/i }));
+  await vi.waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases/7"));
+  expect(sent).toMatchObject({
+    title: "Pays", labels: ["checkout", "smoke"], priority: "medium", status: "draft",
+    steps: [{ action: "Open the cart", expected: "The total shows" }, { action: "Pay", expected: "" }],
+  });
+});
+
+test("steps can be reordered before saving an edit", async () => {
+  asRole("member");
+  let sent: Record<string, unknown> | null = null;
+  const existing = kase(3, { steps: [{ action: "First", expected: "" }, { action: "Second", expected: "" }] });
+  server.use(
+    http.get(`${P}/cases/3`, () => HttpResponse.json(existing)),
+    http.patch(`${P}/cases/3`, async ({ request }) => {
+      sent = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ ...existing, ...sent });
+    }),
+  );
+  renderAt("/projects/42/cases/3");
+  await userEvent.click(await screen.findByRole("button", { name: /move step 2 up/i }));
+  await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+  expect(await screen.findByText("Saved.")).toBeInTheDocument();
+  expect((sent as unknown as { steps: { action: string }[] }).steps.map((s) => s.action)).toEqual(["Second", "First"]);
+});
+
+test("viewers see a case read-only", async () => {
+  asRole("viewer");
+  server.use(http.get(`${P}/cases/3`, () => HttpResponse.json(kase(3, { title: "Pays" }))));
+  renderAt("/projects/42/cases/3");
+  expect(await screen.findByDisplayValue("Pays")).toBeDisabled();
+  expect(screen.queryByRole("button", { name: /save changes/i })).not.toBeInTheDocument();
+  expect(screen.getByText(/only owners, admins and members/i)).toBeInTheDocument();
+});
+
+test("a case is linked to an automated test found by name, then shows its latest result", async () => {
+  asRole("member");
+  let linked: Record<string, unknown> | null = null;
+  server.use(
+    http.get(`${P}/cases/3`, () => HttpResponse.json(linked ? kase(3, linked) : kase(3))),
+    http.get(`${P}/analytics/tests`, () => HttpResponse.json([
+      { test_key: KEY, suite: "checkout", class_name: "Cart", name: "pays", runs: 3, passed: 3, failed: 0, errored: 0,
+        skipped: 0, pass_rate: 1, avg_duration_ms: 10, last_status: "passed", last_seen: "2026-10-06T10:00:00Z" },
+    ])),
+    http.patch(`${P}/cases/3`, async ({ request }) => {
+      linked = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json(kase(3, linked));
+    }),
+    http.get(`${P}/analytics/tests/${KEY}/history`, () => HttpResponse.json({
+      test_key: KEY, suite: "checkout", class_name: "Cart", name: "pays",
+      summary: { runs: 1, passed: 1, failed: 0, errored: 0, skipped: 0, pass_rate: 1, avg_duration_ms: 10 },
+      executions: [{ run_id: 88, started_at: "2026-10-06T10:00:00Z", branch: "main", commit_sha: null, environment: null,
+                     status: "passed", duration_ms: 10, message: null }],
+    })),
+  );
+  renderAt("/projects/42/cases/3");
+  await userEvent.type(await screen.findByLabelText(/find an automated test/i), "pays");
+  await userEvent.click(screen.getByRole("button", { name: /^search$/i }));
+  await userEvent.click(await screen.findByRole("button", { name: /link checkout › cart › pays/i }));
+  expect(linked).toEqual({ automated_test_key: KEY, automated_name: "checkout › Cart › pays" });
+  expect(await screen.findByText(/in run #88/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /unlink/i })).toBeInTheDocument();
+});
+
+// --- suites --------------------------------------------------------------------------------
+
+test("a suite is created from the suites list", async () => {
+  asRole("member");
+  let created = false;
+  server.use(
+    http.get(`${P}/suites`, () => HttpResponse.json(created ? [{ id: 5, name: "Smoke", description: null, case_count: 0,
+      created_at: "2026-10-06T10:00:00Z", updated_at: null }] : [])),
+    http.post(`${P}/suites`, () => {
+      created = true;
+      return HttpResponse.json({ id: 5, name: "Smoke", description: null, case_count: 0, created_at: "2026-10-06T10:00:00Z", updated_at: null }, { status: 201 });
+    }),
+  );
+  renderAt("/projects/42/suites");
+  await userEvent.type(await screen.findByLabelText(/^name/i), "Smoke");
+  await userEvent.click(screen.getByRole("button", { name: /create suite/i }));
+  expect(await screen.findByRole("link", { name: "Smoke" })).toHaveAttribute("href", "/projects/42/suites/5");
+});
+
+test("a suite's cases are added, reordered and saved as one ordered list", async () => {
+  asRole("member");
+  let order: number[] | null = null;
+  const sc = (n: number) => ({ number: n, key: `TC-${n}`, title: `Case ${n}`, status: "draft", priority: "medium", labels: [], automated_test_key: null });
+  server.use(
+    http.get(`${P}/suites/5`, () => HttpResponse.json({ id: 5, name: "Smoke", description: null, case_count: 2,
+      created_at: "2026-10-06T10:00:00Z", updated_at: null, cases: [sc(1), sc(2)] })),
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 2, items: [kase(2), kase(3)] })),
+    http.put(`${P}/suites/5/cases`, async ({ request }) => {
+      order = ((await request.json()) as { cases: number[] }).cases;
+      return HttpResponse.json({ id: 5, name: "Smoke", description: null, case_count: 3, created_at: "", updated_at: null, cases: [] });
+    }),
+  );
+  renderAt("/projects/42/suites/5");
+  await userEvent.click(await screen.findByRole("button", { name: /move tc-2 up/i }));
+  await userEvent.click(screen.getByRole("button", { name: /^search$/i }));
+  expect(await screen.findByRole("button", { name: /add tc-2 to the suite/i })).toBeDisabled();   // already in it
+  await userEvent.click(screen.getByRole("button", { name: /add tc-3 to the suite/i }));
+  await userEvent.click(screen.getByRole("button", { name: /save order and cases/i }));
+  await vi.waitFor(() => expect(order).toEqual([2, 1, 3]));
+});

@@ -55,6 +55,11 @@ x-ingestion-env: &ingestion-env
   # Run links in failure notifications (Slack/Teams/webhook) point at the gateway
   DASHBOARD_URL: https://localhost:${GATEWAY_HTTPS_PORT:-8443}
 
+x-testmgmt-env: &testmgmt-env
+  DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/testmgmt_db
+  SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY (shared by every service)}
+  PROJECT_SERVICE_URL: http://project-service:8000
+
 x-auth-build: &auth-build
   context: .
   dockerfile: platforms/auth-service/auth-service/Dockerfile
@@ -70,6 +75,10 @@ x-project-build: &project-build
 x-ingestion-build: &ingestion-build
   context: .
   dockerfile: platforms/ingestion-service/Dockerfile
+
+x-testmgmt-build: &testmgmt-build
+  context: .
+  dockerfile: platforms/test-management-service/Dockerfile
 
 x-dashboard-build: &dashboard-build
   context: .
@@ -151,6 +160,16 @@ services:
       db-init:
         condition: service_completed_successfully
 
+  test-management-migrate:
+    # Same image as test-management-service, which builds it; never pulled from a registry
+    image: qa-vision/test-management-service:local
+    pull_policy: never
+    environment: *testmgmt-env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+
   auth-service:
     build: *auth-build
     image: qa-vision/auth-service:local
@@ -185,6 +204,16 @@ services:
     healthcheck: *app-healthcheck
     depends_on:
       ingestion-migrate:
+        condition: service_completed_successfully
+
+  # Test cases and suites (ADR-022)
+  test-management-service:
+    build: *testmgmt-build
+    image: qa-vision/test-management-service:local
+    environment: *testmgmt-env
+    healthcheck: *app-healthcheck
+    depends_on:
+      test-management-migrate:
         condition: service_completed_successfully
 
   # Deletes runs past each project's retention period: a pass at start-up, then every
@@ -261,6 +290,8 @@ services:
       project-service:
         condition: service_healthy
       ingestion-service:
+        condition: service_healthy
+      test-management-service:
         condition: service_healthy
       dashboard:
         condition: service_healthy

@@ -70,10 +70,23 @@ retention job.
   cleanup, pg advisory lock 7351001); `analytics-rollup` (flaky_daily
   backfill ≤90 d + yesterday/today every 6 h, lock 7351002).
 
+### 2.5 test-management-service (`platforms/test-management-service`, ADR-022)
+- **Cases**: per-project numbers shown as `TC-n` (never reused; archive, no delete), title,
+  description, up to 50 `{action, expected}` steps, up to 20 lower-case labels, priority,
+  status (draft/ready/archived), optional link to an automated test (`automated_test_key`, the
+  ingestion `test_key`; the dashboard reads its latest result from ingestion).
+- **Lists**: search (title), label (ANDed), status, priority, paging; `GET /case-labels`
+  counts labels in use.
+- **Suites**: unique name per project, ordered cases replaced as a whole by
+  `PUT /suites/{id}/cases` (≤1000, unknown or repeated numbers are a 422); deleting a suite keeps
+  its cases.
+- Access: user JWT + project role via project-service (every role reads; owner/admin/member
+  edit), the same contract as ingestion. The client is a copy of ingestion's (ADR-022).
+
 ## 3. Data
 
 PostgreSQL 15; one database per service (auth_db, organization_db,
-project_db, ingestion_db), created by db-init, migrated by per-service
+project_db, ingestion_db, testmgmt_db), created by db-init, migrated by per-service
 Alembic jobs. Only the owning service writes its database; cross-domain
 reads go through APIs (blueprint principle, enforced in practice).
 
@@ -100,7 +113,8 @@ aggregates + computed-day markers), api_keys.
 
 NGINX: TLS (self-signed in dev), per-IP rate zones (`api`; stricter `auth`
 zone on login/sso/mfa-verify), JSON error pages, request IDs, regex routes
-sending `/projects/{id}/(api-keys|runs|analytics)` to ingestion, SPA
+sending `/projects/{id}/(api-keys|runs|analytics|…)` to ingestion and
+`/projects/{id}/(cases|case-labels|suites)` to test-management, SPA
 catch-all to the dashboard container with JSON 404 preserved for unrouted
 `/api/` paths; `/metrics` and `/internal` are never proxied.
 

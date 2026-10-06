@@ -17,6 +17,10 @@ import HistoryPage from "./pages/HistoryPage";
 import FlakyPage from "./pages/FlakyPage";
 import RunsPage from "./pages/RunsPage";
 import ComparePage from "./pages/ComparePage";
+import CaseEditorPage from "./pages/CaseEditorPage";
+import CasesPage from "./pages/CasesPage";
+import SuiteDetailPage from "./pages/SuiteDetailPage";
+import SuitesPage from "./pages/SuitesPage";
 import RunDetailPage from "./pages/RunDetailPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import ProjectSettingsPage from "./pages/ProjectSettingsPage";
@@ -118,6 +122,11 @@ export function AppRoutes() {
             <Route path="runs/:runId" element={<RunDetailPage />} />
             <Route path="runs/:runId/compare/:baseId" element={<ComparePage />} />
             <Route path="report" element={<ReportPage />} />
+            <Route path="cases" element={<CasesPage />} />
+            <Route path="cases/new" element={<CaseEditorPage />} />
+            <Route path="cases/:caseNumber" element={<CaseEditorPage />} />
+            <Route path="suites" element={<SuitesPage />} />
+            <Route path="suites/:suiteId" element={<SuiteDetailPage />} />
             <Route path="settings" element={<ProjectSettingsPage />} />
           </Route>
         </Route>

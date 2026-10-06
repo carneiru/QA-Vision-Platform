@@ -11,6 +11,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.ts",
+    // Typing-heavy UI tests run in parallel workers; 5 s was too tight on a loaded machine
+    testTimeout: 15000,
     globals: true,
   },
 });

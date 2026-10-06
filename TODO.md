@@ -238,17 +238,17 @@ Reliability and operations
 - [x] Create flows in the UI — "New organization" (slug derived from the name, editable, backend pattern enforced) and "New project" (owner/admin only) in the picker; Settings tab per project with API-key management (create shows the full key once with a copy button, list shows prefix/created/last-used, revoke; revoked keys lose the action). Closes the last curl-only step: a team can go from register to first upload entirely in the browser
 
 ### Phase 4: Test Management
-51. [ ] Design test case and test suite data models
-52. [ ] Implement test case creation, versioning, and organization
+51. [x] Design test case and test suite data models (spec `docs/superpowers/specs/2026-10-06-test-management-design.md`)
+52. [~] Implement test case creation, versioning, and organization: creation, labels, priority, status and archive done; versioning open
 53. [ ] Create test execution tracking and result storage
-54. [ ] Develop test suite management and execution ordering
-55. [ ] Implement test case linking and dependencies
-56. [ ] Create API endpoints for test management
-57. [ ] Implement integration with Project service
-58. [ ] Write comprehensive test suite
-59. [ ] Create API documentation
-60. [ ] Add Docker support
-61. [ ] Integrate with Auth, Organization, and Project services
+54. [x] Develop test suite management and execution ordering (static, ordered suites)
+55. [~] Implement test case linking and dependencies: link to the automated test done; dependencies open
+56. [x] Create API endpoints for test management (`platforms/test-management-service`)
+57. [x] Implement integration with Project service (project roles, as ingestion)
+58. [x] Write comprehensive test suite (42 tests: cases, suites, migration)
+59. [x] Create API documentation (service README; OpenAPI at /api/v1/openapi.json)
+60. [x] Add Docker support (image, compose service + migrate job, gateway route, CI tests and smoke)
+61. [x] Integrate with Auth, Organization, and Project services (JWT + project roles)
 
 ### Phase 5: Analytics & Reporting
 62. [ ] Design analytics data models and metrics collection
@@ -287,9 +287,10 @@ them. Items marked *(suggested)* were added during review as natural companions 
 requested ones. Each group needs its own design spec before implementation.
 
 ### A. Test case management
-- [ ] Friendly UI to browse, create and edit test cases (TCs)
-- [ ] Create/add labels on TCs; filter and search by label
-- [ ] Create suites — static (hand-picked TCs)
+- [x] Friendly UI to browse, create and edit test cases (TCs): **Test cases** view (list, filters, editor with ordered steps, read-only for viewers)
+- [x] Create/add labels on TCs; filter and search by label
+- [x] Create suites — static (hand-picked TCs), ordered, edited in place
+- [x] Link a TC to the automated test that implements it; the case shows that test's latest result
 - [ ] Dynamic suites defined by a label query, e.g. `smoke AND checkout` *(suggested)*
 - [ ] TC versioning: who changed what, and when *(suggested)*
 - [ ] Import existing TCs from the repo (Gherkin `.feature` files, JUnit XML) *(suggested)*

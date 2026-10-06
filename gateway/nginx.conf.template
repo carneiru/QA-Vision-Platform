@@ -134,6 +134,18 @@ http {
             set $upstream http://ingestion-service:8000;
             proxy_pass $upstream/health;
         }
+        location = /health/test-management {
+            set $upstream http://test-management-service:8000;
+            proxy_pass $upstream/health;
+        }
+
+        # ---- test-management-service (ADR-022) ----
+        # Regex, so it wins over project-service's /api/v1/projects prefix below
+        location ~ ^/api/v1/projects/[0-9]+/(cases|case-labels|suites)(/|$) {
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://test-management-service:8000;
+            proxy_pass $upstream;
+        }
 
         # ---- ingestion-service ----
         # A regex location wins over prefix locations, so this takes /api/v1/projects/{id}/api-keys,

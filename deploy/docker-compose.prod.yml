@@ -23,6 +23,8 @@ services:
     environment:
       # Run links in failure notifications must point at the public address
       DASHBOARD_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+  test-management-service:
+    restart: unless-stopped
   ingestion-retention:
     restart: unless-stopped
   analytics-rollup:

@@ -6,7 +6,7 @@ import { pageTitle, useFocusOnNavigate } from "../routeFocus";
 
 const VIEW_TITLES: Record<string, string> = {
   overview: "Overview", trends: "Trends", tests: "Tests", flaky: "Flaky", branches: "Branches",
-  runs: "Runs", report: "Report", settings: "Settings",
+  runs: "Runs", report: "Report", settings: "Settings", cases: "Test cases", suites: "Suites",
 };
 
 /** "runs/7" -> "Run #7", "tests/<key>" -> "Test history", "flaky" -> "Flaky" */
@@ -15,6 +15,8 @@ function viewTitle(rest: string): string {
   if (view === "runs" && detail && sub === "compare" && other) return `Run #${detail} vs #${other}`;
   if (view === "runs" && detail) return `Run #${detail}`;
   if (view === "tests" && detail) return "Test history";
+  if (view === "cases" && detail) return detail === "new" ? "New test case" : `TC-${detail}`;
+  if (view === "suites" && detail) return "Suite";
   return VIEW_TITLES[view] ?? "Project";
 }
 
