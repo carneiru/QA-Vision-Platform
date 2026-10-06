@@ -112,3 +112,9 @@ test("viewers do not get the import page's controls", async () => {
   expect(await screen.findByText(/only editors can import/i)).toBeInTheDocument();
   expect(screen.queryByLabelText(/choose folder/i)).not.toBeInTheDocument();
 });
+
+test("says that deleted or renamed files are not archived from here", async () => {
+  asRole("member");
+  renderAt("/projects/42/cases/import");
+  expect(await screen.findByText(/deleted or renamed \.feature file are not archived or moved/i)).toBeInTheDocument();
+});

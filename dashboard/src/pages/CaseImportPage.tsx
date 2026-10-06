@@ -186,6 +186,11 @@ export default function CaseImportPage() {
           <p role="status" className="muted">
             {files.length} .feature file{files.length === 1 ? "" : "s"} found
           </p>
+          <p className="muted">
+            Only the files you choose are compared, so cases of a deleted or renamed .feature file are not archived
+            or moved, and a renamed file&apos;s scenarios are created again. Choose the old and new location
+            together, or archive those cases by hand.
+          </p>
         </div>
 
         <label>

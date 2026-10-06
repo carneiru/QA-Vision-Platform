@@ -35,7 +35,12 @@ async function errorFrom(response: Response): Promise<ApiError> {
   try {
     const body = await response.json();
     if (typeof body?.detail === "string") detail = body.detail;
-    else if (typeof body?.detail?.message === "string") {
+    else if (Array.isArray(body?.detail) && typeof body.detail[0]?.msg === "string") {
+      // FastAPI's 422: a list of {loc, msg}; the first one, named after its field, says enough
+      const loc = body.detail[0].loc;
+      const field = Array.isArray(loc) && loc.length > 0 ? loc[loc.length - 1] : undefined;
+      detail = typeof field === "string" ? `${field}: ${body.detail[0].msg}` : body.detail[0].msg;
+    } else if (typeof body?.detail?.message === "string") {
       detail = body.detail.message;
       if (typeof body.detail.code === "string") code = body.detail.code;
     }

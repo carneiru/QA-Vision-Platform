@@ -157,3 +157,18 @@ test("an object detail surfaces its message and code", async () => {
     status: 409, detail: "Something changed", code: "plan_changed",
   });
 });
+
+test("a validation error list surfaces its first message and field", async () => {
+  setAccessToken("acc");
+  server.use(
+    http.post("/api/v1/thing", () =>
+      HttpResponse.json(
+        { detail: [{ loc: ["body", "files", 0, "path"], msg: "Value error, path not allowed", type: "value_error" }] },
+        { status: 422 },
+      ),
+    ),
+  );
+  await expect(apiFetch("/api/v1/thing", { method: "POST" })).rejects.toMatchObject({
+    status: 422, detail: "path: Value error, path not allowed",
+  });
+});
