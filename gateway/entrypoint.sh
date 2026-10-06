@@ -4,10 +4,11 @@
 set -eu
 
 : "${GATEWAY_HTTPS_PORT:=8443}"
-export GATEWAY_HTTPS_PORT
+: "${GATEWAY_IMPORT_MAX_BODY:=25m}"
+export GATEWAY_HTTPS_PORT GATEWAY_IMPORT_MAX_BODY
 
-# Substitute ONLY this variable, so NGINX's own $host, $request_uri, ... are left alone
-envsubst '${GATEWAY_HTTPS_PORT}' < /etc/qav/nginx.conf.template > /etc/nginx/nginx.conf
+# Substitute ONLY these variables, so NGINX's own $host, $request_uri, ... are left alone
+envsubst '${GATEWAY_HTTPS_PORT} ${GATEWAY_IMPORT_MAX_BODY}' < /etc/qav/nginx.conf.template > /etc/nginx/nginx.conf
 
 # Behind a TLS edge proxy (deploy/ on a VM) every request arrives from the proxy's
 # address, so per-IP rate limits would be shared by all users. GATEWAY_TRUSTED_PROXIES

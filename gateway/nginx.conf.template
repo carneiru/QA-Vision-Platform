@@ -140,6 +140,16 @@ http {
         }
 
         # ---- test-management-service (ADR-022) ----
+        # Gherkin import (ADR-023): a whole features/ folder in one request. Its own body cap,
+        # GATEWAY_IMPORT_MAX_BODY, must stay above test-management's IMPORT_MAX_TOTAL_BYTES plus
+        # JSON escaping; every other route keeps the 10m above
+        location ~ ^/api/v1/projects/[0-9]+/cases/import$ {
+            client_max_body_size ${GATEWAY_IMPORT_MAX_BODY};
+            limit_req zone=api burst=40 nodelay;
+            set $upstream http://test-management-service:8000;
+            proxy_pass $upstream;
+        }
+
         # Regex, so it wins over project-service's /api/v1/projects prefix below
         location ~ ^/api/v1/projects/[0-9]+/(cases|case-labels|suites)(/|$) {
             limit_req zone=api burst=40 nodelay;

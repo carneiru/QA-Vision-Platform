@@ -109,6 +109,25 @@ check "create a test case -> test-management-service (overlap route)" 201 POST  
 body_has "... numbered in the project" '"key":"TC-1"'
 check "list case labels -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-labels" "${AUTH[@]}"
 check "list suites -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/suites" "${AUTH[@]}"
+IMPORT_BODY='{"files":[{"path":"tests/features/smoke.feature","content":"Feature: Smoke\n  Scenario: imported\n    Given the gateway\n"}]}'
+check "import a .feature -> test-management-service" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/import" \
+  "${AUTH[@]}" -H "Content-Type: application/json" -d "$IMPORT_BODY"
+body_has "... one case created" '"created":1'
+# A body over the gateway's general 10 MB cap must still reach the service on the import path:
+# the service answers 413 naming its own setting, not NGINX's bare 413 page.
+# 55 files x 200000 bytes, built with plain shell so no Python is needed.
+XS="$(head -c 200000 /dev/zero | tr '\0' x)"
+{
+  printf '{"files":['
+  for i in $(seq 1 55); do
+    [ "$i" -gt 1 ] && printf ','
+    printf '{"path":"f%s.feature","content":"%s"}' "$i" "$XS"
+  done
+  printf ']}'
+} > "$TMP/big.json"
+check "an 11 MB import reaches the service" 413 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/import" \
+  "${AUTH[@]}" -H "Content-Type: application/json" --data-binary "@$TMP/big.json"
+body_has "... and the service answered it" 'IMPORT_MAX_TOTAL_BYTES'
 check "list API keys -> ingestion-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}"
 body_has "... listing hides the key" "\"key_prefix\""
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
