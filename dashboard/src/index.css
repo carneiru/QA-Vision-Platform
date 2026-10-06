@@ -23,6 +23,9 @@
   --series-2: #eb6834;
   --status-passed: #0ca30c;
   --status-failed: #d03b3b;
+  /* Re-run amber: 3.8:1 on --surface-1 (bars need >= 3:1); stripe is the darker tone */
+  --status-rerun: #b07800;
+  --status-rerun-stripe: #5c3f00;
   --status-errored: #ec835a;
   --status-skipped: #898781;
   /* Error text on surfaces; the status colour stays the validated chart/dot hue. */
@@ -72,6 +75,8 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --danger-text: #ec7272;
+    --status-rerun: #e0a000; /* 7.7:1 on --surface-1 */
+    --status-rerun-stripe: #6b4a00;
     --gk-keyword: #6aa6ef;
     --gk-tag: #e0a15c;
     --gk-table: #5cc9b4;
@@ -261,6 +266,16 @@ table.data th, table.data td { text-align: left; padding: 10px 12px; border-bott
 table.data th { color: var(--text-secondary); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
 table.data tbody tr:last-child td { border-bottom: 0; }
 table.data tbody tr:hover td { background: var(--hover); }
+/* ---- Run strip: colour plus shape (notch, stripes, dashed, hairline) so status never relies on hue ---- */
+.run-strip { display: inline-flex; gap: 2px; vertical-align: middle; }
+.run-bar { display: inline-block; width: 6px; height: 18px; border-radius: 1px; }
+a.run-bar:hover { filter: brightness(1.15); }
+.bar-passed { background: var(--status-passed); }
+.bar-failed { background: var(--status-failed); clip-path: polygon(0 3px, 50% 0, 100% 3px, 100% 100%, 0 100%); }
+.bar-rerun { background: repeating-linear-gradient(135deg, var(--status-rerun) 0 2px, var(--status-rerun-stripe) 2px 4px); }
+.bar-skipped { background: transparent; outline: 1px dashed var(--text-secondary); outline-offset: -1px; }
+.bar-none { background: transparent; box-shadow: inset 0 0 0 1px var(--border-strong); }
+.bar-loading { background: var(--surface-2); }
 .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 
 /* ---- Badges ---- */
