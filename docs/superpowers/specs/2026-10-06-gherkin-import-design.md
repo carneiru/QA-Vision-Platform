@@ -11,7 +11,7 @@ Roadmap Phase 4 ("Test Management"), the slice named "Gherkin import" in IMPLEME
 - **The repository owns the content of an imported case.** Title, Gherkin text and labels come from
   the file and are read-only in QA Vision. Status, description, suites and the automated-test link
   stay editable. A scenario that disappears from a file is archived, never deleted.
-- **One case per `Scenario Outline`.** The Examples table goes into the description.
+- **One case per `Scenario Outline`.** Its Examples tables stay in the case's Gherkin text.
 - **Parsing happens on the server**, with Cucumber's official parser (`gherkin-official`).
 - **The scenario's Gherkin is kept verbatim**, not converted to `{action, expected}` steps.
 - A confirm applies **exactly the plan that was previewed** (`plan_hash`).
@@ -53,8 +53,8 @@ Each `Scenario`, `Example` or `Scenario Outline`, including those inside a `Rule
 | Gherkin | Case |
 |---|---|
 | scenario name | `title`, cut to 200 characters; `source_key` uses the full name |
-| Feature and Rule Background steps, then the scenario's steps, with data tables and doc strings | `gherkin`, re-rendered from the AST with the keywords and indentation of the file |
-| scenario description, plus the Examples tables of an outline as markdown tables | `description` (on create only; editable afterwards) |
+| Feature and Rule Background steps, then the scenario line, its steps with data tables and doc strings, and an outline's Examples | `gherkin`, re-rendered from the AST with the file's keywords and a fixed two-space indentation |
+| scenario description | `description` (on create only; editable afterwards) |
 | tags of the Feature, the Rule and the scenario, de-duplicated | see "Tags" |
 | — | `steps` stays empty |
 | — | `automated_test_key = test_key(feature name, source_path, scenario name)`, only when the case has no link yet |
@@ -70,8 +70,13 @@ Each `Scenario`, `Example` or `Scenario Outline`, including those inside a `Rule
 ### The link to automated results
 
 The formula is the one ingestion uses for Cucumber JSON: suite = feature name, class_name = `uri`,
-name = scenario name. cucumber-js reports every row of an outline under the outline's name, so the
-one link covers all rows.
+name = scenario name. cucumber-js names each row of an outline after the outline, with any
+`<placeholder>` in the name filled from that row. So:
+
+- When an outline's name has no placeholders, every row shares one key, and the link covers all
+  rows.
+- When it has placeholders, the link uses the name filled from the first Examples row. The other
+  rows can still be found through the test search in the editor.
 
 It only matches when `source_path` equals the `uri` the runner reports, which is the path from the
 directory cucumber-js runs in. It also only matches results uploaded as Cucumber JSON: cucumber-js
@@ -121,7 +126,7 @@ The import parses every file, then compares the scenarios with the project's imp
 | `create` | the `source_key` is new |
 | `update` | the key exists and the title, Gherkin, labels or priority tag changed |
 | `unchanged` | the key exists and nothing changed |
-| `move` | an imported case would be archived, and a new scenario with the same feature name and scenario name appears at another path in the same batch. The case keeps its number and gets the new path and key. Matching is one-to-one; when several candidates match, none of them is treated as a move. |
+| `move` | an imported case would be archived, and a new scenario with exactly the same Gherkin text (which includes the scenario's full name) appears at another path in the same batch. The case keeps its number and gets the new path and key. Matching is one-to-one; when several candidates match, none of them is treated as a move. |
 | `reactivate` | the key belongs to an archived case; it returns to `draft`, and is also updated if needed |
 | `archive` | an imported, non-archived case whose `source_path` is among the uploaded paths but whose scenario is gone. With `full=true`, also the cases whose path is not in the batch at all. |
 | `skip` | a scenario that cannot be imported (duplicate name, or a file with a syntax error) |
