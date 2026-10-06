@@ -128,7 +128,6 @@ export default function CasesPage() {
     queryFn: () => getRunStrip(id, stripKeys),
     enabled: stripKeys.length > 0,
     staleTime: 60_000,
-    retry: 1,
   });
   const filtered = KEYS.some((k) => applied[k] !== "");
 

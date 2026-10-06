@@ -9,7 +9,7 @@
   --hover-strong: rgba(11, 11, 11, 0.08);
   --text-primary: #111110;
   --text-secondary: #55544f;
-  --text-muted: #898781; /* chart ticks only: 3.4:1, never body text */
+  --text-muted: #898781; /* chart ticks and non-text outlines (run-strip bar-none): 3.4:1+, never body text */
   --grid: #e6e5df;
   --border: rgba(11, 11, 11, 0.1);
   --border-strong: rgba(11, 11, 11, 0.18);

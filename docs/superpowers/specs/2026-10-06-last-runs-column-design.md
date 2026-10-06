@@ -76,7 +76,7 @@ run, oldest on the left and newest on the right.
   - If the call fails, the column shows a dash (after one retry), the rest of the page keeps working, and nothing
     blocks.
   - The column is `hide-narrow`, so it is hidden at 640px and below.
-- **Legend:** a small legend next to the table header explains the colours and shapes. It is
+- **Legend:** a small legend above the table explains the colours and shapes. It is
   visible text, not only a tooltip. It is hidden when no case on the page is linked, and an unlinked case shows only the text "not linked" (no empty strip).
 
 ## Testing

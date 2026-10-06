@@ -504,5 +504,5 @@ test("a failing run-strip leaves the list usable", async () => {
   );
   renderAt("/projects/42/cases");
   expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
-  expect(await screen.findByLabelText(/last runs unavailable/i, undefined, { timeout: 4000 })).toBeInTheDocument();
+  expect(await screen.findByLabelText(/last runs unavailable/i)).toBeInTheDocument();
 });
