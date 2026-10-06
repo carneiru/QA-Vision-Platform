@@ -64,10 +64,10 @@ test("lists cases with their key, labels and whether they are automated; filters
     http.get(`${P}/case-labels`, () => HttpResponse.json([{ label: "smoke", count: 1 }])),
   );
   renderAt("/projects/42/cases");
-  const row = (await screen.findByRole("link", { name: "TC-1" })).closest("tr")!;
+  const row = (await screen.findByRole("link", { name: "Case 1" })).closest("tr")!;
   expect(within(row).getByText("smoke")).toBeInTheDocument();
   expect(within(row).getByText(/linked/i)).toBeInTheDocument();
-  expect(within(screen.getByRole("link", { name: "TC-2" }).closest("tr")!).getByText(/manual/i)).toBeInTheDocument();
+  expect(within(screen.getByRole("link", { name: "Case 2" }).closest("tr")!).getByText(/manual/i)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /new case/i })).toHaveAttribute("href", "/projects/42/cases/new");
 
   await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Label" }), "smoke");
@@ -333,4 +333,45 @@ test("clear filters resets everything", async () => {
   renderAt("/projects/42/cases?status=ready&folder=tests&linked=true");
   await userEvent.setup().click(await screen.findByRole("button", { name: /clear filters/i }));
   expect(screen.getByTestId("where")).toHaveTextContent(/^\/projects\/42\/cases$/);
+});
+
+test("more than 20000 latest keys fall back to the plain list with a notice", async () => {
+  asRole("member"); facets();
+  let searched = false; let listed = 0;
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ keys: Array.from({ length: 20001 }, (_, i) => i.toString(16).padStart(64, "0")) })),
+    http.post(`${P}/cases/search`, () => { searched = true; return HttpResponse.json({ detail: "too many" }, { status: 422 }); }),
+    http.get(`${P}/cases`, () => { listed += 1; return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
+  );
+  renderAt("/projects/42/cases?result=passed");
+  expect(await screen.findByText(/too many tests for the latest-result filter/i)).toBeInTheDocument();
+  expect(searched).toBe(false);
+  expect(listed).toBeGreaterThan(0);
+  await settled();
+});
+
+test("a failing search falls back to the plain list with the unavailable notice", async () => {
+  asRole("member"); facets();
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ keys: ["a".repeat(64)] })),
+    http.post(`${P}/cases/search`, () => HttpResponse.json({ detail: "boom" }, { status: 500 })),
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1)] })),
+  );
+  renderAt("/projects/42/cases?result=passed");
+  expect(await screen.findByText(/latest result filter unavailable right now/i)).toBeInTheDocument();
+  expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
+  await settled();
+});
+
+test("an unknown result value is ignored without asking ingestion", async () => {
+  asRole("member"); facets();
+  let asked = false; let listed = false;
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, () => { asked = true; return HttpResponse.json({ keys: [] }); }),
+    http.get(`${P}/cases`, () => { listed = true; return HttpResponse.json({ total: 0, items: [] }); }),
+  );
+  renderAt("/projects/42/cases?result=foo");
+  await waitFor(() => expect(listed).toBe(true));
+  expect(asked).toBe(false);
+  await settled();
 });

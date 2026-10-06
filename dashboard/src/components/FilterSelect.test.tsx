@@ -83,3 +83,16 @@ test("closing by clicking outside forgets the search", async () => {
   expect(screen.getByRole("combobox", { name: /search feature/i })).toHaveValue("");
   expect(screen.getByText("20 of 20")).toBeInTheDocument();
 });
+
+test("Tab and Escape also forget the search", async () => {
+  const user = userEvent.setup();
+  render(<Harness n={20} />);
+  for (const key of ["{Tab}", "{Escape}"]) {
+    await user.click(screen.getByRole("button", { name: /feature/i }));
+    await user.type(screen.getByRole("combobox", { name: /search feature/i }), "zzz");
+    await user.keyboard(key);
+    await user.click(screen.getByRole("button", { name: /feature/i }));
+    expect(screen.getByRole("combobox", { name: /search feature/i })).toHaveValue("");
+    await user.keyboard("{Escape}");
+  }
+});
