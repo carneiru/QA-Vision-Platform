@@ -86,6 +86,7 @@ class CaseOut(BaseModel):
     updated_at: Optional[datetime] = None
     source_path: Optional[str] = None
     gherkin: Optional[str] = None
+    feature_name: Optional[str] = None
     suites: List[SuiteRef] = []  # filled on the single-case read
 
 

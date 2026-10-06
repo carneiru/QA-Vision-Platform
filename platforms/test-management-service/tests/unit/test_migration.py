@@ -82,3 +82,17 @@ def test_downgrade_to_001_drops_the_source_columns(tmp_path):
     finally:
         engine.dispose()
     assert not columns & {"source_path", "source_key", "gherkin"}
+
+
+def test_downgrade_to_002_drops_feature_name(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'down3.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "002")
+    engine = create_engine(url)
+    try:
+        assert "feature_name" not in {c["name"] for c in inspect(engine).get_columns("cases")}
+    finally:
+        engine.dispose()

@@ -24,6 +24,7 @@ def out(row: Case, suites: Optional[list] = None) -> dict:
         "status": row.status, "automated_test_key": row.automated_test_key, "automated_name": row.automated_name,
         "created_by": row.created_by, "created_at": row.created_at, "updated_by": row.updated_by,
         "updated_at": row.updated_at, "source_path": row.source_path, "gherkin": row.gherkin,
+        "feature_name": row.feature_name,
         "suites": suites or [],
     }
 

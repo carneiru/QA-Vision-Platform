@@ -36,7 +36,7 @@ def load_existing(db: Session, project_id: int) -> List[Existing]:
         Existing(id=r.id, number=r.number, source_key=r.source_key, source_path=r.source_path or "",
                  status=r.status, title=r.title, gherkin=r.gherkin or "",
                  labels=tuple(sorted(l.label for l in r.labels)), priority=r.priority,
-                 automated_test_key=r.automated_test_key, automated_name=r.automated_name)
+                 automated_test_key=r.automated_test_key, automated_name=r.automated_name, feature_name=r.feature_name)
         for r in rows
     ]
 
@@ -52,6 +52,7 @@ def _content(row: Case, scenario) -> None:
         row.automated_test_key, row.automated_name = scenario.test_key, scenario.test_name[:1500]
     row.title = scenario.title
     row.gherkin = scenario.gherkin
+    row.feature_name = scenario.feature_name[:500]
     wanted = set(scenario.labels)
     for existing in list(row.labels):
         if existing.label not in wanted:
@@ -75,7 +76,7 @@ def apply_plan(db: Session, project_id: int, user_id: int, plan: Plan) -> Plan:
         if item.action == "create":
             s = item.parsed
             row = Case(project_id=project_id, number=next_number, title=s.title, description=s.description,
-                       steps=[], gherkin=s.gherkin, source_path=s.path, source_key=s.source_key,
+                       steps=[], gherkin=s.gherkin, feature_name=s.feature_name[:500], source_path=s.path, source_key=s.source_key,
                        priority=s.priority or "medium", created_by=user_id,
                        automated_test_key=s.test_key, automated_name=s.test_name[:1500],
                        labels=[CaseLabel(label=label) for label in s.labels])

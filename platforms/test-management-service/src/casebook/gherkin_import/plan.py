@@ -49,6 +49,7 @@ class Existing:
     priority: str
     automated_test_key: Optional[str] = None
     automated_name: Optional[str] = None
+    feature_name: Optional[str] = None
 
 
 def link_is_import_owned(key: Optional[str], name: Optional[str], feature_name: str, source_path: str) -> bool:
@@ -69,6 +70,7 @@ def _differs(case: Existing, scenario: ParsedScenario) -> bool:
     return (
         case.title != scenario.title or case.gherkin != scenario.gherkin or case.labels != scenario.labels
         or (scenario.priority is not None and scenario.priority != case.priority) or stale_link
+        or case.feature_name != scenario.feature_name[:500]
     )
 
 

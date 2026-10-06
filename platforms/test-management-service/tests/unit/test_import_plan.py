@@ -198,3 +198,19 @@ def test_a_stale_import_set_link_alone_makes_an_update(db):
     one.automated_test_key, one.automated_name = test_key("A", A, "old"), "old"
     db.commit()
     assert ("update", A, "one") in actions(import_service.plan_import(db, 1, [(A, FEATURE)], False))
+
+
+def test_import_records_the_feature_name(db):
+    run(db, [(A, FEATURE)])
+    assert {c.feature_name for c in db.query(Case).all()} == {"A"}
+
+
+def test_a_case_imported_before_feature_names_gets_one_on_the_next_import(db):
+    run(db, [(A, FEATURE)])
+    for case in db.query(Case).all():
+        case.feature_name = None
+    db.commit()
+    plan = run(db, [(A, FEATURE)])
+    assert plan.summary()["updated"] == 2
+    assert {c.feature_name for c in db.query(Case).all()} == {"A"}
+    assert {i.action for i in import_service.plan_import(db, 1, [(A, FEATURE)], False).items} == {"unchanged"}

@@ -37,6 +37,7 @@ class Case(Base):
     source_path = Column(String(500), nullable=True)
     source_key = Column(String(64), nullable=True)
     gherkin = Column(Text, nullable=True)
+    feature_name = Column(String(500), nullable=True)  # Gherkin "Feature:" of an imported case
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_by = Column(Integer, nullable=True)
