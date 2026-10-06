@@ -33,6 +33,9 @@
   --gk-table: #0b6b5c;
   --gk-docstring: #7a3d8f;
   --gk-comment: #6b6a64;
+  --gk-string: #2f6b1f;
+  --gk-param: #a3203f;
+  --gk-param-bg: rgba(163, 32, 63, 0.12);
   --shadow-1: 0 1px 2px rgba(17, 17, 16, 0.04), 0 1px 3px rgba(17, 17, 16, 0.06);
   --shadow-2: 0 8px 24px rgba(17, 17, 16, 0.12), 0 2px 6px rgba(17, 17, 16, 0.08);
 
@@ -74,6 +77,9 @@
     --gk-table: #5cc9b4;
     --gk-docstring: #c79ae0;
     --gk-comment: #a3a299;
+    --gk-string: #9fd98f;
+    --gk-param: #ff9db0;
+    --gk-param-bg: rgba(255, 157, 176, 0.16);
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
@@ -367,6 +373,8 @@ label.button:hover { background: var(--hover-strong); }
 .gk-table { color: var(--gk-table); }
 .gk-docstring { color: var(--gk-docstring); }
 .gk-comment { color: var(--gk-comment); font-style: italic; }
+.gk-string { color: var(--gk-string); }
+.gk-param { color: var(--gk-param); background: var(--gk-param-bg); border-radius: 3px; }
 .source-badge { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .source-badge code { overflow-wrap: anywhere; }
 input[readonly] { background: var(--surface-2); }

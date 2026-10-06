@@ -332,7 +332,7 @@ A Paper tile with a 10px radius, Hairline border and resting lift, holding a fol
 A 6px-radius box with a Danger Text border and text over a 6% failed-red tint, with an optional Retry button. It uses `role="alert"`. Loading and empty states are plain Graphite sentences that say what is absent and how data arrives. They never show a zero in place of missing data.
 
 ### Code Block
-Stone Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizontal scroll. It is used for copyable CI snippets. An expanded failure message inside a table cell is mono 12.5px with preserved line breaks and no box.
+Stone Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizontal scroll. It is used for copyable CI snippets. An expanded failure message inside a table cell is mono 12.5px with preserved line breaks and no box. A read-only Gherkin block colours keywords, tags, tables, doc strings and comments, plus step values: quoted "values" use `--gk-string` and `<placeholders>` use `--gk-param` on a light tint of `--gk-param-bg`; each meets 4.5:1 on Sidebar Stone in both themes.
 
 ### Accessibility Plumbing
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
