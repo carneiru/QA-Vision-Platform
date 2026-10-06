@@ -128,6 +128,17 @@ XS="$(head -c 200000 /dev/zero | tr '\0' x)"
 check "an 11 MB import reaches the service" 413 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/import" \
   "${AUTH[@]}" -H "Content-Type: application/json" --data-binary "@$TMP/big.json"
 body_has "... and the service answered it" 'IMPORT_MAX_TOTAL_BYTES'
+# ---- CI import: trade the API key for a short-lived token, import with it (ADR-024) ----
+check "trade the API key for an import token -> ingestion-service" 200 POST "$BASE/api/v1/collect/token" \
+  -H "Authorization: Bearer $API_KEY"
+SERVICE_TOKEN="$(sed -n 's/.*"token":"\([^"]*\)".*/\1/p' "$TMP/body")"
+CI_BODY='{"files":[{"path":"tests/features/ci.feature","content":"Feature: CI\n  Scenario: from ci\n    Given a token\n"}]}'
+check "import a .feature with the CI token -> test-management-service" 200 POST \
+  "$BASE/api/v1/projects/$PROJECT_ID/cases/import" -H "Authorization: Bearer $SERVICE_TOKEN" \
+  -H "Content-Type: application/json" -d "$CI_BODY"
+body_has "... one case created by CI" '"created":1'
+check "the CI token opens no other route" 401 GET "$BASE/api/v1/projects/$PROJECT_ID/cases" \
+  -H "Authorization: Bearer $SERVICE_TOKEN"
 check "list API keys -> ingestion-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}"
 body_has "... listing hides the key" "\"key_prefix\""
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"

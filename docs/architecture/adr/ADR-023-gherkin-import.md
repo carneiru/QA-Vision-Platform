@@ -84,9 +84,12 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
 - The collector normalises a Cucumber `uri` to `/`, so results uploaded from Windows link to
   imported cases. Results uploaded from Windows before that change keep their backslash keys and
   do not link.
-- A server-side mass-archive guard (refuse to archive more than half of the imported cases without
-  `--allow-mass-archive`) is due with the CLI command, which has no preview to read.
-- API-key access for the CLI and JUnit import are later slices.
+- A server-side mass-archive guard protects every client. With `full=true`, an import that would
+  archive more than half of the live imported cases is 409 `mass_archive` (with `archived` and
+  `live`) unless the body has `allow_mass_archive: true`. A dry run reports it as
+  `summary.mass_archive`. The dashboard sends the flag when its alert is showing; the CLI passes
+  `--allow-mass-archive`.
+- API-key access for the CLI is ADR-024. JUnit import is a later slice.
 - Raising a limit is an `.env` change and a restart of the gateway and the service; no code change.
 
 ## Related Decisions

@@ -18,6 +18,7 @@ TODO.md, commit messages and benchmark rulings:
 | [ADR-021](ADR-021-live-runs-by-polling.md) | New runs reach the dashboard by polling every 30 s; push (SSE first) when the collector streams partial results |
 | [ADR-022](ADR-022-test-management-service.md) | Test management is its own service (cases, suites, link to automated tests), started on product pull before the Phase 2 exit |
 | [ADR-023](ADR-023-gherkin-import.md) | Gherkin import: the repository owns imported cases; moves, reactivation, and a previewed plan applied exactly |
+| [ADR-024](ADR-024-service-tokens-for-ci-imports.md) | Service tokens for CI imports: ingestion trades a project API key for a 5-minute JWT that only the import route accepts |
 
 **Proposed** — ADR-001..010 describe the TARGET architecture (DDD, Kafka,
 Kubernetes, Go services, Neo4j, Qdrant, ...). Reclassified 2026-10-02: their

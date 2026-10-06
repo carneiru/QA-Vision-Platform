@@ -33,7 +33,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 |---|---|---|
 | `GET` | `/cases?search=&label=&label=&status=&priority=&origin=&include_archived=&limit=&offset=` | `{total, items}`; archived hidden unless asked; `origin=manual` or `imported`; search also matches the Gherkin text |
 | `POST` | `/cases` | `title`, `description`, `steps[{action, expected}]`, `labels`, `priority`, `status`, `automated_test_key`, `automated_name` |
-| `POST` | `/cases/import?dry_run=` | `{files:[{path, content}], full, expected_plan_hash}` (`full` defaults to `false`); returns `{plan_hash, summary, items, errors, warnings}`; a dry run writes nothing; roles as for `POST /cases` |
+| `POST` | `/cases/import?dry_run=` | `{files:[{path, content}], full, allow_mass_archive, expected_plan_hash}` (`full` and `allow_mass_archive` default to `false`); returns `{plan_hash, summary, items, errors, warnings}`; a dry run writes nothing; accepts an editor's JWT or the CI service token (ADR-024), whose changes are recorded as user 0; a `full` import that would archive over half the live imported cases is 409 `mass_archive` unless `allow_mass_archive` is true |
 | `GET` / `PATCH` | `/cases/{number}` | the single read also lists the case's suites; `automated_test_key: null` unlinks |
 | `GET` | `/case-labels` | labels in use (archived cases left out), with counts |
 | `GET` / `POST` | `/suites` | name unique per project (409) |
@@ -61,6 +61,7 @@ plan that was previewed, or answers 409 `plan_changed`. See ADR-023.
   is ticked.
 - The response carries `errors` (files skipped for a syntax error) and `warnings` (skipped
   scenarios and tags).
+- `summary.mass_archive` tells a dry run whether the guard would refuse the real import.
 - The automated link the import sets follows a move; a link picked by hand is never changed.
 
 ```

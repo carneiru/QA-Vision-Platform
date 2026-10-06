@@ -44,7 +44,7 @@ mass-archive guard". The user made these decisions on 2026-10-06:
 - Every other route still goes through `get_caller`, which requires a numeric `sub`. A service
   token is 401 there, and a test pins that.
 - Cases that a service token creates or changes get `created_by` / `updated_by` = `0`, which means
-  "CI". The dashboard shows "CI" for user id 0.
+  "CI". The dashboard shows no user ids today, so nothing displays it yet.
 
 ### Mass-archive guard (every client)
 
@@ -101,7 +101,6 @@ qav-collector import-features [PATTERN ...] [--branch NAME] [--no-full] [--allow
   `qav-collector import-features "tests/features/**/*.feature"`, with a comment that cases sync
   from `master` only and that `.qav.yml` `features:` can hold the patterns. `COLLECTOR_REF` becomes
   `collector-v0.3.0`.
-- The case editor and list show "CI" where `created_by` / `updated_by` is 0.
 - The import page sends `allow_mass_archive: true` when its mass-archive alert is showing, and shows
   a 409 `mass_archive` message if the server refuses anyway.
 
@@ -127,7 +126,6 @@ qav-collector import-features [PATTERN ...] [--branch NAME] [--no-full] [--allow
   - the token exchange, run against a local stub HTTP server as the existing upload tests do.
 - **dashboard:**
   - the snippet carries the new step and `collector-v0.3.0`;
-  - "CI" shows for user 0;
   - `allow_mass_archive` is sent when the alert shows;
   - the 409 `mass_archive` message.
 - **Gateway smoke:** create an API key, trade it for a token, import one feature with the token,

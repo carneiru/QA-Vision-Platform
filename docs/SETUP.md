@@ -78,7 +78,7 @@ Data lives in Docker volumes (`qa-vision_*`): it survives `down` and restarts, n
    or its JSON reporter), `dotnet test --logger trx` (writes `TestResults/*.trx`).
 3. **Upload**, from the folder holding the reports:
    ```powershell
-   pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+   pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
    # the local stack's certificate is self-signed; run this in the QA-Vision-Platform folder
    docker compose cp gateway:/etc/nginx/certs/tls.crt $HOME\qav-ca.crt
 
@@ -87,6 +87,9 @@ Data lives in Docker volumes (`qa-vision_*`): it survives `down` and restarts, n
    qav-collector check "reports/**/*.xml" --ca-file $HOME\qav-ca.crt    # verifies everything, uploads nothing
    qav-collector upload "reports/**/*.xml" --ca-file $HOME\qav-ca.crt
    ```
+   To keep test cases in sync from your `.feature` files, add a second CI step after the upload:
+   `qav-collector import-features "tests/features/**/*.feature"`. It uses the same `QAV_API_KEY`
+   and syncs only from `master` (set `QAV_IMPORT_BRANCH` to change that); see ADR-024.
 4. The project's **Overview** shows the run, what failed and the pass rate. **Settings → Wire up
    your CI** always shows the right snippet for where the platform is running.
 
@@ -107,7 +110,7 @@ machine to the internet while it is open.
    - variable `QAV_URL` = the tunnel address, without a trailing slash
 3. **Add the upload step to the workflow**, after the tests (they must write JUnit XML):
    ```yaml
-   - uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.2.0
+   - uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.3.0
      if: always()                       # report failing builds too
      with:
        url: ${{ vars.QAV_URL }}

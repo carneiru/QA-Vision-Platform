@@ -31,6 +31,13 @@ Receives test results from CI. Design: `docs/superpowers/specs/2026-09-29-ingest
    `201` returns the run id and counts. Retrying with the same `Idempotency-Key` returns `200` and
    the same run — never a duplicate. The same key with a different body is `409`.
 
+## Import token
+
+`POST /api/v1/collect/token` with `Authorization: Bearer qav_…` returns
+`{"token", "expires_in": 300, "project_id"}`. The token is a JWT that test-management accepts only
+on `POST /api/v1/projects/{id}/cases/import` for that project, so `qav-collector import-features`
+can sync cases without a user login. See ADR-024.
+
 ## Limits
 
 - Up to 20,000 results per run (`422` beyond: split the run).
