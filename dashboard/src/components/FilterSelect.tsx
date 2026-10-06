@@ -50,10 +50,12 @@ function Combo({ label, value, options, onChange, emptyLabel, name }: Props) {
   const selected = options.find((o) => o.value === value);
   const activeId = active >= 0 && active < shown.length ? `${uid}-opt-${active}` : undefined;
 
+  const reset = () => { setOpen(false); setQuery(""); setActive(-1); };
+
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (fieldRef.current && !fieldRef.current.contains(e.target as Node)) setOpen(false);
+      if (fieldRef.current && !fieldRef.current.contains(e.target as Node)) reset();
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -63,7 +65,7 @@ function Combo({ label, value, options, onChange, emptyLabel, name }: Props) {
     if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: "nearest" });
   }, [activeId]);
 
-  const close = () => { setOpen(false); setQuery(""); setActive(-1); triggerRef.current?.focus(); };
+  const close = () => { reset(); triggerRef.current?.focus(); };
   const pick = (v: string) => { onChange(v); close(); };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -74,7 +76,7 @@ function Combo({ label, value, options, onChange, emptyLabel, name }: Props) {
     else if (e.key === "End") { e.preventDefault(); setActive(last); }
     else if (e.key === "Enter") { e.preventDefault(); if (activeId) pick(shown[active].value); }
     else if (e.key === "Escape") { e.preventDefault(); close(); }
-    else if (e.key === "Tab") { setOpen(false); setQuery(""); setActive(-1); }
+    else if (e.key === "Tab") reset();
   };
 
   return (

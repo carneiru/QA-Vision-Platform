@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import FolderTree, { buildTree } from "./FolderTree";
 
@@ -31,7 +31,7 @@ test("keyboard: arrows move, right expands, left collapses, enter selects", asyn
   const user = userEvent.setup();
   const onSelect = vi.fn();
   render(<FolderTree folders={folders} total={7} selected="" onSelect={onSelect} />);
-  screen.getByRole("treeitem", { name: /all cases/i }).focus();
+  act(() => screen.getByRole("treeitem", { name: /all cases/i }).focus());
   await user.keyboard("{ArrowDown}");
   await user.keyboard("{ArrowRight}");
   expect(screen.getByRole("treeitem", { name: /hotels 4/i })).toBeInTheDocument();
@@ -53,4 +53,13 @@ test("exactly one item is tabbable: the selected one, else All cases", () => {
   expect(screen.getByRole("treeitem", { name: /all cases/i })).toHaveAttribute("tabindex", "0");
   rerender(<FolderTree folders={folders} total={7} selected="tests/features" onSelect={() => {}} />);
   expect(screen.getByRole("treeitem", { name: /features 6/i })).toHaveAttribute("tabindex", "0");
+});
+
+test("an external change of selection makes that item the tabbable one", () => {
+  const onSelect = vi.fn();
+  const { rerender } = render(<FolderTree folders={folders} total={7} selected="" onSelect={onSelect} />);
+  act(() => screen.getByRole("treeitem", { name: /all cases/i }).focus());
+  rerender(<FolderTree folders={folders} total={7} selected="tests/features/flights" onSelect={onSelect} />);
+  expect(screen.getByRole("treeitem", { name: /flights 2/i })).toHaveAttribute("tabindex", "0");
+  expect(screen.getByRole("treeitem", { name: /all cases/i })).toHaveAttribute("tabindex", "-1");
 });

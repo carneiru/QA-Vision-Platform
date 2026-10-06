@@ -30,6 +30,8 @@ export interface Case {
   /** Repo-relative .feature path, for a case imported from Gherkin. */
   source_path: string | null;
   gherkin: string | null;
+  /** The Gherkin Feature the case was imported from. */
+  feature_name: string | null;
   /** Filled on the single-case read. */
   suites: { id: number; name: string }[];
 }
@@ -45,8 +47,21 @@ export interface CaseQuery {
   priority?: Priority;
   include_archived?: boolean;
   origin?: "manual" | "imported";
+  folder?: string;
+  linked?: "true" | "false";
+  feature?: string;
+  /** Azure DevOps work item number: matches the label ado-<n>. */
+  ado?: string;
   limit: number;
   offset: number;
+}
+
+/** Same filters as a JSON body, plus the test keys a latest-result filter resolved to. */
+export interface CaseSearchBody extends Omit<CaseQuery, "label" | "linked"> {
+  labels?: string[];
+  linked?: boolean;
+  test_keys: string[];
+  keys_mode: "include" | "exclude";
 }
 
 const base = (projectId: number) => `/api/v1/projects/${projectId}`;
@@ -54,6 +69,18 @@ const base = (projectId: number) => `/api/v1/projects/${projectId}`;
 export function listCases(projectId: number, q: CaseQuery): Promise<{ total: number; items: Case[] }> {
   const query = buildQuery({ ...q, include_archived: q.include_archived ? "true" : undefined });
   return apiFetch(`${base(projectId)}/cases${query}`);
+}
+
+export function searchCases(projectId: number, body: CaseSearchBody): Promise<{ total: number; items: Case[] }> {
+  return apiFetch(`${base(projectId)}/cases/search`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function listFolders(projectId: number): Promise<{ path: string; count: number }[]> {
+  return apiFetch(`${base(projectId)}/case-folders`);
+}
+
+export function listFeatures(projectId: number): Promise<{ feature: string; count: number }[]> {
+  return apiFetch(`${base(projectId)}/case-features`);
 }
 
 export function getCase(projectId: number, number: number): Promise<Case> {

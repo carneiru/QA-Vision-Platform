@@ -37,15 +37,16 @@ export default function FolderTree({ folders, total, selected, onSelect }: {
   onSelect: (path: string) => void;
 }) {
   const tree = useMemo(() => buildTree(folders), [folders]);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["", ...ancestorsOf(selected)]));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(["", ...ancestorsOf(selected).slice(0, -1)]));
   const [focused, setFocused] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
+    setFocused(null);
     if (!selected) return;
     setExpanded((prev) => {
       const next = new Set(prev);
-      ancestorsOf(selected).forEach((p) => next.add(p));
+      ancestorsOf(selected).slice(0, -1).forEach((p) => next.add(p));
       return next.size === prev.size ? prev : next;
     });
   }, [selected]);

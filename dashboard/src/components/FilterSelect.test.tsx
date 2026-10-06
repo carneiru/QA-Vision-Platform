@@ -71,3 +71,15 @@ test("the selected value can be cleared", async () => {
   await user.click(screen.getByRole("button", { name: /clear feature/i }));
   expect(screen.getByTestId("value")).toHaveTextContent("");
 });
+
+test("closing by clicking outside forgets the search", async () => {
+  const user = userEvent.setup();
+  render(<Harness n={20} />);
+  await user.click(screen.getByRole("button", { name: /feature/i }));
+  await user.type(screen.getByRole("combobox", { name: /search feature/i }), "zzz");
+  await user.click(screen.getByTestId("value"));
+  expect(screen.queryByRole("combobox", { name: /search feature/i })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: /feature/i }));
+  expect(screen.getByRole("combobox", { name: /search feature/i })).toHaveValue("");
+  expect(screen.getByText("20 of 20")).toBeInTheDocument();
+});

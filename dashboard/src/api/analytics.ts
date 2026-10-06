@@ -99,6 +99,14 @@ export function getTrends(
   return apiFetch(`/api/v1/projects/${projectId}/analytics/trends${q}`);
 }
 
+/** Test keys whose most recent result has the status ("any": at least one result). */
+export function getLatestKeys(
+  projectId: number,
+  status: "passed" | "failed" | "skipped" | "any",
+): Promise<{ keys: string[] }> {
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/latest-keys${buildQuery({ status })}`);
+}
+
 export function getTests(
   projectId: number,
   opts: { days: number; sort: "failures" | "duration" | "name"; search?: string; limit: number; offset: number },

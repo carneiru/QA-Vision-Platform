@@ -6,6 +6,7 @@ import { listRuns, RunFilters } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
+import FilterSelect from "../components/FilterSelect";
 import { LIVE_REFRESH_MS } from "../lib/live";
 
 const PAGE = 50;
@@ -122,14 +123,8 @@ export default function RunsPage() {
       <h2 className="sr-only">Runs</h2>
       <form onSubmit={applyFilters}>
         <FilterBar>
-          <label>
-            Status
-            <select value={form.status} onChange={(e) => set("status", e.target.value)}>
-              <option value="">All</option>
-              <option value="failing">With failures</option>
-              <option value="passing">All green</option>
-            </select>
-          </label>
+          <FilterSelect label="Status" value={form.status} emptyLabel="All" onChange={(v) => set("status", v)}
+            options={[{ value: "failing", label: "With failures" }, { value: "passing", label: "All green" }]} />
           <label>
             Branch
             <input value={form.branch} onChange={(e) => set("branch", e.target.value)} placeholder="all" />
@@ -148,15 +143,8 @@ export default function RunsPage() {
               Environment
               <input value={form.environment} onChange={(e) => set("environment", e.target.value)} maxLength={100} />
             </label>
-            <label>
-              CI
-              <select value={form.ci_provider} onChange={(e) => set("ci_provider", e.target.value)}>
-                <option value="">Any</option>
-                {Object.entries(CI_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </label>
+            <FilterSelect label="CI" value={form.ci_provider} onChange={(v) => set("ci_provider", v)}
+              options={Object.entries(CI_LABELS).map(([value, label]) => ({ value, label }))} />
             <label>
               Commit
               <input

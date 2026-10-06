@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -16,7 +16,7 @@ const KEY = "b".repeat(64);
 const kase = (number: number, extra: object = {}) => ({
   number, key: `TC-${number}`, title: `Case ${number}`, description: null, steps: [], labels: [], priority: "medium",
   status: "draft", automated_test_key: null, automated_name: null, created_by: 1, created_at: "2026-10-06T10:00:00Z",
-  updated_by: null, updated_at: null, suites: [], source_path: null, gherkin: null, ...extra,
+  updated_by: null, updated_at: null, suites: [], source_path: null, gherkin: null, feature_name: null, ...extra,
 });
 
 function asRole(role: string) {
@@ -27,6 +27,11 @@ function Location() {
   const { pathname, search } = useLocation();
   return <output data-testid="where">{pathname + search}</output>;
 }
+
+// The feature list loads on every Cases page; tests that don't care get an empty one
+beforeEach(() => {
+  server.use(http.get(`${P}/case-features`, () => HttpResponse.json([])));
+});
 
 function renderAt(url: string) {
   setAccessToken("acc");
@@ -246,4 +251,86 @@ test("the origin filter reaches the API", async () => {
   await userEvent.setup().selectOptions(await screen.findByLabelText(/origin/i), "imported");
   await userEvent.setup().click(screen.getByRole("button", { name: /apply/i }));
   await vi.waitFor(() => expect(seen).toContain("imported"));
+});
+
+// --- case filters --------------------------------------------------------------------------
+
+/** Lets the facet queries land, so no state update arrives after the test ends. */
+async function settled() {
+  await screen.findByRole("option", { name: "Hotels (2)" });
+  await screen.findByRole("option", { name: "smoke (1)" });
+}
+
+function facets() {
+  server.use(
+    http.get(`${P}/case-labels`, () => HttpResponse.json([{ label: "smoke", count: 1 }, { label: "ado-81284", count: 1 }])),
+    http.get(`${P}/case-features`, () => HttpResponse.json([{ feature: "Hotels", count: 2 }])),
+  );
+}
+
+test("a folder in the URL reaches the API", async () => {
+  asRole("member"); facets();
+  const seen: URLSearchParams[] = [];
+  server.use(http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 0, items: [] }); }));
+  renderAt("/projects/42/cases?folder=tests%2Ffeatures");
+  await waitFor(() => expect(seen.at(-1)?.get("folder")).toBe("tests/features"));
+  await screen.findByRole("option", { name: "Hotels (2)" });
+});
+
+test("link, feature and ADO filters reach the API", async () => {
+  asRole("member"); facets();
+  const seen: URLSearchParams[] = [];
+  server.use(http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 0, items: [] }); }));
+  renderAt("/projects/42/cases?linked=false&feature=Hotels&ado=81284");
+  await waitFor(() => expect(seen.at(-1)?.get("feature")).toBe("Hotels"));
+  expect(seen.at(-1)?.get("linked")).toBe("false");
+  expect(seen.at(-1)?.get("ado")).toBe("81284");
+  await settled();
+});
+
+test("a latest-result filter asks ingestion for keys, then searches with them", async () => {
+  asRole("member"); facets();
+  let body: Record<string, unknown> | null = null;
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, ({ request }) => HttpResponse.json({ keys: [new URL(request.url).searchParams.get("status") === "failed" ? "f".repeat(64) : "a".repeat(64)] })),
+    http.post(`${P}/cases/search`, async ({ request }) => { body = (await request.json()) as Record<string, unknown>; return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
+  );
+  renderAt("/projects/42/cases?result=failed&folder=tests%2Ffeatures");
+  await waitFor(() => expect(body).not.toBeNull());
+  expect(body).toMatchObject({ test_keys: ["f".repeat(64)], keys_mode: "include", folder: "tests/features" });
+  await settled();
+});
+
+test("never ran asks for any result and excludes those keys", async () => {
+  asRole("member"); facets();
+  let status = ""; let body: Record<string, unknown> | null = null;
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, ({ request }) => { status = new URL(request.url).searchParams.get("status") ?? ""; return HttpResponse.json({ keys: [] }); }),
+    http.post(`${P}/cases/search`, async ({ request }) => { body = (await request.json()) as Record<string, unknown>; return HttpResponse.json({ total: 0, items: [] }); }),
+  );
+  renderAt("/projects/42/cases?result=never");
+  await waitFor(() => expect(body).not.toBeNull());
+  expect(status).toBe("any");
+  expect(body).toMatchObject({ test_keys: [], keys_mode: "exclude" });
+  await settled();
+});
+
+test("when ingestion is down the result filter is skipped with a banner", async () => {
+  asRole("member"); facets();
+  const seen: URLSearchParams[] = [];
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ detail: "down" }, { status: 503 })),
+    http.get(`${P}/cases`, ({ request }) => { seen.push(new URL(request.url).searchParams); return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
+  );
+  renderAt("/projects/42/cases?result=passed&label=smoke");
+  expect(await screen.findByText(/latest result filter unavailable right now/i)).toBeInTheDocument();
+  expect(seen.at(-1)?.get("label")).toBe("smoke");
+});
+
+test("clear filters resets everything", async () => {
+  asRole("member"); facets();
+  server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })));
+  renderAt("/projects/42/cases?status=ready&folder=tests&linked=true");
+  await userEvent.setup().click(await screen.findByRole("button", { name: /clear filters/i }));
+  expect(screen.getByTestId("where")).toHaveTextContent(/^\/projects\/42\/cases$/);
 });
