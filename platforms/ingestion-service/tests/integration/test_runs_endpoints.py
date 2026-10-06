@@ -238,7 +238,7 @@ def test_failure_groups_put_one_cause_together(client, auth, project_role, make_
 def test_failure_groups_of_a_green_run_are_empty(client, auth, project_role, make_run):
     run = make_run(statuses=("passed", "skipped"))
     project_role("viewer")
-    assert client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth()).json() == {"total": 0, "groups": []}
+    assert client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth()).json() == {"total": 0, "quarantined": 0, "blocking": 0, "groups": []}
 
 
 def test_failure_groups_cap_listed_tests_but_count_all(client, auth, project_role, make_run, db):

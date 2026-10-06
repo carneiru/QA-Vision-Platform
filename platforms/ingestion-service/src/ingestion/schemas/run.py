@@ -51,6 +51,7 @@ class ResultOut(BaseModel):
     redacted: bool
     file: Optional[str] = None
     owner: Optional[str] = None
+    quarantined: bool = False  # failed or errored, and the test is in quarantine
 
 
 class ChangedFileOut(BaseModel):
@@ -76,6 +77,7 @@ class GroupedTestOut(BaseModel):
     class_name: str
     name: str
     status: str
+    quarantined: bool = False
 
 
 class CauseHistory(BaseModel):
@@ -96,16 +98,21 @@ class FailureGroupOut(BaseModel):
     count: int
     failed: int
     errored: int
+    quarantined: int = 0
     tests: list[GroupedTestOut]  # the first MAX_GROUP_TESTS; `count` has them all
     history: CauseHistory
 
 
 class FailureGroupsOut(BaseModel):
     total: int
+    quarantined: int = 0  # failures of quarantined tests: shown, not counted
+    blocking: int = 0     # the failures that count
     groups: list[FailureGroupOut]
 
 
 class RunDetail(RunOut):
+    quarantined: int = 0
+    blocking: int = 0
     results: list[ResultOut]
     changes: list[ChangedFileOut] = []
     components: list[ComponentOut] = []

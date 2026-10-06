@@ -106,12 +106,16 @@ export default function FlakyPage() {
               checked={showMuted}
               onChange={(e) => setShowMuted(e.target.checked)}
             />
-            Show muted
+            Show quarantined
           </label>
         </FilterBar>
       </form>
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
+      <p className="muted">
+        A quarantined test keeps running and showing up here and on its runs, but its failures stop counting:
+        not in a run's verdict, not in failure alerts, and not in the collector's <code>--gate</code>.
+      </p>
       {query.isPending && <p className="muted">Loading flaky tests…</p>}
       {query.data && rows.length === 0 && (
         <p className="muted">No flaky tests in the last {windowDays} days.</p>
@@ -124,7 +128,7 @@ export default function FlakyPage() {
               <tr>
                 <th>Test</th><th className="hide-narrow">Reason</th><th className="hide-narrow">Flips</th><th>Flip rate</th>
                 <th className="hide-narrow">Runs</th><th>Last status</th><th className="hide-narrow">Commits</th>
-                <th><span className="sr-only">Mute</span></th>
+                <th><span className="sr-only">Quarantine</span></th>
               </tr>
             </thead>
             <tbody>
@@ -159,12 +163,13 @@ export default function FlakyPage() {
                     )}
                   </td>
                   <td>
-                    {r.muted && <span className="muted">Muted · </span>}
+                    {r.muted && <span className="muted">In quarantine · </span>}
                     <button
+                      aria-label={r.muted ? `Release ${r.name} from quarantine` : `Quarantine ${r.name}`}
                       onClick={() => muteToggle.mutate({ testKey: r.test_key, muted: r.muted === true })}
                       disabled={muteToggle.isPending}
                     >
-                      {r.muted ? "Unmute" : "Mute"}
+                      {r.muted ? "Release" : "Quarantine"}
                     </button>
                   </td>
                 </tr>

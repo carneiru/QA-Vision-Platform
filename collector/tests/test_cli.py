@@ -477,3 +477,41 @@ def test_codeowners_attach_owners_to_results(platform, tmp_path, monkeypatch):
     results = {r["name"]: r for r in sent(platform)["results"]}
     assert results["ok"]["owner"] == "@org/qa-team"
     assert "owner" not in results["nofile"]
+
+
+# --- the quarantine-aware gate ---------------------------------------------------------------
+
+def test_gate_passes_when_only_quarantined_tests_failed(platform, report, capsys):
+    platform.reply(201, {**RECEIPT, "quarantined": 1, "blocking": 0})
+    assert run(["upload", str(report), "--gate"], env_for(platform)) == 0
+    assert "qav: gate passed: 1 failure(s) in quarantine, not counted" in capsys.readouterr().err
+
+
+def test_gate_fails_on_failures_outside_quarantine(platform, report, capsys):
+    platform.reply(201, {**RECEIPT, "quarantined": 0, "blocking": 1})
+    assert run(["upload", str(report), "--gate"], env_for(platform)) == 1
+    assert "qav: gate failed: 1 failing test(s) outside quarantine" in capsys.readouterr().err
+
+
+def test_without_the_gate_failures_never_fail_the_build(platform, report):
+    platform.reply(201, {**RECEIPT, "blocking": 1})
+    assert run(["upload", str(report)], env_for(platform)) == 0
+
+
+def test_gate_from_the_environment_and_the_last_part_decides(platform, report, monkeypatch):
+    monkeypatch.setattr(payload, "MAX_RESULTS_PER_PART", 1)
+    platform.reply(201, {**RECEIPT, "blocking": 0})
+    platform.reply(201, {**RECEIPT, "blocking": 1})   # the receipt counts the whole run so far
+    assert run(["upload", str(report)], env_for(platform, QAV_GATE="true")) == 1
+
+
+def test_gate_against_an_older_platform_counts_every_failure(platform, report, capsys):
+    platform.reply(201, RECEIPT)   # no quarantine fields: failed + errored decide
+    assert run(["upload", str(report), "--gate"], env_for(platform)) == 1
+    assert "does not report quarantine" in capsys.readouterr().err
+
+
+def test_gate_fails_closed_when_the_upload_fails(platform, report, capsys):
+    platform.reply(401, {"detail": "Invalid API key"})
+    assert run(["upload", str(report), "--gate"], env_for(platform)) == 1
+    assert "gate cannot pass without an upload" in capsys.readouterr().err

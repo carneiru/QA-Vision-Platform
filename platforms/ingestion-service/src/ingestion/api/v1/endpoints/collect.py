@@ -7,7 +7,7 @@ from src.ingestion.api.deps import get_db
 from src.ingestion.api.key_auth import get_api_key
 from src.ingestion.models import ApiKey
 from src.ingestion.schemas.collect import KeyCheck, RunReceipt, RunUpload
-from src.ingestion.service import ingest_service, notification_service
+from src.ingestion.service import ingest_service, notification_service, run_service
 from src.ingestion.utils import metrics
 
 router = APIRouter()  # mounted at /collect
@@ -46,4 +46,4 @@ def collect_run(
             background.add_task(notification_service.notify_run, sessionmaker(bind=db.get_bind()), run.id)
     else:
         response.status_code = status.HTTP_200_OK
-    return run
+    return RunReceipt.model_validate(run).model_copy(update=run_service.quarantine_counts(db, run))

@@ -119,6 +119,7 @@ variable, and both win over what is detected from the CI system.
 | `--client-cert` | `QAV_CLIENT_CERT` | Client certificate for mTLS, presented when the server asks for one |
 | `--client-key` | `QAV_CLIENT_KEY` | Private key belonging to `--client-cert` |
 | `--fail-on-error` | `QAV_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
+| `--gate` | `QAV_GATE=1` | Exit 1 if the run has failures outside quarantine, or could not be uploaded (see below) |
 | `--spool` | `QAV_SPOOL` | Directory keeping parts a failed upload could not deliver; the next invocation resends them first, under their original Idempotency-Key (so nothing is ever stored twice). Capped at 100 files; rejected uploads (401/409) are never spooled. Point it at a persistent runner path — a wiped workspace wipes the spool |
 | `--dry-run` | — | Print the JSON; upload nothing |
 
@@ -164,11 +165,24 @@ a failing test names the team that owns it.
 
 | Code | When |
 |---|---|
-| 0 | Uploaded; nothing to upload; or the upload failed and `--fail-on-error` is not set |
-| 1 | The upload failed and `--fail-on-error` is set |
+| 0 | Uploaded; nothing to upload; or the upload failed and neither `--fail-on-error` nor `--gate` is set |
+| 1 | The upload failed and `--fail-on-error` or `--gate` is set; or `--gate` found failures outside quarantine |
 | 2 | A usage or configuration error: no URL or key, no file matched, an `http://` URL that is not localhost, an unusable `--ca-file` |
 
 By default an unreachable platform never turns a build red; a misconfigured collector always does.
+
+## Gating on quarantine (`--gate`)
+
+Quarantine a flaky test in the dashboard (Flaky view → Quarantine) and it keeps running and
+showing up, but its failures stop counting. With `--gate`, the collector decides the build:
+
+- It exits 1 when the run has failures outside quarantine, and 0 when every failure is
+  quarantined.
+- It fails closed: an upload that did not happen exits 1, because nothing was checked.
+- The test step itself must not fail the job, so the collector can decide. In GitHub Actions use
+  `continue-on-error: true` on the test step; in Azure Pipelines use `continueOnError: true`; in
+  GitLab use `allow_failure: true` on the test command's job, or `|| true`.
+- Older platforms that do not report quarantine count every failure.
 
 ## What it does with the files
 

@@ -123,3 +123,19 @@ test("a new run replaces the latest one without a reload", async () => {
   expect(await screen.findByRole("link", { name: /open run #61/i })).toBeInTheDocument();
   expect(await screen.findByRole("link", { name: /open run #62/i })).toBeInTheDocument();
 });
+
+test("a run failing only in quarantine reads as passed, saying so", async () => {
+  mockProject();
+  server.use(
+    http.get("/api/v1/runs/61/failure-groups", () => HttpResponse.json({
+      total: 1, quarantined: 1, blocking: 0,
+      groups: [{ signature: "q", headline: "Flaky: boom", count: 1, failed: 1, errored: 0, quarantined: 1,
+                 tests: [{ ...grouped("pays with stored card"), quarantined: true }],
+                 history: { window: 3, seen_in: 2, streak: 1, since_run_id: 61, since_started_at: "2026-10-04T10:00:00Z" } }],
+    })),
+  );
+  renderPage();
+  expect(await screen.findByText(/passed · 1 quarantined/i)).toBeInTheDocument();
+  expect(screen.queryByText("Failed")).not.toBeInTheDocument();
+  expect(screen.getByText(/in quarantine/i)).toBeInTheDocument();
+});

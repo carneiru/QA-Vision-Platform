@@ -189,3 +189,16 @@ test("links to a comparison with the previous run on the branch", async () => {
   expect(link).toHaveAttribute("href", "/projects/42/runs/61/compare/58");
   expect(until).toBe("2026-10-01T12:00:00Z");
 });
+
+test("quarantined failures are marked and kept out of the failing count", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json({
+    ...detail([{ ...result, quarantined: true }, { ...result, id: 2, name: "test_real", quarantined: false }]),
+    quarantined: 1, blocking: 3,
+  })));
+  renderDetail();
+  expect(await screen.findByText(/1 in quarantine, not counted/i)).toBeInTheDocument();
+  expect(screen.getByText("Failing")).toBeInTheDocument();
+  const row = screen.getByRole("link", { name: "test_ok" }).closest("tr")!;
+  expect(row).toHaveTextContent(/quarantined/i);
+  expect(screen.getByRole("link", { name: "test_real" }).closest("tr")).not.toHaveTextContent(/quarantined/i);
+});

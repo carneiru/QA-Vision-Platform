@@ -57,12 +57,19 @@ def get_run(
     # project-service never holds this connection out of the pool
     db.rollback()
     check_project_role(project_id, caller, READ_ROLES, "Run not found")
+    run = run_service.get_run(db, run_id)
+    held = run_service.quarantined_failures(db, run)
     results = run_service.list_results(db, run.id, status_filter)
     changes = run_service.list_changes(db, run.id)
     components = run_service.list_components(db, run.id)
     return RunDetail(
         **RunOut.model_validate(run).model_dump(),
-        results=[ResultOut.model_validate(result) for result in results],
+        **run_service.quarantine_counts(db, run, held),
+        results=[
+            ResultOut.model_validate(r).model_copy(
+                update={"quarantined": r.status in ("failed", "errored") and r.test_key in held})
+            for r in results
+        ],
         changes=[ChangedFileOut.model_validate(f) for f in changes],
         components=[ComponentOut.model_validate(c) for c in components],
     )

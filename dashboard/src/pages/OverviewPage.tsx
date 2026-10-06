@@ -82,6 +82,9 @@ export default function OverviewPage() {
   }
 
   const broken = latest.failed + latest.errored;
+  // Failures of quarantined tests are shown but do not decide the verdict
+  const held = causes.data?.quarantined ?? 0;
+  const blocking = causes.data?.blocking ?? broken;
   const groups = causes.data?.groups ?? [];
   const buckets = weeks.data?.days ?? [];
   const thisWeek = buckets[buckets.length - 1];
@@ -94,8 +97,10 @@ export default function OverviewPage() {
       <section className="card wide" aria-labelledby="latest-run">
         <div className="card-head">
           <h2 id="latest-run">Latest run</h2>
-          {broken > 0 ? (
+          {blocking > 0 ? (
             <span className="badge badge-failed"><XCircle size={14} aria-hidden="true" /> Failed</span>
+          ) : held > 0 ? (
+            <span className="badge badge-passed"><CheckCircle2 size={14} aria-hidden="true" /> Passed · {held} quarantined</span>
           ) : (
             <span className="badge badge-passed"><CheckCircle2 size={14} aria-hidden="true" /> Passed</span>
           )}
@@ -141,6 +146,7 @@ export default function OverviewPage() {
                     <span>
                       <Link to={`/projects/${id}/tests/${encodeURIComponent(first.test_key)}`}>{first.name}</Link>
                       {g.count > 1 && <span className="where"> and {g.count - 1} more</span>}
+                      {(g.quarantined ?? 0) > 0 && <span className="where"> · {g.quarantined === g.count ? "in quarantine" : `${g.quarantined} in quarantine`}</span>}
                     </span>
                   </li>
                 );

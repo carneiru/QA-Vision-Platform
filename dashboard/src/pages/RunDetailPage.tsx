@@ -89,8 +89,11 @@ export default function RunDetailPage() {
               <div className="tile-label">Passed</div>
             </div>
             <div className="card">
-              <div className="tile-value">{run.failed + run.errored}</div>
-              <div className="tile-label">Failed + errored</div>
+              <div className="tile-value">{run.blocking ?? run.failed + run.errored}</div>
+              <div className="tile-label">Failing</div>
+              {(run.quarantined ?? 0) > 0 && (
+                <div className="tile-note">{run.quarantined} in quarantine, not counted</div>
+              )}
             </div>
             <div className="card">
               <div className="tile-value">{formatDuration(run.duration_ms)}</div>
@@ -166,7 +169,10 @@ export default function RunDetailPage() {
                           {r.redacted && <span> · redacted</span>}
                         </div>
                       </td>
-                      <td><StatusDot status={r.status} /></td>
+                      <td>
+                        <StatusDot status={r.status} />
+                        {r.quarantined && <div className="muted">quarantined</div>}
+                      </td>
                       <td>{formatDuration(r.duration_ms)}</td>
                       <td><Message text={r.message} /></td>
                     </tr>

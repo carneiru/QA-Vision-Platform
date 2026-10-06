@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.ingestion.core.config import settings
 from src.ingestion.models import Run, RunResult
 from src.ingestion.models.notification_channel import NotificationChannel
+from src.ingestion.service import run_service
 from src.ingestion.utils import notify_targets
 
 logger = logging.getLogger(__name__)
@@ -79,10 +80,11 @@ class RunSummary:
     ci_run_url: Optional[str]
     failures: List[dict] = field(default_factory=list)
     test: bool = False
+    quarantined: int = 0  # failures of quarantined tests: mentioned, not counted
 
     @property
     def broken(self) -> int:
-        return self.failed + self.errored
+        return self.failed + self.errored - self.quarantined
 
     @property
     def link(self) -> Optional[str]:
@@ -107,6 +109,8 @@ def _context(s: RunSummary) -> str:
         bits.append(f"branch {s.branch}")
     if s.commit_sha:
         bits.append(f"commit {s.commit_sha[:7]}" + (f" ({s.commit_message})" if s.commit_message else ""))
+    if s.quarantined:
+        bits.append(f"{s.quarantined} quarantined, not counted")
     return " · ".join(bits)
 
 
@@ -210,17 +214,18 @@ def record(db: Session, channel_id: int, outcome: Tuple[str, Optional[str]]) -> 
     row.last_sent_at = datetime.now(timezone.utc)
 
 
-def _summary(db: Session, run: Run) -> RunSummary:
-    failures = (
-        db.query(RunResult.suite, RunResult.class_name, RunResult.name, RunResult.status, RunResult.message)
-        .filter(RunResult.run_id == run.id, RunResult.status.in_(FAILING))
-        .order_by(RunResult.id).limit(MAX_LISTED_FAILURES).all()
-    )
+def _summary(db: Session, run: Run, held: set, quarantined: int) -> RunSummary:
+    query = db.query(RunResult.suite, RunResult.class_name, RunResult.name, RunResult.status, RunResult.message).filter(
+        RunResult.run_id == run.id, RunResult.status.in_(FAILING))
+    if held:
+        query = query.filter(RunResult.test_key.notin_(held))
+    failures = query.order_by(RunResult.id).limit(MAX_LISTED_FAILURES).all()
     return RunSummary(
         project_id=run.project_id, run_id=run.id, total=run.total, failed=run.failed, errored=run.errored,
         branch=run.branch, commit_sha=run.commit_sha, commit_message=run.commit_message, ci_run_url=run.ci_run_url,
         failures=[{"suite": f.suite, "class_name": f.class_name, "name": f.name, "status": f.status,
                    "message": (f.message or "")[:300] or None} for f in failures],
+        quarantined=quarantined,
     )
 
 
@@ -231,7 +236,11 @@ def notify_run(session_factory: Callable[[], Session], run_id: int) -> None:
             run = db.get(Run, run_id)
             if run is None or run.failed + run.errored == 0:
                 return
-            summary = _summary(db, run)
+            held = run_service.quarantined_failures(db, run)
+            counts = run_service.quarantine_counts(db, run, held)
+            if counts["blocking"] == 0:  # only quarantined tests failed: nothing to announce
+                return
+            summary = _summary(db, run, held, counts["quarantined"])
             targets = [
                 (c.id, c.name, c.kind, c.url)
                 for c in list_channels(db, run.project_id)

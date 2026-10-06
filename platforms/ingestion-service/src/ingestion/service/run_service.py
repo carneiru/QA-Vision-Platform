@@ -6,7 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.ingestion.analytics.signature import headline, signature
-from src.ingestion.models import Run, RunChangedFile, RunComponent, RunResult
+from src.ingestion.models import MutedTest, Run, RunChangedFile, RunComponent, RunResult
 from src.ingestion.service.analytics_service import _escape_like
 
 
@@ -61,6 +61,32 @@ def list_results(db: Session, run_id: int, status: Optional[str]) -> list[RunRes
     return query.order_by(RunResult.id).all()
 
 
+def quarantined_failures(db: Session, run: Run) -> set:
+    """test_keys of the run's failed or errored tests that are quarantined (muted) in its project.
+    Quarantined tests still run and are still shown; their failures just do not count."""
+    if run.failed + run.errored == 0:
+        return set()
+    rows = (
+        db.query(RunResult.test_key).distinct()
+        .join(MutedTest, (MutedTest.test_key == RunResult.test_key) & (MutedTest.project_id == run.project_id))
+        .filter(RunResult.run_id == run.id, RunResult.status.in_(("failed", "errored"))).all()
+    )
+    return {r.test_key for r in rows}
+
+
+def quarantine_counts(db: Session, run: Run, keys: Optional[set] = None) -> dict:
+    """Failing results in quarantine, and the failing results that still count."""
+    keys = quarantined_failures(db, run) if keys is None else keys
+    quarantined = 0
+    if keys:
+        quarantined = (
+            db.query(RunResult.id)
+            .filter(RunResult.run_id == run.id, RunResult.status.in_(("failed", "errored")),
+                    RunResult.test_key.in_(keys)).count()
+        )
+    return {"quarantined": quarantined, "blocking": run.failed + run.errored - quarantined}
+
+
 MAX_GROUP_TESTS = 100
 HISTORY_RUNS = 20
 
@@ -92,6 +118,7 @@ def failure_groups(db: Session, run: Run) -> dict:
     """The run's failed and errored tests grouped by cause, biggest group first, each with its
     history on the run's branch."""
     run_id = run.id
+    quarantined = quarantined_failures(db, run)
     rows = (
         db.query(RunResult.id, RunResult.test_key, RunResult.suite, RunResult.class_name, RunResult.name,
                  RunResult.status, RunResult.message)
@@ -104,12 +131,14 @@ def failure_groups(db: Session, run: Run) -> dict:
         g = groups.get(key)
         if g is None:
             g = groups[key] = {"signature": key, "headline": headline(r.message), "count": 0, "failed": 0,
-                               "errored": 0, "tests": [], "first": r.id}
+                               "errored": 0, "quarantined": 0, "tests": [], "first": r.id}
         g["count"] += 1
         g[r.status] += 1
+        in_quarantine = r.test_key in quarantined
+        g["quarantined"] += in_quarantine
         if len(g["tests"]) < MAX_GROUP_TESTS:
             g["tests"].append({"id": r.id, "test_key": r.test_key, "suite": r.suite, "class_name": r.class_name,
-                               "name": r.name, "status": r.status})
+                               "name": r.name, "status": r.status, "quarantined": in_quarantine})
     ordered = sorted(groups.values(), key=lambda g: (-g["count"], g["signature"] == "none", g["first"]))
     window = _history_window(db, run) if ordered else []
     seen = _signatures_by_run(db, [rid for rid, _ in window]) if ordered else {}
@@ -120,7 +149,8 @@ def failure_groups(db: Session, run: Run) -> dict:
         since_id, since_at = window[streak - 1]
         g["history"] = {"window": len(window), "seen_in": sum(hits), "streak": streak,
                         "since_run_id": since_id, "since_started_at": since_at}
-    return {"total": len(rows), "groups": ordered}
+    held = sum(g["quarantined"] for g in ordered)
+    return {"total": len(rows), "quarantined": held, "blocking": len(rows) - held, "groups": ordered}
 
 
 MAX_COMPARE_ITEMS = 200

@@ -45,6 +45,8 @@ export default function FailureGroups({ runId, projectId }: { runId: number; pro
                 </div>
                 <p className={isNewCause(g.history) ? "cause-history cause-new" : "cause-history"}>
                   {historyText(g.history)}
+                  {(g.quarantined ?? 0) > 0 &&
+                    (g.quarantined === g.count ? " · all in quarantine" : ` · ${g.quarantined} in quarantine`)}
                 </p>
                 <details>
                   <summary>
@@ -57,6 +59,7 @@ export default function FailureGroups({ runId, projectId }: { runId: number; pro
                         <Link to={`/projects/${projectId}/tests/${encodeURIComponent(t.test_key)}`}>{t.name}</Link>
                         <span className="muted"> {t.suite} / {t.class_name} · </span>
                         <StatusDot status={t.status} />
+                        {t.quarantined && <span className="muted"> · quarantined</span>}
                       </li>
                     ))}
                     {g.count > g.tests.length && <li className="muted">and {g.count - g.tests.length} more</li>}

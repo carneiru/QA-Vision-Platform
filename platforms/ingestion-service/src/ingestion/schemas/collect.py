@@ -153,6 +153,9 @@ class RunReceipt(BaseModel):
     failed: int
     skipped: int
     errored: int
+    # Failing results of quarantined tests, and the failing results that count (the CI gate)
+    quarantined: int = 0
+    blocking: int = 0
     commit_author: Optional[str] = None
     commit_message: Optional[str] = None
     pr_number: Optional[int] = None

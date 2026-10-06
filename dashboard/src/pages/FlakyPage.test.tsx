@@ -78,7 +78,7 @@ test("Export CSV downloads rows with joined commits", async () => {
   expect(csv).toContain("abcdef1234:ci");
 });
 
-test("Mute sends the key and refetches the list", async () => {
+test("Quarantine sends the key and refetches the list", async () => {
   const muted: string[] = [];
   let listCalls = 0;
   server.use(
@@ -93,12 +93,12 @@ test("Mute sends the key and refetches the list", async () => {
   );
   renderFlaky();
   await screen.findByText("test_ok");
-  await userEvent.click(screen.getAllByRole("button", { name: /^mute/i })[0]);
+  await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
   await vi.waitFor(() => expect(muted).toEqual(["k1"]));
   await vi.waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(2)); // refetched
 });
 
-test("Show muted adds include_muted and offers Unmute", async () => {
+test("Show quarantined adds include_muted and offers Release", async () => {
   const unmuted: string[] = [];
   server.use(
     http.get("/api/v1/projects/42/analytics/flaky", ({ request }) => {
@@ -116,10 +116,10 @@ test("Show muted adds include_muted and offers Unmute", async () => {
   renderFlaky();
   await screen.findByText("test_add");
   expect(screen.queryByText("test_ok")).not.toBeInTheDocument();
-  await userEvent.click(screen.getByLabelText(/show muted/i));
+  await userEvent.click(screen.getByLabelText(/show quarantined/i));
   await screen.findByText("test_ok");
-  expect(screen.getByText(/muted/i, { selector: "span" })).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: /unmute/i }));
+  expect(screen.getByText(/in quarantine/i, { selector: "span" })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /release test_ok from quarantine/i }));
   await vi.waitFor(() => expect(unmuted).toEqual(["k1"]));
 });
 

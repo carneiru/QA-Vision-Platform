@@ -15,7 +15,7 @@ from qav_collector.upload import ConfigError
 FILE_NAME = ".qav.yml"
 
 STRING_KEYS = ("url", "environment", "ca-file", "spool", "ci-provider", "branch")
-BOOL_KEYS = ("fail-on-error", "no-changes")
+BOOL_KEYS = ("fail-on-error", "no-changes", "gate")
 LIST_KEYS = ("patterns", "components")
 KNOWN = (*STRING_KEYS, *BOOL_KEYS, *LIST_KEYS)
 

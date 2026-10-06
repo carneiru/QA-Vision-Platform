@@ -61,8 +61,11 @@ test("adding sends kind, name (prefilled with the project), URL and branch", asy
   expect(screen.getByLabelText(/^name/i)).toHaveValue("Web");
   await userEvent.selectOptions(screen.getByLabelText(/^send to/i), "teams");
   expect(screen.getByText(/workflows/i)).toBeInTheDocument();      // per-kind helper text
-  await userEvent.type(screen.getByLabelText(/webhook url/i), "https://prod-1.westeurope.logic.azure.com/x");
-  await userEvent.type(screen.getByLabelText(/only branch/i), "main");
+  // Pasted, not typed key by key: a long URL typed under a loaded test run outlasts the timeout
+  await userEvent.click(screen.getByLabelText(/webhook url/i));
+  await userEvent.paste("https://prod-1.westeurope.logic.azure.com/x");
+  await userEvent.click(screen.getByLabelText(/only branch/i));
+  await userEvent.paste("main");
   await userEvent.click(screen.getByRole("button", { name: /add channel/i }));
   expect(await screen.findByText("hooks.slack.com/…abcd")).toBeInTheDocument();
   expect(sent).toEqual({

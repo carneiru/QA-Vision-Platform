@@ -303,7 +303,14 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Live run progress and cancel a running job (see `specs/2026-07-13-qa-vision-realtime-features.md`) *(suggested)*
 - [ ] Run parameters: target environment, browser/device matrix *(suggested)*
 - [ ] Scheduled runs (nightly, per branch) *(suggested)*
-- [ ] Flaky-test quarantine: auto-retry policy and a quarantined list excluded from gating *(suggested — builds on Phase 4 flaky detection)*
+- [x] Flaky-test quarantine. Quarantining a test (Flaky view, the former Mute) keeps it running and
+  shown, but its failures stop counting:
+  - a run failing only in quarantine reads "Passed · N quarantined";
+  - failure alerts skip such runs, and otherwise mention "N quarantined, not counted";
+  - the upload receipt carries `quarantined`/`blocking`, and `qav-collector upload --gate` exits 1
+    on failures outside quarantine (and fails closed when the upload did not happen).
+  The run page and the failure groups mark quarantined tests. An auto-retry policy stays with the
+  test runner (Playwright `retries`, pytest-rerunfailures); the platform already keeps every attempt.
 
 ### C. Results, history and evidence
 - [ ] TC run history (pass/fail/duration over time) — already planned in roadmap Phases 2–3

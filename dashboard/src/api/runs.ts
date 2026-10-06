@@ -52,6 +52,8 @@ export interface RunResult {
   redacted: boolean;
   file: string | null;
   owner: string | null;
+  /** Failed or errored, and the test is in quarantine: shown, not counted. */
+  quarantined?: boolean;
 }
 
 export interface RunComponent {
@@ -60,6 +62,10 @@ export interface RunComponent {
 }
 
 export interface RunDetail extends Run {
+  /** Failing results of quarantined tests. */
+  quarantined?: number;
+  /** The failing results that count. */
+  blocking?: number;
   results: RunResult[];
   changes: ChangedFile[];
   components: RunComponent[];
@@ -95,6 +101,7 @@ export interface GroupedTest {
   class_name: string;
   name: string;
   status: string;
+  quarantined?: boolean;
 }
 
 /** The cause across this run and up to 19 earlier runs of the same branch. */
@@ -115,6 +122,7 @@ export interface FailureGroup {
   count: number;
   failed: number;
   errored: number;
+  quarantined?: number;
   /** The first 100; `count` has them all. */
   tests: GroupedTest[];
   history: CauseHistory;
@@ -152,7 +160,9 @@ export function compareRuns(headId: number, baseId: number): Promise<RunComparis
   return apiFetch(`/api/v1/runs/${headId}/compare/${baseId}`);
 }
 
-export function getFailureGroups(runId: number): Promise<{ total: number; groups: FailureGroup[] }> {
+export function getFailureGroups(
+  runId: number,
+): Promise<{ total: number; quarantined?: number; blocking?: number; groups: FailureGroup[] }> {
   return apiFetch(`/api/v1/runs/${runId}/failure-groups`);
 }
 

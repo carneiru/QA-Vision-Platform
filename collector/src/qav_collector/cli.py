@@ -76,6 +76,9 @@ def build_parser() -> argparse.ArgumentParser:
                              "(default: $QAV_COMPONENTS, comma separated)")
     upload.add_argument("--fail-on-error", action="store_true",
                         help="exit 1 if the upload fails (default: $QAV_FAIL_ON_ERROR)")
+    upload.add_argument("--gate", action="store_true",
+                        help="exit 1 when the run has failures outside quarantine, or when it could not be "
+                             "uploaded (default: $QAV_GATE)")
     upload.add_argument("--no-changes", action="store_true",
                         help="skip git code-change collection (default: $QAV_NO_CHANGES)")
     upload.add_argument("--client-cert", help="client certificate for mTLS (default: $QAV_CLIENT_CERT)")
@@ -125,13 +128,19 @@ def main(
             say(str(exc))
             return 2
     fail_on_error = args.fail_on_error or env.get("QAV_FAIL_ON_ERROR", "").strip().lower() in _TRUE
-    if not fail_on_error:
+    gate = args.gate or env.get("QAV_GATE", "").strip().lower() in _TRUE
+    if not (fail_on_error and gate):
         try:
-            fail_on_error = load_config(os.getcwd()).get("fail-on-error") is True
+            file_config = load_config(os.getcwd())
+            fail_on_error = fail_on_error or file_config.get("fail-on-error") is True
+            gate = gate or file_config.get("gate") is True
         except ConfigError:
             pass  # _upload reads the file itself and reports the problem properly
     try:
-        return _upload(args, env, api_key, say, now=now, sleep=sleep, clock=clock)
+        receipt = _upload(args, env, api_key, say, now=now, sleep=sleep, clock=clock)
+        if isinstance(receipt, int):  # dry run, or nothing to upload
+            return receipt
+        return _gate(receipt, say) if gate else 0
     except ConfigError as exc:
         say(str(exc))
         return 2
@@ -139,9 +148,27 @@ def main(
         pass
     except Exception as exc:  # a bug in the collector must not break the build either
         say(f"unexpected error: {type(exc).__name__}: {exc}")
+    if gate:
+        say("gate failed: the gate cannot pass without an upload")
+        return 1
     if fail_on_error:
         return 1
     say("not failing the build (pass --fail-on-error to change that)")
+    return 0
+
+
+def _gate(receipt: dict, say: _Output) -> int:
+    """The run's verdict for CI: failures of quarantined tests do not count."""
+    if "blocking" in receipt:
+        blocking, held = int(receipt["blocking"]), int(receipt.get("quarantined", 0))
+    else:
+        say("the platform does not report quarantine; every failure counts")
+        blocking, held = int(receipt.get("failed", 0)) + int(receipt.get("errored", 0)), 0
+    if blocking > 0:
+        say(f"gate failed: {blocking} failing test(s) outside quarantine"
+            + (f", {held} more in quarantine" if held else ""))
+        return 1
+    say(f"gate passed: {held} failure(s) in quarantine, not counted" if held else "gate passed: no failures")
     return 0
 
 
@@ -176,7 +203,8 @@ def _check(args, env: Mapping[str, str], api_key: str, say: _Output) -> int:
     return 0
 
 
-def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sleep, clock) -> int:
+def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sleep, clock) -> "int | dict":
+    """The last receipt after an upload; an exit code when nothing was uploaded."""
     file_config = load_config(os.getcwd())
 
     def from_file(key: str) -> Optional[str]:
@@ -322,7 +350,8 @@ def _upload(args, env: Mapping[str, str], api_key: str, say: _Output, *, now, sl
         run_id = receipt.get("id", "?")
         say(f"uploaded run {run_id} ({status})" + (f", {of}" if len(parts) > 1 else ""))
         stored.append(f"run {run_id} ({of})")
-    return 0
+    # The last part's receipt counts the whole run: the gate reads it
+    return receipt
 
 
 def _resend_spooled(spool_dir, endpoint, api_key, context, say: _Output, *, sleep, clock) -> None:
