@@ -98,3 +98,37 @@ class CaseList(BaseModel):
 class LabelCount(BaseModel):
     label: str
     count: int
+
+
+Folder = Annotated[str, StringConstraints(max_length=500, pattern=r"^[^\x00]*$")]
+AdoId = Annotated[str, StringConstraints(pattern=r"^[0-9]{1,12}$")]
+
+
+class CaseSearch(BaseModel):
+    """POST /cases/search: GET /cases' filters in a body, plus the test keys of a latest-result filter."""
+    model_config = ConfigDict(extra="forbid")
+
+    search: Optional[Annotated[str, StringConstraints(max_length=200, pattern=r"^[^\x00]*$")]] = None
+    labels: List[Label] = Field(default_factory=list, max_length=20)
+    status: Optional[Status] = None
+    priority: Optional[Priority] = None
+    origin: Optional[Literal["manual", "imported"]] = None
+    include_archived: bool = False
+    folder: Optional[Folder] = None
+    linked: Optional[bool] = None
+    feature: Optional[Folder] = None
+    ado: Optional[AdoId] = None
+    test_keys: Optional[List[TestKey]] = Field(None, max_length=20000)
+    keys_mode: Literal["include", "exclude"] = "include"
+    limit: int = Field(50, ge=1, le=200)
+    offset: int = Field(0, ge=0)
+
+
+class FolderCount(BaseModel):
+    path: str
+    count: int
+
+
+class FeatureCount(BaseModel):
+    feature: str
+    count: int

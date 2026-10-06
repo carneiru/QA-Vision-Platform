@@ -4,11 +4,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from src.casebook.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
-from src.casebook.schemas.case import CaseCreate, CaseList, CaseOut, CaseUpdate, LabelCount, Priority, Status
+from src.casebook.schemas.case import (
+    CaseCreate, CaseList, CaseOut, CaseSearch, CaseUpdate, FeatureCount, FolderCount, LabelCount, Priority, Status,
+)
 from src.casebook.service import case_service
 
 router = APIRouter()         # mounted at /projects/{project_id}/cases
 labels_router = APIRouter()  # mounted at /projects/{project_id}/case-labels
+folders_router = APIRouter()   # mounted at /projects/{project_id}/case-folders
+features_router = APIRouter()  # mounted at /projects/{project_id}/case-features
 
 NO_NUL = r"^[^\x00]*$"
 
@@ -28,6 +32,10 @@ def list_cases(
     priority: Optional[Priority] = Query(None),
     include_archived: bool = Query(False),
     origin: Optional[Literal["manual", "imported"]] = Query(None),
+    folder: Optional[str] = Query(None, max_length=500, pattern=NO_NUL),
+    linked: Optional[bool] = Query(None),
+    feature: Optional[str] = Query(None, max_length=500, pattern=NO_NUL),
+    ado: Optional[str] = Query(None, pattern=r"^[0-9]{1,12}$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -36,7 +44,21 @@ def list_cases(
     total, rows = case_service.list_cases(
         db, access.project_id, search=search, labels=label, status=status_filter, priority=priority,
         include_archived=include_archived, origin=origin, limit=limit, offset=offset,
+        folder=folder, linked=linked, feature=feature, ado=ado,
     )
+    return {"total": total, "items": [case_service.out(r) for r in rows]}
+
+
+@router.post("/search", response_model=CaseList)
+def search_cases(
+    body: CaseSearch,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    """GET /cases' filters in a body, so a latest-result filter can send thousands of test keys."""
+    data = body.model_dump()
+    labels, limit, offset = data.pop("labels"), data.pop("limit"), data.pop("offset")
+    total, rows = case_service.list_cases(db, access.project_id, labels=labels, limit=limit, offset=offset, **data)
     return {"total": total, "items": [case_service.out(r) for r in rows]}
 
 
@@ -83,3 +105,13 @@ def list_labels(
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
     return case_service.label_counts(db, access.project_id)
+
+
+@folders_router.get("", response_model=list[FolderCount])
+def list_folders(db: Session = Depends(get_db), access: ProjectAccess = Depends(require_project_role(*READ_ROLES))):
+    return case_service.folder_counts(db, access.project_id)
+
+
+@features_router.get("", response_model=list[FeatureCount])
+def list_features(db: Session = Depends(get_db), access: ProjectAccess = Depends(require_project_role(*READ_ROLES))):
+    return case_service.feature_counts(db, access.project_id)
