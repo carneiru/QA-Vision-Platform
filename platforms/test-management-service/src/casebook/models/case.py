@@ -17,6 +17,7 @@ class Case(Base):
         CheckConstraint("priority IN ('low','medium','high','critical')", name="chk_cases_priority"),
         CheckConstraint("status IN ('draft','ready','archived')", name="chk_cases_status"),
         Index("ix_cases_project_status", "project_id", "status"),
+        Index("uq_cases_project_source_key", "project_id", "source_key", unique=True),
     )
 
     id = Column(Integer, primary_key=True)
@@ -31,6 +32,11 @@ class Case(Base):
     # The automated test this case is implemented by: ingestion's test_key, and a label to show
     automated_test_key = Column(String(64), nullable=True, index=True)
     automated_name = Column(String(1500), nullable=True)
+    # Imported from a .feature file (ADR-023): the repository owns title, gherkin and labels.
+    # NULL source_key = a manual case. source_key = sha256(source_path \0 scenario name)
+    source_path = Column(String(500), nullable=True)
+    source_key = Column(String(64), nullable=True)
+    gherkin = Column(Text, nullable=True)
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_by = Column(Integer, nullable=True)

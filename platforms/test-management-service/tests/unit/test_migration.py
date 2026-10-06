@@ -53,3 +53,32 @@ def test_numbers_are_unique_per_project(migrated_engine):
 def test_priority_and_status_are_constrained(migrated_engine, priority, status):
     with pytest.raises(IntegrityError), migrated_engine.begin() as conn:
         conn.execute(text(CASE), {"project": 1, "number": 1, "priority": priority, "status": status})
+
+
+SOURCED = ("INSERT INTO cases (project_id, number, title, steps, created_by, source_key)"
+           " VALUES (:project, :number, 't', '[]', 1, :key)")
+
+
+def test_source_keys_are_unique_per_project_and_manual_cases_are_free(migrated_engine):
+    with migrated_engine.begin() as conn:
+        conn.execute(text(SOURCED), {"project": 1, "number": 1, "key": "k" * 64})
+        conn.execute(text(SOURCED), {"project": 2, "number": 1, "key": "k" * 64})
+        conn.execute(text(SOURCED), {"project": 1, "number": 2, "key": None})
+        conn.execute(text(SOURCED), {"project": 1, "number": 3, "key": None})
+    with pytest.raises(IntegrityError), migrated_engine.begin() as conn:
+        conn.execute(text(SOURCED), {"project": 1, "number": 4, "key": "k" * 64})
+
+
+def test_downgrade_to_001_drops_the_source_columns(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'down.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "001")
+    engine = create_engine(url)
+    try:
+        columns = {c["name"] for c in inspect(engine).get_columns("cases")}
+    finally:
+        engine.dispose()
+    assert not columns & {"source_path", "source_key", "gherkin"}
