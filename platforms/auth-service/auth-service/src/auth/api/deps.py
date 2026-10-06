@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from src.auth.db.session import SessionLocal, get_db
 from src.auth.models.user import User
-from src.auth.utils.tokens import decode_token
+from src.auth.utils.tokens import decode_token, is_access_token
 from src.auth.config import settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
@@ -25,6 +25,9 @@ async def get_current_user(
     )
     try:
         payload = decode_token(token)
+        if not is_access_token(payload):
+            # MFA challenge / service / refresh tokens share the key and `sub` but are not sessions
+            raise credentials_exception
         user_id: int = int(payload.get("sub"))
         if user_id is None:
             raise credentials_exception

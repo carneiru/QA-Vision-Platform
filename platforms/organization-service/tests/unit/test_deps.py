@@ -52,3 +52,14 @@ def test_non_integer_sub_returns_401():
     bad = jwt.encode({"sub": "not-a-number", "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     response = client.get("/whoami", headers={"Authorization": f"Bearer {bad}"})
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize("claims", [{"purpose": "mfa"}, {"token_type": "service"}, {"purpose": "password_reset"}])
+def test_non_access_tokens_return_401(claims):
+    token = jwt.encode(
+        {"sub": "7", "exp": datetime.now(timezone.utc) + timedelta(minutes=5), **claims},
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+    response = client.get("/whoami", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401

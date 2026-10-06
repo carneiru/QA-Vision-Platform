@@ -107,3 +107,11 @@ def test_insufficient_project_role_is_403(probe, auth, org_role, make_project):
     project = make_project()
     org_role("viewer")
     assert probe.get(f"/projects/{project.id}/probe", headers=auth()).status_code == 403
+
+
+@pytest.mark.parametrize("claims", [{"purpose": "mfa"}, {"token_type": "service"}, {"purpose": "password_reset"}])
+def test_non_access_tokens_are_401(probe, http, claims):
+    headers = {"Authorization": f"Bearer {make_token(5, **claims)}"}
+    assert probe.get("/orgs/1/probe", headers=headers).status_code == 401
+    assert probe.get("/projects/1/probe", headers=headers).status_code == 401
+    assert not http.calls

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from src.project.db.session import get_db
 from src.project.models.project import Project
 from src.project.utils import org_client
-from src.project.utils.tokens import decode_token
+from src.project.utils.tokens import decode_token, is_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
@@ -45,7 +45,10 @@ def get_caller(token: str = Depends(oauth2_scheme)) -> Caller:
     if token is None:
         raise _unauthorized()
     try:
-        return Caller(user_id=int(decode_token(token)["sub"]), token=token)
+        claims = decode_token(token)
+        if not is_access_token(claims):
+            raise ValueError("not a user access token")
+        return Caller(user_id=int(claims["sub"]), token=token)
     except (ValueError, KeyError, TypeError):
         raise _unauthorized()
 

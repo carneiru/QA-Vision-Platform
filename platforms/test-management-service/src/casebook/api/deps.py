@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 
 from src.casebook.db.session import get_db
 from src.casebook.utils import project_client
-from src.casebook.utils.tokens import decode_token
+from src.casebook.utils.tokens import decode_token, is_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
@@ -37,7 +37,10 @@ def get_caller(token: str = Depends(oauth2_scheme)) -> Caller:
     if token is None:
         raise _unauthorized()
     try:
-        return Caller(user_id=int(decode_token(token)["sub"]), token=token)
+        claims = decode_token(token)
+        if not is_access_token(claims):
+            raise ValueError("not a user access token")
+        return Caller(user_id=int(claims["sub"]), token=token)
     except (ValueError, KeyError, TypeError):
         raise _unauthorized()
 
@@ -86,6 +89,8 @@ def require_import_access(project_id: int, token: str = Depends(oauth2_scheme)) 
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
         return ProjectAccess(project_id=project_id, organization_id=int(claims.get("organization_id") or 0),
                              user_id=CI_USER_ID, role="ci")
+    if not is_access_token(claims):
+        raise _unauthorized()
     try:
         caller = Caller(user_id=int(claims["sub"]), token=token)
     except (KeyError, TypeError, ValueError):

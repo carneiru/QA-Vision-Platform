@@ -104,3 +104,34 @@ def test_disable_requires_a_valid_code_and_restores_plain_login(client, register
 def test_mfa_verify_rejects_a_garbage_token(client):
     response = client.post("/api/v1/auth/mfa/verify", json={"mfa_token": "nonsense", "code": "123456"})
     assert response.status_code == 401
+
+
+def _signed(claims):
+    from datetime import datetime, timedelta, timezone
+    import jwt
+    from src.auth.config import settings
+    claims = {"exp": datetime.now(timezone.utc) + timedelta(minutes=5), **claims}
+    return jwt.encode(claims, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def test_the_mfa_challenge_token_is_not_an_access_token(client, register_and_verify):
+    tokens = register_and_verify(EMAIL)
+    _enroll_and_confirm(client, tokens)
+    login = client.post("/api/v1/auth/login", json={"email": EMAIL, "password": "securepassword123"})
+    mfa_token = login.json()["mfa_token"]
+
+    me = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {mfa_token}"})
+    assert me.status_code == 401
+
+
+import pytest
+
+
+@pytest.mark.parametrize("extra", [{"purpose": "mfa"}, {"token_type": "service"}, {"purpose": "password_reset"}])
+def test_tokens_with_purpose_or_token_type_are_401_on_users_me(client, register_and_verify, extra):
+    tokens = register_and_verify(EMAIL)
+    me = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {tokens['access_token']}"})
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+    forged = _signed({"sub": str(user_id), **extra})
+    assert client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {forged}"}).status_code == 401

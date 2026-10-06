@@ -98,3 +98,13 @@ def test_without_full_there_is_no_mass_archive(client, auth, member):
 def test_a_first_full_import_is_never_a_mass_archive(client, auth, member):
     r = client.post(URL, json=body(("a.feature", ONE), full=True), headers=auth())
     assert r.status_code == 200 and r.json()["summary"]["mass_archive"] is False
+
+
+# --- user-style tokens that are not access tokens --------------------------------------------
+
+@pytest.mark.parametrize("claims", [{"purpose": "mfa"}, {"purpose": "password_reset"}, {"token_type": "refresh"}])
+def test_a_user_style_token_with_purpose_is_401_on_import(client, http, claims):
+    claims_all = {"sub": "5", "exp": datetime.now(timezone.utc) + timedelta(minutes=5), **claims}
+    headers = {"Authorization": f"Bearer {jwt.encode(claims_all, settings.SECRET_KEY, algorithm=settings.ALGORITHM)}"}
+    assert client.post(URL, json=body(("a.feature", ONE)), headers=headers).status_code == 401
+    assert not http.calls

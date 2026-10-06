@@ -75,3 +75,11 @@ def test_project_service_down_is_503(probe_client, auth, project_role):
     response = probe_client.get("/projects/1/probe", headers=auth())
     assert response.status_code == 503
     assert response.json()["detail"] == "Project service unavailable"
+
+
+@pytest.mark.parametrize("claims", [{"purpose": "mfa"}, {"token_type": "service"}, {"purpose": "password_reset"}])
+def test_non_access_tokens_are_401(probe_client, http, claims):
+    headers = {"Authorization": f"Bearer {make_token(5, **claims)}"}
+    assert probe_client.get("/projects/1/probe", headers=headers).status_code == 401
+    assert probe_client.get("/things/1", headers=headers).status_code == 401
+    assert not http.calls

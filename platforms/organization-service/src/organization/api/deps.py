@@ -2,7 +2,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from src.organization.db.session import get_db
-from src.organization.utils.tokens import decode_token
+from src.organization.utils.tokens import decode_token, is_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
@@ -17,6 +17,8 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
         raise credentials_exception
     try:
         payload = decode_token(token)
+        if not is_access_token(payload):
+            raise ValueError("not a user access token")
         return int(payload["sub"])
     except (ValueError, KeyError, TypeError):
         raise credentials_exception

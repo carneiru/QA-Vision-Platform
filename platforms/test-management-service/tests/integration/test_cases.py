@@ -141,3 +141,11 @@ def test_another_projects_cases_stay_hidden(client, auth, project_role):
 
 def test_no_token_is_401(client):
     assert client.get(URL).status_code == 401
+
+
+@pytest.mark.parametrize("claims", [{"purpose": "mfa"}, {"token_type": "service"}, {"purpose": "password_reset"}])
+def test_non_access_tokens_are_401_on_user_routes(client, http, claims):
+    from conftest import make_token
+    headers = {"Authorization": f"Bearer {make_token(1, **claims)}"}
+    assert client.get(URL, headers=headers).status_code == 401
+    assert not http.calls

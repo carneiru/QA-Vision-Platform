@@ -31,3 +31,10 @@ def decode_token(token: str) -> dict:
         return payload
     except InvalidTokenError:
         raise ValueError("Could not validate credentials")
+
+
+def is_access_token(claims: dict) -> bool:
+    """A user access token carries neither `purpose` (MFA challenge, and any future single-use token)
+    nor `token_type` (refresh, service). auth-service signs all of them with the same key and `sub`,
+    so only the absence of these claims says "this is a user session"."""
+    return "purpose" not in claims and "token_type" not in claims
