@@ -39,8 +39,9 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
   409 `plan_changed` and nothing is written. The user applies exactly what they previewed.
 - **One transaction.** A real import applies the whole plan or nothing. Archiving is scoped to the
   uploaded paths, so uploading one folder never archives cases from another. Only `full=true` also
-  archives imported cases whose path is not in the batch. The dashboard always sends `full=false`
-  (the CLI's `--full` will send `true`). Manual cases are never touched, and a file
+  archives imported cases whose path is not in the batch. The dashboard sends `full=true` only when
+  the user ticks "This is my complete features folder" (off by default); the CLI's `--full` will do
+  the same. Manual cases are never touched, and a file
   that fails to parse never archives its cases. Two imports racing hit the unique `source_key`
   index; the loser gets 409 `import_conflict`.
 - **Import-owned links.** The import sets a case's automated link to
@@ -73,15 +74,18 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
   the user relinks the case by hand.
 - Unlinking an imported case by hand (setting the link to null) does not stick: the next import
   that touches the case fills it again.
-- Because the dashboard sends `full=false`, the cases of a deleted or renamed `.feature` file are
-  not archived or moved, and a renamed file's scenarios are created again. Upload the old and new
-  location together, or archive those cases by hand; the CLI's `--full` will handle it.
+- With the complete-folder option off (the default), the cases of a deleted or renamed `.feature`
+  file are not archived or moved, and a renamed file's scenarios are created again. Ticking the
+  option archives them and keeps a renamed file's case numbers (a move).
+- A `full=true` import can archive many cases at once. The dashboard discloses it before the
+  confirm: the button reads "Import N changes (archives M)", and an alert appears when more than
+  half of the imported cases would be archived.
 - A leading byte-order mark (as Windows editors save) is dropped before parsing.
 - The collector normalises a Cucumber `uri` to `/`, so results uploaded from Windows link to
   imported cases. Results uploaded from Windows before that change keep their backslash keys and
   do not link.
-- A `full=true` import can archive many cases at once. A mass-archive guard (refuse to archive more
-  than half of the imported cases without `--allow-mass-archive`) is due with the CLI command.
+- A server-side mass-archive guard (refuse to archive more than half of the imported cases without
+  `--allow-mass-archive`) is due with the CLI command, which has no preview to read.
 - API-key access for the CLI and JUnit import are later slices.
 - Raising a limit is an `.env` change and a restart of the gateway and the service; no code change.
 

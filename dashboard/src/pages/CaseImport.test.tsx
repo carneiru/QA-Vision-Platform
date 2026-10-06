@@ -113,8 +113,71 @@ test("viewers do not get the import page's controls", async () => {
   expect(screen.queryByLabelText(/choose folder/i)).not.toBeInTheDocument();
 });
 
-test("says that deleted or renamed files are not archived from here", async () => {
+test("the complete folder hint says what each setting does to deleted or renamed files", async () => {
   asRole("member");
   renderAt("/projects/42/cases/import");
-  expect(await screen.findByText(/deleted or renamed \.feature file are not archived or moved/i)).toBeInTheDocument();
+  expect(await screen.findByText(/deleted or renamed \.feature file are left as they are/i)).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("checkbox", { name: /complete features folder/i }));
+  expect(screen.getByText(/not in this folder are archived/i)).toBeInTheDocument();
+});
+
+// --- complete folder (full=true) -------------------------------------------------------------
+
+test("a complete folder sends full=true on preview and import, and the button says what it archives", async () => {
+  asRole("member");
+  const bodies: Record<string, unknown>[] = [];
+  server.use(http.post(`${P}/cases/import`, async ({ request }) => {
+    bodies.push((await request.json()) as Record<string, unknown>);
+    return HttpResponse.json(preview);
+  }));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  const full = screen.getByRole("checkbox", { name: /complete features folder/i });
+  expect(full).not.toBeChecked();
+  await user.click(full);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  await user.click(await screen.findByRole("button", { name: /import 2 changes \(archives 1\)/i }));
+  await screen.findByText(/imported: 1 created/i);
+  expect(bodies.map((b) => b.full)).toEqual([true, true]);
+});
+
+test("without the complete folder option, imports keep full=false and the button names no archive", async () => {
+  asRole("member");
+  const bodies: Record<string, unknown>[] = [];
+  const noArchive = { ...preview, summary: { ...preview.summary, archived: 0 }, items: preview.items.filter((i) => i.action !== "archive") };
+  server.use(http.post(`${P}/cases/import`, async ({ request }) => {
+    bodies.push((await request.json()) as Record<string, unknown>);
+    return HttpResponse.json(noArchive);
+  }));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  expect(await screen.findByRole("button", { name: /^import 1 changes$/i })).toBeInTheDocument();
+  expect(bodies[0].full).toBe(false);
+});
+
+test("archiving more than half of the imported cases shows a warning", async () => {
+  asRole("member");
+  const mass = { ...preview, summary: { created: 0, updated: 0, moved: 0, reactivated: 0, archived: 3, unchanged: 1, skipped: 0 } };
+  server.use(http.post(`${P}/cases/import`, () => HttpResponse.json(mass)));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  await user.click(screen.getByRole("checkbox", { name: /complete features folder/i }));
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  expect(await screen.findByRole("alert", { name: /archive/i })).toHaveTextContent(/3 of 4 imported cases/i);
+});
+
+test("changing the complete folder option clears the preview", async () => {
+  asRole("member");
+  server.use(http.post(`${P}/cases/import`, () => HttpResponse.json(preview)));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  expect(await screen.findByText("Pay")).toBeInTheDocument();
+  await user.click(screen.getByRole("checkbox", { name: /complete features folder/i }));
+  expect(screen.queryByText("Pay")).not.toBeInTheDocument();
 });

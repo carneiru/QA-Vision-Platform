@@ -54,10 +54,11 @@ case: title, steps, labels and Gherkin are read-only (422), the rest stays edita
 disappears from an uploaded file is archived. A confirm with `expected_plan_hash` applies exactly the
 plan that was previewed, or answers 409 `plan_changed`. See ADR-023.
 
-- `full` defaults to `false`: only the uploaded paths are compared. The dashboard always sends
-  `false`, so the cases of a deleted or renamed `.feature` file are not archived or moved (a renamed
-  file's scenarios are created again). Upload the old and new location together, or archive those
-  cases by hand; the CLI's `--full` will handle it.
+- `full` defaults to `false`: only the uploaded paths are compared, so the cases of a deleted or
+  renamed `.feature` file are not archived or moved (a renamed file's scenarios are created again).
+  `full=true` treats the batch as the whole suite: cases of missing files are archived and renamed
+  files keep their case numbers. The dashboard sends it when "This is my complete features folder"
+  is ticked.
 - The response carries `errors` (files skipped for a syntax error) and `warnings` (skipped
   scenarios and tags).
 - The automated link the import sets follows a move; a link picked by hand is never changed.

@@ -180,9 +180,11 @@ Response, 200:
 - Only `*.feature` files are kept, read as text, with their relative paths.
 - An optional **path prefix** is added in front of every path. Its hint explains that paths must
   match what the runner reports, for example `tests/` when the chosen folder is `features/`.
-- "Preview" calls the dry run with `full=false`. So the cases of a deleted or renamed `.feature`
-  file are not archived or moved (a renamed file's scenarios are created again); the page says to
-  upload the old and new location together, or archive by hand. The CLI's `--full` will handle it.
+- A checkbox, "This is my complete features folder", off by default, sends `full=true` with the
+  preview and the confirm. Its hint says what each setting does: off, the cases of a deleted or
+  renamed `.feature` file are left as they are (a renamed file's scenarios are created again); on,
+  they are archived and a renamed file keeps its case numbers. Changing it clears the preview.
+- "Preview" calls the dry run.
 
 **Preview:**
 

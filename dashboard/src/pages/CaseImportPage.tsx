@@ -1,7 +1,7 @@
 import { DragEvent, useId, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { FolderOpen, Upload } from "lucide-react";
+import { FolderOpen, TriangleAlert, Upload } from "lucide-react";
 import { ImportAction, ImportFile, ImportResult, importCases } from "../api/cases";
 import { ApiError } from "../api/http";
 import ErrorBanner from "../components/ErrorBanner";
@@ -73,6 +73,8 @@ export default function CaseImportPage() {
   const ids = useId();
   const [files, setFiles] = useState<ImportFile[]>([]);
   const [prefix, setPrefix] = useState("");
+  // full=true: the chosen folder is the whole suite, so cases of missing files are archived (ADR-023)
+  const [full, setFull] = useState(false);
   const [preview, setPreview] = useState<ImportResult | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [changed, setChanged] = useState(false);
@@ -82,14 +84,14 @@ export default function CaseImportPage() {
   const request = () => files.map((f) => ({ ...f, path: withPrefix(prefix, f.path) }));
 
   const previewIt = useMutation({
-    mutationFn: () => importCases(id, request(), { dryRun: true }),
+    mutationFn: () => importCases(id, request(), { dryRun: true, full }),
     onSuccess: (data) => {
       setPreview(data);
       setFilter(null);
     },
   });
   const apply = useMutation({
-    mutationFn: (hash: string) => importCases(id, request(), { dryRun: false, expectedPlanHash: hash }),
+    mutationFn: (hash: string) => importCases(id, request(), { dryRun: false, full, expectedPlanHash: hash }),
     onSuccess: (data) => {
       setResult(data);
       setPreview(null);
@@ -127,6 +129,10 @@ export default function CaseImportPage() {
   const count = preview
     ? preview.summary.created + preview.summary.updated + preview.summary.moved + preview.summary.reactivated + preview.summary.archived
     : 0;
+  const archived = preview?.summary.archived ?? 0;
+  // Imported cases that are live today: every one of them is in a full plan as unchanged, updated, moved or archived
+  const live = preview ? archived + preview.summary.unchanged + preview.summary.updated + preview.summary.moved : 0;
+  const massArchive = live > 0 && archived * 2 > live;
   const rows = preview?.items.filter((i) => (filter ? i.action === filter : i.action !== "unchanged")) ?? [];
   const planChanged = apply.error instanceof ApiError && apply.error.code === "plan_changed";
   const error = previewIt.error ?? (planChanged ? null : apply.error);
@@ -186,11 +192,29 @@ export default function CaseImportPage() {
           <p role="status" className="muted">
             {files.length} .feature file{files.length === 1 ? "" : "s"} found
           </p>
-          <p className="muted">
-            Only the files you choose are compared, so cases of a deleted or renamed .feature file are not archived
-            or moved, and a renamed file&apos;s scenarios are created again. Choose the old and new location
-            together, or archive those cases by hand.
-          </p>
+        </div>
+
+        <div>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={full}
+              aria-describedby={`${ids}-full-hint`}
+              onChange={(e) => {
+                setFull(e.target.checked);
+                setPreview(null);
+                setResult(null);
+                setChanged(false);
+                apply.reset();
+              }}
+            />
+            This is my complete features folder
+          </label>
+          <span id={`${ids}-full-hint`} className="muted">
+            {full
+              ? "Cases whose .feature file is not in this folder are archived, and renamed files keep their case numbers. Check the preview before importing."
+              : "Off: only the files you choose are compared, so cases of a deleted or renamed .feature file are left as they are, and a renamed file's scenarios are created again."}
+          </span>
         </div>
 
         <label>
@@ -278,6 +302,15 @@ export default function CaseImportPage() {
               ))}
             </ul>
           )}
+          {massArchive && (
+            <div className="error-banner" role="alert" aria-label="Archive warning">
+              <TriangleAlert size={18} aria-hidden="true" />
+              <span>
+                This archives {archived} of {live} imported cases. Make sure you chose the whole features folder, with the
+                right path prefix.
+              </span>
+            </div>
+          )}
           {rows.length === 0 ? (
             <p className="muted">Nothing to show for this filter.</p>
           ) : (
@@ -308,7 +341,7 @@ export default function CaseImportPage() {
               disabled={count === 0 || apply.isPending || previewIt.isPending}
               onClick={() => apply.mutate(preview.plan_hash)}
             >
-              {apply.isPending ? "Importing…" : `Import ${count} changes`}
+              {apply.isPending ? "Importing…" : `Import ${count} changes${archived > 0 ? ` (archives ${archived})` : ""}`}
             </button>
           </div>
         </div>

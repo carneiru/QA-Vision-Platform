@@ -148,8 +148,8 @@ export interface ImportFile { path: string; content: string }
 export function importCases(
   projectId: number,
   files: ImportFile[],
-  opts: { dryRun: boolean; expectedPlanHash?: string },
+  opts: { dryRun: boolean; full?: boolean; expectedPlanHash?: string },
 ): Promise<ImportResult> {
-  const body = { files, full: false, ...(opts.expectedPlanHash ? { expected_plan_hash: opts.expectedPlanHash } : {}) };
+  const body = { files, full: opts.full ?? false, ...(opts.expectedPlanHash ? { expected_plan_hash: opts.expectedPlanHash } : {}) };
   return apiFetch(`${base(projectId)}/cases/import?dry_run=${opts.dryRun}`, { method: "POST", body: JSON.stringify(body) });
 }
