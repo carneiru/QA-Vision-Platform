@@ -32,7 +32,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 | Method | Path | |
 |---|---|---|
 | `GET` | `/cases?search=&label=&label=&status=&priority=&origin=&folder=&linked=&feature=&ado=&include_archived=&limit=&offset=` | `{total, items}`; archived hidden unless asked; `origin=manual` or `imported`; search also matches the Gherkin text. Filters are ANDed: `folder` (an imported case's `source_path` under that folder, subfolders included), `linked` (true: has an automated test), `feature` (the Gherkin Feature name), `ado` (digits only, else 422; matches the label `ado-<n>`) |
-| `POST` | `/cases/search` | the same filters as a JSON body, plus `test_keys` (up to 20 000 64-hex keys, more is 422) and `keys_mode` (`include` default, or `exclude`, which also keeps cases with no automated test); same response as `GET /cases`; every project role may call it. It exists because a list of keys does not fit in a URL |
+| `POST` | `/cases/search` | the same filters as a JSON body (`labels` is a list and `linked` a boolean; `folder` and `feature` up to 500 characters, `ado` 1-12 digits), plus `test_keys` (up to 20 000 64-hex keys, more is 422) and `keys_mode` (`include` default, or `exclude`, which also keeps cases with no automated test); same response as `GET /cases`; every project role may call it. It exists because a list of keys does not fit in a URL |
 | `POST` | `/cases` | `title`, `description`, `steps[{action, expected}]`, `labels`, `priority`, `status`, `automated_test_key`, `automated_name` |
 | `POST` | `/cases/import?dry_run=` | `{files:[{path, content}], full, allow_mass_archive, expected_plan_hash}` (`full` and `allow_mass_archive` default to `false`); returns `{plan_hash, summary, items, errors, warnings}`; a dry run writes nothing; accepts an editor's JWT or the CI service token (ADR-024), whose changes are recorded as user 0; a `full` import that would archive over half the live imported cases is 409 `mass_archive` unless `allow_mass_archive` is true |
 | `GET` / `PATCH` | `/cases/{number}` | the single read also lists the case's suites; `automated_test_key: null` unlinks |
@@ -49,6 +49,9 @@ Limits:
 - Steps: 50, each up to 2 000 characters.
 - Labels: 20, each matching `[A-Za-z0-9._-]{1,40}` and stored lower-case.
 - Suite cases: 1 000.
+- Search filters: `folder` and `feature` up to 500 characters, `ado` 1-12 digits, `test_keys` up to 20 000.
+
+After deploying migration 003, run a full import once to fill Feature on existing imported cases (every imported case shows as updated in that run).
 
 ## Gherkin import
 

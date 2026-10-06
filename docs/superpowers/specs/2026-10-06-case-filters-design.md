@@ -15,7 +15,7 @@ enough to find a case in that. The user made these decisions on 2026-10-06:
   search. Paging stays on the server, and no service calls another (ADR-022).
 - **A dropdown with more than 15 options has a search box at the top of its list.** This applies
   to every filter dropdown in the dashboard, not only Cases.
-- **The tree is a left panel** beside the list on desktop, and a drawer on small screens.
+- **The folder filter is a dropdown containing the tree** (user decision, replacing a side panel).
 
 ## test-management
 
@@ -111,16 +111,22 @@ routes `cases|case-labels|suites`, so `/case-folders` would otherwise reach proj
   - It is an ARIA `tree`. ↑ and ↓ move, → expands, ← collapses or goes to the parent, and Enter or
     Space selects.
   - The path to the selected folder is expanded when the page loads.
-- **Layout:**
-  - The panel can be hidden. The choice is kept in `localStorage`, wrapped in try/catch.
-  - Under 900px the panel is replaced by a "Folder: <name> ▾" button that opens the tree in a
-    drawer. The drawer closes on selection and on Esc.
+- **Where it lives:** `FolderSelect` (`components/FolderSelect.tsx`) holds the tree in a dropdown.
+  - The trigger looks like the other filters: the label "Folder", the display path of the chosen
+    folder (`features / hotels`) or "All folders", and a "Clear Folder" button.
+  - The popup is a dialog labelled "Folder" with a search box, an "x of y" count and the tree.
+  - Searching keeps the folders whose name matches plus their ancestors, all expanded, and
+    highlights the matches. Enter in the search box picks the first match and never submits the
+    Cases form.
+  - ↓ from the search box enters the tree; ↑ on the first item returns to the search box.
+  - Esc and Tab close the popup and return focus to the trigger. Picking a folder applies it at
+    once and closes the popup.
 - Manual cases have no folder and appear only under "All cases".
 
 ### Cases page
 
 - **Filters:** search, status, priority, origin, link, latest result, feature, Azure DevOps item
-  and label, plus the tree's folder.
+  and label, plus the folder dropdown.
   - Every filter lives in the URL. Changing one resets to page 1.
   - "Clear filters" resets them all.
 - **Azure DevOps options:** the ADO dropdown lists the work items found in the project's
@@ -149,7 +155,9 @@ routes `cases|case-labels|suites`, so `/case-folders` would otherwise reach proj
 - **dashboard (vitest):**
   - `FilterSelect`: native select at 15 options, combobox at 16; search, the count, "No matches",
     keyboard, and clear;
-  - `FolderTree`: counts, prefix collapse, select and clear, keyboard, and the drawer under 900px;
+  - `FolderTree`: counts, prefix collapse, select and clear, keyboard; `FolderSelect`: the trigger,
+    search with ancestors and highlight, Enter picks the first match, keyboard between search and
+    tree, Esc and Tab close with focus back;
   - Cases: each filter reaches the API and the URL; both requests for the result filter
     (`include`, and `exclude` for "never ran"); the banner when `latest-keys` fails; Clear filters;
   - Runs: filters still work through `FilterSelect`.

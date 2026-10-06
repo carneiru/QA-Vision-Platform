@@ -316,6 +316,7 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 - **Hover:** the border darkens to Tick Grey.
 - **Focus:** the border turns Signal Blue, with a 2px accent outline at offset 0.
 - **Filter dropdown:** a filter dropdown with more than 15 options is a searchable list (`FilterSelect`): a search field at the top of the open list, matching anywhere and ignoring accents, with an "x of y" count. Up to 15 options stay a native select.
+- **Folder dropdown:** the folder filter (`FolderSelect`) looks like the other filters; its popup is a dialog with a search box, an "x of y" count and the folder tree. Searching keeps matching folders and their ancestors, Enter picks the first match, Esc and Tab close it, and picking applies at once.
 - **Inline form:** a one-row create form of label and input pairs ending in its submit and Cancel buttons. It wraps on narrow widths.
 
 ### Navigation
