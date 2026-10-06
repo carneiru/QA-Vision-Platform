@@ -380,6 +380,8 @@ These are not features, but groups B, C, D, E and G cannot ship without them:
 - [ ] Secrets management (Vault or cloud equivalent) — brought forward from "prepare for" to required
 - [ ] Permissions per action: who may run tests, edit config, manage secrets, accept AI changes
 
+- [x] Case filters (2026-10-06): folder tree, feature, Azure DevOps item, link and latest-result filters on All Cases (`/cases/search`, `/case-folders`, `/case-features`, `latest-keys`), the searchable `FilterSelect`, gateway route and smoke checks
+
 ## Completed Documentation (Reference)
 All architectural specifications and design documents from the initial brainstorming phase have been completed and serve as the foundation for implementation phases.
 

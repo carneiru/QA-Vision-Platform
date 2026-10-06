@@ -95,9 +95,9 @@ routes `cases|case-labels|suites`, so `/case-folders` would otherwise reach proj
   - It looks like the native select, in light and dark mode, and at 375px.
 - **Used for** every filter dropdown:
   - Cases: label, feature, Azure DevOps item, status, priority, origin, link, result;
-  - Runs: status, environment, CI, branch, author, and the other select filters on that page;
-  - the case editor's automated-test picker, if it is a select. If it is a search box, it stays as
-    it is.
+  - Runs: status and CI only. Branch, environment and author are free-text inputs, so they stay as
+    they are;
+  - the case editor's automated-test picker is a search input, so it is unchanged.
 
 ### `FolderTree` (`components/FolderTree.tsx`)
 

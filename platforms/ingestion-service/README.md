@@ -181,6 +181,7 @@ Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that
 | `GET /tests?days=30&sort=failures&search=&limit=50&offset=0` | One row per test in the window (`days` 1–90): counts, `pass_rate`, average duration, last status and when last seen; `sort` is `failures`, `duration` or `name`; `search` matches the name literally, case-insensitively |
 | `GET /tests/{test_key}/history?days=30&branch=&limit=100` | One test: a summary over the window and its executions, newest first, with the message cut to 500 characters. 404 if the test was never seen in this project |
 | `GET /flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=` | At most 100 flaky tests (`window_days` 1–90) |
+| `GET /latest-keys?status=any&branch=` | `{"keys": [...]}`: the `test_key`s whose latest result has that status (`passed`, `failed` including errored, `skipped`, or `any` for at least one result). Latest is the most recent run (`started_at`, then run id); `branch` narrows it. Test Management uses it for the "result" filter on All Cases |
 
 - `pass_rate` = passed ÷ (total − skipped); errored counts as not passed; `null` when nothing ran.
 - An empty filter (`?branch=`) means no filter; `tz` must be a zone name from the IANA list.

@@ -113,6 +113,12 @@ IMPORT_BODY='{"files":[{"path":"tests/features/smoke.feature","content":"Feature
 check "import a .feature -> test-management-service" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/import" \
   "${AUTH[@]}" -H "Content-Type: application/json" -d "$IMPORT_BODY"
 body_has "... one case created" '"created":1'
+check "case folders -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-folders" "${AUTH[@]}"
+body_has "... the imported folder is listed" '"path":"tests/features"'
+check "case features -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-features" "${AUTH[@]}"
+check "search cases by test keys -> test-management-service" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/search" \
+  "${AUTH[@]}" -H "Content-Type: application/json" -d '{"test_keys":[],"keys_mode":"exclude"}'
+check "latest-keys -> ingestion-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/latest-keys?status=any" "${AUTH[@]}"
 # A body over the gateway's general 10 MB cap must still reach the service on the import path:
 # the service answers 413 naming its own setting, not NGINX's bare 413 page.
 # 55 files x 200000 bytes, built with plain shell so no Python is needed.
