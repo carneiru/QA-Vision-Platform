@@ -143,13 +143,13 @@ test("failures are grouped by cause, each group lists its tests", async () => {
     http.get("/api/v1/runs/61/failure-groups", () => HttpResponse.json({
       total: 4,
       groups: [
-        { signature: "a1", headline: "TimeoutError: waiting for locator('#pay')", count: 3, failed: 2, errored: 1,
+        { signature: "a1", headline: "TimeoutError: waiting for locator('#pay')", count: 3, failed: 2, errored: 1, history: { window: 10, seen_in: 6, streak: 4, since_run_id: 57, since_started_at: "2026-09-28T12:00:00Z" },
           tests: [
             { id: 1, test_key: "k1", suite: "checkout", class_name: "Cart", name: "pays by card", status: "failed" },
             { id: 2, test_key: "k2", suite: "checkout", class_name: "Cart", name: "pays by voucher", status: "failed" },
             { id: 3, test_key: "k3", suite: "checkout", class_name: "Cart", name: "pays later", status: "errored" },
           ] },
-        { signature: "none", headline: null, count: 1, failed: 1, errored: 0,
+        { signature: "none", headline: null, count: 1, failed: 1, errored: 0, history: { window: 10, seen_in: 1, streak: 1, since_run_id: 61, since_started_at: "2026-10-01T12:00:00Z" },
           tests: [{ id: 4, test_key: "k4", suite: "auth", class_name: "Login", name: "logs in", status: "failed" }] },
       ],
     })),
@@ -159,6 +159,10 @@ test("failures are grouped by cause, each group lists its tests", async () => {
   expect(await screen.findByText("TimeoutError: waiting for locator('#pay')")).toBeInTheDocument();
   expect(screen.getByText(/no error message/i)).toBeInTheDocument();
   expect(screen.getByText(/4 failures, 2 causes/i)).toBeInTheDocument();
+  // how long each cause has been around on this branch
+  expect(screen.getByText(/in the last 4 runs, since #57/i)).toBeInTheDocument();
+  expect(screen.getByText(/6 of the last 10 runs/i)).toBeInTheDocument();
+  expect(screen.getByText(/new in this run/i)).toBeInTheDocument();
   await userEvent.click(screen.getByText(/3 tests/));
   expect(screen.getByRole("link", { name: "pays later" })).toHaveAttribute("href", "/projects/42/tests/k3");
 });
@@ -168,4 +172,20 @@ test("a green run shows no cause section", async () => {
   renderDetail();
   await screen.findByText("abcdef1");
   expect(screen.queryByRole("heading", { name: /failures by cause/i })).not.toBeInTheDocument();
+});
+
+test("links to a comparison with the previous run on the branch", async () => {
+  let until: string | null = null;
+  server.use(
+    http.get("/api/v1/runs/61", () => HttpResponse.json(detail([result]))),
+    http.get("/api/v1/projects/42/runs", ({ request }) => {
+      const q = new URL(request.url).searchParams;
+      until = q.get("until");
+      return HttpResponse.json(q.get("branch") === "main" ? [{ ...detail([]), id: 58 }] : []);
+    }),
+  );
+  renderDetail();
+  const link = await screen.findByRole("link", { name: /compare with previous run #58/i });
+  expect(link).toHaveAttribute("href", "/projects/42/runs/61/compare/58");
+  expect(until).toBe("2026-10-01T12:00:00Z");
 });

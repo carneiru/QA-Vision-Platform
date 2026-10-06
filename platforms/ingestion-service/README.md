@@ -47,6 +47,14 @@ Receives test results from CI. Design: `docs/superpowers/specs/2026-09-29-ingest
   case), `pr`, `author` (case-insensitive substring; `%` and `_` match themselves), `since`
   (inclusive) and `until` (exclusive) on `started_at`, as ISO 8601 instants.
 - `GET /api/v1/runs/<run_id>?status=failed` — one run with its results.
+- `GET /api/v1/runs/<run_id>/failure-groups` — failed and errored tests grouped by cause. The
+  cause is the first error line with numbers, ids and hashes ignored (`analytics/signature.py`).
+  Each group has its `history` on the run's branch, over this run and up to 19 earlier ones:
+  `seen_in`, the consecutive `streak` and `since_run_id`. A streak of 1 seen once means new.
+- `GET /api/v1/runs/<run_id>/compare/<base_id>` — this run against another of the same
+  project, test by test, using each test's last attempt: `new_failures`, `fixed`,
+  `still_failing`, `slower` (passed in both, at least 1 s and 50% slower), `added`, `removed`.
+  It also returns `counts`, and each list is capped at 200. Runs of different projects are a 404.
 
 Every project role can read; roles come from project-service.
 

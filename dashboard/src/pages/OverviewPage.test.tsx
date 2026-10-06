@@ -42,9 +42,10 @@ function mockProject({ runs = [RUN] }: { runs?: object[] } = {}) {
     http.get("/api/v1/runs/61/failure-groups", () => HttpResponse.json({
       total: 4,
       groups: [
-        { signature: "a1", headline: "AssertionError: 41.99 != 42.00", count: 3, failed: 3, errored: 0,
+        { signature: "a1", headline: "AssertionError: 41.99 != 42.00", count: 3, failed: 3, errored: 0, history: { window: 10, seen_in: 6, streak: 4, since_run_id: 57, since_started_at: "2026-09-28T12:00:00Z" },
           tests: [grouped("pays with stored card"), grouped("pays with new card"), grouped("pays with voucher")] },
-        { signature: "b2", headline: "TimeoutError", count: 1, failed: 0, errored: 1, tests: [grouped("applies coupon", "errored")] },
+        { signature: "b2", headline: "TimeoutError", count: 1, failed: 0, errored: 1, tests: [grouped("applies coupon", "errored")],
+          history: { window: 10, seen_in: 1, streak: 1, since_run_id: 61, since_started_at: "2026-10-01T12:00:00Z" } },
       ],
     })),
     http.get("/api/v1/projects/42/analytics/trends", () => HttpResponse.json({
@@ -87,6 +88,7 @@ test("the latest run leads, with its verdict in words and what broke", async () 
   expect(screen.getByText("AssertionError: 41.99 != 42.00")).toBeInTheDocument();
   expect(screen.getByText(/4 tests · 2 causes/)).toBeInTheDocument();
   expect(screen.getByText(/and 2 more/)).toBeInTheDocument();
+  expect(screen.getByText("New")).toBeInTheDocument();          // the cause that first appeared in this run
   expect(screen.queryByRole("link", { name: "pays with voucher" })).not.toBeInTheDocument();
   expect(screen.getByRole("link", { name: /open run #61/i })).toBeInTheDocument();
 });

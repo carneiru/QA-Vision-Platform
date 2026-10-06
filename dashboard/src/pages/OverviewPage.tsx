@@ -5,6 +5,7 @@ import { LIVE_REFRESH_MS } from "../lib/live";
 import { ArrowRight, CheckCircle2, Clock, GitBranch, GitCommitHorizontal, Server, XCircle } from "lucide-react";
 import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/analytics";
 import { getFailureGroups, listRuns, Run } from "../api/runs";
+import { isNewCause } from "../components/FailureGroups";
 import ErrorBanner from "../components/ErrorBanner";
 import StatusDot from "../components/StatusDot";
 
@@ -133,7 +134,10 @@ export default function OverviewPage() {
                 const first = g.tests[0];
                 return (
                   <li key={g.signature}>
-                    {g.headline ? <span className="msg">{g.headline}</span> : <span className="where">No error message</span>}
+                        <span className="cause-title">
+                      {isNewCause(g.history) && <span className="badge badge-new">New</span>}
+                      {g.headline ? <span className="msg">{g.headline}</span> : <span className="where">No error message</span>}
+                    </span>
                     <span>
                       <Link to={`/projects/${id}/tests/${encodeURIComponent(first.test_key)}`}>{first.name}</Link>
                       {g.count > 1 && <span className="where"> and {g.count - 1} more</span>}

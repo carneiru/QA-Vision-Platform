@@ -1,10 +1,20 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getFailureGroups } from "../api/runs";
+import { CauseHistory, getFailureGroups } from "../api/runs";
 import ErrorBanner from "./ErrorBanner";
 import StatusDot from "./StatusDot";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** How long a cause has been around on this branch, in words. */
+export function historyText(h: CauseHistory): string {
+  if (h.window === 1) return "First run on this branch";
+  if (h.streak === 1 && h.seen_in === 1) return "New in this run";
+  const streak = h.streak > 1 ? `In the last ${h.streak} runs, since #${h.since_run_id}` : "Back after a passing run";
+  return h.seen_in > h.streak ? `${streak} · ${h.seen_in} of the last ${h.window} runs` : streak;
+}
+
+export const isNewCause = (h: CauseHistory) => h.window > 1 && h.streak === 1 && h.seen_in === 1;
 
 /** A run's failures by cause, biggest first: one broken locator reads as one problem, not forty. */
 export default function FailureGroups({ runId, projectId }: { runId: number; projectId: string | undefined }) {
@@ -33,6 +43,9 @@ export default function FailureGroups({ runId, projectId }: { runId: number; pro
                     <span className="muted">No error message</span>
                   )}
                 </div>
+                <p className={isNewCause(g.history) ? "cause-history cause-new" : "cause-history"}>
+                  {historyText(g.history)}
+                </p>
                 <details>
                   <summary>
                     {plural(g.count, "test")}

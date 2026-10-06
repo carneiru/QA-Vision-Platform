@@ -9,7 +9,9 @@ from src.ingestion.api.deps import (
 )
 from src.ingestion.api.v1.endpoints.analytics import NO_NUL
 from src.ingestion.models.run import CI_PROVIDERS
-from src.ingestion.schemas.run import ChangedFileOut, ComponentOut, FailureGroupsOut, ResultOut, RunDetail, RunOut
+from src.ingestion.schemas.run import (
+    ChangedFileOut, ComponentOut, FailureGroupsOut, ResultOut, RunComparison, RunDetail, RunOut,
+)
 from src.ingestion.service import run_service
 
 project_router = APIRouter()  # mounted at /projects/{project_id}/runs
@@ -79,4 +81,22 @@ def get_failure_groups(
     # As get_run: no connection held during the access check
     db.rollback()
     check_project_role(project_id, caller, READ_ROLES, "Run not found")
-    return run_service.failure_groups(db, run_id)
+    return run_service.failure_groups(db, run_service.get_run(db, run_id))
+
+
+@router.get("/{run_id}/compare/{base_id}", response_model=RunComparison)
+def compare_runs(
+    run_id: int,
+    base_id: int,
+    db: Session = Depends(get_db),
+    caller: Caller = Depends(get_caller),
+):
+    head, base = run_service.get_run(db, run_id), run_service.get_run(db, base_id)
+    # Two runs of different projects are never compared: one of them may be invisible to the caller
+    if head is None or base is None or head.project_id != base.project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    project_id = head.project_id
+    db.rollback()
+    check_project_role(project_id, caller, READ_ROLES, "Run not found")
+    head, base = run_service.get_run(db, run_id), run_service.get_run(db, base_id)
+    return run_service.compare_runs(db, base, head)

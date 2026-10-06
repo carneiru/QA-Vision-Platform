@@ -62,10 +62,36 @@ def list_results(db: Session, run_id: int, status: Optional[str]) -> list[RunRes
 
 
 MAX_GROUP_TESTS = 100
+HISTORY_RUNS = 20
 
 
-def failure_groups(db: Session, run_id: int) -> dict:
-    """The run's failed and errored tests grouped by cause, biggest group first."""
+def _history_window(db: Session, run: Run) -> list:
+    """This run and up to HISTORY_RUNS - 1 earlier runs of the same project and branch, newest first."""
+    branch = Run.branch.is_(None) if run.branch is None else Run.branch == run.branch
+    earlier = (
+        db.query(Run.id, Run.started_at)
+        .filter(Run.project_id == run.project_id, branch,
+                (Run.started_at < run.started_at) | ((Run.started_at == run.started_at) & (Run.id < run.id)))
+        .order_by(Run.started_at.desc(), Run.id.desc()).limit(HISTORY_RUNS - 1).all()
+    )
+    return [(run.id, run.started_at)] + [(r.id, r.started_at) for r in earlier]
+
+
+def _signatures_by_run(db: Session, run_ids: list) -> dict:
+    found: dict = {rid: set() for rid in run_ids}
+    rows = (
+        db.query(RunResult.run_id, RunResult.message)
+        .filter(RunResult.run_id.in_(run_ids), RunResult.status.in_(("failed", "errored"))).all()
+    )
+    for r in rows:
+        found[r.run_id].add(signature(r.message))
+    return found
+
+
+def failure_groups(db: Session, run: Run) -> dict:
+    """The run's failed and errored tests grouped by cause, biggest group first, each with its
+    history on the run's branch."""
+    run_id = run.id
     rows = (
         db.query(RunResult.id, RunResult.test_key, RunResult.suite, RunResult.class_name, RunResult.name,
                  RunResult.status, RunResult.message)
@@ -85,9 +111,75 @@ def failure_groups(db: Session, run_id: int) -> dict:
             g["tests"].append({"id": r.id, "test_key": r.test_key, "suite": r.suite, "class_name": r.class_name,
                                "name": r.name, "status": r.status})
     ordered = sorted(groups.values(), key=lambda g: (-g["count"], g["signature"] == "none", g["first"]))
+    window = _history_window(db, run) if ordered else []
+    seen = _signatures_by_run(db, [rid for rid, _ in window]) if ordered else {}
     for g in ordered:
         del g["first"]
+        hits = [g["signature"] in seen[rid] for rid, _ in window]
+        streak = hits.index(False) if False in hits else len(hits)
+        since_id, since_at = window[streak - 1]
+        g["history"] = {"window": len(window), "seen_in": sum(hits), "streak": streak,
+                        "since_run_id": since_id, "since_started_at": since_at}
     return {"total": len(rows), "groups": ordered}
+
+
+MAX_COMPARE_ITEMS = 200
+FAILING_STATUSES = ("failed", "errored")
+# A test is "slower" when it took at least this much longer, and at least SLOWER_RATIO times as long
+SLOWER_MIN_MS = 1000
+SLOWER_RATIO = 1.5
+
+
+def _last_attempts(db: Session, run_id: int) -> dict:
+    rows = (
+        db.query(RunResult.test_key, RunResult.suite, RunResult.class_name, RunResult.name, RunResult.status,
+                 RunResult.duration_ms, RunResult.message)
+        .filter(RunResult.run_id == run_id).order_by(RunResult.id).all()
+    )
+    return {r.test_key: r for r in rows}  # later rows win: a retry's outcome replaces the first attempt's
+
+
+def compare_runs(db: Session, base: Run, head: Run) -> dict:
+    before, after = _last_attempts(db, base.id), _last_attempts(db, head.id)
+    lists: dict = {k: [] for k in ("new_failures", "fixed", "still_failing", "slower", "added", "removed")}
+    unchanged = 0
+
+    def item(key):
+        b, h = before.get(key), after.get(key)
+        any_row = h or b
+        failing = h if h is not None and h.status in FAILING_STATUSES else b
+        return {"test_key": key, "suite": any_row.suite, "class_name": any_row.class_name, "name": any_row.name,
+                "base_status": b.status if b else None, "head_status": h.status if h else None,
+                "base_duration_ms": b.duration_ms if b else None, "head_duration_ms": h.duration_ms if h else None,
+                "message": headline(failing.message) if failing is not None else None}
+
+    for key in after.keys() | before.keys():
+        b, h = before.get(key), after.get(key)
+        if b is None:
+            lists["added"].append(item(key))
+        elif h is None:
+            lists["removed"].append(item(key))
+        elif h.status in FAILING_STATUSES and b.status == "passed":
+            lists["new_failures"].append(item(key))
+        elif b.status in FAILING_STATUSES and h.status == "passed":
+            lists["fixed"].append(item(key))
+        elif b.status in FAILING_STATUSES and h.status in FAILING_STATUSES:
+            lists["still_failing"].append(item(key))
+        elif (b.status == h.status == "passed" and h.duration_ms - b.duration_ms >= SLOWER_MIN_MS
+              and h.duration_ms >= SLOWER_RATIO * b.duration_ms):
+            lists["slower"].append(item(key))
+        else:
+            unchanged += 1
+
+    for name, values in lists.items():
+        if name == "slower":
+            values.sort(key=lambda i: (i["base_duration_ms"] - i["head_duration_ms"], i["name"]))
+        else:
+            values.sort(key=lambda i: (i["suite"], i["class_name"], i["name"]))
+    counts = {name: len(values) for name, values in lists.items()}
+    counts["unchanged"] = unchanged
+    return {"base": base, "head": head, "counts": counts,
+            **{name: values[:MAX_COMPARE_ITEMS] for name, values in lists.items()}}
 
 
 def list_changes(db: Session, run_id: int) -> list[RunChangedFile]:

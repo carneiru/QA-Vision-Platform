@@ -309,7 +309,12 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] TC run history (pass/fail/duration over time) — already planned in roadmap Phases 2–3
 - [ ] View screenshots and screen recordings attached to a run
 - [ ] Playwright trace viewer and step-by-step logs per failed TC *(suggested)*
-- [ ] Compare two runs side by side *(suggested)*
+- [x] Compare two runs side by side. `/projects/{id}/runs/{run}/compare/{base}` sorts each test
+  into new failures, fixed, still failing, slower, added and removed. The run page links to a
+  comparison with the previous run on its branch, and any run number can be typed in instead.
+- [x] Causes over time: each cause on the run page shows whether it is new in this run, how many
+  runs in a row it has failed (since #N), and how often it appeared in the last 20 runs of the
+  branch. The Overview marks new causes.
 - [x] Group failures by error signature, so one broken locator shows as one problem, not forty. The first error line, with numbers, ids and hashes ignored (`analytics/signature.py`), groups a run's failures: `GET /api/v1/runs/{id}/failure-groups`; the run page shows **Failures by cause**, the Overview lists causes instead of tests
 - [ ] Shareable link to a failed run *(suggested)*
 - [x] Failure notifications to Slack/Teams/email. Slack, Microsoft Teams (Workflows webhook,

@@ -7,4 +7,6 @@ export const server = setupServer(
   http.post("/api/v1/auth/refresh-token", () => new HttpResponse(null, { status: 401 })),
   // Run pages ask for failure groups; tests about them override this
   http.get("/api/v1/runs/:runId/failure-groups", () => HttpResponse.json({ total: 0, groups: [] })),
+  // The run page looks for the previous run to compare with
+  http.get("/api/v1/projects/:projectId/runs", () => HttpResponse.json([])),
 );

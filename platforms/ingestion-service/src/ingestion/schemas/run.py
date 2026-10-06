@@ -78,6 +78,16 @@ class GroupedTestOut(BaseModel):
     status: str
 
 
+class CauseHistory(BaseModel):
+    """The cause across this run and up to 19 earlier runs of the same branch."""
+
+    window: int            # runs looked at, this one included
+    seen_in: int           # of those, how many had this cause
+    streak: int            # consecutive runs up to this one with it; 1 = it is new
+    since_run_id: int      # where the streak started
+    since_started_at: datetime
+
+
 class FailureGroupOut(BaseModel):
     """Failed and errored tests that share one cause (analytics/signature.py)."""
 
@@ -87,6 +97,7 @@ class FailureGroupOut(BaseModel):
     failed: int
     errored: int
     tests: list[GroupedTestOut]  # the first MAX_GROUP_TESTS; `count` has them all
+    history: CauseHistory
 
 
 class FailureGroupsOut(BaseModel):
@@ -98,3 +109,29 @@ class RunDetail(RunOut):
     results: list[ResultOut]
     changes: list[ChangedFileOut] = []
     components: list[ComponentOut] = []
+
+
+class CompareItem(BaseModel):
+    test_key: str
+    suite: str
+    class_name: str
+    name: str
+    base_status: Optional[str] = None  # None: not in the base run
+    head_status: Optional[str] = None  # None: not in the head run
+    base_duration_ms: Optional[int] = None
+    head_duration_ms: Optional[int] = None
+    message: Optional[str] = None  # the failing side's message, first line only
+
+
+class RunComparison(BaseModel):
+    """Head compared with base, test by test (each test's last attempt in each run)."""
+
+    base: RunOut
+    head: RunOut
+    counts: dict[str, int]
+    new_failures: list[CompareItem]
+    fixed: list[CompareItem]
+    still_failing: list[CompareItem]
+    slower: list[CompareItem]
+    added: list[CompareItem]
+    removed: list[CompareItem]

@@ -16,6 +16,7 @@ import TestsPage from "./pages/TestsPage";
 import HistoryPage from "./pages/HistoryPage";
 import FlakyPage from "./pages/FlakyPage";
 import RunsPage from "./pages/RunsPage";
+import ComparePage from "./pages/ComparePage";
 import RunDetailPage from "./pages/RunDetailPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import ProjectSettingsPage from "./pages/ProjectSettingsPage";
@@ -115,6 +116,7 @@ export function AppRoutes() {
             />
             <Route path="runs" element={<RunsPage />} />
             <Route path="runs/:runId" element={<RunDetailPage />} />
+            <Route path="runs/:runId/compare/:baseId" element={<ComparePage />} />
             <Route path="report" element={<ReportPage />} />
             <Route path="settings" element={<ProjectSettingsPage />} />
           </Route>

@@ -327,6 +327,12 @@ table.data tbody tr:hover td { background: var(--hover); }
 .cause-head { display: flex; gap: var(--space-3); align-items: baseline; min-width: 0; }
 .cause-count { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 2.5em; color: var(--text-primary); }
 .cause-line { font-size: 13px; overflow-wrap: anywhere; min-width: 0; }
+.cause-history { margin: var(--space-1) 0 0 calc(2.5em + var(--space-3)); font-size: 12.5px; color: var(--text-secondary); }
+.cause-new { color: var(--accent-text); font-weight: 600; }
+.badge-new { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent-text) 40%, transparent); padding: 0 8px; font-size: 11.5px; }
+.cause-title { display: flex; gap: var(--space-2); align-items: baseline; min-width: 0; }
+.compare-run { margin: 0 0 var(--space-1); }
+.compare-summary { font-weight: 600; margin: var(--space-3) 0 var(--space-4); }
 .cause-list details { margin: var(--space-1) 0 0 calc(2.5em + var(--space-3)); }
 .cause-list summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); min-height: 24px; }
 .cause-list summary:hover { color: var(--text-primary); }

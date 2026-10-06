@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { RunStatusFilter, getRun } from "../api/runs";
+import { RunStatusFilter, getRun, listRuns } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FailureGroups from "../components/FailureGroups";
@@ -21,6 +21,14 @@ export default function RunDetailPage() {
   });
 
   const run = query.data;
+  // The run before this one on the same branch: the natural thing to compare with
+  const previous = useQuery({
+    queryKey: ["runs", Number(projectId), "before", id],
+    queryFn: () =>
+      listRuns(Number(projectId), { limit: 1, offset: 0, until: run!.started_at, ...(run!.branch ? { branch: run!.branch } : {}) }),
+    enabled: run !== undefined,
+  });
+  const previousRun = previous.data?.[0];
 
   return (
     <section>
@@ -62,6 +70,13 @@ export default function RunDetailPage() {
               {run.commit_message && <span> · {run.commit_message}</span>}
               {run.pr_number && <span> · PR #{run.pr_number}</span>}
               {run.base_branch && <span> · into {run.base_branch}</span>}
+            </p>
+          )}
+          {previousRun && (
+            <p>
+              <Link className="link-arrow" to={`compare/${previousRun.id}`}>
+                Compare with previous run #{previousRun.id}
+              </Link>
             </p>
           )}
           <div className="tiles">

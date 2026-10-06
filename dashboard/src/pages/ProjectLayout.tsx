@@ -11,7 +11,8 @@ const VIEW_TITLES: Record<string, string> = {
 
 /** "runs/7" -> "Run #7", "tests/<key>" -> "Test history", "flaky" -> "Flaky" */
 function viewTitle(rest: string): string {
-  const [view, detail] = rest.split("/");
+  const [view, detail, sub, other] = rest.split("/");
+  if (view === "runs" && detail && sub === "compare" && other) return `Run #${detail} vs #${other}`;
   if (view === "runs" && detail) return `Run #${detail}`;
   if (view === "tests" && detail) return "Test history";
   return VIEW_TITLES[view] ?? "Project";
