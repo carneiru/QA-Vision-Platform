@@ -40,8 +40,8 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
 - **One transaction.** A real import applies the whole plan or nothing. Archiving is scoped to the
   uploaded paths, so uploading one folder never archives cases from another. Only `full=true` also
   archives imported cases whose path is not in the batch. The dashboard sends `full=true` only when
-  the user ticks "This is my complete features folder" (off by default); the CLI's `--full` will do
-  the same. Manual cases are never touched, and a file
+  the user ticks "This is my complete features folder" (off by default); the CLI's import-features is full by
+  default (`--no-full` turns it off). Manual cases are never touched, and a file
   that fails to parse never archives its cases. Two imports racing hit the unique `source_key`
   index; the loser gets 409 `import_conflict`.
 - **Import-owned links.** The import sets a case's automated link to

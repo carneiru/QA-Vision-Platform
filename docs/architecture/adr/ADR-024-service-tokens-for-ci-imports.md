@@ -24,9 +24,15 @@ imported cases in sync with `qav-collector import-features`, with no user login 
   | `token_type` | `service` |
   | `iat`, `exp` | issued at; `exp = iat + 300 s` |
 
-- **No other route accepts it.** Every route except the import goes through `get_caller`, which
-  needs a numeric `sub`. `apikey:7` is not a number, so a service token is 401 everywhere else. A
-  test pins this, and so does the gateway smoke.
+- **No other route accepts it.** Two layers keep it out of every other route. First, every route
+  except the import goes through `get_caller`, which needs a numeric `sub`; `apikey:7` is not a
+  number, so a service token is 401 there. Second, `is_access_token`: a token carrying `purpose` or
+  `token_type` is never a user session (added by the MFA fix 9ecc1f4). The rule: **any future
+  non-session JWT MUST carry `purpose` or `token_type`**. A test pins this, and so does the
+  gateway smoke.
+- **Related: MFA bypass fix.** The MFA challenge token had a numeric `sub` and was accepted as a
+  session by services that only checked `sub`. Commit 9ecc1f4 made `is_access_token` reject any
+  token with `purpose` or `token_type` in every service; the service token relies on the same rule.
 - **The import route checks scope and project.** `POST /api/v1/projects/{id}/cases/import` takes
   either a user JWT (an editor role from project-service, as before) or a service token with
   `token_type == "service"`, `scope == "cases:import"` and `project_id == {id}`. For a service token

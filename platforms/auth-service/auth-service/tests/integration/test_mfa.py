@@ -2,6 +2,7 @@
 SSO sign-ins never hit the challenge — the identity provider owns that factor."""
 
 import pyotp
+import pytest
 
 EMAIL = "mfa@example.com"
 
@@ -124,7 +125,6 @@ def test_the_mfa_challenge_token_is_not_an_access_token(client, register_and_ver
     assert me.status_code == 401
 
 
-import pytest
 
 
 @pytest.mark.parametrize("extra", [{"purpose": "mfa"}, {"token_type": "service"}, {"purpose": "password_reset"}])
