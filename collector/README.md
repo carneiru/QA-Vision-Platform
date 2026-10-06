@@ -136,6 +136,58 @@ API key (a `GET /api/v1/collect/key` names the project it belongs to), and —
 when patterns are given — that report files match and parse. Exits 2 on the
 first failed check, 0 when everything passes.
 
+## `qav-collector import-features`
+
+Keeps the project's test cases in sync with the Gherkin `.feature` files in your repository.
+The API key (`QAV_API_KEY`, environment only) is traded for a 5-minute import token that works
+only for the case import of that project; changes it makes are recorded as made by CI.
+
+```
+qav-collector import-features                       # every **/*.feature
+qav-collector import-features "features/**/*.feature" --dry-run
+```
+
+- **Branch rule.** It runs only on the sync branch: `--branch`, else `$QAV_IMPORT_BRANCH`, else
+  `master`. On any other detected branch it prints `skipped: on <branch>; cases sync from <name>`
+  and exits 0, so the same pipeline step can run on every build.
+- **Full by default.** The import is a full sync: cases of deleted `.feature` files are archived.
+  `--no-full` compares only the files given and never archives anything.
+- **Mass-archive guard.** The platform refuses a full import that would archive more than half of
+  the imported cases (409). If that is intended, pass `--allow-mass-archive`.
+- **Patterns.** Arguments, else `features:` in `.qav.yml`, else `**/*.feature`.
+- `--dry-run` prints the plan and changes nothing; `--strict` exits 1 when a file fails to parse.
+
+```yaml
+features:
+  - "features/**/*.feature"
+```
+
+| Code | When |
+|---|---|
+| 0 | Imported; skipped (not the sync branch); or parse errors without `--strict` |
+| 1 | Network or TLS failure; 401/403/404, 409 or 413 from the platform; or parse errors with `--strict` |
+| 2 | A configuration error: no URL, no key, no file matched, a file that is not UTF-8 text |
+
+GitHub Actions:
+
+```yaml
+on:
+  push:
+    branches: [master]
+jobs:
+  import-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install qav-collector
+      - run: qav-collector import-features
+        env:
+          QAV_URL: ${{ vars.QAV_URL }}
+          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+```
+
 ## `.qav.yml`
 
 Project defaults, read from the working directory — flags beat environment
@@ -152,6 +204,8 @@ patterns:
   - "reports/**/*.xml"
 components:
   - product-api@a1b2c3d4e5f6
+features:
+  - "features/**/*.feature"
 ```
 
 ## CODEOWNERS

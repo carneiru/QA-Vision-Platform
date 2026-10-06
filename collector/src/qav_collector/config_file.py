@@ -16,7 +16,7 @@ FILE_NAME = ".qav.yml"
 
 STRING_KEYS = ("url", "environment", "ca-file", "spool", "ci-provider", "branch")
 BOOL_KEYS = ("fail-on-error", "no-changes", "gate")
-LIST_KEYS = ("patterns", "components")
+LIST_KEYS = ("patterns", "components", "features")
 KNOWN = (*STRING_KEYS, *BOOL_KEYS, *LIST_KEYS)
 
 Value = Union[str, bool, List[str]]

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Callable, List, Mapping, Optional, Sequence
 
-from qav_collector import __version__
+from qav_collector import __version__, features
 from qav_collector.ci import detect, sanitize_key
 from qav_collector.codeowners import load_codeowners
 from qav_collector.config_file import load_config
@@ -97,6 +97,23 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("patterns", nargs="*", metavar="PATTERN")
     check.add_argument("--url", help="platform URL (default: $QAV_URL)")
     check.add_argument("--ca-file", help="trust exactly this CA certificate (default: $QAV_CA_FILE)")
+    import_features = commands.add_parser(
+        "import-features",
+        help="sync the repository's Gherkin .feature files into QA Vision test cases",
+        description="Read the .feature files matching PATTERN (default: features in .qav.yml, else "
+        "**/*.feature) and import them as test cases. Runs only on the sync branch (default: "
+        "$QAV_IMPORT_BRANCH, else master). The API key is read from QAV_API_KEY only.",
+    )
+    import_features.add_argument("patterns", nargs="*", metavar="PATTERN")
+    import_features.add_argument("--branch", help="the branch cases sync from (default: $QAV_IMPORT_BRANCH, else master)")
+    import_features.add_argument("--no-full", action="store_true",
+                                 help="compare only the given files; never archive cases of other files")
+    import_features.add_argument("--allow-mass-archive", action="store_true",
+                                 help="let a full import archive more than half of the imported cases")
+    import_features.add_argument("--strict", action="store_true", help="exit 1 when a .feature file fails to parse")
+    import_features.add_argument("--dry-run", action="store_true", help="print the plan; change nothing")
+    import_features.add_argument("--url", help="platform URL (default: $QAV_URL)")
+    import_features.add_argument("--ca-file", help="trust exactly this CA certificate (default: $QAV_CA_FILE)")
     return parser
 
 
@@ -125,6 +142,12 @@ def main(
         try:
             return _check(args, env, api_key, say)
         except (ConfigError, UploadError) as exc:
+            say(str(exc))
+            return 2
+    if args.command == "import-features":
+        try:
+            return features.run(args, env, api_key, say, os.getcwd())
+        except ConfigError as exc:
             say(str(exc))
             return 2
     fail_on_error = args.fail_on_error or env.get("QAV_FAIL_ON_ERROR", "").strip().lower() in _TRUE
