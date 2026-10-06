@@ -6,7 +6,7 @@ Python 3.9 or newer, nothing else to install.
 ## Install
 
 ```bash
-pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
 ```
 
 ## Use
@@ -36,7 +36,7 @@ instead of storing it twice.
           QAV_URL: https://qav.example.com
           QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
         run: |
-          pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+          pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
           qav-collector upload "reports/**/*.xml"
 ```
 
@@ -47,7 +47,7 @@ test:
   script:
     - pytest --junitxml=reports/junit.xml
   after_script:
-    - pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+    - pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
     - qav-collector upload "reports/**/*.xml"
   variables:
     QAV_URL: https://qav.example.com
@@ -61,7 +61,7 @@ post {
   always {
     withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
       sh '''
-        pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+        pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
         QAV_URL=https://qav.example.com qav-collector upload "target/surefire-reports/*.xml"
       '''
     }
@@ -75,7 +75,7 @@ post {
 steps:
   - script: mvn test   # or pytest --junitxml=reports/junit.xml, dotnet test --logger trx, …
   - script: |
-      pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.2.0#subdirectory=collector"
+      pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
       qav-collector upload "**/TEST-*.xml"
     displayName: Upload test results to QA Vision
     condition: always()        # report results even when the tests failed
@@ -154,7 +154,7 @@ qav-collector import-features "features/**/*.feature" --dry-run
   `--no-full` compares only the files given and never archives anything.
 - **Mass-archive guard.** The platform refuses a full import that would archive more than half of
   the imported cases (409). If that is intended, pass `--allow-mass-archive`.
-- **Patterns.** Arguments, else `features:` in `.qav.yml`, else `**/*.feature`.
+- **Patterns.** Arguments, else `features:` in `.qav.yml`, else `**/*.feature`. Paths with a `node_modules` segment are always skipped, and so are dot-directories; patterns cannot reach outside the working directory.
 - `--dry-run` prints the plan and changes nothing; `--strict` exits 1 when a file fails to parse.
 
 ```yaml
@@ -181,7 +181,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install qav-collector
+      - run: pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
       - run: qav-collector import-features
         env:
           QAV_URL: ${{ vars.QAV_URL }}

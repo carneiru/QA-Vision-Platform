@@ -29,11 +29,19 @@ def base_url(url: str) -> str:
 
 
 def collect_files(patterns: List[str], cwd: str) -> List[Dict[str, str]]:
+    root = glob.escape(cwd)
     paths = sorted({os.path.normpath(p) for pattern in patterns
-                    for p in glob.glob(os.path.join(cwd, pattern), recursive=True) if os.path.isfile(p)})
+                    for p in glob.glob(os.path.join(root, pattern), recursive=True) if os.path.isfile(p)})
     files = []
     for path in paths:
-        relative = os.path.relpath(path, cwd).replace(os.sep, "/")
+        try:
+            relative = os.path.relpath(path, cwd).replace(os.sep, "/")
+        except ValueError:  # another Windows drive
+            raise ConfigError(f"{path} is outside the working directory") from None
+        if relative == ".." or relative.startswith("../"):
+            raise ConfigError(f"{path} is outside the working directory")
+        if "node_modules" in relative.split("/"):
+            continue
         try:
             with open(path, encoding="utf-8") as fh:
                 files.append({"path": relative, "content": fh.read()})
@@ -52,6 +60,16 @@ def _detail(raw: bytes) -> str:
     return str(detail)
 
 
+def _parse(raw: bytes, what: str) -> dict:
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise ImportFailed(f"the platform sent an unexpected response ({what} is not JSON)") from None
+    if not isinstance(data, dict):
+        raise ImportFailed(f"the platform sent an unexpected response ({what} is not an object)")
+    return data
+
+
 def _post(url: str, body: bytes, token: str, context) -> tuple:
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     try:
@@ -63,7 +81,11 @@ def _post(url: str, body: bytes, token: str, context) -> tuple:
 def trade_key(base: str, api_key: str, context) -> dict:
     status, raw, _ = _post(base + TOKEN_PATH, b"{}", api_key, context)
     if status == 200:
-        return json.loads(raw)
+        grant = _parse(raw, "the token")
+        project_id, token = grant.get("project_id"), grant.get("token")
+        if not isinstance(project_id, int) or isinstance(project_id, bool) or not isinstance(token, str) or not token:
+            raise ImportFailed("the platform sent an unexpected response (the token reply lacks token or project_id)")
+        return grant
     if status == 401:
         raise ImportFailed("the API key is invalid or revoked (401)")
     raise ImportFailed(f"the token request answered {status}: {_detail(raw)}")
@@ -77,7 +99,7 @@ def run_import(base: str, grant: dict, files: list, *, full: bool, allow_mass_ar
     url = f"{base}/api/v1/projects/{grant['project_id']}/cases/import?dry_run={'true' if dry_run else 'false'}"
     status, raw, _ = _post(url, json.dumps(payload).encode("utf-8"), grant["token"], context)
     if status == 200:
-        return json.loads(raw)
+        return _parse(raw, "the import result")
     raise ImportFailed(f"the import answered {status}: {_detail(raw)}")
 
 
@@ -122,8 +144,11 @@ def run(args, env: Mapping[str, str], api_key: str, say: Callable[[str], None], 
         grant = trade_key(base, api_key, context)
         result = run_import(base, grant, files, full=not args.no_full,
                             allow_mass_archive=args.allow_mass_archive, dry_run=args.dry_run, context=context)
+        report(result, say, args.dry_run)
     except ImportFailed as exc:
         say(str(exc))
         return 1
-    report(result, say, args.dry_run)
+    except (KeyError, TypeError, ValueError):
+        say("the platform sent an unexpected response (the import result has the wrong shape)")
+        return 1
     return 1 if result["errors"] and args.strict else 0

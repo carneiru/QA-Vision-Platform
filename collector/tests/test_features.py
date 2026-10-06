@@ -120,3 +120,50 @@ def test_an_unreadable_file_is_a_configuration_error(platform, repo, capsys):
     (repo / "features" / "latin.feature").write_bytes(b"Feature: caf\xe9\n")
     assert main(["import-features"], env(platform)) == 2
     assert "latin.feature" in capsys.readouterr().err
+
+
+def test_a_non_json_token_reply_fails_the_build(platform, repo, capsys):
+    platform.reply(200, b"<html>captive portal</html>")
+    assert main(["import-features"], env(platform)) == 1
+    assert "the platform sent an unexpected response" in capsys.readouterr().err
+
+
+def test_a_token_reply_without_project_id_fails_the_build(platform, repo, capsys):
+    platform.reply(200, {"token": "t0k"})
+    assert main(["import-features"], env(platform)) == 1
+    assert "unexpected response" in capsys.readouterr().err
+
+
+def test_a_malformed_import_result_fails_the_build(platform, repo, capsys):
+    platform.reply(200, GRANT)
+    platform.reply(200, {"summary": {}})
+    assert main(["import-features"], env(platform)) == 1
+    assert "unexpected response" in capsys.readouterr().err
+
+
+def test_a_too_large_import_fails_the_build(platform, repo):
+    platform.reply(200, GRANT)
+    platform.reply(413, {"detail": "too many files"})
+    assert main(["import-features"], env(platform)) == 1
+
+
+def test_an_unreachable_platform_fails_the_build(repo):
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    assert main(["import-features"], {"QAV_URL": f"http://127.0.0.1:{port}", "QAV_API_KEY": KEY}) == 1
+
+
+def test_node_modules_are_not_imported(platform, repo):
+    (repo / "node_modules" / "x").mkdir(parents=True)
+    (repo / "node_modules" / "x" / "a.feature").write_text("Feature: Third party\n", encoding="utf-8")
+    platform.reply(200, GRANT)
+    platform.reply(200, RESULT)
+    assert main(["import-features"], env(platform)) == 0
+    assert all("node_modules" not in f["path"] for f in sent(platform, 1)["files"])
+
+
+def test_patterns_outside_the_working_directory_are_refused(platform, repo):
+    (repo.parent / "outside.feature").write_text("Feature: O\n", encoding="utf-8")
+    assert main(["import-features", "../*.feature"], env(platform)) == 2
