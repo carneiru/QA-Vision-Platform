@@ -161,5 +161,10 @@ test("every CI snippet syncs test cases from .feature files with the pinned coll
     const snippet = screen.getByTestId("ci-snippet");
     expect(snippet).toHaveTextContent("import-features");
     expect(snippet).toHaveTextContent("collector-v0.3.0");
+    if (platform === "jenkins") {
+      // Groovy comments are //, never #
+      const lines = (snippet.textContent ?? "").split(/\r?\n/).map((l) => l.trim());
+      expect(lines.filter((l) => l.startsWith("#"))).toEqual([]);
+    }
   }
 });

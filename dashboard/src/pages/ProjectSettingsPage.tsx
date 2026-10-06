@@ -44,7 +44,6 @@ function ciSnippets(origin: string): Record<string, { label: string; code: strin
   env:
     QAV_API_KEY: \${{ secrets.QAV_API_KEY }}
 
-# syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
 - name: Sync test cases from .feature files   # runs on master only (QAV_IMPORT_BRANCH to change)
   run: |
     pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
@@ -101,7 +100,7 @@ qav-import-features:
 withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
   withEnv(['QAV_URL=${origin}']) {
     qavCollectorUpload(patterns: 'reports/**/*.xml')
-    # syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+    // syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
     sh '''
       pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
       qav-collector import-features "tests/features/**/*.feature"
