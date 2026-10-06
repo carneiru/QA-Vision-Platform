@@ -32,7 +32,6 @@ class CaseCreate(BaseModel):
     status: Status = "draft"
     automated_test_key: Optional[TestKey] = None
     automated_name: Optional[str] = Field(None, max_length=1500)
-    gherkin: Optional[str] = None  # accepted so the 422 for imported cases can name it; manual cases ignore it
 
     _norm_labels = field_validator("labels")(_labels)
 
@@ -55,6 +54,7 @@ class CaseUpdate(BaseModel):
     status: Optional[Status] = None
     automated_test_key: Optional[TestKey] = None
     automated_name: Optional[str] = Field(None, max_length=1500)
+    gherkin: Optional[str] = None  # accepted so the 422 for imported cases can name it; manual cases ignore it
 
     _norm_labels = field_validator("labels")(_labels)
 

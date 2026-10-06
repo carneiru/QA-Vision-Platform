@@ -78,6 +78,7 @@ def test_imported_cases_are_read_only_where_the_repository_owns_them(client, aut
     for field, value in [("title", "x"), ("labels", ["y"]), ("steps", []), ("gherkin", "z")]:
         r = client.patch("/api/v1/projects/1/cases/1", json={field: value}, headers=auth())
         assert r.status_code == 422, field
+        assert "a.feature" in r.json()["detail"], field  # the guard rejected it, not pydantic
     ok = client.patch("/api/v1/projects/1/cases/1", json={"priority": "high", "status": "ready",
                                                           "description": "d"}, headers=auth())
     assert ok.status_code == 200 and ok.json()["priority"] == "high"
@@ -90,3 +91,12 @@ def test_origin_filter_and_search_in_gherkin(client, auth, member):
     assert [c["title"] for c in client.get(f"{cases}?origin=imported", headers=auth()).json()["items"]] == ["one"]
     assert [c["title"] for c in client.get(f"{cases}?origin=manual", headers=auth()).json()["items"]] == ["manual"]
     assert [c["title"] for c in client.get(f"{cases}?search=given%20x", headers=auth()).json()["items"]] == ["one"]
+
+
+def test_gherkin_on_a_manual_case_is_ignored_on_patch_and_refused_on_create(client, auth, member):
+    cases = "/api/v1/projects/1/cases"
+    assert client.post(cases, json={"title": "manual", "gherkin": "Scenario: x"}, headers=auth()).status_code == 422
+    client.post(cases, json={"title": "manual"}, headers=auth())
+    r = client.patch(f"{cases}/1", json={"gherkin": "Scenario: x"}, headers=auth())
+    assert r.status_code == 200 and r.json()["gherkin"] is None
+    assert client.get(f"{cases}/1", headers=auth()).json()["gherkin"] is None
