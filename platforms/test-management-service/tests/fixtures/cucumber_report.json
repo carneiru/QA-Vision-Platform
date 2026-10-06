@@ -1,0 +1,20 @@
+[
+  {
+    "uri": "tests/features/checkout.feature",
+    "id": "checkout",
+    "keyword": "Feature",
+    "name": "Checkout",
+    "elements": [
+      {"type": "background", "keyword": "Background", "name": "", "steps": [
+        {"keyword": "Given ", "name": "a signed-in shopper", "result": {"status": "passed", "duration": 1}}]},
+      {"type": "scenario", "keyword": "Scenario", "name": "Pay by card", "steps": [
+        {"keyword": "When ", "name": "I pay with a stored card", "result": {"status": "passed", "duration": 1}}]},
+      {"type": "scenario", "keyword": "Scenario Outline", "name": "Apply SAVE10", "steps": [
+        {"keyword": "When ", "name": "I apply \"SAVE10\"", "result": {"status": "passed", "duration": 1}}]},
+      {"type": "scenario", "keyword": "Scenario Outline", "name": "Apply SAVE20", "steps": [
+        {"keyword": "When ", "name": "I apply \"SAVE20\"", "result": {"status": "passed", "duration": 1}}]},
+      {"type": "scenario", "keyword": "Scenario", "name": "Tag edge cases", "steps": [
+        {"keyword": "Given ", "name": "nothing", "result": {"status": "passed", "duration": 1}}]}
+    ]
+  }
+]
