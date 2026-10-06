@@ -72,7 +72,8 @@ const ancestorsOf = (path: string): string[] => {
 
 export default function FolderTree({ folders, total, selected, onSelect, filter = "", toggle: canClear = true, onLeaveTop }: {
   folders: FolderCount[];
-  total: number;
+  /** Active cases in all; the count is left out until it is known. */
+  total?: number;
   selected: string;
   onSelect: (path: string) => void;
   /** Show only folders whose name contains this text, with their ancestors, all expanded. */
@@ -162,7 +163,7 @@ export default function FolderTree({ folders, total, selected, onSelect, filter 
     }
   };
 
-  const renderItem = (path: string, name: string, count: number, level: number, children: FolderNode[]) => {
+  const renderItem = (path: string, name: string, count: number | undefined, level: number, children: FolderNode[]) => {
     const hasChildren = children.length > 0;
     const isOpen = isOpenRow(path);
     return (
@@ -171,7 +172,7 @@ export default function FolderTree({ folders, total, selected, onSelect, filter 
         role="treeitem"
         data-path={path}
         aria-level={level}
-        aria-label={`${name} ${count}`}
+        aria-label={count === undefined ? name : `${name} ${count}`}
         aria-selected={selected === path}
         aria-expanded={hasChildren ? isOpen : undefined}
         tabIndex={tabbable === path ? 0 : -1}
@@ -179,7 +180,7 @@ export default function FolderTree({ folders, total, selected, onSelect, filter 
         onClick={(e) => { e.stopPropagation(); choose(path); }}
       >
         <div className="folder-row" style={{ paddingLeft: `calc(var(--space-2) + ${level - 1} * var(--space-4))` }}>
-          {hasChildren ? (
+          {hasChildren && !searching ? (
             <span
               className="folder-chevron"
               aria-hidden="true"
@@ -188,7 +189,7 @@ export default function FolderTree({ folders, total, selected, onSelect, filter 
             />
           ) : <span className="folder-chevron-space" aria-hidden="true" />}
           <span className="folder-name">{path ? highlight(name, filter) : name}</span>
-          <span className="folder-count">{count}</span>
+          {count !== undefined && <span className="folder-count">{count}</span>}
         </div>
         {hasChildren && isOpen && (
           <ul role="group">{children.map((c) => renderItem(c.path, c.name, c.count, level + 1, c.children))}</ul>

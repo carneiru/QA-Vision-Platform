@@ -110,3 +110,29 @@ test("keyboard: down from the search enters the tree, Enter picks, up from the f
   expect(onChange).toHaveBeenLastCalledWith("tests/features");
   expect(trigger).toHaveFocus();
 });
+
+test("the popup is a dialog named by the label, and Tab closes it with focus on the trigger", async () => {
+  const user = userEvent.setup();
+  const { trigger } = setup();
+  expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+  await user.click(trigger);
+  const dialog = screen.getByRole("dialog", { name: "Folder" });
+  expect(trigger).toHaveAttribute("aria-controls", dialog.id);
+  await user.tab();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+  await user.click(trigger);
+  await user.tab({ shift: true });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+});
+
+test("the All cases count is left out until the total is known; chevrons hide while searching", async () => {
+  const user = userEvent.setup();
+  render(<FolderSelect folders={folders} value="" onChange={() => {}} />);
+  await user.click(screen.getByRole("button", { name: /^folder/i }));
+  expect(screen.getByRole("treeitem", { name: "All cases" })).toBeInTheDocument();
+  expect(document.querySelector(".folder-chevron")).not.toBeNull();
+  await user.type(screen.getByRole("searchbox", { name: "Search folders" }), "hotels");
+  expect(document.querySelector(".folder-chevron")).toBeNull();
+});

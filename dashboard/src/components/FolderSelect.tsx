@@ -4,7 +4,7 @@ import FolderTree, { FolderCount, buildTree, countFolders, displayPath, filterTr
 interface Props {
   label?: string;
   folders: FolderCount[];
-  total: number;
+  total?: number;
   value: string;
   onChange: (path: string) => void;
 }
@@ -14,6 +14,7 @@ export default function FolderSelect({ label = "Folder", folders, total, value, 
   const uid = useId();
   const labelId = `${uid}-label`;
   const triggerId = `${uid}-trigger`;
+  const popupId = `${uid}-popup`;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const fieldRef = useRef<HTMLDivElement>(null);
@@ -40,7 +41,7 @@ export default function FolderSelect({ label = "Folder", folders, total, value, 
 
   const onPopupKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") { e.preventDefault(); close(); }
-    else if (e.key === "Tab") reset();
+    else if (e.key === "Tab") { e.preventDefault(); close(); }
   };
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -59,7 +60,8 @@ export default function FolderSelect({ label = "Folder", folders, total, value, 
           ref={triggerRef}
           id={triggerId}
           className="combo-trigger"
-          aria-haspopup="tree"
+          aria-haspopup="dialog"
+          aria-controls={open ? popupId : undefined}
           aria-expanded={open}
           aria-labelledby={`${labelId} ${triggerId}`}
           onClick={() => (open ? close() : setOpen(true))}
@@ -71,7 +73,7 @@ export default function FolderSelect({ label = "Folder", folders, total, value, 
         )}
       </div>
       {open && (
-        <div className="combo-popup folder-popup" onKeyDown={onPopupKeyDown}>
+        <div className="combo-popup folder-popup" id={popupId} role="dialog" aria-labelledby={labelId} onKeyDown={onPopupKeyDown}>
           <input
             ref={searchRef}
             type="search"
