@@ -10,7 +10,7 @@ import MaskingCard from "../components/MaskingCard";
 import NotificationsCard from "../components/NotificationsCard";
 import RepositoriesCard from "../components/RepositoriesCard";
 
-const COLLECTOR_REF = "collector-v0.2.0";
+const COLLECTOR_REF = "collector-v0.3.0";
 
 // Mirrors EDIT_ROLES in platforms/project-service/src/project/api/deps.py
 const EDIT_ROLES = ["owner", "admin", "member"];
@@ -42,6 +42,15 @@ function ciSnippets(origin: string): Record<string, { label: string; code: strin
     url: ${origin}
     patterns: "reports/**/*.xml"
   env:
+    QAV_API_KEY: \${{ secrets.QAV_API_KEY }}
+
+# syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+- name: Sync test cases from .feature files   # runs on master only (QAV_IMPORT_BRANCH to change)
+  run: |
+    pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+    qav-collector import-features "tests/features/**/*.feature"
+  env:
+    QAV_URL: ${origin}
     QAV_API_KEY: \${{ secrets.QAV_API_KEY }}`,
     },
     gitlab: {
@@ -53,7 +62,16 @@ include:
 qav-collector-upload:
   variables:
     QAV_URL: ${origin}
-    QAV_PATTERNS: "reports/**/*.xml"`,
+    QAV_PATTERNS: "reports/**/*.xml"
+
+# syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+qav-import-features:
+  image: python:3.12
+  script:
+    - pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+    - qav-collector import-features "tests/features/**/*.feature"
+  variables:
+    QAV_URL: ${origin}   # QAV_API_KEY comes from the masked CI/CD variable`,
     },
     azure: {
       label: "Azure Pipelines",
@@ -66,7 +84,16 @@ qav-collector-upload:
   continueOnError: true    # a failed upload does not fail the pipeline
   env:
     QAV_URL: ${origin}
-    QAV_API_KEY: $(QAV_API_KEY)   # secret variables reach scripts only when mapped here`,
+    QAV_API_KEY: $(QAV_API_KEY)   # secret variables reach scripts only when mapped here
+
+# syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+- script: |
+    pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+    qav-collector import-features "tests/features/**/*.feature"
+  displayName: Sync test cases from .feature files
+  env:
+    QAV_URL: ${origin}
+    QAV_API_KEY: $(QAV_API_KEY)`,
     },
     jenkins: {
       label: "Jenkins",
@@ -74,6 +101,11 @@ qav-collector-upload:
 withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
   withEnv(['QAV_URL=${origin}']) {
     qavCollectorUpload(patterns: 'reports/**/*.xml')
+    # syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+    sh '''
+      pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
+      qav-collector import-features "tests/features/**/*.feature"
+    '''
   }
 }`,
     },
@@ -83,9 +115,13 @@ withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')])
         ? `pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
 # The local stack uses a self-signed certificate; from the QA-Vision-Platform folder:
 docker compose cp gateway:/etc/nginx/certs/tls.crt qav-ca.crt
-QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml" --ca-file qav-ca.crt`
+QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml" --ca-file qav-ca.crt
+# syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector import-features "tests/features/**/*.feature" --ca-file qav-ca.crt`
         : `pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
-QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml"`,
+QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector upload "reports/**/*.xml"
+# syncs test cases from .feature files; runs on master only (set QAV_IMPORT_BRANCH to change)
+QAV_URL=${origin} QAV_API_KEY=<your key> qav-collector import-features "tests/features/**/*.feature"`,
     },
   };
 }

@@ -120,7 +120,7 @@ test("hosted CI runners on localhost get a warning, not a silent snippet", async
   await screen.findByText(/no api keys/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "github");
-  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("collector-action@collector-v0.2.0");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("collector-action@collector-v0.3.0");
   expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "gitlab");
@@ -149,4 +149,17 @@ test.each([
   ["https://localhost.example.com", false],
 ])("isLocalOrigin(%s) is %s", (origin, expected) => {
   expect(isLocalOrigin(origin)).toBe(expected);
+});
+
+test("every CI snippet syncs test cases from .feature files with the pinned collector", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage();
+  await screen.findByText(/no api keys/i);
+
+  for (const platform of ["github", "gitlab", "azure", "jenkins", "cli"]) {
+    await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), platform);
+    const snippet = screen.getByTestId("ci-snippet");
+    expect(snippet).toHaveTextContent("import-features");
+    expect(snippet).toHaveTextContent("collector-v0.3.0");
+  }
 });

@@ -91,7 +91,8 @@ export default function CaseImportPage() {
     },
   });
   const apply = useMutation({
-    mutationFn: (hash: string) => importCases(id, request(), { dryRun: false, full, expectedPlanHash: hash }),
+    mutationFn: ({ hash, allow }: { hash: string; allow: boolean }) =>
+      importCases(id, request(), { dryRun: false, full, expectedPlanHash: hash, allowMassArchive: allow }),
     onSuccess: (data) => {
       setResult(data);
       setPreview(null);
@@ -132,7 +133,8 @@ export default function CaseImportPage() {
   const archived = preview?.summary.archived ?? 0;
   // Imported cases that are live today: every one of them is in a full plan as unchanged, updated, moved or archived
   const live = preview ? archived + preview.summary.unchanged + preview.summary.updated + preview.summary.moved : 0;
-  const massArchive = live > 0 && archived * 2 > live;
+  // The server decides (same rule it enforces on apply); the page only shows it
+  const massArchive = preview?.summary.mass_archive ?? false;
   const rows = preview?.items.filter((i) => (filter ? i.action === filter : i.action !== "unchanged")) ?? [];
   const planChanged = apply.error instanceof ApiError && apply.error.code === "plan_changed";
   const error = previewIt.error ?? (planChanged ? null : apply.error);
@@ -339,7 +341,7 @@ export default function CaseImportPage() {
               type="button"
               className="primary"
               disabled={count === 0 || apply.isPending || previewIt.isPending}
-              onClick={() => apply.mutate(preview.plan_hash)}
+              onClick={() => apply.mutate({ hash: preview.plan_hash, allow: massArchive })}
             >
               {apply.isPending ? "Importing…" : `Import ${count} changes${archived > 0 ? ` (archives ${archived})` : ""}`}
             </button>

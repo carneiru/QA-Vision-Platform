@@ -137,7 +137,7 @@ export interface ImportIssue { path: string; line: number | null; message: strin
 export interface ImportItem { action: ImportAction; path: string; scenario: string | null; case_number: number | null }
 export interface ImportResult {
   plan_hash: string;
-  summary: Record<"created" | "updated" | "moved" | "reactivated" | "archived" | "unchanged" | "skipped", number>;
+  summary: Record<"created" | "updated" | "moved" | "reactivated" | "archived" | "unchanged" | "skipped", number> & { mass_archive?: boolean };
   items: ImportItem[];
   errors: ImportIssue[];
   warnings: ImportIssue[];
@@ -148,8 +148,10 @@ export interface ImportFile { path: string; content: string }
 export function importCases(
   projectId: number,
   files: ImportFile[],
-  opts: { dryRun: boolean; full?: boolean; expectedPlanHash?: string },
+  opts: { dryRun: boolean; full?: boolean; expectedPlanHash?: string; allowMassArchive?: boolean },
 ): Promise<ImportResult> {
-  const body = { files, full: opts.full ?? false, ...(opts.expectedPlanHash ? { expected_plan_hash: opts.expectedPlanHash } : {}) };
+  const body = { files, full: opts.full ?? false, ...(opts.expectedPlanHash ? { expected_plan_hash: opts.expectedPlanHash } : {}),
+    ...(opts.allowMassArchive ? { allow_mass_archive: true } : {}),
+  };
   return apiFetch(`${base(projectId)}/cases/import?dry_run=${opts.dryRun}`, { method: "POST", body: JSON.stringify(body) });
 }
