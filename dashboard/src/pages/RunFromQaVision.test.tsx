@@ -225,9 +225,11 @@ test("Configure in Settings links to the project's settings", async () => {
 
 test("while the run is starting, Cancel is disabled and Escape does nothing", async () => {
   let posts = 0;
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
   server.use(
     http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
-    http.post(`${P}/run-requests`, async () => { posts += 1; await delay(500); return HttpResponse.json(runRequest(), { status: 201 }); }),
+    http.post(`${P}/run-requests`, async () => { posts += 1; await held; return HttpResponse.json(runRequest(), { status: 201 }); }),
   );
   renderAt("/projects/42/cases/1");
   await userEvent.click(await screen.findByRole("button", { name: "Run" }));
@@ -237,6 +239,8 @@ test("while the run is starting, Cancel is disabled and Escape does nothing", as
   expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
   await userEvent.keyboard("{Escape}");
   expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(posts).toBe(1);
+  release();
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(posts).toBe(1);
 });
@@ -253,8 +257,10 @@ test("a 409 run_active closes the dialog, says why and turns Play off", async ()
   renderAt("/projects/42/cases/1");
   await userEvent.click(await screen.findByRole("button", { name: "Run" }));
   await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("A run is in progress");
+  // the server's message and the gate's reason are the same text: shown once, never twice
+  expect(await screen.findByText("A run is in progress")).toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeDisabled());
+  expect(screen.getAllByText("A run is in progress")).toHaveLength(1);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
@@ -322,4 +328,40 @@ test("the selection survives a filter that shows no rows, and stays visible", as
   expect(await screen.findByText("No test cases match these filters.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Run selected (1)" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Clear selection" })).toBeInTheDocument();
+});
+
+test("when the new run turns Play off during the start, focus still lands on the control", async () => {
+  server.use(
+    http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
+    http.post(`${P}/run-requests`, () => {
+      server.use(http.get(`${P}/run-requests`, () => HttpResponse.json({ total: 1, items: [runRequest({ status: "queued" })] })));
+      return HttpResponse.json(runRequest(), { status: 201 });
+    }),
+  );
+  renderAt("/projects/42/cases/1");
+  await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeDisabled());
+  const box = screen.getByRole("button", { name: "Run" }).closest(".run-control");
+  expect(document.activeElement).toBe(box);
+});
+
+test("with no rows left on the page, a started selection still leaves focus on the page's heading", async () => {
+  server.use(
+    http.get(`${P}/cases`, ({ request }) => {
+      const sp = new URL(request.url).searchParams;
+      return HttpResponse.json(sp.get("search") ? { total: 0, items: [] } : { total: 1, items: [kase(1)] });
+    }),
+    http.post(`${P}/run-requests`, () => HttpResponse.json(runRequest(), { status: 201 })),
+  );
+  renderAt("/projects/42/cases");
+  await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  await userEvent.type(screen.getByRole("searchbox", { name: "Search" }), "zzz");
+  await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+  await screen.findByText("No test cases match these filters.");
+  await userEvent.click(screen.getByRole("button", { name: "Run selected (1)" }));
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: /Run selected/ })).not.toBeInTheDocument());
+  expect(screen.getByRole("heading", { name: "Test cases" })).toHaveFocus();
 });

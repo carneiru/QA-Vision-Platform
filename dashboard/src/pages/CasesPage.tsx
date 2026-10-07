@@ -44,6 +44,7 @@ export default function CasesPage() {
   const [form, setForm] = useState<Values>(applied);
   const [offset, setOffset] = useState(0);
   const tableRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
   const runnable = (c: Case) => c.source_path != null && c.status !== "archived";
   function toggle(c: Case) {
@@ -157,7 +158,7 @@ export default function CasesPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Test cases</h2>
+      <h2 ref={headingRef} tabIndex={-1} className="sr-only">Test cases</h2>
       <div className="view-tabs">
         <span aria-current="page">Cases</span>
         <Link to="../suites" relative="path">Suites</Link>
@@ -212,7 +213,7 @@ export default function CasesPage() {
         <div className="run-selection" role="region" aria-label="Selected cases">
           <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
             selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
-            onStarted={() => { setPicked(new Map()); tableRef.current?.focus(); }} />
+            onStarted={() => { setPicked(new Map()); (tableRef.current ?? headingRef.current)?.focus(); }} />
           <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
           {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
         </div>

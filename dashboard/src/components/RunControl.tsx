@@ -38,8 +38,8 @@ export default function RunControl({ projectId, cases, selection, label, onStart
   const start = useMutation({
     mutationFn: () => createRunRequest(projectId, selection),
     onSuccess: async () => {
+      restoreFocus.current = true; // before the refetch: it may turn the gate off and close the dialog under us
       await qc.invalidateQueries({ queryKey: ["run-requests", projectId] });
-      restoreFocus.current = true;
       setOpen(false);
       onStarted?.();
     },
@@ -65,6 +65,11 @@ export default function RunControl({ projectId, cases, selection, label, onStart
   useEffect(() => {
     if (gate && !gate.ok) setOpen(false);
   }, [gate]);
+
+  // A notice about a changed world never outlives it: it goes when Play works again
+  useEffect(() => {
+    if (gate?.ok) setNotice(null);
+  }, [gate?.ok]);
 
   // After a start the dialog's Cancel button is gone: hand focus to Play, or to the control itself when Play is now off
   useEffect(() => {
@@ -101,7 +106,7 @@ export default function RunControl({ projectId, cases, selection, label, onStart
         </span>
       )}
       {gate?.ok && n === 0 && emptyReason && <span className="run-reason">{emptyReason}</span>}
-      {notice != null && <span className="error-banner" role="alert">{notice}</span>}
+      {notice != null && !(gate && !gate.ok && gate.reason === notice) && <span className="error-banner" role="alert">{notice}</span>}
       {open && gate?.ok && (
         <div className="card run-confirm" role="dialog" aria-labelledby={`${ids}-title`}
           onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
