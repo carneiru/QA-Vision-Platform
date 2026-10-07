@@ -17,7 +17,7 @@ redis==5.0.1
 PyJWT==2.8.0
 cryptography==42.0.0
 python3-saml
-Authlib==1.2.1
+Authlib==1.8.0
 requests==2.31.0
 # Test dependencies (the suite could not run without these; matches organization-service)
 pytest==8.1.1
