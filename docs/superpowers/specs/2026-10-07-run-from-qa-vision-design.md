@@ -131,7 +131,7 @@ role lookup.
 - It inserts the row as `queued`, then calls
   `POST /repos/{repo}/actions/workflows/{workflow}/dispatches` with
   `{ref, inputs: {paths, names, request_id}}`:
-  - `paths`: the space-separated, deduplicated files;
+  - `paths`: a JSON array of the deduplicated files (file names can contain spaces);
   - `names`: a JSON array of scenario names;
   - `request_id`: the row id.
 - If the dispatch fails, the row becomes `failed_to_start` with the error.
@@ -251,7 +251,9 @@ QA Vision delivers this file as a patch, and the user applies it, because the re
 - **Steps:** checkout, then `./.github/actions/setup-test-env`, then a Node script.
 - **The Node script:**
   - receives the inputs only through environment variables, never through `${{ }}` inside `run:`;
-  - validates each path against `^tests/features/[\w./ -]+\.feature$` and rejects `..`;
+  - validates each path: it starts with `tests/features/`, ends with `.feature`, holds no control
+    character and none of `\ : * ? " < > |`, and has no `..` segment. Spaces and `+` are allowed,
+    because OBT file names use them and no shell ever sees the paths;
   - parses `names` as a JSON array of strings;
   - escapes each name for a regular expression, then turns each escaped `<placeholder>` into `.*`;
   - runs `npx cucumber-js <paths> --name "^<name>$" … --profile ci --parallel 1 --retry 0` through
