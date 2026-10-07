@@ -3,13 +3,15 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Bot, FileCode, Plus, Upload } from "lucide-react";
 import {
-  CaseStatus, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
+  Case, CaseStatus, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
 } from "../api/cases";
 import { getLatestKeys, getRunStrip } from "../api/analytics";
+import { MAX_RUN_CASES } from "../api/runRequests";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
 import FolderSelect from "../components/FolderSelect";
+import RunControl from "../components/RunControl";
 import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
 import { useCanEdit } from "../lib/useCanEdit";
 
@@ -41,6 +43,26 @@ export default function CasesPage() {
   const applied = read(params);
   const [form, setForm] = useState<Values>(applied);
   const [offset, setOffset] = useState(0);
+  const [picked, setPicked] = useState<Map<number, string>>(new Map());
+  const runnable = (c: Case) => c.source_path != null && c.status !== "archived";
+  function toggle(c: Case) {
+    setPicked((now) => {
+      const next = new Map(now);
+      if (next.has(c.number)) next.delete(c.number);
+      else if (next.size < MAX_RUN_CASES) next.set(c.number, c.title);
+      return next;
+    });
+  }
+  function toggleAll(on: boolean, rows: Case[]) {
+    setPicked((now) => {
+      const next = new Map(now);
+      for (const c of rows) {
+        if (!on) next.delete(c.number);
+        else if (next.size < MAX_RUN_CASES) next.set(c.number, c.title);
+      }
+      return next;
+    });
+  }
   const search = params.toString();
   useEffect(() => {
     setForm(read(new URLSearchParams(search)));
@@ -129,6 +151,7 @@ export default function CasesPage() {
     enabled: stripKeys.length > 0,
     staleTime: 60_000,
   });
+  const pageRunnable = (data?.items ?? []).filter(runnable);
   const filtered = KEYS.some((k) => applied[k] !== "");
 
   return (
@@ -199,6 +222,15 @@ export default function CasesPage() {
       )}
       {data && data.items.length > 0 && (
         <>
+        {canEdit && picked.size > 0 && (
+          <div className="run-selection" role="region" aria-label="Selected cases">
+            <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
+              selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
+              onStarted={() => setPicked(new Map())} />
+            <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
+            {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
+          </div>
+        )}
         {stripKeys.length > 0 && (
         <ul className="run-legend hide-narrow" aria-label="Last runs legend">
           {LEGEND.map(([kind, text]) => (
@@ -210,6 +242,13 @@ export default function CasesPage() {
           <table className="data">
             <thead>
               <tr>
+                {canEdit && (
+                  <th className="select-col">
+                    <input type="checkbox" aria-label="Select all imported cases on this page" disabled={pageRunnable.length === 0}
+                      checked={pageRunnable.length > 0 && pageRunnable.every((c) => picked.has(c.number))}
+                      onChange={(e) => toggleAll(e.target.checked, pageRunnable)} />
+                  </th>
+                )}
                 <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow">Priority</th><th>Status</th>
                 <th className="hide-narrow">Automated</th>
               </tr>
@@ -217,6 +256,14 @@ export default function CasesPage() {
             <tbody>
               {data.items.map((c) => (
                 <tr key={c.number}>
+                  {canEdit && (
+                    <td className="select-col">
+                      {runnable(c) && (
+                        <input type="checkbox" aria-label={`Select ${c.key} ${c.title}`} checked={picked.has(c.number)}
+                          disabled={!picked.has(c.number) && picked.size >= MAX_RUN_CASES} onChange={() => toggle(c)} />
+                      )}
+                    </td>
+                  )}
                   <td className="wrap-anywhere">
                     {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
                     <Link to={`${c.number}`}>{c.title}</Link>

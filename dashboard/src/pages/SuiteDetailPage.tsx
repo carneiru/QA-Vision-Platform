@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SuiteCase, deleteSuite, getSuite, listCases, setSuiteCases, updateSuite } from "../api/cases";
 import ConfirmButton from "../components/ConfirmButton";
+import RunControl from "../components/RunControl";
 import ErrorBanner from "../components/ErrorBanner";
 import { useCanEdit } from "../lib/useCanEdit";
 
@@ -72,6 +73,8 @@ export default function SuiteDetailPage() {
       </p>
       <h2>{suite.data.name}</h2>
       {suite.data.description && <p className="muted">{suite.data.description}</p>}
+      <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title }))}
+        selection={{ suite_id: sid }} label="Run suite" />
 
       <section className="card" aria-labelledby="suite-cases">
         <h3 id="suite-cases">Cases, in order <span className="muted">({cases.length})</span></h3>
