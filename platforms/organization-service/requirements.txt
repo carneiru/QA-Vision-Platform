@@ -9,7 +9,7 @@ PyJWT==2.15.1
 python-dotenv==1.2.4
 httpx==0.28.1
 respx==0.23.1
-pytest==8.1.1
+pytest==9.1.1
 # Relative path, resolved from this file's directory. The Dockerfile mirrors the repo
 # layout so this same path resolves inside the image.
 -e ../../shared
