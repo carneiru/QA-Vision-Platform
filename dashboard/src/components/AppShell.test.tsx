@@ -79,3 +79,59 @@ test("the narrow-screen drawer opens from the menu button and Escape closes it, 
   expect(menu).toHaveAttribute("aria-expanded", "false");
   expect(menu).toHaveFocus();
 });
+
+function mockNarrow(matches: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches, media: query, onchange: null,
+    addEventListener: () => {}, removeEventListener: () => {},
+    addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
+describe("narrow drawer accessibility", () => {
+  afterEach(() => {
+    // @ts-expect-error restore jsdom default (no matchMedia)
+    delete window.matchMedia;
+  });
+
+  test("a closed drawer is inert and hidden from assistive tech on narrow screens", async () => {
+    mockNarrow(true);
+    renderAt("/projects/42/runs");
+    const sidebar = document.getElementById("sidebar")!;
+    expect(sidebar).toHaveAttribute("inert");
+    expect(sidebar).toHaveAttribute("aria-hidden", "true");
+    await userEvent.click(screen.getByRole("button", { name: /open navigation/i }));
+    expect(sidebar).not.toHaveAttribute("inert");
+    expect(sidebar).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("the sidebar stays available on wide screens", () => {
+    mockNarrow(false);
+    renderAt("/");
+    const sidebar = document.getElementById("sidebar")!;
+    expect(sidebar).not.toHaveAttribute("inert");
+    expect(sidebar).not.toHaveAttribute("aria-hidden");
+  });
+
+  test("an open drawer is a modal: focus moves to the first link, Tab wraps, Escape returns focus", async () => {
+    mockNarrow(true);
+    renderAt("/projects/42/runs");
+    const menu = screen.getByRole("button", { name: /open navigation/i });
+    await userEvent.click(menu);
+    const sidebar = document.getElementById("sidebar")!;
+    expect(sidebar).toHaveAttribute("aria-modal", "true");
+    expect(sidebar).toHaveAttribute("role", "dialog");
+    const links = sidebar.querySelectorAll<HTMLElement>("a");
+    expect(links[0]).toHaveFocus();
+    // Tab from the last focusable control wraps to the first, Shift+Tab from the first wraps to the last
+    const focusables = Array.from(sidebar.querySelectorAll<HTMLElement>("a[href], button:not(:disabled), select"));
+    focusables[focusables.length - 1].focus();
+    await userEvent.tab();
+    expect(focusables[0]).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(focusables[focusables.length - 1]).toHaveFocus();
+    await userEvent.keyboard("{Escape}");
+    expect(menu).toHaveFocus();
+    expect(sidebar).toHaveAttribute("inert");
+  });
+});

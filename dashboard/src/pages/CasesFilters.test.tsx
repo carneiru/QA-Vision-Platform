@@ -1,0 +1,83 @@
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { http, HttpResponse } from "msw";
+import { server } from "../test/server";
+import { setAccessToken } from "../auth/tokens";
+import CasesPage from "./CasesPage";
+
+const P = "/api/v1/projects/42";
+
+function mockNarrow(matches: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches, media: query, onchange: null,
+    addEventListener: () => {}, removeEventListener: () => {},
+    addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
+beforeEach(() => {
+  server.use(
+    http.get(P, () => HttpResponse.json({ id: 42, organization_id: 1, name: "Web", my_role: "member" })),
+    http.get(`${P}/case-features`, () => HttpResponse.json([])),
+    http.get(`${P}/case-folders`, () => HttpResponse.json([])),
+    http.get(`${P}/case-labels`, () => HttpResponse.json([])),
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })),
+  );
+});
+afterEach(() => {
+  // @ts-expect-error restore jsdom default (no matchMedia)
+  delete window.matchMedia;
+});
+
+function renderCases(url = "/projects/42/cases") {
+  setAccessToken("acc");
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[url]}>
+        <Routes><Route path="/projects/:projectId/cases" element={<CasesPage />} /></Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const disclosure = () => screen.getByText(/^Filters/, { selector: "summary" }).closest("details")!;
+
+test("on a wide screen the filters are open; Search and Folder are outside the disclosure", async () => {
+  mockNarrow(false);
+  renderCases();
+  await screen.findByLabelText("Search");
+  expect(disclosure()).toHaveAttribute("open");
+  expect(disclosure()).toContainElement(screen.getByRole("combobox", { name: "Priority" }));
+  expect(disclosure()).not.toContainElement(screen.getByLabelText("Search"));
+  expect(disclosure()).not.toContainElement(screen.getByRole("button", { name: "Apply" }));
+});
+
+test("on a narrow screen the filters start closed, show how many are active, and the choice is remembered", async () => {
+  mockNarrow(true);
+  renderCases();
+  await screen.findByLabelText("Search");
+  expect(disclosure()).not.toHaveAttribute("open");
+  expect(screen.getByText("Filters", { selector: "summary" })).toBeInTheDocument();
+  await userEvent.click(screen.getByText("Filters", { selector: "summary" }));
+  expect(disclosure()).toHaveAttribute("open");
+  expect(sessionStorage.getItem("qeos.filters.cases")).toBe("open");
+});
+
+test("a narrow screen reopens the disclosure the reader left open", async () => {
+  mockNarrow(true);
+  sessionStorage.setItem("qeos.filters.cases", "open");
+  renderCases();
+  await screen.findByLabelText("Search");
+  expect(disclosure()).toHaveAttribute("open");
+});
+
+test("active filters are counted in the summary, and a narrow screen opens to show them", async () => {
+  mockNarrow(true);
+  renderCases("/projects/42/cases?priority=high&status=ready&q=login");
+  await screen.findByLabelText("Search");
+  expect(screen.getByText("Filters (2 active)", { selector: "summary" })).toBeInTheDocument();
+  expect(disclosure()).toHaveAttribute("open");
+});

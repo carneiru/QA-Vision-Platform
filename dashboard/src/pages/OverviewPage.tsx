@@ -7,6 +7,7 @@ import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/anal
 import { getFailureGroups, listRuns, Run } from "../api/runs";
 import { isNewCause } from "../components/FailureGroups";
 import ErrorBanner from "../components/ErrorBanner";
+import { SkeletonCard, SkeletonStatus } from "../components/Skeleton";
 import StatusDot from "../components/StatusDot";
 
 const MAX_CAUSES = 5;
@@ -66,7 +67,16 @@ export default function OverviewPage() {
   });
 
   if (runs.error != null) return <ErrorBanner error={runs.error} onRetry={() => runs.refetch()} />;
-  if (runs.isPending) return <p className="muted">Loading overview…</p>;
+  if (runs.isPending) {
+    return (
+      <SkeletonStatus label="Loading overview…" className="overview-grid">
+        <SkeletonCard className="wide" height={96} />
+        <SkeletonCard height={120} />
+        <SkeletonCard height={120} />
+        <SkeletonCard height={120} />
+      </SkeletonStatus>
+    );
+  }
 
   if (!latest) {
     return (
@@ -163,7 +173,8 @@ export default function OverviewPage() {
 
       <section className="card" aria-labelledby="pass-rate">
         <h2 id="pass-rate">Pass rate this week</h2>
-        {weeks.isPending && <p className="muted">Loading…</p>}
+        {weeks.isPending && <SkeletonStatus label="Loading pass rate…"><span className="skeleton stat-skeleton" aria-hidden="true" /></SkeletonStatus>}
+        {weeks.error != null && <ErrorBanner error={weeks.error} onRetry={() => weeks.refetch()} />}
         {thisWeek && (
           <>
             <div className="stat-big">{formatPassRate(thisWeek.pass_rate)}</div>
@@ -183,7 +194,8 @@ export default function OverviewPage() {
 
       <section className="card" aria-labelledby="flaky-count">
         <h2 id="flaky-count">Flaky tests, last 14 days</h2>
-        {flaky.isPending && <p className="muted">Loading…</p>}
+        {flaky.isPending && <SkeletonStatus label="Loading flaky tests…"><span className="skeleton stat-skeleton" aria-hidden="true" /></SkeletonStatus>}
+        {flaky.error != null && <ErrorBanner error={flaky.error} onRetry={() => flaky.refetch()} />}
         {flaky.data && (
           <>
             <div className="stat-big">{confirmed + suspected}</div>

@@ -1,4 +1,4 @@
-import { loginPath, safeNext } from "./redirect";
+import { loginPath, rememberAfterVerify, safeNext, takeAfterVerify, withNext } from "./redirect";
 
 describe("safeNext accepts only same-origin relative paths", () => {
   test.each([
@@ -41,5 +41,37 @@ describe("loginPath", () => {
   test("the front page is not worth remembering", () => {
     expect(loginPath({ pathname: "/", search: "", hash: "" })).toBe("/login");
     expect(loginPath({ pathname: "/", search: "", hash: "" }, "expired")).toBe("/login?reason=expired");
+  });
+});
+
+describe("carrying next through registration and verification", () => {
+  beforeEach(() => localStorage.clear());
+
+  test("withNext adds a safe next and drops an unsafe or root one", () => {
+    expect(withNext("/register", "/invitations/abc")).toBe("/register?next=%2Finvitations%2Fabc");
+    expect(withNext("/register", "//evil.example")).toBe("/register");
+    expect(withNext("/register", "/")).toBe("/register");
+    expect(withNext("/register", null)).toBe("/register");
+  });
+
+  test("a remembered page is returned once", () => {
+    rememberAfterVerify("/invitations/abc");
+    expect(takeAfterVerify()).toBe("/invitations/abc");
+    expect(takeAfterVerify()).toBeNull();
+  });
+
+  test("remembering an unsafe page forgets the previous one", () => {
+    rememberAfterVerify("/invitations/abc");
+    rememberAfterVerify("https://evil.example");
+    expect(takeAfterVerify()).toBeNull();
+  });
+
+  test("storage is validated again on the way out, and expires", () => {
+    localStorage.setItem("qeos.afterVerify", JSON.stringify({ next: "//evil.example", at: Date.now() }));
+    expect(takeAfterVerify()).toBeNull();
+    localStorage.setItem("qeos.afterVerify", JSON.stringify({ next: "/invitations/abc", at: Date.now() - 25 * 3600 * 1000 }));
+    expect(takeAfterVerify()).toBeNull();
+    localStorage.setItem("qeos.afterVerify", "not json");
+    expect(takeAfterVerify()).toBeNull();
   });
 });

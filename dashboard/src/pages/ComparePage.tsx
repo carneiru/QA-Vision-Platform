@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CompareItem, RunOverview, compareRuns } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import NarrowMeta from "../components/NarrowMeta";
 import StatusDot from "../components/StatusDot";
 
 const MAX_LISTED = 200;
@@ -63,6 +64,7 @@ function Section({ projectId, kind, items, total }: {
               <td className="wrap-anywhere">
                 <Link to={`/projects/${projectId}/tests/${encodeURIComponent(t.test_key)}`}>{t.name}</Link>
                 <div className="muted">{t.suite} / {t.class_name}</div>
+                {!slower && <NarrowMeta items={[{ label: "Message", value: t.message ?? "—" }]} />}
               </td>
               {slower ? (
                 <>

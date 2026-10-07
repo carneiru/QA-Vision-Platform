@@ -6,6 +6,7 @@ import { changePassword, mfaConfirm, mfaDisable, mfaEnroll } from "../api/auth";
 import { downloadCsv } from "../lib/csv";
 import ErrorBanner from "../components/ErrorBanner";
 import NewPasswordFields from "../components/NewPasswordFields";
+import SecretBlock from "../components/SecretBlock";
 
 type Step = "idle" | "enrolling" | "enrolled" | "disabling";
 
@@ -209,13 +210,17 @@ export default function SecurityPage() {
               only once — store them somewhere safe. Each works a single time
               if you lose the authenticator.
             </p>
-            <ul>
-              {recovery.map((c) => (
-                <li key={c}>
-                  <code>{c}</code>
-                </li>
-              ))}
-            </ul>
+            <SecretBlock label="Recovery codes" value={recovery.join("\n")} copyLabel="Copy recovery codes" copyText="Copy codes"
+              note="Copy them now: this list cannot be shown again."
+              display={(
+                <ul>
+                  {recovery.map((c) => (
+                    <li key={c}>
+                      <code>{c}</code>
+                    </li>
+                  ))}
+                </ul>
+              )} />
             <button onClick={() => downloadCsv("qeos-recovery-codes.txt", recovery.join("\n"))}>
               Download codes
             </button>

@@ -43,7 +43,7 @@ test("fetches with the encoded key and renders executions", async () => {
   );
   renderHistory();
   expect(await screen.findByText("test_ok")).toBeInTheDocument();
-  expect(screen.getByText("abcdef1")).toBeInTheDocument(); // short SHA
+  expect(screen.getAllByText("abcdef1").length).toBeGreaterThan(0); // short SHA (column + narrow line)
   expect(hit).toBe(true);
 });
 
@@ -58,4 +58,17 @@ test("message is truncated and expandable", async () => {
   expect(screen.queryByText(/very long trace/)).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /show full message/i }));
   expect(screen.getByText(/very long trace/)).toBeInTheDocument();
+});
+
+test("commit, environment, duration and the message's first line are in the Run cell for phones", async () => {
+  server.use(
+    http.get(`/api/v1/projects/42/analytics/tests/${encodeURIComponent(KEY)}/history`, () => HttpResponse.json(history)),
+  );
+  renderHistory();
+  const meta = (await screen.findByRole("link", { name: "#9" })).closest("td")!.querySelector(".narrow-meta")!;
+  expect(meta).toHaveTextContent("Commit abcdef1");
+  expect(meta).toHaveTextContent("Environment ci");
+  expect(meta).toHaveTextContent("Duration");
+  expect(meta).toHaveTextContent("Message AssertionError: expected 200 got 500");
+  expect(meta).not.toHaveTextContent("very long trace");
 });

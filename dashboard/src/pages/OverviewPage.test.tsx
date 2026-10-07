@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
 import OverviewPage from "./OverviewPage";
@@ -138,4 +139,37 @@ test("a run failing only in quarantine reads as passed, saying so", async () => 
   expect(await screen.findByText(/passed · 1 quarantined/i)).toBeInTheDocument();
   expect(screen.queryByText("Failed")).not.toBeInTheDocument();
   expect(screen.getByText(/in quarantine/i)).toBeInTheDocument();
+});
+
+test("while the latest run loads, card-shaped placeholders hold the space", async () => {
+  mockProject();
+  server.use(http.get("/api/v1/projects/42/runs", async () => { await delay(100); return HttpResponse.json([RUN]); }));
+  renderPage();
+  const status = screen.getByRole("status", { name: /loading overview/i });
+  expect(status.querySelectorAll(".skeleton-card").length).toBeGreaterThanOrEqual(4);
+  expect(status.querySelector("[aria-hidden=true]")).not.toBeNull();
+  expect(await screen.findByText("Failed")).toBeInTheDocument();
+  expect(screen.queryByRole("status", { name: /loading overview/i })).not.toBeInTheDocument();
+});
+
+test("a card whose query fails shows the error with Retry, not a blank card", async () => {
+  mockProject();
+  let calls = 0;
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", () => {
+      calls += 1;
+      return calls === 1
+        ? HttpResponse.json({ detail: "Trends are down" }, { status: 500 })
+        : HttpResponse.json({ tz: "UTC", bucket: "week", days: [
+          { date: "2026-09-28", runs: 12, total: 288, passed: 276, failed: 12, errored: 0, skipped: 0, pass_rate: 0.958, avg_run_duration_ms: 1, max_run_duration_ms: 1 }] });
+    }),
+    http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json({ detail: "Flaky is down" }, { status: 500 })),
+  );
+  renderPage();
+  const passRate = (await screen.findByRole("heading", { name: /pass rate this week/i })).closest("section")!;
+  expect(await within(passRate).findByRole("alert")).toHaveTextContent("Trends are down");
+  const flakyCard = screen.getByRole("heading", { name: /flaky tests, last 14 days/i }).closest("section")!;
+  expect(await within(flakyCard).findByRole("alert")).toHaveTextContent("Flaky is down");
+  await userEvent.click(within(passRate).getByRole("button", { name: "Retry" }));
+  expect(await within(passRate).findByText("95.8%")).toBeInTheDocument();
 });

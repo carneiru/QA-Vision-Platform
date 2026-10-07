@@ -43,8 +43,8 @@ function renderFlaky() {
 test("renders confirmed and suspected rows with flip rate", async () => {
   server.use(http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json(flaky)));
   renderFlaky();
-  expect(await screen.findByText("Confirmed")).toBeInTheDocument();
-  expect(screen.getByText("Suspected")).toBeInTheDocument();
+  expect((await screen.findAllByText("Confirmed")).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Suspected").length).toBeGreaterThan(0);
   expect(screen.getByText("42.0%")).toBeInTheDocument();
 });
 
@@ -69,7 +69,7 @@ test("controls map to snake_case params; window select is immediate", async () =
 test("Export CSV downloads rows with joined commits", async () => {
   server.use(http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json(flaky)));
   renderFlaky();
-  await screen.findByText("Confirmed");
+  await screen.findAllByText("Confirmed");
   await userEvent.click(screen.getByRole("button", { name: /export csv/i }));
   await vi.waitFor(() => expect(downloadCsv).toHaveBeenCalled());
   const [filename, csv] = vi.mocked(downloadCsv).mock.calls[0];
@@ -258,4 +258,14 @@ test("two quick changes on different rows each keep their own pending state and 
   releases.k1();
   const alert = await screen.findByRole("alert");
   expect(alert.closest("tr")).toHaveTextContent("test_ok");
+});
+
+test("reason, flips, runs and commits are in the Test cell for phones", async () => {
+  server.use(http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json(flaky)));
+  renderFlaky();
+  const meta = (await screen.findByRole("link", { name: "test_ok" })).closest("td")!.querySelector(".narrow-meta")!;
+  expect(meta).toHaveTextContent("Reason Confirmed");
+  expect(meta).toHaveTextContent("Flips —");
+  expect(meta).toHaveTextContent("Runs 12");
+  expect(meta).toHaveTextContent("Commits abcdef1");
 });

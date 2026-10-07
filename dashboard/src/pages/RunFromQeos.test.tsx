@@ -412,3 +412,14 @@ test("select-all is indeterminate while only some of the page is selected", asyn
   expect(all.indeterminate).toBe(false);
   expect(all.checked).toBe(false);
 });
+
+test("selecting a row inserts nothing above the table: the bar follows it and cannot push rows down", async () => {
+  listing([kase(1), kase(2)]);
+  renderAt("/projects/42/cases");
+  const table = await screen.findByRole("region", { name: "Test cases" });
+  const before = (table.parentElement as HTMLElement).innerHTML.split(table.outerHTML)[0];
+  await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  const bar = screen.getByRole("region", { name: "Selected cases" });
+  expect(table.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect((table.parentElement as HTMLElement).innerHTML.split(table.outerHTML)[0]).toBe(before);
+});

@@ -217,3 +217,14 @@ test("send last week's summary on demand", async () => {
   expect(await screen.findByText(/summary to web delivered/i)).toBeInTheDocument();
   expect(message).toBe("weekly");
 });
+
+test("on phones the table becomes stacked rows: every cell carries its column name", async () => {
+  server.use(http.get(BASE, () => HttpResponse.json([channel()])));
+  renderCard();
+  const row = (await screen.findByText("hooks.slack.com/…abcd")).closest("tr")!;
+  expect(row.closest("table")).toHaveClass("stacked");
+  const labels = Array.from(row.querySelectorAll("td[data-label]")).map((td) => td.getAttribute("data-label"));
+  expect(labels).toEqual(["Sends to", "Branch", "Sends", "Last delivery"]);
+  // The Actions cell stays reachable
+  expect(within(row).getByRole("button", { name: "Send a test message to Web" })).toBeInTheDocument();
+});

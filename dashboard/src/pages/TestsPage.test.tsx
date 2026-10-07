@@ -111,3 +111,15 @@ test("empty result shows an empty state", async () => {
   renderTests();
   expect(await screen.findByText(/no tests/i)).toBeInTheDocument();
 });
+
+test("runs, errored, average duration and last seen are in the Test cell for phones", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/tests", () => HttpResponse.json([row("k1", "test_ok")])),
+  );
+  renderTests();
+  const meta = (await screen.findByRole("link", { name: "test_ok" })).closest("td")!.querySelector(".narrow-meta")!;
+  expect(meta).toHaveTextContent("Runs 10");
+  expect(meta).toHaveTextContent("Errored 0");
+  expect(meta).toHaveTextContent("Avg duration");
+  expect(meta).toHaveTextContent("Last seen");
+});

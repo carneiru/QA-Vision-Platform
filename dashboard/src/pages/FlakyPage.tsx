@@ -5,6 +5,7 @@ import { formatPassRate, getFlaky, muteFlaky, unmuteFlaky } from "../api/analyti
 import { downloadCsv, toCsv } from "../lib/csv";
 import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
+import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
@@ -26,17 +27,17 @@ export default function FlakyPage() {
   const branch = values.branch;
   const showMuted = values.muted === "1";
   // Drafts apply on submit
-  const [minRunsInput, setMinRunsInput] = useDraft(String(minRuns));
-  const [minFlipRateInput, setMinFlipRateInput] = useDraft(String(minFlipRate));
-  const [branchInput, setBranchInput] = useDraft(branch);
+  const [minRunsInput, setMinRunsInput, commitRuns] = useDraft(String(minRuns));
+  const [minFlipRateInput, setMinFlipRateInput, commitRate] = useDraft(String(minFlipRate));
+  const [branchInput, setBranchInput, commitBranch] = useDraft(branch);
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    const runs = clampRuns(minRunsInput);
-    const rate = clampRate(minFlipRateInput);
-    update({ min_runs: String(runs), min_flip: String(rate), branch: branchInput.trim() });
-    setMinRunsInput(String(runs));
-    setMinFlipRateInput(String(rate));
+    update({
+      min_runs: commitRuns((raw) => String(clampRuns(raw))),
+      min_flip: commitRate((raw) => String(clampRate(raw))),
+      branch: commitBranch((raw) => raw.trim()),
+    });
   }
 
   const queryClient = useQueryClient();
@@ -191,6 +192,12 @@ export default function FlakyPage() {
                       {r.name}
                     </Link>
                     <div className="muted">{r.suite} / {r.class_name}</div>
+                    <NarrowMeta items={[
+                      { label: "Reason", value: r.reason === "same_commit" ? "Confirmed" : "Suspected" },
+                      { label: "Flips", value: r.flips ?? "—" },
+                      { label: "Runs", value: r.runs },
+                      { label: "Commits", value: r.commits.length === 0 ? "—" : r.commits.map((c) => c.commit_sha.slice(0, 7)).join(", ") },
+                    ]} />
                   </td>
                   <td className="hide-narrow">{r.reason === "same_commit" ? "Confirmed" : "Suspected"}</td>
                   <td className="hide-narrow">{r.flips ?? "—"}</td>

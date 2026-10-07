@@ -20,6 +20,24 @@ const PROJECT_VIEWS = [
   { to: "settings", label: "Settings", icon: Settings },
 ];
 
+const NARROW_QUERY = "(max-width: 900px)";
+
+/** True while the sidebar is a drawer (the CSS breakpoint); false where matchMedia is unavailable. */
+function useDrawerLayout(): boolean {
+  const [narrow, setNarrow] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(NARROW_QUERY).matches);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(NARROW_QUERY);
+    const onChange = () => setNarrow(mq.matches);
+    onChange();
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
+  }, []);
+  return narrow;
+}
+
+const FOCUSABLE = "a[href], button:not(:disabled), select:not(:disabled), input:not(:disabled)";
+
 const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? "nav-link active" : "nav-link");
 
 /** Authenticated frame: a sidebar with the project switcher and every view,
@@ -47,18 +65,47 @@ export default function AppShell() {
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
+  const drawerLayout = useDrawerLayout();
 
   // A followed link closes the drawer
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
     if (open) {
-      sidebar.current?.querySelector<HTMLElement>("select, a, button")?.focus();
+      sidebar.current?.querySelector<HTMLElement>("a[href]")?.focus();
     } else if (wasOpen.current) {
       menuButton.current?.focus();
     }
     wasOpen.current = open;
   }, [open]);
+
+  // A closed drawer is off-screen, not gone: inert + aria-hidden keep Tab and screen readers out of it
+  useEffect(() => {
+    const el = sidebar.current;
+    if (!el) return;
+    if (drawerLayout && !open) {
+      el.setAttribute("inert", "");
+      el.setAttribute("aria-hidden", "true");
+    } else {
+      el.removeAttribute("inert");
+      el.removeAttribute("aria-hidden");
+    }
+  }, [drawerLayout, open]);
+
+  // The open drawer is modal: Tab cycles inside it
+  function trapTab(e: React.KeyboardEvent<HTMLElement>) {
+    const items = Array.from(sidebar.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? []);
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
 
   async function onSignOut() {
     await logout();
@@ -90,8 +137,12 @@ export default function AppShell() {
         ref={sidebar}
         className={open ? "sidebar open" : "sidebar"}
         aria-label="Navigation"
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? true : undefined}
         onKeyDown={(e) => {
-          if (e.key === "Escape" && open) setOpen(false);
+          if (!open) return;
+          if (e.key === "Escape") setOpen(false);
+          else if (e.key === "Tab") trapTab(e);
         }}
       >
         <div className="brand brand-row">

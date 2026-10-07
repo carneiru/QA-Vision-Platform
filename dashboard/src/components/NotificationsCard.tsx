@@ -125,7 +125,7 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
       {channels.isPending && <p className="muted">Loading channels…</p>}
       {channels.data?.length === 0 && <p className="muted">No channels yet.</p>}
       {channels.data != null && channels.data.length > 0 && (
-        <table className="data notify-table">
+        <table className="data notify-table stacked">
           <thead>
             <tr>
               <th>Channel</th>
@@ -143,9 +143,9 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
                   <strong>{c.name}</strong>
                   <div className="muted">{KINDS[c.kind]?.label ?? c.kind}</div>
                 </td>
-                <td className="hide-narrow wrap-anywhere"><code>{c.target}</code></td>
-                <td>{c.branch ? <code>{c.branch}</code> : <span className="muted">All branches</span>}</td>
-                <td className="sends-cell">
+                <td className="hide-narrow wrap-anywhere" data-label="Sends to"><code>{c.target}</code></td>
+                <td data-label="Branch">{c.branch ? <code>{c.branch}</code> : <span className="muted">All branches</span>}</td>
+                <td className="sends-cell" data-label="Sends">
                   <label className="check">
                     <input
                       type="checkbox"
@@ -167,7 +167,7 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
                     <span aria-hidden="true">Weekly summary</span>
                   </label>
                 </td>
-                <td><LastDelivery c={c} /></td>
+                <td data-label="Last delivery"><LastDelivery c={c} /></td>
                 {canEdit && (
                   <td className="row-actions">
                     <div>

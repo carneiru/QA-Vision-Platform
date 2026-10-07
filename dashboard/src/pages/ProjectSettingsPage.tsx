@@ -6,6 +6,7 @@ import { getProject } from "../api/orgs";
 import CiTargetCard from "../components/CiTargetCard";
 import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
+import SecretBlock from "../components/SecretBlock";
 import DataCard from "../components/DataCard";
 import MaskingCard from "../components/MaskingCard";
 import NotificationsCard from "../components/NotificationsCard";
@@ -133,7 +134,6 @@ export default function ProjectSettingsPage() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [created, setCreated] = useState<ApiKeyCreated | null>(null);
-  const [copied, setCopied] = useState(false);
   const local = isLocalOrigin(window.location.origin);
   const [platform, setPlatform] = useState(local ? "cli" : "github");
   const [snippetCopied, setSnippetCopied] = useState(false);
@@ -150,7 +150,6 @@ export default function ProjectSettingsPage() {
     mutationFn: () => createKey(id, name.trim()),
     onSuccess: (key) => {
       setCreated(key);
-      setCopied(false);
       setName("");
       qc.invalidateQueries({ queryKey: ["keys", id] });
     },
@@ -159,15 +158,6 @@ export default function ProjectSettingsPage() {
     mutationFn: (keyId: number) => revokeKey(id, keyId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["keys", id] }),
   });
-
-  async function copyKey(key: string) {
-    try {
-      await navigator.clipboard.writeText(key);
-      setCopied(true);
-    } catch {
-      setCopied(false); // clipboard blocked: the key stays selectable
-    }
-  }
 
   return (
     <section>
@@ -195,17 +185,12 @@ export default function ProjectSettingsPage() {
             <button type="submit" disabled={create.isPending}>Create key</button>
           </form>
         )}
-        <span role="status" className="sr-only">{copied || snippetCopied ? "Copied" : ""}</span>
+        <span role="status" className="sr-only">{snippetCopied ? "Copied" : ""}</span>
         {create.error != null && <ErrorBanner error={create.error} />}
         {revoke.error != null && <ErrorBanner error={revoke.error} />}
         {created && (
-          <p role="status">
-            Key <strong>{created.name}</strong> — store it now (only shown once):{" "}
-            <code>{created.key}</code>{" "}
-            <button type="button" aria-label={`Copy key ${created.name}`} onClick={() => copyKey(created.key)}>
-              {copied ? "Copied" : "Copy key"}
-            </button>
-          </p>
+          <SecretBlock label={`API key ${created.name}`} value={created.key}
+            copyLabel={`Copy key ${created.name}`} copyText="Copy key" />
         )}
 
         {keys.error != null && <ErrorBanner error={keys.error} onRetry={() => keys.refetch()} />}

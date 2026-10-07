@@ -5,7 +5,13 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
+import { useLocation } from "react-router-dom";
 import InvitationAcceptPage from "./InvitationAcceptPage";
+
+function OrgPage() {
+  const state = useLocation().state as { notice?: string } | null;
+  return <div>ORG PAGE <output data-testid="notice">{state?.notice}</output></div>;
+}
 
 const PREVIEW = {
   organization_id: 7,
@@ -30,7 +36,7 @@ function renderPage(token = "tok-abc123") {
         <Routes>
           <Route path="/invitations/:token" element={<InvitationAcceptPage />} />
           <Route path="/" element={<div>PICKER</div>} />
-          <Route path="/organizations/:orgId" element={<div>ORG PAGE</div>} />
+          <Route path="/organizations/:orgId" element={<OrgPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -62,6 +68,8 @@ test("accepting refreshes the organization and project lists, then opens the new
   expect(await screen.findByText("ORG PAGE")).toBeInTheDocument();
   const keys = invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown[] }).queryKey[0]);
   expect(keys).toEqual(expect.arrayContaining(["orgs", "projects"]));
+  // The organization page greets the new member
+  expect(screen.getByTestId("notice")).toHaveTextContent("You joined Acme QA as member.");
 });
 
 test("a dead token explains itself without an accept button", async () => {

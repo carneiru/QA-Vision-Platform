@@ -7,7 +7,7 @@ import {
   initGoogleButton,
   microsoftEnabled,
 } from "../auth/ssoProviders";
-import { safeNext } from "../auth/redirect";
+import { safeNext, withNext } from "../auth/redirect";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function LoginPage() {
@@ -21,12 +21,15 @@ export default function LoginPage() {
   const next = safeNext(params.get("next")) ?? "/";
   const expired = params.get("reason") === "expired";
   const googleRef = useRef<HTMLDivElement>(null);
+  // The Google button is created once, on mount: its callback must read where to go when it fires, not at mount
+  const nextRef = useRef(next);
+  nextRef.current = next;
 
   async function finishSso(provider: "google" | "microsoft", credential: string) {
     setError(null);
     try {
       await ssoLogin(provider, credential);
-      navigate(next, { replace: true });
+      navigate(nextRef.current, { replace: true });
     } catch (err) {
       setError(err);
     }
@@ -168,7 +171,7 @@ export default function LoginPage() {
           </>
         )}
         <p className="muted" style={{ marginBottom: 0 }}>
-          New here? <Link to="/register">Create account</Link>
+          New here? <Link to={withNext("/register", next)}>Create account</Link>
         </p>
       </form>
     </div>

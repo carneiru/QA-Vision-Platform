@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { verifyEmail } from "../api/auth";
+import { safeNext, takeAfterVerify } from "../auth/redirect";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function VerifyEmailPage() {
@@ -11,6 +12,8 @@ export default function VerifyEmailPage() {
   // The token is single-use: StrictMode's mount-unmount-mount must reuse the
   // one in-flight request, or the second call burns the token and reports a
   // verified person as failed
+  // Read once: taking the remembered page empties it, and a re-render must not lose the destination
+  const landing = useRef<string | null>(null);
   const inFlight = useRef<{ token: string; promise: Promise<void> } | null>(null);
 
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function VerifyEmailPage() {
       </div>
     );
   }
-  if (state === "done") return <Navigate to="/" replace />;
+  if (state === "done") return <Navigate to={landing.current ??= safeNext(params.get("next")) ?? takeAfterVerify() ?? "/"} replace />;
 
   return (
     <div className="page page-narrow">

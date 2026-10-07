@@ -150,6 +150,9 @@ describe("History", () => {
     await userEvent.selectOptions(screen.getByLabelText("Days"), "7");
     expect(where()).toBe("/projects/42/tests/k1?days=7");
     await userEvent.type(screen.getByLabelText("Branch"), "x");
+    // A draft until Apply: typing does not write the URL (or refetch) per keystroke
+    expect(where()).toBe("/projects/42/tests/k1?days=7");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(where()).toBe("/projects/42/tests/k1?days=7&branch=x");
   });
 });

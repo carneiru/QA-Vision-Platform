@@ -36,6 +36,8 @@ test("enroll shows the secret and confirm reveals recovery codes", async () => {
   await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
   expect(await screen.findByText("aaaa-1111")).toBeInTheDocument();
   expect(screen.getByText(/shown only once/i)).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Recovery codes" })).toHaveTextContent("bbbb-2222");
+  expect(screen.getByRole("button", { name: "Copy recovery codes" })).toBeInTheDocument();
 });
 
 test("a wrong confirm code surfaces the error", async () => {

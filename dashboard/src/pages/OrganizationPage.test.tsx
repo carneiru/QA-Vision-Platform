@@ -27,12 +27,12 @@ function mockOrg(role = "owner", invitations = INVITATIONS) {
   );
 }
 
-function renderPage() {
+function renderPage(state?: unknown) {
   setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={["/organizations/7"]}>
+      <MemoryRouter initialEntries={[{ pathname: "/organizations/7", state }]}>
         <Routes>
           <Route path="/organizations/:orgId" element={<OrganizationPage />} />
         </Routes>
@@ -70,7 +70,8 @@ test("inviting shows the single-use link with the token", async () => {
   await userEvent.click(screen.getByRole("button", { name: /invite/i }));
   const link = await screen.findByText(/\/invitations\/tok-abc123/);
   expect(link).toBeInTheDocument();
-  expect(screen.getByText(/only shown once/i)).toBeInTheDocument();
+  expect(screen.getByText(/shown once/i)).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Invitation for dave@example.com" })).toHaveClass("secret-block");
 
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
@@ -121,4 +122,17 @@ test("a viewer sees no management controls", async () => {
   await screen.findByText("Acme QA");
   expect(screen.queryByRole("button", { name: /invite/i })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+});
+
+test("arriving from an accepted invitation shows the welcome in the status region, once", async () => {
+  mockOrg();
+  renderPage({ notice: "You joined Acme QA as member." });
+  expect(await screen.findByRole("status")).toHaveTextContent("You joined Acme QA as member.");
+});
+
+test("the status region exists before there is anything to say", async () => {
+  mockOrg();
+  renderPage();
+  await screen.findByText("Acme QA");
+  expect(screen.getByRole("status")).toHaveTextContent("");
 });

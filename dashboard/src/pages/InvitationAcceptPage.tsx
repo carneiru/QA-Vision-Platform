@@ -21,7 +21,9 @@ export default function InvitationAcceptPage() {
         queryClient.invalidateQueries({ queryKey: ["orgs"] }),
         queryClient.invalidateQueries({ queryKey: ["projects"] }),
       ]);
-      navigate(`/organizations/${membership.organization_id}`);
+      navigate(`/organizations/${membership.organization_id}`, {
+        state: { notice: `You joined ${preview.data?.organization_name ?? "the organization"} as ${membership.role}.` },
+      });
     },
   });
 

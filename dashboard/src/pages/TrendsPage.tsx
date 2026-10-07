@@ -8,6 +8,7 @@ import {
 } from "recharts";
 import { TrendBucket, formatDuration, formatPassRate, getTrends } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import { SkeletonCard, SkeletonStatus } from "../components/Skeleton";
 import FilterBar from "../components/FilterBar";
 
 // Legend/tooltip text stays in ink tokens; the colored swatch carries identity.
@@ -41,13 +42,13 @@ export default function TrendsPage() {
   const { branch, environment } = values;
   // Text filters are drafts until Apply: per-keystroke refetching is chatty
   // against the shared gateway rate limit.
-  const [branchInput, setBranchInput] = useDraft(branch);
-  const [environmentInput, setEnvironmentInput] = useDraft(environment);
+  const [branchInput, setBranchInput, commitBranch] = useDraft(branch);
+  const [environmentInput, setEnvironmentInput, commitEnvironment] = useDraft(environment);
   const [showTable, setShowTable] = useState(false);
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    update({ branch: branchInput.trim(), environment: environmentInput.trim() });
+    update({ branch: commitBranch((raw) => raw.trim()), environment: commitEnvironment((raw) => raw.trim()) });
   }
 
   const query = useQuery({
@@ -112,7 +113,17 @@ export default function TrendsPage() {
       </form>
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
-      {query.isPending && <p className="muted">Loading trends…</p>}
+      {query.isPending && (
+        <SkeletonStatus label="Loading trends…">
+          <div className="tiles">
+            <SkeletonCard height={34} />
+            <SkeletonCard height={34} />
+            <SkeletonCard height={34} />
+          </div>
+          <SkeletonCard height={280} className="skeleton-chart" />
+          <SkeletonCard height={180} className="skeleton-chart" />
+        </SkeletonStatus>
+      )}
       {query.data && trendDays.length === 0 && (
         <p className="muted">
           No runs in the last {days} days{branch && ` on ${branch}`}{environment && ` in ${environment}`}.

@@ -59,7 +59,8 @@ test("summarises what changed and lists each kind of change", async () => {
   expect(screen.getByText(/7 unchanged/)).toBeInTheDocument();
   const broke = screen.getByRole("region", { name: /new failures/i });
   expect(within(broke).getByRole("link", { name: "pays with card" })).toHaveAttribute("href", "/projects/42/tests/k-pays%20with%20card");
-  expect(within(broke).getByText("TimeoutError: waiting for #pay")).toBeInTheDocument();
+  // The message is also in the narrow-screen line under the test name
+  expect(within(broke).getAllByText("TimeoutError: waiting for #pay")).toHaveLength(2);
   expect(within(screen.getByRole("region", { name: /fixed/i })).getByText("applies coupon")).toBeInTheDocument();
   const slower = screen.getByRole("region", { name: /slower/i });
   expect(within(slower).getByText("+3.2 s")).toBeInTheDocument();
@@ -85,4 +86,12 @@ test("runs that cannot be compared say so", async () => {
   server.use(http.get("/api/v1/runs/61/compare/60", () => HttpResponse.json({ detail: "Run not found" }, { status: 404 })));
   renderPage();
   expect(await screen.findByText(/run not found/i)).toBeInTheDocument();
+});
+
+test("the failure message is under the test name for phones", async () => {
+  server.use(http.get("/api/v1/runs/61/compare/60", () => HttpResponse.json(comparison())));
+  renderPage();
+  const broke = await screen.findByRole("region", { name: /new failures/i });
+  const meta = within(broke).getByRole("link", { name: "pays with card" }).closest("td")!.querySelector(".narrow-meta")!;
+  expect(meta).toHaveTextContent("Message TimeoutError: waiting for #pay");
 });

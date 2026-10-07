@@ -5,6 +5,7 @@ import { formatDuration, formatPassRate, getTests } from "../api/analytics";
 import { downloadCsv, toCsv } from "../lib/csv";
 import { fetchAllTests } from "../lib/exportData";
 import ErrorBanner from "../components/ErrorBanner";
+import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
@@ -22,7 +23,7 @@ export default function TestsPage() {
   const sort = oneOf(values.sort, SORTS, "failures");
   const search = values.search;
   // The text box is a draft until Apply (per-keystroke requests hit the shared rate limit)
-  const [searchInput, setSearchInput] = useDraft(search);
+  const [searchInput, setSearchInput, commitSearch] = useDraft(search);
 
   // One extra row tells whether another page exists, so an exact multiple of the page size ends cleanly
   const query = useQuery({
@@ -33,7 +34,7 @@ export default function TestsPage() {
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    update({ search: searchInput.trim() });
+    update({ search: commitSearch((raw) => raw.trim()) });
   }
 
   const [exporting, setExporting] = useState(false);
@@ -125,6 +126,12 @@ export default function TestsPage() {
                       {r.name}
                     </Link>
                     <div className="muted">{r.suite} / {r.class_name}</div>
+                    <NarrowMeta items={[
+                      { label: "Runs", value: r.runs },
+                      { label: "Errored", value: r.errored },
+                      { label: "Avg duration", value: formatDuration(r.avg_duration_ms) },
+                      { label: "Last seen", value: new Date(r.last_seen).toLocaleString() },
+                    ]} />
                   </td>
                   <td className="hide-narrow">{r.runs}</td>
                   <td>{formatPassRate(r.pass_rate)}</td>

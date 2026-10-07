@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
+import { Link, MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { isAuthenticated } from "../auth/tokens";
@@ -211,4 +211,44 @@ test("an expired session says so", () => {
 test("no expiry notice on a plain visit", () => {
   renderLogin();
   expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
+});
+
+function Where() {
+  const { pathname } = useLocation();
+  return <output data-testid="where">{pathname}</output>;
+}
+
+async function renderGoogleLogin(url: string) {
+  vi.mocked(googleEnabled).mockReturnValue(true);
+  let callback: (credential: string) => void = () => {};
+  vi.mocked(initGoogleButton).mockImplementation(async (_el, onCredential) => { callback = onCredential; });
+  render(
+    <MemoryRouter initialEntries={[url]}>
+      <Link to="/login?next=%2Finvitations%2Ftok-2">switch</Link>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/projects/:id/runs" element={<div>RUNS</div>} />
+        <Route path="/invitations/:token" element={<div>INVITATION</div>} />
+        <Route path="*" element={<Where />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  await waitFor(() => expect(initGoogleButton).toHaveBeenCalled());
+  return (credential: string) => act(async () => { callback(credential); });
+}
+
+test("the Google button callback uses the page asked for now, not the one at mount", async () => {
+  server.use(http.post("/api/v1/sso/google", () => HttpResponse.json(tokens)));
+  const google = await renderGoogleLogin("/login?next=%2Fprojects%2F42%2Fruns");
+  await userEvent.click(screen.getByRole("link", { name: "switch" }));
+  await google("g-cred");
+  expect(await screen.findByText("INVITATION")).toBeInTheDocument();
+});
+
+test("a double-encoded next stays an in-app path: it is never decoded into //evil", async () => {
+  server.use(http.post("/api/v1/sso/google", () => HttpResponse.json(tokens)));
+  const google = await renderGoogleLogin("/login?next=%2F%252F%252Fevil.example");
+  await google("g-cred");
+  expect((await screen.findByTestId("where")).textContent).toBe("/%2F%2Fevil.example");
+  expect(window.location.hostname).not.toBe("evil.example");
 });

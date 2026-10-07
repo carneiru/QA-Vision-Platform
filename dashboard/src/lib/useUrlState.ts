@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 /** The value when it is one of the allowed ones, else the fallback: a hand-edited URL never reaches the API. */
@@ -61,9 +61,21 @@ export function useUrlState<K extends string>(defaults: Readonly<Record<K, strin
   return { values, offset, update, setOffset };
 }
 
-/** A text box's draft: it follows the URL value (Back, pasted link) but is only written to it on submit. */
+/**
+ * A text box's draft: it follows the URL value (Back, pasted link) but is only written to it on submit.
+ * `commit(normalize)` is the submit step: it rewrites the draft to its normalized form (trimmed, clamped) and
+ * returns that for the URL. The effect alone would miss the case where normalizing lands on the value the URL
+ * already has, which would leave the box showing text the page is not using.
+ */
 export function useDraft(value: string) {
   const [draft, setDraft] = useState(value);
+  const latest = useRef(draft);
+  latest.current = draft;
   useEffect(() => setDraft(value), [value]);
-  return [draft, setDraft] as const;
+  const commit = useCallback((normalize: (raw: string) => string = (raw) => raw) => {
+    const normalized = normalize(latest.current);
+    setDraft(normalized);
+    return normalized;
+  }, []);
+  return [draft, setDraft, commit] as const;
 }

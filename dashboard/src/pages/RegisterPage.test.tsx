@@ -59,3 +59,40 @@ test("the register screen shows the product name and what it stands for", () => 
   expect(screen.getByRole("heading", { level: 1, name: "QEOS" })).toBeInTheDocument();
   expect(screen.getByText("Quality Engineering OS")).toBeInTheDocument();
 });
+
+test("the page the person was heading to survives registration and verification", async () => {
+  localStorage.clear();
+  server.use(http.post("/api/v1/auth/register", () => HttpResponse.json({ message: "ok" }, { status: 202 })));
+  render(
+    <MemoryRouter initialEntries={["/register?next=%2Finvitations%2Ftok-1"]}>
+      <Routes>
+        <Route path="/register" element={<RegisterPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login?next=%2Finvitations%2Ftok-1");
+  await userEvent.type(screen.getByLabelText(/email/i), "pedro@example.com");
+  await userEvent.type(screen.getByLabelText(/password/i), "UmaPasswordForte123");
+  await userEvent.click(screen.getByRole("button", { name: /create account/i }));
+  await screen.findByText(/check your email/i);
+  expect(JSON.parse(localStorage.getItem("qeos.afterVerify")!).next).toBe("/invitations/tok-1");
+  expect(screen.getByRole("link", { name: /back to sign in/i })).toHaveAttribute("href", "/login?next=%2Finvitations%2Ftok-1");
+});
+
+test("an unsafe next is ignored", async () => {
+  localStorage.clear();
+  server.use(http.post("/api/v1/auth/register", () => HttpResponse.json({ message: "ok" }, { status: 202 })));
+  render(
+    <MemoryRouter initialEntries={["/register?next=%2F%2Fevil.example"]}>
+      <Routes>
+        <Route path="/register" element={<RegisterPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+  await userEvent.type(screen.getByLabelText(/email/i), "pedro@example.com");
+  await userEvent.type(screen.getByLabelText(/password/i), "UmaPasswordForte123");
+  await userEvent.click(screen.getByRole("button", { name: /create account/i }));
+  await screen.findByText(/check your email/i);
+  expect(localStorage.getItem("qeos.afterVerify")).toBeNull();
+});

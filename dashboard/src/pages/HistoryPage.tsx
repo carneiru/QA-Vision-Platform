@@ -1,12 +1,14 @@
+import { FormEvent } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { formatDuration, formatPassRate, getHistory } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
 import Message from "../components/Message";
-import { oneOf, useUrlState } from "../lib/useUrlState";
+import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 
 const DEFAULTS = { days: "30", branch: "" } as const;
 const DAYS = ["7", "30", "90"] as const;
@@ -17,6 +19,13 @@ export default function HistoryPage() {
   const { values, update } = useUrlState(DEFAULTS, 1);
   const days = Number(oneOf(values.days, DAYS, "30"));
   const branch = values.branch;
+  // The branch is a draft until Apply: every keystroke would otherwise rewrite the URL and refetch
+  const [branchInput, setBranchInput, commitBranch] = useDraft(branch);
+
+  function applyBranch(event: FormEvent) {
+    event.preventDefault();
+    update({ branch: commitBranch((raw) => raw.trim()) });
+  }
 
   const query = useQuery({
     queryKey: ["history", id, testKey, days, branch],
@@ -30,6 +39,7 @@ export default function HistoryPage() {
       <p>
         <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All tests</Link>
       </p>
+      <form onSubmit={applyBranch}>
       <FilterBar>
         <label>
           Days
@@ -41,10 +51,11 @@ export default function HistoryPage() {
         </label>
         <label>
           Branch
-          {/* replace: every keystroke queries, so Back must not step through each letter */}
-          <input value={branch} onChange={(e) => update({ branch: e.target.value }, { replace: true })} placeholder="all" />
+          <input value={branchInput} onChange={(e) => setBranchInput(e.target.value)} placeholder="all" />
         </label>
+        <button type="submit">Apply</button>
       </FilterBar>
+      </form>
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading history…</p>}
@@ -81,7 +92,15 @@ export default function HistoryPage() {
                 <tbody>
                   {data.executions.map((x) => (
                     <tr key={`${x.run_id}-${x.started_at}`}>
-                      <td><Link to={`/projects/${projectId}/runs/${x.run_id}`}>#{x.run_id}</Link></td>
+                      <td>
+                        <Link to={`/projects/${projectId}/runs/${x.run_id}`}>#{x.run_id}</Link>
+                        <NarrowMeta items={[
+                          { label: "Commit", value: x.commit_sha ? x.commit_sha.slice(0, 7) : "—" },
+                          { label: "Environment", value: x.environment ?? "—" },
+                          { label: "Duration", value: formatDuration(x.duration_ms) },
+                          { label: "Message", value: x.message ? x.message.split("\n")[0] : "—" },
+                        ]} />
+                      </td>
                       <td>{new Date(x.started_at).toLocaleString()}</td>
                       <td>{x.branch ?? "—"}</td>
                       <td className="hide-narrow">{x.commit_sha ? x.commit_sha.slice(0, 7) : "—"}</td>

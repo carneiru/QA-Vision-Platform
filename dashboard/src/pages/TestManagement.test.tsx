@@ -78,8 +78,8 @@ test("lists cases with their key, labels and whether they are automated; filters
   renderAt("/projects/42/cases");
   const row = (await screen.findByRole("link", { name: "Case 1" })).closest("tr")!;
   expect(within(row).getByText("smoke")).toBeInTheDocument();
-  expect(within(row).getByText(/linked/i)).toBeInTheDocument();
-  expect(within(screen.getByRole("link", { name: "Case 2" }).closest("tr")!).getByText(/manual/i)).toBeInTheDocument();
+  expect(within(row).getAllByText(/linked/i).length).toBeGreaterThan(0); // column and narrow line
+  expect(within(screen.getByRole("link", { name: "Case 2" }).closest("tr")!).getAllByText(/manual/i).length).toBeGreaterThan(0);
   expect(screen.getByRole("link", { name: /new case/i })).toHaveAttribute("href", "/projects/42/cases/new");
 
   await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Label" }), "smoke");

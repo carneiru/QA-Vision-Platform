@@ -29,3 +29,36 @@ export function loginPath(from: Where, reason?: "expired"): string {
   const query = params.toString();
   return query ? `/login?${query}` : "/login";
 }
+
+/** `path` carrying `next` when it is a safe in-app path, else `path` alone. */
+export function withNext(path: string, next: string | null | undefined): string {
+  const safe = safeNext(next);
+  return safe && safe !== "/" ? `${path}?next=${encodeURIComponent(safe)}` : path;
+}
+
+const AFTER_VERIFY_KEY = "qeos.afterVerify";
+const AFTER_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Registration ends with an emailed link, often opened in another tab: the page the person was going to is kept
+ *  (validated) until they verify. localStorage, because that tab shares it; it expires with the link. */
+export function rememberAfterVerify(next: string | null | undefined): void {
+  const safe = safeNext(next);
+  try {
+    if (safe && safe !== "/") localStorage.setItem(AFTER_VERIFY_KEY, JSON.stringify({ next: safe, at: Date.now() }));
+    else localStorage.removeItem(AFTER_VERIFY_KEY);
+  } catch { /* storage is optional */ }
+}
+
+/** The remembered page, once: validated again on the way out, never trusted from storage. */
+export function takeAfterVerify(): string | null {
+  try {
+    const raw = localStorage.getItem(AFTER_VERIFY_KEY);
+    localStorage.removeItem(AFTER_VERIFY_KEY);
+    if (!raw) return null;
+    const { next, at } = JSON.parse(raw) as { next?: unknown; at?: unknown };
+    if (typeof next !== "string" || typeof at !== "number" || Date.now() - at > AFTER_VERIFY_TTL_MS) return null;
+    return safeNext(next);
+  } catch {
+    return null;
+  }
+}

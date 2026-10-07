@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
 import TrendsPage from "./TrendsPage";
@@ -95,4 +95,18 @@ test("bucket select refetches weekly", async () => {
   await screen.findByText(/no runs/i);
   await userEvent.selectOptions(screen.getByLabelText(/view/i), "week");
   await vi.waitFor(() => expect(buckets[buckets.length - 1]).toBe("week"));
+});
+
+test("while trends load, placeholders reserve the tiles and both charts", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", async () => {
+      await delay(100);
+      return HttpResponse.json({ tz: "UTC", days: [day("2026-09-29", 8, 2, 0.8)] });
+    }),
+  );
+  renderTrends();
+  const status = screen.getByRole("status", { name: /loading trends/i });
+  expect(status.querySelectorAll(".skeleton-card").length).toBeGreaterThanOrEqual(5); // three tiles, two charts
+  expect(await screen.findByText("Results per day")).toBeInTheDocument();
+  expect(screen.queryByRole("status", { name: /loading trends/i })).not.toBeInTheDocument();
 });

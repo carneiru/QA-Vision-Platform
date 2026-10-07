@@ -176,3 +176,18 @@ test("later pages do not refresh on their own", async () => {
   await new Promise((r) => setTimeout(r, 300));
   expect(calls).toBe(1);
 });
+
+test("columns hidden on phones come back as a second line in the Run cell", async () => {
+  server.use(http.get("/api/v1/projects/42/runs", () => HttpResponse.json([run(61)])));
+  renderRuns();
+  const link = await screen.findByRole("link", { name: /#61/ });
+  const cell = link.closest("td")!;
+  const meta = cell.querySelector(".narrow-meta")!;
+  expect(meta).toBeInTheDocument();
+  expect(meta).toHaveTextContent("Commit abcdef1");
+  expect(meta).toHaveTextContent("Environment ci");
+  expect(meta).toHaveTextContent("CI GitHub Actions");
+  expect(meta).toHaveTextContent("Errored 1");
+  expect(meta).toHaveTextContent("Skipped 0");
+  expect(meta).toHaveTextContent("Duration");
+});

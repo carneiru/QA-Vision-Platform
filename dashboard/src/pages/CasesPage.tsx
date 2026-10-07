@@ -9,8 +9,10 @@ import { getLatestKeys, getRunStrip } from "../api/analytics";
 import { MAX_RUN_CASES } from "../api/runRequests";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
+import FiltersDisclosure from "../components/FiltersDisclosure";
 import FilterSelect from "../components/FilterSelect";
 import FolderSelect from "../components/FolderSelect";
+import NarrowMeta from "../components/NarrowMeta";
 import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
 import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
@@ -156,6 +158,7 @@ export default function CasesPage() {
     staleTime: 60_000,
   });
   const pageRunnable = (data?.items ?? []).filter(runnable);
+  const advancedActive = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== "").length;
   const filtered = KEYS.some((k) => applied[k] !== "");
 
   return (
@@ -184,24 +187,26 @@ export default function CasesPage() {
             <input type="search" value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} placeholder="title" />
           </label>
           <FolderSelect folders={folders.data ?? []} total={casesTotal.data} value={applied.folder} onChange={pickFolder} />
-          <FilterSelect label="Label" value={form.label} options={labelOptions} onChange={(v) => setForm({ ...form, label: v })} />
-          <FilterSelect label="Status" value={form.status} emptyLabel="Draft and ready" onChange={(v) => setForm({ ...form, status: v })}
-            options={[{ value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" }]} />
-          <FilterSelect label="Priority" value={form.priority} onChange={(v) => setForm({ ...form, priority: v })}
-            options={PRIORITIES.map((p) => ({ value: p, label: p }))} />
-          <FilterSelect label="Origin" value={form.origin} emptyLabel="All" onChange={(v) => setForm({ ...form, origin: v })}
-            options={[{ value: "manual", label: "Manual" }, { value: "imported", label: "Imported" }]} />
-          <FilterSelect label="Link" value={form.linked} onChange={(v) => setForm({ ...form, linked: v })}
-            options={[{ value: "true", label: "Linked" }, { value: "false", label: "Not linked" }]} />
-          <FilterSelect label="Latest result" value={form.result} onChange={(v) => setForm({ ...form, result: v })}
-            options={[{ value: "passed", label: "Passed" }, { value: "failed", label: "Failed" }, { value: "skipped", label: "Skipped" }, { value: "never", label: "Never ran" }]} />
-          <FilterSelect label="Feature" value={form.feature} options={featureOptions} onChange={(v) => setForm({ ...form, feature: v })} />
-          <FilterSelect label="Azure DevOps" value={form.ado} options={adoOptions} onChange={(v) => setForm({ ...form, ado: v })} />
           <button type="submit">Apply</button>
           {filtered && (
             <button type="button" className="ghost" onClick={() => setParams(new URLSearchParams())}>Clear filters</button>
           )}
         </FilterBar>
+        <FiltersDisclosure id="cases" active={advancedActive}>
+            <FilterSelect label="Label" value={form.label} options={labelOptions} onChange={(v) => setForm({ ...form, label: v })} />
+            <FilterSelect label="Status" value={form.status} emptyLabel="Draft and ready" onChange={(v) => setForm({ ...form, status: v })}
+              options={[{ value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" }]} />
+            <FilterSelect label="Priority" value={form.priority} onChange={(v) => setForm({ ...form, priority: v })}
+              options={PRIORITIES.map((p) => ({ value: p, label: p }))} />
+            <FilterSelect label="Origin" value={form.origin} emptyLabel="All" onChange={(v) => setForm({ ...form, origin: v })}
+              options={[{ value: "manual", label: "Manual" }, { value: "imported", label: "Imported" }]} />
+            <FilterSelect label="Link" value={form.linked} onChange={(v) => setForm({ ...form, linked: v })}
+              options={[{ value: "true", label: "Linked" }, { value: "false", label: "Not linked" }]} />
+            <FilterSelect label="Latest result" value={form.result} onChange={(v) => setForm({ ...form, result: v })}
+              options={[{ value: "passed", label: "Passed" }, { value: "failed", label: "Failed" }, { value: "skipped", label: "Skipped" }, { value: "never", label: "Never ran" }]} />
+            <FilterSelect label="Feature" value={form.feature} options={featureOptions} onChange={(v) => setForm({ ...form, feature: v })} />
+            <FilterSelect label="Azure DevOps" value={form.ado} options={adoOptions} onChange={(v) => setForm({ ...form, ado: v })} />
+        </FiltersDisclosure>
       </form>
 
       {query.data?.notice === "unavailable" && (
@@ -212,15 +217,6 @@ export default function CasesPage() {
       )}
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading test cases…</p>}
-      {canEdit && picked.size > 0 && (
-        <div className="run-selection" role="region" aria-label="Selected cases">
-          <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
-            selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
-            onStarted={() => { setPicked(new Map()); (tableRef.current ?? headingRef.current)?.focus(); }} />
-          <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
-          {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
-        </div>
-      )}
       {data && data.total === 0 && (
         filtered ? (
           <p className="muted">No test cases match these filters.</p>
@@ -274,6 +270,10 @@ export default function CasesPage() {
                     {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
                     <Link to={`${c.number}`}>{c.title}</Link>
                     <Labels labels={c.labels} />
+                    <NarrowMeta items={[
+                      { label: "Priority", value: c.priority },
+                      { label: "Automated", value: c.automated_test_key ? "Linked" : "Manual" },
+                    ]} />
                   </td>
                   <td className="hide-narrow">
                     {!c.automated_test_key ? (
@@ -306,6 +306,16 @@ export default function CasesPage() {
           </div>
         </div>
         </>
+      )}
+      {/* After the table, so it appears below the rows instead of pushing them down; sticky keeps it in reach */}
+      {canEdit && picked.size > 0 && (
+        <div className="run-selection" role="region" aria-label="Selected cases">
+          <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
+            selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
+            onStarted={() => { setPicked(new Map()); (tableRef.current ?? headingRef.current)?.focus(); }} />
+          <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
+          {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
+        </div>
       )}
     </section>
   );

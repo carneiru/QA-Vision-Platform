@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -12,11 +13,15 @@ import { oneOf, useUrlState } from "../lib/useUrlState";
 
 const DEFAULTS = { status: "" } as const;
 const STATUSES = ["passed", "failed", "errored", "skipped"] as const;
+// The API returns every result of the run (no limit/offset), so the table pages on the client.
+const PAGE = 100;
+/** Failing results lead: that is what a reader opens a run for. Stable, so each group keeps the API's order. */
+const RANK: Record<string, number> = { failed: 0, errored: 0, skipped: 2, passed: 3 };
 
 export default function RunDetailPage() {
   const { projectId, runId } = useParams();
   const id = Number(runId);
-  const { values, update } = useUrlState(DEFAULTS, 1);
+  const { values, offset, update, setOffset } = useUrlState(DEFAULTS, PAGE);
   const status: RunStatusFilter | "" = oneOf(values.status, STATUSES, "" as never);
 
   const query = useQuery({
@@ -27,6 +32,13 @@ export default function RunDetailPage() {
   });
 
   const run = query.data;
+  const ordered = useMemo(
+    () => [...(run?.results ?? [])].sort((a, b) => (RANK[a.status] ?? 1) - (RANK[b.status] ?? 1)),
+    [run?.results],
+  );
+  // A link to a page past the end (a shorter run, an edited URL) shows the last page, not an empty one
+  const start = Math.min(offset, Math.max(0, Math.floor((ordered.length - 1) / PAGE) * PAGE));
+  const shown = ordered.slice(start, start + PAGE);
   // The run before this one on the same branch: the natural thing to compare with
   const previous = useQuery({
     queryKey: ["runs", Number(projectId), "before", id],
@@ -163,7 +175,7 @@ export default function RunDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {run.results.map((r) => (
+                  {shown.map((r) => (
                     <tr key={r.id}>
                       <td>
                         <Link to={`/projects/${projectId}/tests/${encodeURIComponent(r.test_key)}`}>
@@ -186,6 +198,13 @@ export default function RunDetailPage() {
                   ))}
                 </tbody>
               </table>
+              {ordered.length > PAGE && (
+                <div className="filters">
+                  <button disabled={start === 0} onClick={() => setOffset(Math.max(0, start - PAGE))}>Previous</button>
+                  <span className="muted">{`Rows ${start + 1}–${start + shown.length} of ${ordered.length}`}</span>
+                  <button disabled={start + PAGE >= ordered.length} onClick={() => setOffset(start + PAGE)}>Next</button>
+                </div>
+              )}
             </div>
           )}
         </>

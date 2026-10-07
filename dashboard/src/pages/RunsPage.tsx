@@ -7,6 +7,7 @@ import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
+import NarrowMeta from "../components/NarrowMeta";
 import { LIVE_REFRESH_MS } from "../lib/live";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 
@@ -213,6 +214,14 @@ export default function RunsPage() {
                 <tr key={r.id} className={fresh.has(r.id) ? "row-new" : undefined}>
                   <td>
                     <Link to={`${r.id}`}>#{r.id}</Link>
+                    <NarrowMeta items={[
+                      { label: "Commit", value: r.commit_sha ? r.commit_sha.slice(0, 7) : "—" },
+                      { label: "Environment", value: r.environment ?? "—" },
+                      { label: "CI", value: CI_LABELS[r.ci_provider] ?? r.ci_provider },
+                      { label: "Errored", value: r.errored },
+                      { label: "Skipped", value: r.skipped },
+                      { label: "Duration", value: formatDuration(r.duration_ms) },
+                    ]} />
                   </td>
                   <td>{new Date(r.started_at).toLocaleString()}</td>
                   <td>{r.branch ?? "—"}</td>

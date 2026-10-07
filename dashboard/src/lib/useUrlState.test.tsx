@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
-import { oneOf, useUrlState } from "./useUrlState";
+import { oneOf, useDraft, useUrlState } from "./useUrlState";
 
 const DEFAULTS = { days: "30", q: "" } as const;
 
@@ -60,4 +60,34 @@ test("Back restores the previous filters", async () => {
   expect(state().offset).toBe(50);
   await userEvent.click(screen.getByText("back"));
   expect(state()).toEqual({ days: "7", q: "", offset: 0 });
+});
+
+function DraftProbe() {
+  const { values, update } = useUrlState(DEFAULTS, 50);
+  const [draft, setDraft, commit] = useDraft(values.q);
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); update({ q: commit((s) => s.trim()) }); }}>
+      <input aria-label="q" value={draft} onChange={(e) => setDraft(e.target.value)} />
+      <button>apply</button>
+    </form>
+  );
+}
+
+test("a draft is rewritten to its normalized form on submit, even when the URL value does not change", async () => {
+  render(<MemoryRouter initialEntries={["/x?q=abc"]}><DraftProbe /></MemoryRouter>);
+  const input = screen.getByLabelText("q");
+  await userEvent.clear(input);
+  await userEvent.type(input, "  abc  ");
+  expect(input).toHaveValue("  abc  ");
+  await userEvent.click(screen.getByText("apply"));
+  expect(input).toHaveValue("abc"); // the URL value stayed "abc": only the draft needed resyncing
+});
+
+test("a typed draft is left alone when another filter changes", async () => {
+  render(<MemoryRouter initialEntries={["/x?q=one"]}><DraftProbe /><Probe /></MemoryRouter>);
+  const input = screen.getByLabelText("q");
+  await userEvent.type(input, "!");
+  expect(input).toHaveValue("one!");
+  await userEvent.click(screen.getByText("seven")); // a filter change elsewhere leaves a typed draft alone
+  expect(input).toHaveValue("one!");
 });

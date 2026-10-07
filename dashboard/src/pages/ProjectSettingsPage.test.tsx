@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -74,12 +74,16 @@ test("creating a key shows the full key exactly once", async () => {
   await userEvent.type(screen.getByPlaceholderText("e.g. github-actions"), "new-ci");
   await userEvent.click(screen.getByRole("button", { name: /create key/i }));
   expect(await screen.findByText("qeos_newnewnewFULLSECRET")).toBeInTheDocument();
-  expect(screen.getByText(/only shown once/i)).toBeInTheDocument();
+  expect(screen.getByText(/this is shown once/i)).toBeInTheDocument();
+  const block = screen.getByRole("group", { name: "API key new-ci" });
+  expect(block).toHaveClass("secret-block");
+  expect(within(block).getByText("qeos_newnewnewFULLSECRET")).toHaveClass("secret-value");
 
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
   await userEvent.click(screen.getByRole("button", { name: /copy key new-ci/i }));
   expect(writeText).toHaveBeenCalledWith("qeos_newnewnewFULLSECRET");
+  expect(await within(block).findByText("Copied", { selector: "[role=status]" })).toHaveAttribute("aria-live", "polite");
 });
 
 test("revoking a key calls the API and refreshes", async () => {

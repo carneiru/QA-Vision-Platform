@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
@@ -241,4 +241,44 @@ test("changing the filter keeps the page and the focused select mounted", async 
   release();
   await waitFor(() => expect(screen.queryByText(/updating results/i)).not.toBeInTheDocument());
   expect(select).toHaveFocus();
+});
+
+const many = (n: number) => Array.from({ length: n }, (_, i) => ({
+  ...result, id: i + 1, test_key: `k${i + 1}`, name: `t${i + 1}`,
+  // The last ten fail: they must lead the first page
+  status: i >= n - 10 ? "failed" : "passed", message: null,
+}));
+
+test("thousands of results are paged 100 at a time, failing first, with the page in the URL", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(250)))));
+  renderDetail();
+  const region = await screen.findByRole("region", { name: "Test results" });
+  expect(within(region).getAllByRole("row")).toHaveLength(101); // header + 100
+  const first = within(region).getAllByRole("row")[1];
+  expect(within(first).getByRole("link", { name: "t241" })).toBeInTheDocument(); // a failed one leads
+  expect(within(region).getByText("Rows 1–100 of 250")).toBeInTheDocument();
+  expect(within(region).getByRole("button", { name: "Previous" })).toBeDisabled();
+
+  await userEvent.click(within(region).getByRole("button", { name: "Next" }));
+  expect(screen.getByTestId("where")).toHaveTextContent("?offset=100");
+  expect(within(region).getByText("Rows 101–200 of 250")).toBeInTheDocument();
+  await userEvent.click(within(region).getByRole("button", { name: "Next" }));
+  expect(within(region).getAllByRole("row")).toHaveLength(51);
+  expect(within(region).getByRole("button", { name: "Next" })).toBeDisabled();
+});
+
+test("a pasted page link opens that page, and changing the status filter returns to page 1", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(250)))));
+  renderDetail("/projects/42/runs/61?offset=200");
+  const region = await screen.findByRole("region", { name: "Test results" });
+  expect(within(region).getByText("Rows 201–250 of 250")).toBeInTheDocument();
+  await userEvent.selectOptions(screen.getByLabelText(/status/i), "passed");
+  expect(screen.getByTestId("where")).not.toHaveTextContent("offset");
+});
+
+test("a short run shows no pager", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(5)))));
+  renderDetail();
+  const region = await screen.findByRole("region", { name: "Test results" });
+  expect(within(region).queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
 });

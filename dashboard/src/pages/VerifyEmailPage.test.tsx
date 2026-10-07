@@ -68,3 +68,44 @@ test("StrictMode's double effect never burns the single-use token twice", async 
   expect(await screen.findByText("PICKER")).toBeInTheDocument();
   expect(calls).toBe(1);
 });
+
+function verifyOk() {
+  clearTokens();
+  server.use(
+    http.get("/api/v1/auth/verify-email", () =>
+      HttpResponse.json({ access_token: "fresh-acc", refresh_token: "r", token_type: "bearer" })),
+  );
+}
+
+function renderWithInvitation(query = "?token=tok-123") {
+  render(
+    <MemoryRouter initialEntries={[`/verify-email${query}`]}>
+      <Routes>
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/" element={<div>PICKER</div>} />
+        <Route path="/invitations/:token" element={<div>INVITATION</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+test("after verifying, a new invitee returns to the invitation they were following", async () => {
+  verifyOk();
+  localStorage.setItem("qeos.afterVerify", JSON.stringify({ next: "/invitations/tok-1", at: Date.now() }));
+  renderWithInvitation();
+  expect(await screen.findByText("INVITATION")).toBeInTheDocument();
+  expect(localStorage.getItem("qeos.afterVerify")).toBeNull();
+});
+
+test("a next in the verification link works the same", async () => {
+  verifyOk();
+  renderWithInvitation("?token=tok-123&next=%2Finvitations%2Ftok-2");
+  expect(await screen.findByText("INVITATION")).toBeInTheDocument();
+});
+
+test("an unsafe next never leaves the app", async () => {
+  verifyOk();
+  localStorage.setItem("qeos.afterVerify", JSON.stringify({ next: "//evil.example", at: Date.now() }));
+  renderWithInvitation("?token=tok-123&next=%2F%2Fevil.example");
+  expect(await screen.findByText("PICKER")).toBeInTheDocument();
+});

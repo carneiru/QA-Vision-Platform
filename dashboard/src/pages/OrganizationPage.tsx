@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   InvitationCreated, ROLES, createInvitation, listInvitations, listMembers,
@@ -7,6 +7,7 @@ import {
 } from "../api/orgs";
 import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
+import SecretBlock from "../components/SecretBlock";
 
 const MANAGER_ROLES = ["owner", "admin"];
 
@@ -17,17 +18,13 @@ export default function OrganizationPage() {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("member");
   const [created, setCreated] = useState<InvitationCreated | null>(null);
-  const [notice, setNotice] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  async function copyInviteLink(link: string) {
-    try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-    } catch {
-      setCopied(false); // clipboard blocked (permissions, http): the link stays selectable
-    }
-  }
+  const location = useLocation();
+  const navigate = useNavigate();
+  // A welcome passed by the invitation page; read once, then dropped from history so a reload does not repeat it
+  const [notice, setNotice] = useState(() => (location.state as { notice?: string } | null)?.notice ?? "");
+  useEffect(() => {
+    if ((location.state as { notice?: string } | null)?.notice) navigate(location.pathname + location.search, { replace: true, state: null });
+  }, [location, navigate]);
 
   const orgs = useQuery({ queryKey: ["orgs"], queryFn: listMyOrganizations });
   const me = useQuery({ queryKey: ["org", id, "me"], queryFn: () => myRole(id) });
@@ -41,7 +38,6 @@ export default function OrganizationPage() {
     mutationFn: () => createInvitation(id, email, role),
     onSuccess: (invitation) => {
       setCreated(invitation);
-      setCopied(false);
       setEmail("");
       setNotice("");
       qc.invalidateQueries({ queryKey: ["org", id, "invitations"] });
@@ -75,7 +71,7 @@ export default function OrganizationPage() {
       {(invite.error ?? revoke.error ?? remove.error) != null && (
         <ErrorBanner error={(invite.error ?? revoke.error ?? remove.error)!} />
       )}
-      {notice && <p role="status">{notice}</p>}
+      <p role="status" className="live-note">{notice}</p>
 
       <div className="card">
         <h2>Members</h2>
@@ -140,16 +136,9 @@ export default function OrganizationPage() {
           </form>
         )}
         {created && (
-          <p role="status">
-            Invitation for <strong>{created.email}</strong> — send this link (only shown once):{" "}
-            <code>{`${window.location.origin}/invitations/${created.token}`}</code>{" "}
-            <button
-              aria-label={`Copy the invitation link for ${created.email}`}
-              onClick={() => copyInviteLink(`${window.location.origin}/invitations/${created.token}`)}
-            >
-              {copied ? "Copied" : "Copy link"}
-            </button>
-          </p>
+          <SecretBlock label={`Invitation for ${created.email}`} value={`${window.location.origin}/invitations/${created.token}`}
+            copyLabel={`Copy the invitation link for ${created.email}`} copyText="Copy link"
+            note="Send this link to the invitee. This is shown once: it cannot be shown again." />
         )}
         {invitations.isPending && <p className="muted">Loading invitations…</p>}
         {pending.length === 0 && invitations.data && <p className="muted">No pending invitations.</p>}

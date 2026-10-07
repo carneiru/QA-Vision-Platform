@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { register } from "../api/auth";
+import { rememberAfterVerify, safeNext, withNext } from "../auth/redirect";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function RegisterPage() {
@@ -10,6 +11,10 @@ export default function RegisterPage() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // A visitor who came from an invitation returns to it after signing in or verifying (same-origin paths only)
+  const [params] = useSearchParams();
+  const next = safeNext(params.get("next"));
+  const loginLink = withNext("/login", next);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -17,6 +22,7 @@ export default function RegisterPage() {
     setBusy(true);
     try {
       await register(email, password, fullName);
+      rememberAfterVerify(next);
       setDone(true);
     } catch (err) {
       setError(err);
@@ -36,7 +42,7 @@ export default function RegisterPage() {
             If no email arrives, this deployment has no mail server configured: ask your
             administrator for the verification link (it appears in the auth service's log).
           </p>
-          <Link to="/login">Back to sign in</Link>
+          <Link to={loginLink}>Back to sign in</Link>
         </div>
       </div>
     );
@@ -78,7 +84,7 @@ export default function RegisterPage() {
           Create account
         </button>
         <p className="muted" style={{ marginBottom: 0 }}>
-          Already have an account? <Link to="/login">Sign in</Link>
+          Already have an account? <Link to={loginLink}>Sign in</Link>
         </p>
       </form>
     </div>
