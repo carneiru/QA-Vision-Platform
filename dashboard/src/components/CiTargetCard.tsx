@@ -5,9 +5,38 @@ import { CiTarget, deleteCiTarget, formatDay, getCiTarget, saveCiTarget, tokenSt
 import { useUserNames } from "../lib/useUserNames";
 import ConfirmButton from "./ConfirmButton";
 import ErrorBanner from "./ErrorBanner";
+import workflowYaml from "../templates/qa-vision-run.yml.txt?raw";
+import runnerScript from "../templates/qa-vision-run.mjs.txt?raw";
 
 const DEFAULT_WORKFLOW = "qa-vision-run.yml";
 const DEFAULT_BRANCH = "main";
+
+/** The template, guarded to the branch configured here (a replacer function, so "/** Owners and admins see" in a branch stays literal;
+ *  a single quote is doubled for the YAML single-quoted string). */
+function workflowFor(ref: string | null): string {
+  if (!ref) return workflowYaml;
+  const branch = ref.replace(/'/g, "''");
+  return workflowYaml.replace("refs/heads/main", () => `refs/heads/${branch}`);
+}
+
+function CopyBlock({ name, code }: { name: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <>
+      <pre className="code-block" tabIndex={0} aria-label={name}><code>{code}</code></pre>
+      <button type="button" aria-label={`Copy ${name}`} onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(code);
+          setCopied(true);
+        } catch {
+          setCopied(false); // clipboard blocked: the text stays selectable
+        }
+      }}>
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </>
+  );
+}
 
 /** Owners and admins see this from 14 days before the token expires (Settings and the run panel). */
 export function ExpiryWarning({ target }: { target: CiTarget }) {
@@ -139,6 +168,30 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
             />
           )}
           {disconnect.error != null && <ErrorBanner error={disconnect.error} />}
+          <details className="run-help">
+            <summary>How to set it up</summary>
+            <ol>
+              <li>
+                On GitHub, create a <strong>fine-grained personal access token</strong> (Settings › Developer settings ›
+                Fine-grained tokens): repository access <strong>only {data.repo ?? "this repository"}</strong>, permission{" "}
+                <strong>Actions: Read and write</strong>. Paste it in Token above.
+              </li>
+              <li>
+                Add this workflow as <code>.github/workflows/qa-vision-run.yml</code> on the repository's{" "}
+                <strong>default branch</strong> (GitHub only dispatches workflows found there):
+                <CopyBlock name="qa-vision-run.yml" code={workflowFor(data.ref)} />
+              </li>
+              <li>
+                Add the script it runs as <code>.github/scripts/qa-vision-run.mjs</code>:
+                <CopyBlock name="qa-vision-run.mjs" code={runnerScript} />
+              </li>
+              <li>
+                In the repository's Settings › Secrets and variables › Actions, add the secret <code>QAV_API_KEY</code>{" "}
+                (a project API key from this page) and the variable <code>QAV_URL</code> ={" "}
+                <code>{window.location.origin}</code>.
+              </li>
+            </ol>
+          </details>
         </>
       )}
     </div>

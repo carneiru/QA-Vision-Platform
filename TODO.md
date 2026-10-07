@@ -303,10 +303,15 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Bulk actions: label, move, archive many TCs at once *(suggested)*
 
 ### B. Test execution
-- [ ] Run a single TC, a selection ("bunch"), or a whole suite
+- [x] Run a single TC, a selection ("bunch"), or a whole suite (v1 Play and Stop, 2026-10-07; spec `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`)
 - [ ] Re-run only the failures from a previous run
-- [ ] First version triggers the customer's CI (GitHub Actions `workflow_dispatch`) rather than running tests on QA Vision's own infrastructure *(suggested — far smaller security surface than executing customer code)*
-- [ ] Live run progress and cancel a running job (see `specs/2026-07-13-qa-vision-realtime-features.md`) *(suggested)*
+- [x] First version triggers the customer's CI (GitHub Actions `workflow_dispatch`) rather than running tests on QA Vision's own infrastructure *(suggested — far smaller security surface than executing customer code)* (v1 Play and Stop, 2026-10-07; spec `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`)
+- [ ] Live run progress and cancel a running job (see `specs/2026-07-13-qa-vision-realtime-features.md`) *(suggested)* (cancel done in v1 as Stop; live step progress is out of scope)
+- [ ] Pause and Resume a running job (cucumber `BeforeStep` hook asks QA Vision whether to continue; screenshot on pause; time limit; fails open if QA Vision is unreachable)
+- [ ] Stop followed by a resuming re-run, plus "Re-run failures" of a finished run
+- [ ] A GitHub App instead of the personal token (short-lived installation tokens owned by no single person)
+- [ ] Run parameters, scheduled runs and more CI providers (GitLab, Azure Pipelines) for runs from QA Vision
+- [ ] A dedicated `execution-service` once execution outgrows test-management
 - [ ] Run parameters: target environment, browser/device matrix *(suggested)*
 - [ ] Scheduled runs (nightly, per branch) *(suggested)*
 - [x] Flaky-test quarantine. Quarantining a test (Flaky view, the former Mute) keeps it running and

@@ -1,0 +1,67 @@
+# QA Vision: run selected scenarios on demand (QA-Vision-Platform docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md).
+# Copy to .github/workflows/qa-vision-run.yml on the repository's DEFAULT branch (GitHub dispatches only
+# workflows found there) and qa-vision-run.mjs to .github/scripts/qa-vision-run.mjs.
+# Needs the repository secret QAV_API_KEY and the repository variable QAV_URL; the ENV secret feeds
+# ./.github/actions/setup-test-env as in the other suites.
+name: QA Vision run
+run-name: "QA Vision #${{ inputs.request_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: JSON array of .feature paths (set by QA Vision)
+        required: true
+        type: string
+      names:
+        description: JSON array of scenario names (set by QA Vision)
+        required: true
+        type: string
+      request_id:
+        description: QA Vision run request id
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: QA Vision run
+    # Only the branch configured in QA Vision (Project Settings › Run from QA Vision)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    concurrency:
+      group: qa-vision-run
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: ./.github/actions/setup-test-env
+        with:
+          env-file-content: ${{ secrets.ENV }}
+
+      - name: Run the selected scenarios
+        run: node .github/scripts/qa-vision-run.mjs
+        env:
+          CI: "true"
+          QAV_PATHS: ${{ inputs.paths }}
+          QAV_NAMES: ${{ inputs.names }}
+
+      - name: Upload results to QA Vision
+        if: always()
+        uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.3.0
+        with:
+          url: ${{ vars.QAV_URL }}
+          patterns: test-results/cucumber-report.json
+        env:
+          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+
+      - name: Upload the Cucumber HTML report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qa-vision-run-${{ inputs.request_id }}-report
+          path: test-results/cucumber-report.html
+          if-no-files-found: ignore

@@ -544,3 +544,6 @@ input[readonly] { background: var(--surface-2); }
   .run-tone-running .run-panel-state svg { animation: run-spin 1.2s linear infinite; }
 }
 @keyframes run-spin { to { transform: rotate(360deg); } }
+.run-help { margin-top: var(--space-4); }
+.run-help summary { cursor: pointer; font-weight: 600; }
+.run-help li { margin-bottom: var(--space-3); }

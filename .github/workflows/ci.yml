@@ -162,6 +162,9 @@ jobs:
       - name: Tests
         run: npm run test -- --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml
 
+      - name: Workflow template tests (templates/github)
+        run: node --test ../templates/github/qa-vision-run.test.mjs
+
       - name: Build
         run: npm run build
 

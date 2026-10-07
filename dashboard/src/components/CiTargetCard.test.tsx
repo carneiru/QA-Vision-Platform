@@ -126,3 +126,24 @@ test("a token far from expiry shows no warning", async () => {
   await screen.findByText("Connected: acme/obt · token …a1b2 · expires 12 Mar 2027"); // loaded
   expect(screen.queryByText(/Replace it in Settings/)).not.toBeInTheDocument();
 });
+
+test("the help block holds the workflow for the configured branch and the script, ready to copy", async () => {
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, ref: "release" })));
+  renderCard();
+  await userEvent.click(await screen.findByText("How to set it up"));
+  const workflow = screen.getByLabelText("qa-vision-run.yml");
+  expect(workflow).toHaveTextContent("if: github.ref == 'refs/heads/release'");
+  expect(workflow).toHaveTextContent('run-name: "QA Vision #${{ inputs.request_id }}"');
+  expect(screen.getByLabelText("qa-vision-run.mjs")).toHaveTextContent('"--retry", "0"');
+  expect(screen.getByText(/Actions: Read and write/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy qa-vision-run.yml" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy qa-vision-run.mjs" })).toBeInTheDocument();
+});
+
+test("a branch with $& and a quote reaches the workflow guard literally, the quote doubled", async () => {
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, ref: "feat/it's-$&" })));
+  renderCard();
+  await userEvent.click(await screen.findByText("How to set it up"));
+  expect(screen.getByLabelText("qa-vision-run.yml"))
+    .toHaveTextContent("if: github.ref == 'refs/heads/feat/it''s-$&'");
+});
