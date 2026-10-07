@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Bot, FileCode, Plus, Upload } from "lucide-react";
@@ -43,6 +43,7 @@ export default function CasesPage() {
   const applied = read(params);
   const [form, setForm] = useState<Values>(applied);
   const [offset, setOffset] = useState(0);
+  const tableRef = useRef<HTMLDivElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
   const runnable = (c: Case) => c.source_path != null && c.status !== "archived";
   function toggle(c: Case) {
@@ -207,6 +208,15 @@ export default function CasesPage() {
       )}
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading test cases…</p>}
+      {canEdit && picked.size > 0 && (
+        <div className="run-selection" role="region" aria-label="Selected cases">
+          <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
+            selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
+            onStarted={() => { setPicked(new Map()); tableRef.current?.focus(); }} />
+          <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
+          {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
+        </div>
+      )}
       {data && data.total === 0 && (
         filtered ? (
           <p className="muted">No test cases match these filters.</p>
@@ -222,15 +232,6 @@ export default function CasesPage() {
       )}
       {data && data.items.length > 0 && (
         <>
-        {canEdit && picked.size > 0 && (
-          <div className="run-selection" role="region" aria-label="Selected cases">
-            <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
-              selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
-              onStarted={() => setPicked(new Map())} />
-            <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
-            {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
-          </div>
-        )}
         {stripKeys.length > 0 && (
         <ul className="run-legend hide-narrow" aria-label="Last runs legend">
           {LEGEND.map(([kind, text]) => (
@@ -238,7 +239,7 @@ export default function CasesPage() {
           ))}
         </ul>
         )}
-        <div className="card" tabIndex={0} role="region" aria-label="Test cases">
+        <div className="card" ref={tableRef} tabIndex={0} role="region" aria-label="Test cases">
           <table className="data">
             <thead>
               <tr>

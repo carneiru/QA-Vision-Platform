@@ -60,6 +60,7 @@ function renderAt(url: string) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return qc;
 }
 
 function listing(items: object[], total = items.length) {
@@ -220,4 +221,105 @@ test("Configure in Settings links to the project's settings", async () => {
   );
   renderAt("/projects/42/cases/1");
   expect(await screen.findByRole("link", { name: "Configure in Settings" })).toHaveAttribute("href", "/projects/42/settings");
+});
+
+test("while the run is starting, Cancel is disabled and Escape does nothing", async () => {
+  let posts = 0;
+  server.use(
+    http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
+    http.post(`${P}/run-requests`, async () => { posts += 1; await delay(500); return HttpResponse.json(runRequest(), { status: 201 }); }),
+  );
+  renderAt("/projects/42/cases/1");
+  await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+  const dialog = screen.getByRole("dialog");
+  await userEvent.click(within(dialog).getByRole("button", { name: "Run" }));
+  expect(await within(dialog).findByRole("button", { name: "Starting…" })).toBeDisabled();
+  expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+  await userEvent.keyboard("{Escape}");
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(posts).toBe(1);
+});
+
+test("a 409 run_active closes the dialog, says why and turns Play off", async () => {
+  server.use(
+    http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
+    http.post(`${P}/run-requests`, () => {
+      // someone else's run is now the newest one
+      server.use(http.get(`${P}/run-requests`, () => HttpResponse.json({ total: 1, items: [runRequest({ status: "running" })] })));
+      return HttpResponse.json({ detail: { code: "run_active", message: "A run is in progress", run_request_id: 9 } }, { status: 409 });
+    }),
+  );
+  renderAt("/projects/42/cases/1");
+  await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("A run is in progress");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeDisabled());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("a 412 closes the dialog, says why and refreshes the target", async () => {
+  server.use(
+    http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
+    http.post(`${P}/run-requests`, () => {
+      server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...TARGET, configured: false })));
+      return HttpResponse.json({ detail: "Running tests from QA Vision is not set up for this project" }, { status: 412 });
+    }),
+  );
+  renderAt("/projects/42/cases/1");
+  await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("not set up for this project");
+  expect(await screen.findByRole("link", { name: "Configure in Settings" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Run" })).toBeDisabled();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("after a run starts, focus goes back to Run", async () => {
+  server.use(
+    http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
+    http.post(`${P}/run-requests`, () => HttpResponse.json(runRequest(), { status: 201 })),
+  );
+  renderAt("/projects/42/cases/1");
+  const run = await screen.findByRole("button", { name: "Run" });
+  await userEvent.click(run);
+  await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(run).toHaveFocus();
+});
+
+test("a dialog left open closes for good when someone else starts a run", async () => {
+  server.use(http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))));
+  const qc = renderAt("/projects/42/cases/1");
+  await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  server.use(http.get(`${P}/run-requests`, () => HttpResponse.json({ total: 1, items: [runRequest({ status: "running" })] })));
+  await qc.invalidateQueries({ queryKey: ["run-requests", 42] });
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  server.use(http.get(`${P}/run-requests`, () => HttpResponse.json({ total: 0, items: [] })));
+  await qc.invalidateQueries({ queryKey: ["run-requests", 42] });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeEnabled());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("an empty suite says why Run suite is off", async () => {
+  server.use(http.get(`${P}/suites/5`, () => HttpResponse.json({
+    id: 5, name: "Smoke", description: null, case_count: 0, created_at: "2026-10-06T10:00:00Z", updated_at: null, cases: [] })));
+  renderAt("/projects/42/suites/5");
+  expect(await screen.findByText("This suite has no cases")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Run suite" })).toBeDisabled();
+});
+
+test("the selection survives a filter that shows no rows, and stays visible", async () => {
+  server.use(http.get(`${P}/cases`, ({ request }) => {
+    const sp = new URL(request.url).searchParams;
+    return HttpResponse.json(sp.get("search") ? { total: 0, items: [] } : { total: 1, items: [kase(1)] });
+  }));
+  renderAt("/projects/42/cases");
+  await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  await userEvent.type(screen.getByRole("searchbox", { name: "Search" }), "zzz");
+  await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+  expect(await screen.findByText("No test cases match these filters.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Run selected (1)" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Clear selection" })).toBeInTheDocument();
 });
