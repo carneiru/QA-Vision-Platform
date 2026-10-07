@@ -96,3 +96,40 @@ def test_downgrade_to_002_drops_feature_name(tmp_path):
         assert "feature_name" not in {c["name"] for c in inspect(engine).get_columns("cases")}
     finally:
         engine.dispose()
+
+
+RUN = ("INSERT INTO run_requests (project_id, requested_by, requested_at, selection, status)"
+       " VALUES (:project, 1, '2026-10-07 10:00:00', '[]', :status)")
+
+
+def test_one_active_run_per_project(migrated_engine):
+    with migrated_engine.begin() as conn:
+        conn.execute(text(RUN), {"project": 1, "status": "running"})
+        conn.execute(text(RUN), {"project": 1, "status": "completed"})
+        conn.execute(text(RUN), {"project": 1, "status": "failed_to_start"})
+        conn.execute(text(RUN), {"project": 2, "status": "queued"})
+    for status in ("queued", "running", "cancelling"):
+        with pytest.raises(IntegrityError), migrated_engine.begin() as conn:
+            conn.execute(text(RUN), {"project": 1, "status": status})
+
+
+def test_run_status_is_constrained(migrated_engine):
+    with pytest.raises(IntegrityError), migrated_engine.begin() as conn:
+        conn.execute(text(RUN), {"project": 1, "status": "paused"})
+
+
+def test_downgrade_to_003_drops_the_run_tables_and_scenario_name(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'down4.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "003")
+    engine = create_engine(url)
+    try:
+        inspector = inspect(engine)
+        assert not {"ci_targets", "run_requests", "ci_target_events"} & set(inspector.get_table_names())
+        assert "scenario_name" not in {c["name"] for c in inspector.get_columns("cases")}
+    finally:
+        engine.dispose()
+    command.upgrade(cfg, "head")  # and up again

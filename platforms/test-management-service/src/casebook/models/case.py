@@ -38,6 +38,8 @@ class Case(Base):
     source_key = Column(String(64), nullable=True)
     gherkin = Column(Text, nullable=True)
     feature_name = Column(String(500), nullable=True)  # Gherkin "Feature:" of an imported case
+    # The raw Gherkin scenario name (untruncated); Play selects by file + this name. NULL for manual cases
+    scenario_name = Column(Text, nullable=True)
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_by = Column(Integer, nullable=True)

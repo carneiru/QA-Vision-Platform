@@ -214,3 +214,33 @@ def test_a_case_imported_before_feature_names_gets_one_on_the_next_import(db):
     assert plan.summary()["updated"] == 2
     assert {c.feature_name for c in db.query(Case).all()} == {"A"}
     assert {i.action for i in import_service.plan_import(db, 1, [(A, FEATURE)], False).items} == {"unchanged"}
+
+
+NAMES = (
+    "Feature: A\n"
+    f"  Scenario: {'x' * 250}\n    Given x\n"
+    "  Scenario Outline: Book <city> flight\n    Given <city>\n    Examples:\n      | city |\n      | Rome |\n"
+)
+
+
+def test_import_records_the_raw_scenario_name_untruncated(db):
+    run(db, [(A, NAMES)])
+    assert {c.scenario_name for c in db.query(Case).all()} == {"x" * 250, "Book <city> flight"}
+    assert db.query(Case).filter(Case.scenario_name == "x" * 250).one().title == "x" * 200
+
+
+def test_a_case_imported_before_scenario_names_gets_one_on_the_next_import(db):
+    run(db, [(A, FEATURE)])
+    for case in db.query(Case).all():
+        case.scenario_name = None
+    db.commit()
+    assert run(db, [(A, FEATURE)]).summary()["updated"] == 2
+    assert {c.scenario_name for c in db.query(Case).all()} == {"one", "two"}
+    assert {i.action for i in import_service.plan_import(db, 1, [(A, FEATURE)], False).items} == {"unchanged"}
+
+
+def test_a_manual_case_keeps_no_scenario_name(db):
+    db.add(Case(project_id=1, number=1, title="manual", steps=[], created_by=1))
+    db.commit()
+    run(db, [(A, FEATURE)])
+    assert db.query(Case).filter(Case.title == "manual").one().scenario_name is None
