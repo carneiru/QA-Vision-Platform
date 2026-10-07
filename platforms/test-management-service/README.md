@@ -10,7 +10,7 @@ that implements it.
 
 In the platform stack: `docker compose up -d test-management-service`. That also runs
 `test-management-migrate` (`alembic upgrade head`) against `testmgmt_db`. The gateway routes
-`/api/v1/projects/{id}/(cases|case-labels|suites)` here.
+`/api/v1/projects/{id}/(cases|case-labels|case-folders|case-features|suites|ci-target|run-requests)` here.
 
 On its own, for the container smoke test: `SECRET_KEY=… docker compose up --build`. It answers on
 port 8004, and its database is on 5437.
@@ -42,6 +42,13 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 | `GET` / `POST` | `/suites` | name unique per project (409) |
 | `GET` / `PATCH` / `DELETE` | `/suites/{id}` | detail lists the cases in order; delete keeps the cases |
 | `PUT` | `/suites/{id}/cases` | `{"cases": [3, 1, 2]}` replaces the ordered list |
+| `GET` | `/ci-target` | `{available, configured, provider, repo, workflow, ref, token_last4, token_expires_at, updated_at, last_change}`; every role; the token itself is never returned |
+| `PUT` | `/ci-target` | owner or admin; `{repo, workflow="qa-vision-run.yml", ref="main", token?}`; the token is required on the first save; checked with GitHub first: 422 "token invalid or expired" (401), "token has no Actions access to this repository" (403), "repository or workflow not found. The workflow file must exist on the repository's default branch" (404); 503 without `TM_SECRETS_KEY` or on a GitHub rate limit |
+| `DELETE` | `/ci-target` | owner or admin; 409 while a run is active; the audit trail (`ci_target_events`) is kept |
+| `POST` | `/run-requests` | owner, admin or member; `{case_numbers: [1..200]}` or `{suite_id}`; 201 with the request (also when it is `failed_to_start`); 412 no target; 409 `run_active`; 422 names the cases that cannot run (manual, archived, unknown, or with no scenario name yet: re-import) |
+| `GET` | `/run-requests?limit=&offset=` | `{total, items}`, newest first; an active request is refreshed from GitHub when last checked over 5 s ago; `refreshing` says whether to keep polling |
+| `GET` | `/run-requests/{id}` | the same refresh rule |
+| `POST` | `/run-requests/{id}/stop` | owner, admin or member; cancels on GitHub (`cancelling`, `stopped_by`); 409 `run_finished` |
 
 Limits:
 
@@ -52,6 +59,56 @@ Limits:
 - Search filters: `folder` and `feature` up to 500 characters, `ado` 1-12 digits, `test_keys` up to 20 000.
 
 After deploying migration 003, run a full import once to fill Feature on existing imported cases (every imported case shows as updated in that run).
+
+## Run from QA Vision (Play and Stop)
+
+Design: `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`.
+
+### Setup
+
+1. Set `TM_SECRETS_KEY` in `.env`. Generate one with
+   `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+   Keep it in your `.env` backups: losing it means re-entering the GitHub token.
+2. Copy `templates/github/qa-vision-run.yml` to `.github/workflows/` and
+   `templates/github/qa-vision-run.mjs` to `.github/scripts/` **on the repository's default branch**
+   before the first Play. GitHub accepts `workflow_dispatch` only for a workflow on the default branch.
+3. Add the secret `QAV_API_KEY` and the variable `QAV_URL` in the repository.
+4. An owner or admin saves the repository and token in Project Settings.
+
+### Limits
+
+- 200 cases per run.
+- One active run per project.
+- GitHub is polled at most every 5 s, only while someone views the run.
+- Workers 1, retries 0.
+- After a 204 dispatch (no run details returned), a run not seen 2 minutes after Play is
+  `failed_to_start`. After a 200 dispatch the run id is known at once.
+- After a 204 dispatch, a Stop before the run is found is applied on GitHub only within that 2-minute
+  window: the request is cancelled locally, and the run is cancelled on GitHub only if it is found in time.
+- A 404 on a known run (the token lost access, or the repository was changed in Settings) ends the request
+  as `cancelled` while the GitHub run may continue.
+- GitHub's concurrency group cancels an older pending `qa-vision-run` when a newer one is queued.
+- The workflow file must be on the repository's default branch, and on the configured branch.
+
+### Selection
+
+- Selection is by file and the raw scenario name. Outline placeholders match any value.
+- The same scenario name in two selected files runs in both.
+- A path the workflow's path rule rejects fails the job, with a message.
+
+After deploying migration 004, run a full import once to fill `scenario_name`. Until then, Play on an
+old imported case answers 422 "re-import the .feature files first".
+
+### Security note
+
+- **What the token can do:** a fine-grained token limited to one repository with "Actions: Read and write".
+  It can start, cancel, re-run and delete that repository's workflow runs and logs, and read its workflow
+  files. It cannot read or change code.
+- **At rest:** it is stored Fernet-encrypted with `TM_SECRETS_KEY` and never returned or logged. Responses
+  show the last 4 characters.
+- **Who can do what:** owners and admins set and remove it. Owners, admins and members can run and stop.
+- **To revoke:** on GitHub, Settings > Developer settings > Fine-grained tokens > Revoke, then Disconnect in
+  Project Settings.
 
 ## Gherkin import
 

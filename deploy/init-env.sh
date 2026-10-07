@@ -17,6 +17,9 @@ fi
 # Twice the bytes needed, so the filtering never leaves cut short.
 secret() { openssl rand -base64 96 | tr -dc 'A-Za-z0-9' | cut -c1-"$1"; }
 
+# A Fernet key: 32 random bytes as url-safe base64 (+/ become -_).
+tm_key="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '\r\n')"
+
 umask 077  # the file holds every secret of the deployment
 cat > .env <<EOF
 # QA Vision production settings (git-ignored). Generated $(date -u +%Y-%m-%dT%H:%MZ).
@@ -25,5 +28,6 @@ ACME_EMAIL=$email
 SECRET_KEY=$(secret 64)
 INTERNAL_API_PASSWORD=$(secret 40)
 POSTGRES_PASSWORD=$(secret 40)
+TM_SECRETS_KEY=$tm_key
 EOF
 echo "wrote .env for https://$domain (mode 600)"

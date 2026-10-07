@@ -45,9 +45,10 @@ bash deploy/init-env.sh qa-vision.example.com ops@example.com
 ```
 
 `init-env.sh` writes `.env` (mode 600, git-ignored) with the domain and freshly generated
-secrets: `SECRET_KEY`, `INTERNAL_API_PASSWORD`, `POSTGRES_PASSWORD`. It refuses to overwrite
+secrets: `SECRET_KEY`, `INTERNAL_API_PASSWORD`, `POSTGRES_PASSWORD`, `TM_SECRETS_KEY`. It refuses to overwrite
 an existing `.env`. **Back this file up somewhere safe**: losing it means losing access to
-the database.
+the database. Include it in every `.env` backup: `TM_SECRETS_KEY` encrypts the GitHub tokens used to
+run tests from QA Vision, and losing it means re-entering each project's GitHub token.
 
 Then start everything:
 
