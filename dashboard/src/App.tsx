@@ -1,5 +1,5 @@
-import { Suspense, lazy, useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Navigate, Outlet, Route, RouterProvider, Routes, createBrowserRouter, useLocation, useNavigate } from "react-router-dom";
 import { focusContent, pageTitle, useFocusOnNavigate } from "./routeFocus";
 import { bootstrapSession, setOnAuthFailure } from "./api/http";
 import AppShell from "./components/AppShell";
@@ -148,11 +148,11 @@ export default function App() {
     bootstrapSession().finally(() => setBooted(true));
   }, []);
 
+  // A data router (rather than <BrowserRouter>) so pages can block navigation while they hold unsaved edits.
+  // All routes stay declared in <AppRoutes/> under one splat route.
+  const router = useMemo(() => createBrowserRouter([{ path: "*", element: <AppRoutes /> }]), []);
+
   if (!booted) return <p className="muted page">Loading…</p>;
 
-  return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
-  );
+  return <RouterProvider router={router} />;
 }

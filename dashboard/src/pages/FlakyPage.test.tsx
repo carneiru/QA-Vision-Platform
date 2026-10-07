@@ -94,6 +94,8 @@ test("Quarantine sends the key and refetches the list", async () => {
   renderFlaky();
   await screen.findByText("test_ok");
   await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
+  expect(muted).toEqual([]); // the first click only asks
+  await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
   await vi.waitFor(() => expect(muted).toEqual(["k1"]));
   await vi.waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(2)); // refetched
 });
@@ -120,6 +122,7 @@ test("Show quarantined adds include_muted and offers Release", async () => {
   await screen.findByText("test_ok");
   expect(screen.getByText(/in quarantine/i, { selector: "span" })).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /release test_ok from quarantine/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Release" }));
   await vi.waitFor(() => expect(unmuted).toEqual(["k1"]));
 });
 
@@ -141,4 +144,90 @@ test("numeric inputs apply on submit and clamp to API bounds", async () => {
   await screen.findByText(/no flaky tests/i);
   const last = calls[calls.length - 1];
   expect(last.get("min_runs")).toBe("2"); // clamped to the API's ge=2
+});
+
+const FLAKY = "/api/v1/projects/42/analytics/flaky";
+
+test("Quarantine says what it does before acting", async () => {
+  server.use(http.get(FLAKY, () => HttpResponse.json(flaky)));
+  renderFlaky();
+  await screen.findByText("test_ok");
+  await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
+  expect(screen.getByText("Quarantined tests don't fail runs. Quarantine test_ok?")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByText(/quarantined tests don't fail runs/i)).not.toBeInTheDocument();
+});
+
+test("Release says that failures count again", async () => {
+  server.use(http.get(FLAKY, () => HttpResponse.json([{ ...flaky[0], muted: true }])));
+  renderFlaky();
+  await userEvent.click(await screen.findByLabelText(/show quarantined/i));
+  await userEvent.click(await screen.findByRole("button", { name: /release test_ok from quarantine/i }));
+  expect(screen.getByText("Released tests fail runs again. Release test_ok?")).toBeInTheDocument();
+});
+
+test("only the row being changed is pending, not every row", async () => {
+  let release: () => void = () => {};
+  server.use(
+    http.get(FLAKY, () => HttpResponse.json(flaky)),
+    http.put(`${FLAKY}/mute`, () => new Promise<Response>((resolve) => { release = () => resolve(new HttpResponse(null, { status: 204 })); })),
+  );
+  renderFlaky();
+  await screen.findByText("test_ok");
+  await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
+  await vi.waitFor(() => expect(screen.getByRole("button", { name: /quarantine test_ok/i })).toBeDisabled());
+  expect(screen.getByRole("button", { name: /quarantine test_add/i })).toBeEnabled();
+  release();
+});
+
+test("a failed quarantine is announced next to its row", async () => {
+  server.use(
+    http.get(FLAKY, () => HttpResponse.json(flaky)),
+    http.put(`${FLAKY}/mute`, () => HttpResponse.json({ detail: "boom" }, { status: 500 })),
+  );
+  renderFlaky();
+  await screen.findByText("test_ok");
+  await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
+  const alert = await screen.findByRole("alert");
+  expect(alert.closest("tr")).toHaveTextContent("test_ok");
+  expect(screen.getByText("test_add").closest("tr")).not.toContainElement(alert);
+});
+
+test("after quarantining, Undo releases the test again", async () => {
+  const calls: string[] = [];
+  server.use(
+    http.get(FLAKY, () => HttpResponse.json(flaky)),
+    http.put(`${FLAKY}/mute`, () => { calls.push("mute"); return new HttpResponse(null, { status: 204 }); }),
+    http.delete(`${FLAKY}/mute/k1`, () => { calls.push("unmute"); return new HttpResponse(null, { status: 204 }); }),
+  );
+  renderFlaky();
+  await screen.findByText("test_ok");
+  await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
+  await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
+  const status = await screen.findByText(/quarantined test_ok/i, { selector: "[role=status] *, [role=status]" });
+  expect(status).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+  await vi.waitFor(() => expect(calls).toEqual(["mute", "unmute"]));
+  await vi.waitFor(() => expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument());
+});
+
+test("the Undo offer goes away by itself", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    server.use(
+      http.get(FLAKY, () => HttpResponse.json(flaky)),
+      http.put(`${FLAKY}/mute`, () => new HttpResponse(null, { status: 204 })),
+    );
+    renderFlaky();
+    await screen.findByText("test_ok");
+    await userEvent.click(screen.getAllByRole("button", { name: /^quarantine/i })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
+    await screen.findByRole("button", { name: "Undo" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
 });

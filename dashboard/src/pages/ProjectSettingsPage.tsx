@@ -143,6 +143,8 @@ export default function ProjectSettingsPage() {
   // Same key as ProjectLayout, so this is served from its cache
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
   const canEdit = EDIT_ROLES.includes(project.data?.my_role ?? "");
+  // Same rule as the ingestion API (EDIT_ROLES on create and revoke): anyone with read access may list
+  const roleKnown = project.data != null;
 
   const create = useMutation({
     mutationFn: () => createKey(id, name.trim()),
@@ -177,26 +179,30 @@ export default function ProjectSettingsPage() {
           The collector authenticates uploads with a project API key, sent as the{" "}
           <code>QEOS_API_KEY</code> environment variable in CI.
         </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate();
-          }}
-          className="inline-form"
-        >
-          <label>
-            Name
-            <input required placeholder="e.g. github-actions" value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <button type="submit" disabled={create.isPending}>Create key</button>
-        </form>
+        {roleKnown && !canEdit && <p className="muted">Only owners, admins and members manage API keys.</p>}
+        {canEdit && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              create.mutate();
+            }}
+            className="inline-form"
+          >
+            <label>
+              Name
+              <input required placeholder="e.g. github-actions" value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <button type="submit" disabled={create.isPending}>Create key</button>
+          </form>
+        )}
+        <span role="status" className="sr-only">{copied || snippetCopied ? "Copied" : ""}</span>
         {create.error != null && <ErrorBanner error={create.error} />}
         {revoke.error != null && <ErrorBanner error={revoke.error} />}
         {created && (
           <p role="status">
             Key <strong>{created.name}</strong> — store it now (only shown once):{" "}
             <code>{created.key}</code>{" "}
-            <button aria-label={`Copy the API key ${created.name}`} onClick={() => copyKey(created.key)}>
+            <button type="button" aria-label={`Copy key ${created.name}`} onClick={() => copyKey(created.key)}>
               {copied ? "Copied" : "Copy key"}
             </button>
           </p>
@@ -223,7 +229,7 @@ export default function ProjectSettingsPage() {
                   <td>
                     {key.revoked_at ? (
                       <span className="muted">revoked</span>
-                    ) : (
+                    ) : !canEdit ? null : (
                       <ConfirmButton
                         label="Revoke"
                         ariaLabel={`Revoke key ${key.name}`}
@@ -272,7 +278,8 @@ export default function ProjectSettingsPage() {
           <code>{snippets[platform].code}</code>
         </pre>
         <button
-          aria-label="Copy the CI snippet"
+          type="button"
+          aria-label="Copy snippet for CI"
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(snippets[platform].code);

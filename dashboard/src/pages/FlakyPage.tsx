@@ -1,11 +1,14 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatPassRate, getFlaky, muteFlaky, unmuteFlaky } from "../api/analytics";
 import { downloadCsv, toCsv } from "../lib/csv";
+import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
+
+const UNDO_MS = 8000;
 
 export default function FlakyPage() {
   const { projectId } = useParams();
@@ -50,7 +53,19 @@ export default function FlakyPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["flaky", id] }),
   });
 
+  // Undo is offered for a few seconds after a change, in the status line
+  const [undo, setUndo] = useState<{ testKey: string; name: string; muted: boolean } | null>(null);
+  useEffect(() => {
+    if (!undo) return;
+    const timer = setTimeout(() => setUndo(null), UNDO_MS);
+    return () => clearTimeout(timer);
+  }, [undo]);
+
   const rows = query.data ?? [];
+  const toggle = (testKey: string, name: string, muted: boolean) =>
+    muteToggle.mutate({ testKey, muted }, { onSuccess: () => setUndo({ testKey, name, muted: !muted }) });
+  const pendingKey = muteToggle.isPending ? muteToggle.variables?.testKey : undefined;
+  const failedKey = muteToggle.isError ? muteToggle.variables?.testKey : undefined;
 
   function onExport() {
     // The flaky endpoint returns the full result set, so the loaded rows are everything.
@@ -116,6 +131,22 @@ export default function FlakyPage() {
         A quarantined test keeps running and showing up here and on its runs, but its failures stop counting:
         not in a run's verdict, not in failure alerts, and not in the collector's <code>--gate</code>.
       </p>
+      <p role="status" className="muted">
+        {undo && (
+          <>
+            {undo.muted ? "Quarantined" : "Released"} {undo.name}.{" "}
+            <button
+              type="button"
+              onClick={() => {
+                muteToggle.mutate({ testKey: undo.testKey, muted: undo.muted });
+                setUndo(null);
+              }}
+            >
+              Undo
+            </button>
+          </>
+        )}
+      </p>
       {query.isPending && <p className="muted">Loading flaky tests…</p>}
       {query.data && rows.length === 0 && (
         <p className="muted">No flaky tests in the last {windowDays} days.</p>
@@ -164,13 +195,23 @@ export default function FlakyPage() {
                   </td>
                   <td>
                     {r.muted && <span className="muted">In quarantine · </span>}
-                    <button
-                      aria-label={r.muted ? `Release ${r.name} from quarantine` : `Quarantine ${r.name}`}
-                      onClick={() => muteToggle.mutate({ testKey: r.test_key, muted: r.muted === true })}
-                      disabled={muteToggle.isPending}
-                    >
-                      {r.muted ? "Release" : "Quarantine"}
-                    </button>
+                    <ConfirmButton
+                      label={r.muted ? "Release" : "Quarantine"}
+                      ariaLabel={r.muted ? `Release ${r.name} from quarantine` : `Quarantine ${r.name}`}
+                      question={
+                        r.muted
+                          ? `Released tests fail runs again. Release ${r.name}?`
+                          : `Quarantined tests don't fail runs. Quarantine ${r.name}?`
+                      }
+                      confirmLabel={r.muted ? "Release" : "Quarantine"}
+                      onConfirm={() => toggle(r.test_key, r.name, r.muted === true)}
+                      disabled={pendingKey === r.test_key}
+                    />
+                    {failedKey === r.test_key && (
+                      <span role="alert" className="field-error">
+                        Could not change {r.name}. Try again.
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}

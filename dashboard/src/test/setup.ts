@@ -11,6 +11,19 @@ globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
     ? realFetch(new URL(input, window.location.origin), init)
     : realFetch(input, init)) as typeof fetch;
 
+// react-router's data router builds Requests with jsdom's AbortSignal, which Node's Request
+// rejects. Nothing in the tests aborts navigations, so the signal is dropped.
+const NodeRequest = globalThis.Request;
+globalThis.Request = class extends NodeRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    if (init?.signal) {
+      const rest = { ...init };
+      delete rest.signal;
+      super(input, rest);
+    } else super(input, init);
+  }
+} as typeof Request;
+
 // Recharts' ResponsiveContainer needs ResizeObserver, which jsdom lacks.
 class ResizeObserverStub {
   observe() {}

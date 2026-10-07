@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, X } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -6,6 +6,7 @@ import { SuiteCase, deleteSuite, getSuite, listCases, setSuiteCases, updateSuite
 import ConfirmButton from "../components/ConfirmButton";
 import RunControl from "../components/RunControl";
 import ErrorBanner from "../components/ErrorBanner";
+import UnsavedGuard from "../components/UnsavedGuard";
 import { useCanEdit } from "../lib/useCanEdit";
 
 /** One suite: its ordered cases, which members can add, remove and reorder, then save. */
@@ -18,17 +19,16 @@ export default function SuiteDetailPage() {
   const navigate = useNavigate();
 
   const suite = useQuery({ queryKey: ["suite", id, sid], queryFn: () => getSuite(id, sid) });
-  const [cases, setCases] = useState<SuiteCase[]>([]);
-  const [dirty, setDirty] = useState(false);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  useEffect(() => {
-    if (!suite.data) return;
-    setCases(suite.data.cases);
-    setName(suite.data.name);
-    setDescription(suite.data.description ?? "");
-    setDirty(false);
-  }, [suite.data]);
+  // Edits live apart from the saved suite (null = untouched), so a refetch never overwrites them
+  const [casesEdit, setCasesEdit] = useState<SuiteCase[] | null>(null);
+  const [detailsEdit, setDetailsEdit] = useState<{ name: string; description: string } | null>(null);
+  const cases = casesEdit ?? suite.data?.cases ?? [];
+  const name = detailsEdit?.name ?? suite.data?.name ?? "";
+  const description = detailsEdit?.description ?? suite.data?.description ?? "";
+  const dirty = casesEdit !== null;
+  const detailsDirty = detailsEdit !== null && (detailsEdit.name !== suite.data?.name || detailsEdit.description !== (suite.data?.description ?? ""));
+  const setCases = (next: SuiteCase[]) => setCasesEdit(next);
+  const setDetails = (patch: Partial<{ name: string; description: string }>) => setDetailsEdit({ name, description, ...patch });
 
   const [search, setSearch] = useState("");
   const [asked, setAsked] = useState<string | null>(null);
@@ -42,10 +42,19 @@ export default function SuiteDetailPage() {
     qc.invalidateQueries({ queryKey: ["suites", id] });
     return qc.invalidateQueries({ queryKey: ["suite", id, sid] });
   };
-  const saveCases = useMutation({ mutationFn: () => setSuiteCases(id, sid, cases.map((c) => c.number)), onSuccess: refresh });
+  const saveCases = useMutation({
+    mutationFn: () => setSuiteCases(id, sid, cases.map((c) => c.number)),
+    onSuccess: async () => {
+      await refresh();
+      setCasesEdit(null);
+    },
+  });
   const saveDetails = useMutation({
     mutationFn: () => updateSuite(id, sid, { name: name.trim(), description: description.trim() || null }),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      await refresh();
+      setDetailsEdit(null);
+    },
   });
   const remove = useMutation({
     mutationFn: () => deleteSuite(id, sid),
@@ -59,7 +68,6 @@ export default function SuiteDetailPage() {
     const next = [...cases];
     [next[i], next[i + by]] = [next[i + by], next[i]];
     setCases(next);
-    setDirty(true);
   }
 
   if (suite.error != null) return <ErrorBanner error={suite.error} onRetry={() => suite.refetch()} />;
@@ -68,6 +76,7 @@ export default function SuiteDetailPage() {
 
   return (
     <section>
+      <UnsavedGuard dirty={dirty || detailsDirty} />
       <p>
         <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All suites</Link>
       </p>
@@ -98,7 +107,7 @@ export default function SuiteDetailPage() {
                     <ArrowDown size={16} aria-hidden="true" />
                   </button>
                   <button type="button" className="ghost" aria-label={`Remove ${c.key} from the suite`}
-                    onClick={() => { setCases(cases.filter((x) => x.number !== c.number)); setDirty(true); }}>
+                    onClick={() => setCases(cases.filter((x) => x.number !== c.number))}>
                     <X size={16} aria-hidden="true" />
                   </button>
                 </span>
@@ -109,9 +118,10 @@ export default function SuiteDetailPage() {
         {saveCases.error != null && <ErrorBanner error={saveCases.error} />}
         {canEdit && (
           <div className="button-row" style={{ marginTop: "var(--space-3)" }}>
-            <button className="primary" disabled={!dirty || saveCases.isPending} onClick={() => saveCases.mutate()}>
+            <button type="button" className="primary" disabled={!dirty || saveCases.isPending} onClick={() => saveCases.mutate()}>
               {saveCases.isPending ? "Saving…" : dirty ? "Save order and cases" : "Saved"}
             </button>
+            <span role="status" className="muted">{dirty || detailsDirty ? "Unsaved changes" : ""}</span>
           </div>
         )}
 
@@ -136,7 +146,6 @@ export default function SuiteDetailPage() {
                       disabled={inSuite.has(c.number)}
                       onClick={() => {
                         setCases([...cases, { number: c.number, key: c.key, title: c.title, status: c.status, priority: c.priority, labels: c.labels, automated_test_key: c.automated_test_key }]);
-                        setDirty(true);
                       }}
                     >
                       {inSuite.has(c.number) ? "In the suite" : "Add"}
@@ -154,15 +163,15 @@ export default function SuiteDetailPage() {
           <h3>Details</h3>
           <label>
             Name
-            <input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
+            <input required maxLength={100} value={name} onChange={(e) => setDetails({ name: e.target.value })} />
           </label>
           <label>
             <span>Description <span className="muted">(optional)</span></span>
-            <input maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
+            <input maxLength={2000} value={description} onChange={(e) => setDetails({ description: e.target.value })} />
           </label>
           {saveDetails.error != null && <ErrorBanner error={saveDetails.error} />}
           <div className="button-row">
-            <button type="submit" disabled={saveDetails.isPending}>{saveDetails.isPending ? "Saving…" : "Save details"}</button>
+            <button type="submit" disabled={saveDetails.isPending || !detailsDirty}>{saveDetails.isPending ? "Saving…" : "Save details"}</button>
             <ConfirmButton
               label="Delete suite"
               ariaLabel={`Delete the suite ${suite.data.name}`}

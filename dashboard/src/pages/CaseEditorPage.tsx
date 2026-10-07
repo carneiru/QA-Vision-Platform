@@ -4,11 +4,13 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Case, CaseInput, PRIORITIES, Priority, STATUSES, CaseStatus, Step, createCase, getCase, parseLabels, updateCase } from "../api/cases";
 import { getHistory, getTests } from "../api/analytics";
+import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import GherkinBlock from "../components/GherkinBlock";
 import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
 import StatusDot from "../components/StatusDot";
+import UnsavedGuard from "../components/UnsavedGuard";
 import { useCanEdit } from "../lib/useCanEdit";
 
 interface Draft {
@@ -84,7 +86,14 @@ function Automation({ projectId, c, canEdit, onLink }: {
               Latest result: <StatusDot status={last.status} /> in run #{last.run_id}, {new Date(last.started_at).toLocaleString()}
             </p>
           )}
-          {canEdit && <button type="button" onClick={() => onLink(null)}>Unlink</button>}
+          {canEdit && (
+            <ConfirmButton
+              label="Unlink"
+              question="Unlink this test? The case goes back to manual."
+              confirmLabel="Unlink"
+              onConfirm={() => onLink(null)}
+            />
+          )}
         </>
       ) : (
         <>
@@ -133,38 +142,53 @@ export default function CaseEditorPage() {
     queryFn: () => getCase(id, number!),
     enabled: number !== null,
   });
-  const [draft, setDraft] = useState<Draft>(EMPTY);
+  // Edits live apart from the saved case: null means "nothing changed", so a refetch or a
+  // link/unlink (which only touches automation fields) can never overwrite what is being typed.
+  const [edits, setEdits] = useState<Draft | null>(null);
+  const baseline = existing.data ? toDraft(existing.data) : EMPTY;
+  const draft = edits ?? baseline;
+  const dirty = edits !== null && JSON.stringify(edits) !== JSON.stringify(baseline);
   const [saved, setSaved] = useState(false);
+  const [created, setCreated] = useState<number | null>(null);
+  // Navigate after the render that clears the edits, so the leave guard no longer blocks
   useEffect(() => {
-    if (existing.data) setDraft(toDraft(existing.data));
-  }, [existing.data]);
+    if (created !== null && !dirty) navigate(`../${created}`, { relative: "path", replace: true });
+  }, [created, dirty, navigate]);
 
+  const afterWrite = (c: Case) => {
+    qc.invalidateQueries({ queryKey: ["cases", id] });
+    for (const key of ["case-labels", "case-folders", "case-features", "cases-total"]) {
+      qc.invalidateQueries({ queryKey: [key, id] });
+    }
+    qc.setQueryData(["case", id, c.number], c);
+  };
   const save = useMutation({
     mutationFn: (input: CaseInput) => (number === null ? createCase(id, input) : updateCase(id, number, input)),
     onSuccess: (c) => {
-      qc.invalidateQueries({ queryKey: ["cases", id] });
-      for (const key of ["case-labels", "case-folders", "case-features", "cases-total"]) {
-        qc.invalidateQueries({ queryKey: [key, id] });
-      }
-      qc.setQueryData(["case", id, c.number], c);
+      afterWrite(c);
+      setEdits(null);
       setSaved(true);
-      if (number === null) navigate(`../${c.number}`, { relative: "path", replace: true });
+      if (number === null) setCreated(c.number);
     },
+  });
+  // Link and unlink write the automation fields only and leave the form alone
+  const link = useMutation({
+    mutationFn: (input: CaseInput) => updateCase(id, number!, input),
+    onSuccess: afterWrite,
   });
 
   function setStep(i: number, field: keyof Step, value: string) {
-    setDraft((d) => ({ ...d, steps: d.steps.map((s, j) => (j === i ? { ...s, [field]: value } : s)) }));
+    setEdits({ ...draft, steps: draft.steps.map((s, j) => (j === i ? { ...s, [field]: value } : s)) });
     setSaved(false);
   }
   function moveStep(i: number, by: number) {
-    setDraft((d) => {
-      const steps = [...d.steps];
-      [steps[i], steps[i + by]] = [steps[i + by], steps[i]];
-      return { ...d, steps };
-    });
+    const steps = [...draft.steps];
+    [steps[i], steps[i + by]] = [steps[i + by], steps[i]];
+    setEdits({ ...draft, steps });
+    setSaved(false);
   }
   function change<K extends keyof Draft>(key: K, value: Draft[K]) {
-    setDraft((d) => ({ ...d, [key]: value }));
+    setEdits({ ...draft, [key]: value });
     setSaved(false);
   }
   function onSubmit(e: FormEvent) {
@@ -209,6 +233,7 @@ export default function CaseEditorPage() {
         </div>
       )}
 
+      <UnsavedGuard dirty={dirty} />
       <form className="card form-stack case-form" onSubmit={onSubmit}>
         <fieldset disabled={readOnly} className="plain-fieldset">
           <label>
@@ -291,12 +316,14 @@ export default function CaseEditorPage() {
           </div>
         </fieldset>
         {save.error != null && <ErrorBanner error={save.error} />}
+        {link.error != null && <ErrorBanner error={link.error} />}
         {saved && !save.isPending && <p className="success-note" role="status">Saved.</p>}
         {!readOnly && (
           <div className="button-row">
-            <button className="primary" type="submit" disabled={save.isPending}>
+            <button className="primary" type="submit" disabled={save.isPending || (number !== null && !dirty)}>
               {save.isPending ? "Saving…" : number === null ? "Create case" : "Save changes"}
             </button>
+            <span role="status" className="muted">{dirty ? "Unsaved changes" : ""}</span>
           </div>
         )}
         {readOnly && <p className="muted">Only owners, admins and members can change test cases.</p>}
@@ -307,7 +334,7 @@ export default function CaseEditorPage() {
           projectId={id}
           c={c}
           canEdit={canEdit}
-          onLink={(key, name) => save.mutate({ automated_test_key: key, ...(key ? { automated_name: name } : {}) })}
+          onLink={(key, name) => link.mutate({ automated_test_key: key, ...(key ? { automated_name: name } : {}) })}
         />
       )}
     </section>

@@ -80,6 +80,8 @@ export default function CaseImportPage() {
   const [changed, setChanged] = useState(false);
   const [filter, setFilter] = useState<ImportAction | null>(null);
   const [over, setOver] = useState(false);
+  // The explicit "I understand" for a mass archive; every new plan starts unticked
+  const [ack, setAck] = useState(false);
 
   const request = () => files.map((f) => ({ ...f, path: withPrefix(prefix, f.path) }));
 
@@ -88,6 +90,7 @@ export default function CaseImportPage() {
     onSuccess: (data) => {
       setPreview(data);
       setFilter(null);
+      setAck(false);
     },
   });
   const apply = useMutation({
@@ -113,6 +116,7 @@ export default function CaseImportPage() {
   async function choose(picked: File[]) {
     setFiles(await readFeatures(picked));
     setPreview(null);
+    setAck(false);
     setResult(null);
     setChanged(false);
     previewIt.reset();
@@ -315,6 +319,12 @@ export default function CaseImportPage() {
               </span>
             </div>
           )}
+          {massArchive && (
+            <label className="check">
+              <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} />
+              I understand {archived} cases will be archived
+            </label>
+          )}
           {rows.length === 0 ? (
             <p className="muted">Nothing to show for this filter.</p>
           ) : (
@@ -342,8 +352,8 @@ export default function CaseImportPage() {
             <button
               type="button"
               className="primary"
-              disabled={count === 0 || apply.isPending || previewIt.isPending}
-              onClick={() => apply.mutate({ hash: preview.plan_hash, allow: massArchive })}
+              disabled={count === 0 || apply.isPending || previewIt.isPending || (massArchive && !ack)}
+              onClick={() => apply.mutate({ hash: preview.plan_hash, allow: massArchive && ack })}
             >
               {apply.isPending ? "Importing…" : `Import ${count} changes${archived > 0 ? ` (archives ${archived})` : ""}`}
             </button>

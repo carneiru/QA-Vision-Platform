@@ -35,7 +35,7 @@ export default function ConfirmButton({ label, ariaLabel, question, confirmLabel
 
   if (!asking) {
     return (
-      <button ref={triggerRef} aria-label={ariaLabel} onClick={() => setAsking(true)} disabled={disabled}>
+      <button type="button" ref={triggerRef} aria-label={ariaLabel} onClick={() => setAsking(true)} disabled={disabled}>
         {label}
       </button>
     );
@@ -52,15 +52,17 @@ export default function ConfirmButton({ label, ariaLabel, question, confirmLabel
       <span>{question}</span>
       <button
         ref={confirmRef}
+        type="button"
         className="danger"
         onClick={() => {
+          returnFocus.current = true;
           setAsking(false);
           onConfirm();
         }}
       >
         {confirmLabel}
       </button>
-      <button onClick={cancel}>Cancel</button>
+      <button type="button" onClick={cancel}>Cancel</button>
     </span>
   );
 }

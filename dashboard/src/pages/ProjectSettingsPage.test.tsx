@@ -78,7 +78,7 @@ test("creating a key shows the full key exactly once", async () => {
 
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
-  await userEvent.click(screen.getByRole("button", { name: /copy the api key/i }));
+  await userEvent.click(screen.getByRole("button", { name: /copy key new-ci/i }));
   expect(writeText).toHaveBeenCalledWith("qeos_newnewnewFULLSECRET");
 });
 
@@ -136,7 +136,7 @@ test("hosted CI runners on localhost get a warning, not a silent snippet", async
 
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
-  await userEvent.click(screen.getByRole("button", { name: /copy the ci snippet/i }));
+  await userEvent.click(screen.getByRole("button", { name: /copy snippet for ci/i }));
   expect(writeText).toHaveBeenCalledWith(expect.stringContaining("qeosCollectorUpload"));
 });
 
@@ -184,4 +184,34 @@ test("members do not see Run from QEOS", async () => {
   renderPage("member");
   await screen.findByLabelText(/repository url/i); // the member role has loaded: editing is enabled
   expect(screen.queryByRole("heading", { name: "Run from QEOS" })).not.toBeInTheDocument();
+});
+
+test.each(["owner", "admin", "member"])("a %s can create and revoke API keys", async (role) => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([KEYS[0]])));
+  renderPage(role);
+  expect(await screen.findByRole("button", { name: "Revoke key ci" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /create key/i })).toBeInTheDocument();
+  expect(screen.queryByText(/only owners, admins and members manage api keys/i)).not.toBeInTheDocument();
+});
+
+test("a viewer sees the keys read-only, with a note", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([KEYS[0]])));
+  renderPage("viewer");
+  // positive signals first: the list and the note have loaded, so the absences below are real
+  expect(await screen.findByText("qeos_abcdefgh…")).toBeInTheDocument();
+  expect(await screen.findByText(/only owners, admins and members manage api keys/i)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /create key/i })).not.toBeInTheDocument();
+  expect(screen.queryByPlaceholderText("e.g. github-actions")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /revoke/i })).not.toBeInTheDocument();
+});
+
+test("copy buttons carry their visible text in the name and announce Copied politely", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.assign(navigator, { clipboard: { writeText } });
+  const snippet = await screen.findByRole("button", { name: /copy snippet/i });
+  expect(snippet).toHaveAccessibleName(expect.stringContaining("Copy snippet"));
+  await userEvent.click(snippet);
+  expect(await screen.findByText("Copied", { selector: "[role=status]" })).toBeInTheDocument();
 });

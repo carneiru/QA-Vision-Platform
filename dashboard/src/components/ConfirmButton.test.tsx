@@ -42,3 +42,18 @@ test("cancel and Escape back out and return focus to the trigger", async () => {
   expect(screen.getByRole("button", { name: "Revoke key ci" })).toHaveFocus();
   expect(onConfirm).not.toHaveBeenCalled();
 });
+
+test("inside a form, no button of the confirm flow submits it", async () => {
+  const onSubmit = vi.fn((e: React.FormEvent) => e.preventDefault());
+  render(
+    <form onSubmit={onSubmit}>
+      <ConfirmButton label="Delete" question="Delete it?" confirmLabel="Yes, delete" onConfirm={() => {}} />
+    </form>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(onSubmit).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  await userEvent.click(screen.getByRole("button", { name: "Yes, delete" }));
+  expect(onSubmit).not.toHaveBeenCalled();
+});

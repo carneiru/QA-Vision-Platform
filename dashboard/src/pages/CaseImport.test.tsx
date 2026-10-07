@@ -196,10 +196,47 @@ test("a confirm with the mass-archive alert showing allows the mass archive", as
   await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
   await user.click(screen.getByRole("checkbox", { name: /complete features folder/i }));
   await user.click(screen.getByRole("button", { name: /preview/i }));
-  await user.click(await screen.findByRole("button", { name: /archives 3/i }));
+  const importBtn = await screen.findByRole("button", { name: /archives 3/i });
+  expect(importBtn).toBeDisabled();
+  await user.click(screen.getByRole("checkbox", { name: /i understand 3 cases will be archived/i }));
+  expect(importBtn).toBeEnabled();
+  await user.click(importBtn);
   await screen.findByText(/imported:/i);
   expect(bodies[0].allow_mass_archive).toBeUndefined();
   expect(bodies[1].allow_mass_archive).toBe(true);
+});
+
+test("without a mass archive there is no acknowledgment and no allow flag", async () => {
+  asRole("member");
+  const bodies: Record<string, unknown>[] = [];
+  server.use(http.post(`${P}/cases/import`, async ({ request }) => {
+    bodies.push((await request.json()) as Record<string, unknown>);
+    return HttpResponse.json(preview);
+  }));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  const importBtn = await screen.findByRole("button", { name: /import 2 changes/i });
+  expect(screen.queryByRole("checkbox", { name: /i understand/i })).not.toBeInTheDocument();
+  expect(importBtn).toBeEnabled();
+  await user.click(importBtn);
+  await screen.findByText(/imported:/i);
+  expect(bodies[1].allow_mass_archive).toBeUndefined();
+});
+
+test("the acknowledgment resets when a new preview is made", async () => {
+  asRole("member");
+  const mass = { ...preview, summary: { created: 0, updated: 0, moved: 0, reactivated: 0, archived: 3, unchanged: 1, skipped: 0, mass_archive: true } };
+  server.use(http.post(`${P}/cases/import`, () => HttpResponse.json(mass)));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "f/a.feature")]);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  await user.click(await screen.findByRole("checkbox", { name: /i understand/i }));
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  expect(await screen.findByRole("button", { name: /archives 3/i })).toBeDisabled();
+  expect(screen.getByRole("checkbox", { name: /i understand/i })).not.toBeChecked();
 });
 
 test("a refused mass archive shows the server's message", async () => {
