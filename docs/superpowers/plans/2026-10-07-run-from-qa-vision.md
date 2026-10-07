@@ -35,7 +35,7 @@ Copied from the spec. Every task implicitly includes all of them.
   - `case_numbers` holds 1 to 200 entries, so at most 200 cases per run.
   - **At most one active QA Vision run per project.** A partial unique index on `run_requests.project_id` covers `status IN ('queued','running','cancelling')`.
   - A `GET` refreshes an active request when `checked_at` is older than **5 seconds**.
-  - **2 minutes** after the request with no matched run, the status becomes `failed_to_start` with "The workflow did not start".
+  - **2 minutes** after the request with no matched run (fallback only, after a 204 dispatch), the status becomes `failed_to_start` with "The workflow did not start".
   - The expiry warning starts **14 days** before `token_expires_at`.
   - After **5 minutes** without results, the panel says "Results not received: check the QA Vision upload step".
   - Workers are fixed at 1 and retries at 0.
@@ -60,8 +60,9 @@ Copied from the spec. Every task implicitly includes all of them.
   - Without the key, `PUT ci-target` returns 503 with "Running tests from QA Vision is not configured on this server", and `GET` reports `"available": false`.
   - **No response, log line or error message ever carries the token.** Responses show `token_last4` only.
 - **Matching and status:**
-  - The dispatch is `POST /repos/{repo}/actions/workflows/{workflow}/dispatches` with `{ref, inputs: {paths, names, request_id}}`.
-  - Runs are listed with `event=workflow_dispatch` and `created>=` the request time minus 1 minute, and matched on `display_title == "QA Vision #<id>"`.
+  - The dispatch is `POST /repos/{repo}/actions/workflows/{workflow}/dispatches` with `{ref, inputs: {paths, names, request_id}, return_run_details: true}`.
+  - **On 200**, GitHub's body `{workflow_run_id, run_url, html_url}` gives the run directly. The row stores `github_run_id` and `github_run_url` (the `html_url`, only if it starts with `https://github.com/`) at once, so Stop works immediately.
+  - **On 204 (fallback only)**, the row keeps no run id. Polling then lists runs with `event=workflow_dispatch` and `created>=` the request time minus 1 minute, and matches on `display_title == "QA Vision #<id>"`.
   - GitHub's `queued`, `waiting`, `requested` and `pending` map to `queued`. `in_progress` maps to `running`. `completed` maps to `completed`, or to `cancelled` when the conclusion is `cancelled`, and the `conclusion` is stored.
 - **Dashboard copy, verbatim:**
   - Settings: "Connected: owner/name · token …a1b2 · expires 12 Mar 2027", "Last changed by <name> on <date>", "The GitHub token expires on <date>. Replace it in Settings", "Replace token" and "Disconnect".
@@ -113,8 +114,8 @@ These rulings apply to every task, and the reviewers check them.
    - A save without an existing target is `created`.
    - A save with a token on an existing target is `token_replaced`.
    - Any other save is `updated`.
-8. **Stop of a `queued` request with no `github_run_id`.** It becomes `cancelled` locally with `stopped_by` and `stopped_at`. For 2 minutes after the request, `refreshing` stays true and a `GET` keeps looking for its run. When found, the service stores it and cancels it on GitHub.
-9. **Matching is defensive.** `find_run` keeps only runs that:
+8. **Stop of a `queued` request with no `github_run_id`.** This happens only after a 204 dispatch: a 200 dispatch stores the id at Play, so Stop cancels on GitHub at once. Such a request becomes `cancelled` locally with `stopped_by` and `stopped_at`. For 2 minutes after the request, `refreshing` stays true and a `GET` keeps looking for its run. When found, the service stores it and cancels it on GitHub.
+9. **Matching (the 204 fallback only) is defensive.** Polling skips it whenever `github_run_id` is already known. `find_run` keeps only runs that:
    - have `event == "workflow_dispatch"`;
    - were created at or after `since`, checked client-side too;
    - are not already claimed by another request.
@@ -137,7 +138,7 @@ These rulings apply to every task, and the reviewers check them.
 17. **Template copies.** The dashboard keeps byte-identical copies of the two templates in `dashboard/src/templates/*.txt`, imported with `?raw`, with a vitest drift test. The dashboard Docker build context is `dashboard/` only, so `../templates` cannot be imported.
 18. **The workflow template** guards the job with `if: github.ref == 'refs/heads/main'`. The help block replaces `main` with the configured branch.
 19. **HTML report.** The script adds `--format html:test-results/cucumber-report.html`, because OBT's `cucumber.js` has no HTML formatter.
-20. **`github_run_url`** is stored only if it starts with `https://github.com/`. Otherwise it is NULL, so the dashboard never renders an untrusted link.
+20. **`github_run_url`**, from the dispatch's `html_url` or from a matched run's `html_url`, is stored only if it starts with `https://github.com/`. Otherwise it is NULL, so the dashboard never renders an untrusted link.
 
 ## Review Focus
 
@@ -149,9 +150,10 @@ These rulings apply to every task, and the reviewers check them.
    - The pattern is pinned in Task 10 (`an outline's placeholders match the example values cucumber-js puts in`).
 3. **A token pasted with surrounding spaces or a trailing newline** must be trimmed, work, and show the right last 4. A malformed token must never be echoed in the 422. Task 3: `test_a_pasted_token_with_whitespace_is_trimmed` and `test_a_malformed_token_is_422_and_not_echoed`.
 4. **A double click on Run** must dispatch once.
-   - Task 4: `test_double_click_dispatches_once` (the second POST is 409, and the dispatch route is called once).
+   - Task 4: `test_double_click_dispatches_once` (the second POST is 409, and the dispatch route is called once). The first request already holds its run id from the 200 dispatch, so the pre-409 refresh asks GitHub for that run, not for the run list.
    - Task 8: `a double click on Run starts one run`.
-5. **A run from someone else's manual dispatch, or clocks that disagree.**
+5. **A run from someone else's manual dispatch, or clocks that disagree (the 204 fallback).**
+   - With a 200 dispatch, the run id comes from GitHub's answer and nothing is matched. Task 4: `test_a_200_dispatch_stores_the_run_at_once_and_polling_never_lists_runs`.
    - Only a `workflow_dispatch` run created since request time minus 1 minute, sent as UTC `...Z` (a `+00:00` offset would arrive as a space), and not already claimed, may match.
    - A run created 50 s "before" the request by GitHub's clock still matches.
    - Task 2: `test_find_run_skips_older_runs_other_events_and_claimed_ids` and `test_find_run_sends_created_in_utc_z`.
@@ -496,7 +498,8 @@ git add $FILES && git commit -m "feat(test-management): migration 004 — run ta
   - `parse_expiry(value: str | None) -> datetime | None`;
   - `github_time(moment: datetime) -> str`, which returns `YYYY-MM-DDTHH:MM:SSZ` in UTC;
   - `check_target(token, repo, workflow) -> datetime | None`, which returns the token expiry;
-  - `dispatch(token, repo, workflow, ref, inputs: dict) -> None`;
+  - `class DispatchResult(NamedTuple)` with `run_id: int` and `html_url: str | None`;
+  - `dispatch(token, repo, workflow, ref, inputs: dict) -> DispatchResult | None`. It sends `return_run_details: true`. A 200 with an integer `workflow_run_id` gives a `DispatchResult`. A 204, or a 200 without a usable id, gives `None`, and the caller falls back to matching;
   - `find_run(token, repo, workflow, title: str, since: datetime, exclude_ids: frozenset = frozenset()) -> dict | None`;
   - `get_run(token, repo, run_id: int) -> dict`;
   - `cancel_run(token, repo, run_id: int) -> None`.
@@ -505,7 +508,8 @@ git add $FILES && git commit -m "feat(test-management): migration 004 — run ta
   - fixtures `secrets_key` (a fresh Fernet key) and `no_secrets_key` (`""`);
   - fixture `github`, a `GitHubStub` on the shared respx router. Its attributes are `repo = "acme/obt"` and `workflow = "qa-vision-run.yml"`. Its methods:
     - `check(status=200, workflow_status=None, expires="2027-03-12 00:00:00 UTC", headers=None)` returns the workflow route;
-    - `dispatch(status=204, headers=None)`, `runs(*runs)`, `run(body)` and `cancel(run_id, status=202)` each return their route;
+    - `dispatch(run_id=None, status=None, headers=None)`: with `run_id` it answers 200 `{workflow_run_id, run_url, html_url}` (the normal path); without it, 204 (the fallback) or the given `status`;
+    - `runs(*runs)`, `run(body)` and `cancel(run_id, status=202)` each return their route;
     - `run_body(run_id, request_id, status="queued", conclusion=None, title=None, created_at="2026-10-07T10:00:05Z") -> dict`.
 
 - [ ] **Step 1: Add the dependency and the setting, and install.**
@@ -563,9 +567,16 @@ class GitHubStub:
             return_value=httpx.Response(workflow_status if workflow_status is not None else status,
                                         json={"id": 1, "path": f".github/workflows/{self.workflow}"}))
 
-    def dispatch(self, status=204, headers=None):
+    def dispatch(self, run_id=None, status=None, headers=None):
+        """With run_id: GitHub's 200 with run details (return_run_details). Without: a 204, the fallback."""
+        if run_id is not None:
+            body = {"workflow_run_id": run_id, "run_url": f"{GH}/repos/{self.repo}/actions/runs/{run_id}",
+                    "html_url": f"https://github.com/{self.repo}/actions/runs/{run_id}"}
+            response = httpx.Response(status or 200, json=body, headers=headers or {})
+        else:
+            response = httpx.Response(status or 204, headers=headers or {})
         return self.router.post(self._url(f"/actions/workflows/{self.workflow}/dispatches"), name="gh-dispatch").mock(
-            return_value=httpx.Response(status, headers=headers or {}))
+            return_value=response)
 
     def runs(self, *runs):
         return self.router.get(self._url(f"/actions/workflows/{self.workflow}/runs"), name="gh-runs").mock(
@@ -715,10 +726,24 @@ def test_names_are_checked_before_any_request(http, repo, workflow):
     assert not http.calls
 
 
-def test_dispatch_posts_ref_and_inputs(github):
-    route = github.dispatch()
-    gh.dispatch(TOKEN, github.repo, github.workflow, "main", {"paths": "[]", "names": "[]", "request_id": "7"})
-    assert route.calls.last.request.read() == b'{"ref": "main", "inputs": {"paths": "[]", "names": "[]", "request_id": "7"}}'
+def test_dispatch_asks_for_run_details_and_returns_the_run(github):
+    route = github.dispatch(run_id=501)
+    result = gh.dispatch(TOKEN, github.repo, github.workflow, "main", {"paths": "[]", "names": "[]", "request_id": "7"})
+    assert result == gh.DispatchResult(run_id=501, html_url=f"https://github.com/{github.repo}/actions/runs/501")
+    assert route.calls.last.request.read() == (
+        b'{"ref": "main", "inputs": {"paths": "[]", "names": "[]", "request_id": "7"}, "return_run_details": true}')
+
+
+def test_a_204_dispatch_returns_none_for_the_matching_fallback(github):
+    github.dispatch()
+    assert gh.dispatch(TOKEN, github.repo, github.workflow, "main", {"request_id": "7"}) is None
+
+
+@pytest.mark.parametrize("body", [{}, {"workflow_run_id": "501"}, {"workflow_run_id": True}, ["x"]])
+def test_a_200_without_a_usable_run_id_also_falls_back(http, body):
+    http.post(f"{gh.API}/repos/acme/obt/actions/workflows/qa-vision-run.yml/dispatches").mock(
+        return_value=httpx.Response(200, json=body))
+    assert gh.dispatch(TOKEN, "acme/obt", "qa-vision-run.yml", "main", {"request_id": "7"}) is None
 
 
 def test_find_run_matches_the_exact_title(github):
@@ -764,7 +789,7 @@ def test_cancelling_a_finished_run_is_a_409_github_error(github):
     assert err.value.status == 409
 ```
 
-`test_dispatch_posts_ref_and_inputs` compares bytes, which depends on httpx's `json=` serialisation (default separators). If httpx 0.27 serialises differently, compare `json.loads(route.calls.last.request.read())` instead. Do not change the asserted content.
+`test_dispatch_asks_for_run_details_and_returns_the_run` compares bytes, which depends on httpx's `json=` serialisation (default separators). If httpx 0.27 serialises differently, compare `json.loads(route.calls.last.request.read())` instead. Do not change the asserted content.
 
 - [ ] **Step 4: Run the tests and check they fail.**
 
@@ -826,7 +851,7 @@ https://api.github.com only, never following redirects, 10 s timeout. The token 
 never into an exception, a message or a log line; httpx errors are replaced, not chained."""
 import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import NamedTuple, Optional
 
 import httpx
 
@@ -948,9 +973,28 @@ def check_target(token: str, repo: str, workflow: str) -> Optional[datetime]:
     return parse_expiry(response.headers.get(EXPIRY_HEADER))
 
 
-def dispatch(token: str, repo: str, workflow: str, ref: str, inputs: dict) -> None:
+class DispatchResult(NamedTuple):
+    run_id: int
+    html_url: Optional[str]
+
+
+def dispatch(token: str, repo: str, workflow: str, ref: str, inputs: dict) -> Optional[DispatchResult]:
+    """Start the workflow. GitHub answers 200 with {workflow_run_id, run_url, html_url} when it returns run
+    details; a 204, or a 200 without a usable id, gives None: the caller falls back to title matching."""
     _check_names(repo, workflow)
-    _send(token, "POST", f"/repos/{repo}/actions/workflows/{workflow}/dispatches", json={"ref": ref, "inputs": inputs})
+    response = _send(token, "POST", f"/repos/{repo}/actions/workflows/{workflow}/dispatches",
+                     json={"ref": ref, "inputs": inputs, "return_run_details": True})
+    if response.status_code != 200:
+        return None
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    run_id = body.get("workflow_run_id") if isinstance(body, dict) else None
+    if type(run_id) is not int:  # bool is an int, and a string id is not trusted either
+        return None
+    html_url = body.get("html_url")
+    return DispatchResult(run_id=run_id, html_url=html_url if isinstance(html_url, str) else None)
 
 
 def find_run(token: str, repo: str, workflow: str, title: str, since: datetime,
@@ -1450,7 +1494,7 @@ git add $FILES && git commit -m "feat(test-management): ci-target endpoints — 
 **Interfaces:**
 - Consumes:
   - Task 1's models;
-  - Task 2's `github_client.dispatch`, `find_run`, `get_run`, `GitHubError` and `RateLimited`, and `secret_box.decrypt` and `SecretsUnavailable`;
+  - Task 2's `github_client.dispatch` (returns `DispatchResult | None`), `find_run`, `get_run`, `GitHubError` and `RateLimited`, and `secret_box.decrypt` and `SecretsUnavailable`;
   - Task 3's `github_failure(exc, refused_status)` from `endpoints/ci_target.py`.
 - Produces:
   - `POST /run-requests` with body `{case_numbers: [int≥1] (1..200)}` or `{suite_id: int}`, exactly one of the two. It answers 201 with `RunRequestOut`, or:
@@ -1480,7 +1524,9 @@ git add $FILES && git commit -m "feat(test-management): ci-target endpoints — 
     - `list_requests(db, project_id, limit, offset) -> (int, list)`;
     - `get_request(db, project_id, request_id)`;
     - `out(row) -> dict`;
+    - `safe_run_url(url) -> str | None`, which keeps a URL only if it starts with `https://github.com/`;
     - the private helpers `_target_and_token`, `_match` and `_apply_github`, which Task 5 extends.
+  - **Run id at Play.** After a 200 dispatch, `create` stores `github_run_id` and `github_run_url` before answering, and polling goes straight to `get_run`. Only after a 204 does the row keep no id. Then `_match` (title matching) and the 2-minute `failed_to_start` apply, as the fallback.
 
 - [ ] **Step 1: Write the failing tests.** `tests/integration/test_run_requests.py`:
 
@@ -1556,7 +1602,7 @@ def get(client, auth, rid):
 
 
 def test_cases_become_files_and_raw_names_and_the_dispatch_body_is_exact(project, auth, github, clock):
-    route = github.dispatch()
+    route = github.dispatch(run_id=500)
     r = play(project, auth, case_numbers=[CARD, BOOK, LOG_IN, CARD])
     assert r.status_code == 201, r.text
     body = r.json()
@@ -1569,8 +1615,29 @@ def test_cases_become_files_and_raw_names_and_the_dispatch_body_is_exact(project
             "names": json.dumps(["Pay by card", "Book <city> flight", "Log in"]),
             "request_id": str(body["id"]),
         },
+        "return_run_details": True,
     }
     assert TOKEN not in r.text
+
+
+def test_a_200_dispatch_stores_the_run_at_once_and_polling_never_lists_runs(project, auth, github, http, clock):
+    github.dispatch(run_id=501)
+    body = play(project, auth, case_numbers=[CARD]).json()
+    assert (body["status"], body["github_run_id"], body["github_run_url"]) == (
+        "queued", 501, f"https://github.com/{github.repo}/actions/runs/501")
+    run = github.run(github.run_body(501, body["id"], status="in_progress"))
+    clock.tick(minutes=3)  # well past the 2-minute fallback limit: a known run never becomes failed_to_start
+    assert get(project, auth, body["id"])["status"] == "running"
+    assert run.call_count == 1
+    assert not [c for c in http.calls if c.request.url.path.endswith(f"/workflows/{github.workflow}/runs")]
+
+
+def test_a_dispatch_url_outside_github_is_not_stored(project, auth, github, http, clock):
+    http.post(f"https://api.github.com/repos/{github.repo}/actions/workflows/{github.workflow}/dispatches",
+              name="gh-dispatch").mock(
+        return_value=httpx.Response(200, json={"workflow_run_id": 501, "html_url": "javascript:alert(1)"}))
+    body = play(project, auth, case_numbers=[CARD]).json()
+    assert body["github_run_id"] == 501 and body["github_run_url"] is None
 
 
 def test_a_name_with_quotes_and_regex_characters_is_sent_raw(project, auth, github, clock):
@@ -1671,26 +1738,27 @@ def test_a_rate_limited_dispatch_leaves_nothing_behind(project, auth, github, db
 
 
 def test_an_active_run_still_running_on_github_is_409(project, auth, github, clock):
-    github.dispatch()
+    github.dispatch(run_id=500)
     first = play(project, auth, case_numbers=[CARD]).json()
-    github.runs(github.run_body(500, first["id"], status="in_progress"))
+    github.run(github.run_body(500, first["id"], status="in_progress"))
     r = play(project, auth, case_numbers=[BOOK])
     assert r.status_code == 409
     assert r.json()["detail"]["code"] == "run_active" and r.json()["detail"]["run_request_id"] == first["id"]
 
 
 def test_a_run_that_finished_unseen_does_not_block_the_next_play(project, auth, github, clock):
-    github.dispatch()
+    github.dispatch(run_id=500)
     first = play(project, auth, case_numbers=[CARD]).json()
-    github.runs(github.run_body(500, first["id"], status="completed", conclusion="success"))
+    github.run(github.run_body(500, first["id"], status="completed", conclusion="success"))
+    github.dispatch(run_id=600)
     second = play(project, auth, case_numbers=[BOOK])  # inside the 5 s throttle: the pre-409 refresh ignores it
     assert second.status_code == 201, second.text
     assert get(project, auth, first["id"])["status"] == "completed"
 
 
 def test_double_click_dispatches_once(project, auth, github, clock):
-    dispatch = github.dispatch()
-    github.runs()  # GitHub has not listed the run yet
+    dispatch = github.dispatch(run_id=500)
+    github.run(github.run_body(500, 1, status="queued"))  # the pre-409 refresh asks for that run: still queued
     a = play(project, auth, case_numbers=[CARD])
     b = play(project, auth, case_numbers=[CARD])
     assert (a.status_code, b.status_code) == (201, 409)
@@ -1703,18 +1771,30 @@ def test_double_click_dispatches_once(project, auth, github, clock):
     ("completed", "failure", "completed"), ("completed", "timed_out", "completed"),
     ("completed", "cancelled", "cancelled")])
 def test_github_status_maps_to_ours(project, auth, github, clock, gh_status, conclusion, status):
-    github.dispatch()
+    github.dispatch(run_id=501)
     rid = play(project, auth, case_numbers=[CARD]).json()["id"]
-    github.runs(github.run_body(400, rid + 1), github.run_body(501, rid))
-    clock.tick(seconds=6)
-    matched = get(project, auth, rid)
-    assert (matched["status"], matched["github_run_id"]) == ("queued", 501)
-    assert matched["github_run_url"] == f"https://github.com/{github.repo}/actions/runs/501"
     github.run(github.run_body(501, rid, status=gh_status, conclusion=conclusion))
     clock.tick(seconds=6)
     body = get(project, auth, rid)
     assert (body["status"], body["conclusion"]) == (status, conclusion)
     assert body["refreshing"] is (status in ("queued", "running"))
+
+
+# --- The 204 fallback: GitHub gave no run details, so polling matches the run by its title ---
+
+def test_after_a_204_the_run_is_matched_by_display_title(project, auth, github, clock):
+    github.dispatch()  # 204: no run details
+    started = play(project, auth, case_numbers=[CARD]).json()
+    rid = started["id"]
+    assert started["github_run_id"] is None and started["github_run_url"] is None
+    github.runs(github.run_body(400, rid + 1), github.run_body(501, rid))
+    clock.tick(seconds=6)
+    matched = get(project, auth, rid)
+    assert (matched["status"], matched["github_run_id"]) == ("queued", 501)
+    assert matched["github_run_url"] == f"https://github.com/{github.repo}/actions/runs/501"
+    github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    assert get(project, auth, rid)["status"] == "running"
 
 
 def test_a_run_url_outside_github_is_not_stored(project, auth, github, clock):
@@ -1976,13 +2056,18 @@ def _claimed(db: Session, project_id: int, own_id: int) -> frozenset:
     return frozenset(r[0] for r in rows)
 
 
+def safe_run_url(url: Optional[str]) -> Optional[str]:
+    """Only a github.com page is stored, so the dashboard never renders an untrusted link."""
+    return url if isinstance(url, str) and url.startswith(RUN_URL_PREFIX) else None
+
+
 def _match(db: Session, row: RunRequest, target: CiTarget, token: str) -> Optional[dict]:
+    """The 204 fallback only: GitHub gave no run details at dispatch, so find the run by its title."""
     run = github_client.find_run(token, target.repo, target.workflow, run_title(row.id),
                                  aware(row.requested_at) - MATCH_WINDOW, _claimed(db, row.project_id, row.id))
     if run is not None:
         row.github_run_id = int(run["id"])
-        url = str(run.get("html_url") or "")
-        row.github_run_url = url if url.startswith(RUN_URL_PREFIX) else None
+        row.github_run_url = safe_run_url(run.get("html_url"))
     return run
 
 
@@ -2055,7 +2140,8 @@ def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[Li
         raise RunActive(None)  # another Play committed first (the partial unique index)
     db.refresh(row)
     try:
-        github_client.dispatch(token, target.repo, target.workflow, target.ref, dispatch_inputs(row.id, selection))
+        started = github_client.dispatch(token, target.repo, target.workflow, target.ref,
+                                         dispatch_inputs(row.id, selection))
     except github_client.RateLimited:
         db.delete(row)
         db.commit()
@@ -2063,6 +2149,12 @@ def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[Li
     except github_client.GitHubError as exc:
         row.status, row.error = "failed_to_start", exc.message[:500]
         db.commit()
+        return row
+    if started is not None:  # 200 with run details: Stop and polling work on this run at once
+        row.github_run_id = started.run_id
+        row.github_run_url = safe_run_url(started.html_url)
+        db.commit()
+    # On None (a 204), the row keeps no run id: polling matches it by title (the fallback)
     return row
 
 
@@ -2198,22 +2290,34 @@ git add $FILES && git commit -m "feat(test-management): run requests — Play di
     - 412 or 503 as for Play;
     - 502 for another GitHub error.
   - In `run_request_service`: `class AlreadyFinished(Exception)`, `stop(db, row, user_id) -> RunRequest`, and `_pending_cancel(row, at) -> bool`.
+  - **Normal path:** after a 200 dispatch the run id is known from Play, so Stop cancels on GitHub at once. **Fallback (204 only):** a request with no run id yet is cancelled locally, then cancelled on GitHub once matched.
 
 - [ ] **Step 1: Write the failing tests.** Append to `tests/integration/test_run_requests.py`:
 
 ```python
-def matched(project, auth, github, clock, status="in_progress"):
-    """A request whose GitHub run (id 501) is known and in the given state."""
-    github.dispatch()
+def known_run(project, auth, github, clock, status="in_progress"):
+    """A request whose GitHub run (id 501, from the 200 dispatch) is in the given state."""
+    github.dispatch(run_id=501)
     rid = play(project, auth, case_numbers=[CARD]).json()["id"]
-    github.runs(github.run_body(501, rid, status=status))
+    github.run(github.run_body(501, rid, status=status))
     clock.tick(seconds=6)
     assert get(project, auth, rid)["github_run_id"] == 501
     return rid
 
 
+def test_stop_right_after_play_cancels_the_run_at_once(project, auth, github, clock):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status="queued"))
+    cancel = github.cancel(501)
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))  # no tick, no matching: the id came with Play
+    assert r.status_code == 200, r.text
+    assert (r.json()["status"], r.json()["stopped_by"]) == ("cancelling", 7)
+    assert cancel.call_count == 1
+
+
 def test_stop_cancels_on_github_and_records_who(project, auth, github, clock):
-    rid = matched(project, auth, github, clock)
+    rid = known_run(project, auth, github, clock)
     cancel = github.cancel(501)
     r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
     assert r.status_code == 200, r.text
@@ -2229,7 +2333,7 @@ def test_stop_cancels_on_github_and_records_who(project, auth, github, clock):
 
 
 def test_stopping_a_finished_run_is_409(project, auth, github, clock):
-    rid = matched(project, auth, github, clock, status="completed")
+    rid = known_run(project, auth, github, clock, status="completed")
     cancel = github.cancel(501)
     r = project.post(f"{URL}/{rid}/stop", headers=auth())
     assert r.status_code == 409 and r.json()["detail"]["code"] == "run_finished"
@@ -2237,15 +2341,15 @@ def test_stopping_a_finished_run_is_409(project, auth, github, clock):
 
 
 def test_a_run_that_ends_while_stopping_is_409(project, auth, github, clock):
-    rid = matched(project, auth, github, clock)
+    rid = known_run(project, auth, github, clock)
     github.cancel(501, status=409)
     github.run(github.run_body(501, rid, status="completed", conclusion="success"))
     assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == 409
     assert get(project, auth, rid)["status"] == "completed"
 
 
-def test_a_queued_request_without_a_run_is_cancelled_locally_then_on_github(project, auth, github, clock):
-    github.dispatch()
+def test_after_a_204_a_queued_request_without_a_run_is_cancelled_locally_then_on_github(project, auth, github, clock):
+    github.dispatch()  # 204: no run details, the fallback
     rid = play(project, auth, case_numbers=[CARD]).json()["id"]
     github.runs()
     r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
@@ -2260,8 +2364,8 @@ def test_a_queued_request_without_a_run_is_cancelled_locally_then_on_github(proj
     assert cancel.call_count == 1
 
 
-def test_a_stopped_request_whose_run_never_appears_stops_looking_after_2_minutes(project, auth, github, clock):
-    github.dispatch()
+def test_after_a_204_a_stopped_request_whose_run_never_appears_stops_looking_after_2_minutes(project, auth, github, clock):
+    github.dispatch()  # 204
     rid = play(project, auth, case_numbers=[CARD]).json()["id"]
     github.runs()
     project.post(f"{URL}/{rid}/stop", headers=auth())
@@ -2271,7 +2375,7 @@ def test_a_stopped_request_whose_run_never_appears_stops_looking_after_2_minutes
 
 
 def test_a_viewer_cannot_stop_and_an_unknown_request_is_404(project, auth, github, clock, project_role):
-    rid = matched(project, auth, github, clock)
+    rid = known_run(project, auth, github, clock)
     project_role("viewer")
     assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == 403
     project_role("member")
@@ -2280,7 +2384,9 @@ def test_a_viewer_cannot_stop_and_an_unknown_request_is_404(project, auth, githu
 
 - [ ] **Step 2: Run the tests and check they fail.**
 
-Run: `SECRET_KEY=test .venv/Scripts/python -m pytest tests/integration/test_run_requests.py -q -k "stop or stopped or stopping"`
+Run: `SECRET_KEY=test .venv/Scripts/python -m pytest tests/integration/test_run_requests.py -q -k "stop or stopped or stopping"`.
+
+`test_stop_right_after_play_cancels_the_run_at_once` and the `known_run` helper rely on Task 4's run id at Play. The two `after_a_204` tests cover the fallback.
 Expected: FAIL (405 on `/stop`).
 
 - [ ] **Step 3: Implement.** In `run_request_service.py`, add these below `RunActive`:
@@ -2327,8 +2433,8 @@ Add at the end of the file:
 
 ```python
 def stop(db: Session, row: RunRequest, user_id: int) -> RunRequest:
-    """Cancel on GitHub and mark cancelling; a request GitHub has not listed yet is cancelled locally
-    and cancelled on GitHub once a GET finds its run."""
+    """Cancel on GitHub and mark cancelling. The run id normally came with Play (a 200 dispatch); only
+    after a 204 can a request still have none: it is cancelled locally, then on GitHub once a GET matches it."""
     if row.status not in ACTIVE_STATUSES:
         raise AlreadyFinished()
     at = now()
@@ -2468,6 +2574,17 @@ Expected: the two new checks FAIL. Without the route, project-service answers 40
       - **At rest:** it is stored Fernet-encrypted with `TM_SECRETS_KEY` and never returned or logged. Responses show the last 4 characters.
       - **Who can do what:** owners and admins set and remove it. Owners, admins and members can run and stop.
       - **To revoke:** on GitHub, Settings › Developer settings › Fine-grained tokens › Revoke, then Disconnect in Project Settings.
+
+- [ ] **Step 3b: Make sure the repo-root `.env` has a `TM_SECRETS_KEY`.** The end-to-end check needs it. The command generates a key with `Fernet.generate_key()` and appends it only if the variable is missing. It never prints the key: no `echo`, no `cat .env`, and nothing about it in the report beyond "present" or "added". Run it from the repo root in Git Bash:
+
+```bash
+grep -q '^TM_SECRETS_KEY=.' .env 2>/dev/null && echo "TM_SECRETS_KEY present" || {
+  platforms/test-management-service/.venv/Scripts/python -c "from cryptography.fernet import Fernet; import sys; sys.stdout.write('TM_SECRETS_KEY=' + Fernet.generate_key().decode() + '\n')" >> .env
+  echo "TM_SECRETS_KEY added"
+}
+```
+
+`.env` is git-ignored, so it is never committed. If `.env` does not end with a newline, add one first (`[ -n "$(tail -c1 .env)" ] && printf '\n' >> .env`) so the key starts on its own line.
 
 - [ ] **Step 4: Rebuild, run the smoke, and check it passes.** Run `set -a; . ./.env; set +a; docker compose up -d --build --wait test-management-service gateway`, then `bash scripts/smoke_gateway.sh`. Every check, the four new ones included, should be ok.
 
@@ -3065,7 +3182,9 @@ const kase = (number: number, extra: object = {}) => ({
 const runRequest = (extra: object = {}) => ({
   id: 9, requested_by: 7, requested_at: new Date().toISOString(),
   selection: [{ case_number: 1, path: "tests/features/a.feature", name: "Case 1" }], case_count: 1, suite_id: null,
-  status: "queued", conclusion: null, github_run_id: null, github_run_url: null, stopped_by: null, stopped_at: null,
+  // After a 200 dispatch the request carries its GitHub run from the start
+  status: "queued", conclusion: null, github_run_id: 501, github_run_url: "https://github.com/acme/obt/actions/runs/501",
+  stopped_by: null, stopped_at: null,
   error: null, checked_at: null, refreshing: true, ...extra,
 });
 
@@ -3600,7 +3719,8 @@ function show(get: () => RunRequest[], role = "member", caseNumber?: number) {
 const panel = () => screen.findByRole("status", { name: "Run from QA Vision" });
 
 test.each([
-  ["queued", req({ status: "queued", github_run_id: null, github_run_url: null }), /^Queued$/],
+  ["queued", req({ status: "queued" }), /^Queued$/],
+  ["queued after a 204 dispatch (no run yet)", req({ status: "queued", github_run_id: null, github_run_url: null }), /^Queued$/],
   ["running", req(), /^Running · 2 tests · started by ana@example\.com · 1m 0[5-9]s$/],
   ["passed", req({ status: "completed", conclusion: "success", refreshing: false }), /^Passed$/],
   ["failed", req({ status: "completed", conclusion: "failure", refreshing: false }), /^Failed$/],
@@ -4482,7 +4602,7 @@ git add $FILES && git commit -m "feat: qa-vision-run workflow template for the t
 
 This is the spec's "End to end" check. It is not a task: it needs the user's GitHub token and the user's change to the OBT repository.
 
-1. Set `TM_SECRETS_KEY` in `.env`. Then run `set -a; . ./.env; set +a; docker compose up -d --build --wait` and `bash scripts/smoke_gateway.sh`. Never use `down -v`.
+1. `TM_SECRETS_KEY` is in `.env` (Task 6 Step 3b). Then run `set -a; . ./.env; set +a; docker compose up -d --build --wait` and `bash scripts/smoke_gateway.sh`. Never use `down -v`.
 2. The user copies `templates/github/qa-vision-run.yml` and `.mjs` into the OBT repository on its default branch. The user adds `QAV_API_KEY` and `QAV_URL` there, with the tunnel's public URL, because hosted runners cannot reach localhost.
 3. An owner saves `owner/Atriis.Test.Automation.OBT`, `qa-vision-run.yml`, the branch and the token in Settings. The card reads "Connected: … · token …xxxx · expires …".
 4. Run a full import of OBT's `.feature` files, which fills `scenario_name`.
@@ -4513,8 +4633,8 @@ This is the spec's "End to end" check. It is not a task: it needs the user's Git
   | Migration 004 and `scenario_name` | 1 |
   | Token encryption and GitHub client | 2 |
   | `ci-target` endpoints, saving a target, the events, PUT, GET and DELETE | 3 |
-  | Starting a run, 412, 422, the 409 refresh, dispatch, polling, matching, the status map and 2-min `failed_to_start` | 4 |
-  | Stop, including a queued request with no run id | 5 |
+  | Starting a run, 412, 422, the 409 refresh, dispatch with `return_run_details` (run id stored at Play on 200), polling, the 204 fallback (title matching and 2-min `failed_to_start`), the status map | 4 |
+  | Stop at once with the run id from Play; the 204 fallback for a queued request with no run id | 5 |
   | Gateway, smoke, README (endpoints, `TM_SECRETS_KEY`, default branch, security note) and `.env.example` | 6 |
   | Settings section: fields, save, the specific error, the audit line, expiry, Disconnect, server not configured | 7 |
   | Help block | 10 |
@@ -4532,6 +4652,7 @@ This is the spec's "End to end" check. It is not a task: it needs the user's Git
   - The query keys `["ci-target", id]`, `["run-requests", id, "latest"]` and `["project", id]` are shared across Tasks 7–9.
   - `github_failure` is defined in Task 3 and imported in Tasks 4 and 5.
   - `_match` and `_apply_github` are defined in Task 4 and replaced in Task 5.
+  - `DispatchResult(run_id, html_url)` is defined in Task 2 and consumed by `create` in Task 4. `safe_run_url` is used for both the dispatch `html_url` and a matched run's `html_url`. The `github.dispatch(run_id=...)` stub (200) and `github.dispatch()` stub (204) are used the same way in Tasks 2, 4 and 5.
 - **Review Focus:** five lines, each pinned by a named test in its owning task.
   - Duplicate scenario names inside one file are already pinned by the existing parse test.
   - The cross-file case is Ruling 2.
