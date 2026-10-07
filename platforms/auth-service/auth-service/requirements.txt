@@ -1,27 +1,27 @@
-fastapi==0.104.1
-uvicorn[standard]==0.27.0
-python-multipart==0.0.6
-python-jose[cryptography]==3.3.0
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 # passlib 1.7.4 predates bcrypt 4.1+ and misreads its version, failing every hash with a
 # bogus "password cannot be longer than 72 bytes". Pin bcrypt until passlib is replaced.
 bcrypt==4.0.1
-python-dotenv==1.0.0
-email-validator==2.1.1
-pydantic[email]==2.7.0
-pydantic-settings==2.2.1
-SQLAlchemy==2.0.29
-psycopg2-binary==2.9.9
-alembic==1.13.1
+python-dotenv==1.2.4
+email-validator==2.3.0
+pydantic[email]==2.13.5
+pydantic-settings==2.15.0
+SQLAlchemy==2.1.3
+psycopg2-binary==2.9.13
+alembic==1.20.0
 redis==5.0.1
-PyJWT==2.8.0
+PyJWT==2.15.1
 cryptography==42.0.0
 python3-saml
-Authlib==1.2.1
-requests==2.31.0
+Authlib==1.8.0
+requests==2.34.2
 # Test dependencies (the suite could not run without these; matches organization-service)
 pytest==8.1.1
-httpx==0.27.0
+httpx==0.28.1
 # Relative path, resolved from this file's directory. The Dockerfile mirrors the repo
 # layout so this same path resolves inside the image.
 -e ../../../shared
