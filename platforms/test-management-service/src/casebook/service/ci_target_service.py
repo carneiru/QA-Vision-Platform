@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.casebook.models import CiTarget, CiTargetEvent, RunRequest
@@ -55,6 +56,18 @@ def save_target(db: Session, project_id: int, user_id: int, repo: str, workflow:
         raise TokenRequired()
     plain = token if token is not None else secret_box.decrypt(row.token_encrypted)
     expires = github_client.check_target(plain, repo, workflow)
+    try:
+        return _write_target(db, row, project_id, user_id, repo, workflow, ref, token, plain, expires)
+    except IntegrityError:  # two first saves raced: the other one inserted the row, so this one updates it
+        db.rollback()
+        row = get_target(db, project_id)
+        if row is None:
+            raise
+        return _write_target(db, row, project_id, user_id, repo, workflow, ref, token, plain, expires)
+
+
+def _write_target(db: Session, row: Optional[CiTarget], project_id: int, user_id: int, repo: str, workflow: str,
+                  ref: str, token: Optional[str], plain: str, expires: Optional[datetime]) -> CiTarget:
     action = "created" if row is None else ("token_replaced" if token is not None else "updated")
     if row is None:
         row = CiTarget(project_id=project_id, provider="github")

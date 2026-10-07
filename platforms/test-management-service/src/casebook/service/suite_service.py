@@ -33,7 +33,7 @@ def out(db: Session, row: Suite, with_cases: bool = False) -> dict:
         body["cases"] = [
             {"number": c.number, "key": case_key(c.number), "title": c.title, "status": c.status,
              "priority": c.priority, "labels": [label.label for label in c.labels],
-             "automated_test_key": c.automated_test_key}
+             "automated_test_key": c.automated_test_key, "source_path": c.source_path}
             for c in cases
         ]
     return body

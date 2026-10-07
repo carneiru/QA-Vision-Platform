@@ -22,7 +22,6 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 
-
 @app.exception_handler(RequestValidationError)
 def validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
     """FastAPI's 422 echoes each error's `input`, which for a body error is the whole body: a GitHub

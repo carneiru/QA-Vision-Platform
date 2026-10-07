@@ -91,3 +91,13 @@ def test_viewers_read_suites_but_cannot_change_them(client, auth, cases, project
     assert client.get(f"{BASE}/suites/{s['id']}", headers=auth()).status_code == 200
     assert client.put(f"{BASE}/suites/{s['id']}/cases", json={"cases": [1]}, headers=auth()).status_code == 403
     assert client.delete(f"{BASE}/suites/{s['id']}", headers=auth()).status_code == 403
+
+
+def test_suite_detail_carries_source_path_null_for_manual_cases(client, auth, cases, db):
+    from src.casebook.models import Case
+    db.query(Case).filter(Case.number == 2).one().source_path = "tests/features/login.feature"
+    db.commit()
+    s = suite(client, auth)
+    client.put(f"{BASE}/suites/{s['id']}/cases", json={"cases": [1, 2]}, headers=auth())
+    detail = client.get(f"{BASE}/suites/{s['id']}", headers=auth()).json()
+    assert [c["source_path"] for c in detail["cases"]] == [None, "tests/features/login.feature"]

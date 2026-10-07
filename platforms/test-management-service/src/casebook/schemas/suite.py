@@ -46,6 +46,7 @@ class SuiteCaseOut(BaseModel):
     priority: str
     labels: List[str]
     automated_test_key: Optional[str] = None
+    source_path: Optional[str] = None  # null for a manual case: a suite run skips those
 
 
 class SuiteDetail(SuiteOut):

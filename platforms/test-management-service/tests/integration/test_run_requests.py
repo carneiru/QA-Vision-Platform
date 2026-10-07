@@ -146,6 +146,9 @@ def test_manual_archived_and_unknown_cases_are_rejected_with_their_numbers(proje
     assert r.status_code == 422
     detail = r.json()["detail"]
     assert "TC-99" in detail and "TC-5" in detail and "TC-1" in detail and "TC-2" not in detail
+    assert "No such case: TC-99" in detail
+    assert "Manual cases cannot run: TC-5" in detail
+    assert "Archived cases cannot run: TC-1" in detail
     assert not dispatch.called
 
 
@@ -260,14 +263,15 @@ def test_a_commit_that_loses_the_race_in_a_refresh_is_not_a_500(project, auth, g
 
     def commit():
         calls.append(1)
-        if len(calls) == 1:
-            raise IntegrityError("insert", {}, Exception("uq_run_requests_one_active"))
+        if len(calls) == 2:  # the first commit ends the read transaction, the second writes the result
+            db.rollback()
+            raise IntegrityError("update", {}, Exception("uq_run_requests_one_active"))
         return real_commit()
 
     monkeypatch.setattr(db, "commit", commit)
     row = db.get(RunRequest, rid)
     assert run_request_service.refresh(db, row) is row
-    assert row.id == rid
+    assert (row.id, row.status) == (rid, "queued")  # the write was lost: the row is as the database has it
 
 
 @pytest.mark.parametrize("gh_status, conclusion, status", [
@@ -395,9 +399,11 @@ def test_a_dispatch_that_may_have_started_a_run_keeps_the_row_queued_for_matchin
     assert r.status_code == 201
     body = r.json()
     assert (body["status"], body["github_run_id"], body["refreshing"]) == ("queued", None, True)
+    assert body["error"] == "GitHub did not confirm the start; checking…"
     github.runs(github.run_body(501, body["id"]))
     clock.tick(seconds=6)
-    assert get(project, auth, body["id"])["github_run_id"] == 501
+    matched = get(project, auth, body["id"])
+    assert (matched["github_run_id"], matched["error"]) == (501, None)
 
 
 @pytest.mark.parametrize("code", [401, 403, 404, 422])
@@ -650,3 +656,164 @@ def test_a_viewer_cannot_stop_and_an_unknown_request_is_404(project, auth, githu
     assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == 403
     project_role("member")
     assert project.post(f"{URL}/9999/stop", headers=auth()).status_code == 404
+
+
+# --- Fix wave A1: refresh writes conditionally ---
+
+def change_during_github_call(monkeypatch, db, rid, **changes):
+    """GitHub's answer arrives after another request already changed the row."""
+    real = run_request_service.github_client.get_run
+
+    def get_run(token, repo, run_id):
+        db.query(RunRequest).filter(RunRequest.id == rid).update(changes, synchronize_session=False)
+        db.commit()
+        return real(token, repo, run_id)
+
+    monkeypatch.setattr(run_request_service.github_client, "get_run", get_run)
+
+
+def test_a_refresh_never_overwrites_a_stop_that_landed_while_it_asked_github(project, auth, github, db, clock, monkeypatch):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    change_during_github_call(monkeypatch, db, rid, status="cancelling", stopped_by=7)
+    body = get(project, auth, rid)
+    assert (body["status"], body["stopped_by"]) == ("cancelling", 7)
+
+
+def test_a_refresh_does_not_touch_a_row_whose_status_changed_meanwhile(project, auth, github, db, clock, monkeypatch):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    change_during_github_call(monkeypatch, db, rid, status="completed", conclusion="success")
+    body = get(project, auth, rid)
+    assert (body["status"], body["conclusion"]) == ("completed", "success")
+    assert body["error"] is None and body["refreshing"] is False
+
+
+# --- Fix wave A4: a list GET asks GitHub for a few rows, and never inside a transaction ---
+
+def pending_cancels(db, clock, count):
+    for _ in range(count):
+        db.add(RunRequest(project_id=1, requested_by=1, requested_at=clock.at - timedelta(seconds=30),
+                          selection=[], status="cancelled", stopped_by=1, stopped_at=clock.at - timedelta(seconds=20)))
+    db.commit()
+
+
+def test_a_list_get_refreshes_at_most_3_rows_and_the_next_poll_does_the_rest(project, auth, github, db, clock):
+    pending_cancels(db, clock, 5)
+    runs = github.runs()
+    items = project.get(URL, headers=auth()).json()["items"]
+    assert runs.call_count == 3
+    assert sum(1 for i in items if i["checked_at"]) == 3 and all(i["refreshing"] for i in items)
+    clock.tick(seconds=6)
+    items = project.get(URL, headers=auth()).json()["items"]
+    assert runs.call_count == 6
+    assert all(i["checked_at"] for i in items)  # the two never asked go first
+
+
+def test_github_is_asked_with_no_database_transaction_open(project, auth, github, db, clock, monkeypatch):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    real, open_during_call = run_request_service.github_client.get_run, []
+
+    def get_run(token, repo, run_id):
+        open_during_call.append(db.in_transaction())
+        return real(token, repo, run_id)
+
+    monkeypatch.setattr(run_request_service.github_client, "get_run", get_run)
+    assert project.get(URL, headers=auth()).json()["items"][0]["status"] == "running"
+    assert open_during_call == [False]
+
+
+# --- Fix wave A5: a whole suite skips its manual cases ---
+
+def make_suite(db, *numbers):
+    suite = Suite(project_id=1, name="Mixed", created_by=1)
+    db.add(suite)
+    db.commit()
+    ids = {c.number: c.id for c in db.query(Case)}
+    db.add_all([SuiteCase(suite_id=suite.id, case_id=ids[n], position=i) for i, n in enumerate(numbers)])
+    db.commit()
+    return suite
+
+
+def test_a_suite_skips_manual_cases_and_records_how_many(project, auth, db, github, clock):
+    suite = make_suite(db, LOG_IN, MANUAL, CARD)
+    dispatch = github.dispatch(run_id=500)
+    r = play(project, auth, suite_id=suite.id)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert [c["case_number"] for c in body["selection"]] == [LOG_IN, CARD]
+    assert (body["case_count"], body["skipped_manual"]) == (2, 1)
+    assert json.loads(json.loads(dispatch.calls.last.request.read())["inputs"]["names"]) == ["Log in", "Pay by card"]
+    github.run(github.run_body(500, body["id"]))
+    assert get(project, auth, body["id"])["skipped_manual"] == 1
+    assert project.get(URL, headers=auth()).json()["items"][0]["skipped_manual"] == 1
+
+
+def test_a_request_without_manual_cases_skips_none(project, auth, github, clock):
+    github.dispatch()
+    assert play(project, auth, case_numbers=[CARD]).json()["skipped_manual"] == 0
+
+
+def test_a_suite_with_only_manual_cases_is_422(project, auth, db, github):
+    suite = make_suite(db, MANUAL)
+    dispatch = github.dispatch()
+    r = play(project, auth, suite_id=suite.id)
+    assert r.status_code == 422 and r.json()["detail"] == "This suite has no automated cases"
+    assert not dispatch.called
+
+
+def test_a_suite_still_rejects_archived_and_unnamed_cases(project, auth, db, github):
+    suite = make_suite(db, LOG_IN, CARD, BOOK, MANUAL)
+    db.query(Case).filter(Case.number == LOG_IN).one().status = "archived"
+    db.query(Case).filter(Case.number == CARD).one().scenario_name = None
+    db.commit()
+    r = play(project, auth, suite_id=suite.id)
+    assert r.status_code == 422
+    assert "Archived cases cannot run: TC-4" in r.json()["detail"]
+    assert "TC-2: re-import the .feature files first" in r.json()["detail"]
+    assert "Manual" not in r.json()["detail"]
+
+
+def test_an_explicit_selection_still_rejects_manual_cases(project, auth, github):
+    r = play(project, auth, case_numbers=[CARD, MANUAL])
+    assert r.status_code == 422 and "Manual cases cannot run: TC-5" in r.json()["detail"]
+
+
+# --- Fix wave A8: Stop ---
+
+def test_stopping_another_projects_request_is_404(project, auth, github, clock, project_role):
+    rid = known_run(project, auth, github, clock)
+    project_role("member", project_id=2)
+    assert project.post(f"/api/v1/projects/2/run-requests/{rid}/stop", headers=auth()).status_code == 404
+
+
+@pytest.mark.parametrize("role, expected", [("admin", 200), ("member", 200), ("owner", 200), ("billing_manager", 403)])
+def test_stop_roles(project, auth, github, clock, project_role, role, expected):
+    rid = known_run(project, auth, github, clock)
+    github.cancel(501)
+    project_role(role)
+    assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == expected
+
+
+def test_a_pending_cancel_is_retried_after_github_fails_on_the_cancel(project, auth, github, clock):
+    github.dispatch()  # 204
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.runs()
+    assert project.post(f"{URL}/{rid}/stop", headers=auth(7)).status_code == 200
+    github.runs(github.run_body(501, rid))
+    github.cancel(501, status=500)
+    clock.tick(seconds=6)
+    body = get(project, auth, rid)
+    assert (body["status"], body["github_run_id"], body["refreshing"]) == ("cancelled", None, True)
+    cancel = github.cancel(501)
+    clock.tick(seconds=6)
+    body = get(project, auth, rid)
+    assert (body["status"], body["github_run_id"], body["refreshing"]) == ("cancelled", 501, False)
+    assert cancel.calls.last.response.status_code == 202

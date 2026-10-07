@@ -8,6 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_vali
 REPO_PATTERN = r"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$"
 WORKFLOW_PATTERN = r"^[A-Za-z0-9._-]{1,100}\.ya?ml$"
 TOKEN = re.compile(r"^[A-Za-z0-9_]{20,255}$")
+# git check-ref-format: no whitespace or control characters (DEL included), none of ~ ^ : ? * [ and backslash
+BRANCH_FORBIDDEN = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]")
 DEFAULT_WORKFLOW = "qa-vision-run.yml"
 
 
@@ -30,8 +32,10 @@ class CiTargetIn(BaseModel):
     @field_validator("ref")
     @classmethod
     def _branch_name(cls, value: str) -> str:
-        if "\x00" in value or ".." in value or value.startswith("-"):
-            raise ValueError("not a branch name: no NUL, no '..', no leading '-'")
+        if (BRANCH_FORBIDDEN.search(value) or ".." in value or "@{" in value or "//" in value
+                or value.startswith(("/", "-")) or value.endswith(("/", "."))
+                or any(part.endswith(".lock") for part in value.split("/"))):
+            raise ValueError("not a branch name (see git check-ref-format)")
         return value
 
 
@@ -102,6 +106,7 @@ class RunRequestOut(BaseModel):
     stopped_at: Optional[datetime] = None
     error: Optional[str] = None
     checked_at: Optional[datetime] = None
+    skipped_manual: int = 0  # manual cases a whole-suite run left out
     refreshing: bool  # true while the server still checks GitHub for it: poll
 
 

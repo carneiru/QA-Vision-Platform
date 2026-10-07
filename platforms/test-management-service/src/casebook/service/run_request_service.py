@@ -18,6 +18,7 @@ MAX_CASES = 200
 MAX_INPUT_CHARS = 65000  # GitHub refuses workflow_dispatch inputs over 65 535 characters in total
 NOT_STARTED = "The workflow did not start"
 RUN_GONE = "The run is no longer on GitHub"
+AMBIGUOUS_START = "GitHub did not confirm the start; checking…"
 QUEUED_ON_GITHUB = ("queued", "waiting", "requested", "pending")
 RUN_URL_PREFIX = "https://github.com/"
 
@@ -75,15 +76,24 @@ def _numbers(db: Session, project_id: int, case_numbers: Optional[List[int]], su
 
 
 def build_selection(db: Session, project_id: int, case_numbers: Optional[List[int]],
-                    suite_id: Optional[int]) -> List[dict]:
+                    suite_id: Optional[int]) -> Tuple[List[dict], int]:
+    """The cases to run and how many manual ones were left out. A whole suite skips its manual cases (it
+    mixes both kinds by design); an explicit selection rejects them, so a click is never silently dropped."""
     numbers = _numbers(db, project_id, case_numbers, suite_id)
     if not numbers:
         raise BadSelection("Nothing to run: the suite has no cases")
+    found = {c.number: c for c in db.query(Case).filter(Case.project_id == project_id, Case.number.in_(numbers))}
+    manual = [n for n in numbers if n in found and not found[n].source_path]
+    skipped = 0
+    if suite_id is not None:
+        skipped = len(manual)
+        numbers = [n for n in numbers if n not in manual]
+        manual = []
+        if not numbers:
+            raise BadSelection("This suite has no automated cases")
     if len(numbers) > MAX_CASES:
         raise BadSelection(f"At most {MAX_CASES} cases per run; this selection has {len(numbers)}")
-    found = {c.number: c for c in db.query(Case).filter(Case.project_id == project_id, Case.number.in_(numbers))}
     unknown = [n for n in numbers if n not in found]
-    manual = [n for n in numbers if n in found and not found[n].source_path]
     archived = [n for n in numbers if n in found and found[n].source_path and found[n].status == "archived"]
     unnamed = [n for n in numbers if n in found and found[n].source_path and found[n].status != "archived"
                and not found[n].scenario_name]
@@ -98,7 +108,7 @@ def build_selection(db: Session, project_id: int, case_numbers: Optional[List[in
         problems.append(f"{_keys(unnamed)}: re-import the .feature files first")
     if problems:
         raise BadSelection(". ".join(problems))
-    return [{"case_number": n, "path": found[n].source_path, "name": found[n].scenario_name} for n in numbers]
+    return [{"case_number": n, "path": found[n].source_path, "name": found[n].scenario_name} for n in numbers], skipped
 
 
 def dispatch_inputs(request_id: int, selection: List[dict]) -> dict:
@@ -143,10 +153,10 @@ def safe_run_url(url: Optional[str]) -> Optional[str]:
     return url if isinstance(url, str) and url.startswith(RUN_URL_PREFIX) else None
 
 
-def _match(db: Session, row: RunRequest, target: CiTarget, token: str) -> Optional[dict]:
+def _match(row: RunRequest, repo: str, workflow: str, token: str, claimed: frozenset) -> Optional[dict]:
     """The 204 fallback only: GitHub gave no run details at dispatch, so find the run by its title."""
-    run = github_client.find_run(token, target.repo, target.workflow, run_title(row.id),
-                                 aware(row.requested_at) - MATCH_WINDOW, _claimed(db, row.project_id, row.id))
+    run = github_client.find_run(token, repo, workflow, run_title(row.id), aware(row.requested_at) - MATCH_WINDOW,
+                                 claimed)
     if run is not None:
         row.github_run_id = int(run["id"])
         row.github_run_url = safe_run_url(run.get("html_url"))
@@ -166,15 +176,16 @@ def _map_status(row: RunRequest, run: dict) -> None:
         row.status = "queued"
 
 
-def _apply_github(db: Session, row: RunRequest, target: CiTarget, token: str, at: datetime) -> None:
+def _apply_github(row: RunRequest, repo: str, workflow: str, token: str, claimed: frozenset, at: datetime) -> None:
+    """Asks GitHub and records the answer on `row`, a detached copy: no database is touched here."""
     if _pending_cancel(row, at):
         try:
-            found = _match(db, row, target, token)
+            found = _match(row, repo, workflow, token, claimed)
         except github_client.GitHubError:
             return  # GitHub cannot be asked now: the next GET tries again, within the 2 minutes
         if found is not None:
             try:
-                github_client.cancel_run(token, target.repo, row.github_run_id)
+                github_client.cancel_run(token, repo, row.github_run_id)
             except github_client.GitHubError as exc:
                 if exc.status not in (404, 409):  # 404/409: it is gone or already ended, nothing left to cancel
                     raise
@@ -182,7 +193,7 @@ def _apply_github(db: Session, row: RunRequest, target: CiTarget, token: str, at
     if row.github_run_id is None:
         expired = at - aware(row.requested_at) >= START_TIMEOUT
         try:
-            run = _match(db, row, target, token)
+            run = _match(row, repo, workflow, token, claimed)
         except github_client.GitHubError as exc:
             # GitHub cannot be asked: wait, but a permanent refusal must not hold the slot for ever
             if expired:
@@ -199,7 +210,7 @@ def _apply_github(db: Session, row: RunRequest, target: CiTarget, token: str, at
         row.error = None
     else:
         try:
-            run = github_client.get_run(token, target.repo, row.github_run_id)
+            run = github_client.get_run(token, repo, row.github_run_id)
         except github_client.GitHubError as exc:
             if exc.status == 404:  # the run (or its repository) is gone: nothing left to wait for
                 row.status, row.error = "cancelled", RUN_GONE
@@ -209,39 +220,59 @@ def _apply_github(db: Session, row: RunRequest, target: CiTarget, token: str, at
     _map_status(row, run)
 
 
+CHANGEABLE = ("status", "conclusion", "github_run_id", "github_run_url", "error")
+REFRESH_PER_LIST = 3  # GitHub calls are slow: a list GET refreshes a few rows, the next poll the rest
+
+
+def _due(row: RunRequest, at: datetime, force: bool = False) -> bool:
+    if not needs_refresh(row, at):
+        return False
+    checked = aware(row.checked_at)
+    return force or checked is None or at - checked >= THROTTLE
+
+
 def refresh(db: Session, row: RunRequest, force: bool = False) -> RunRequest:
     """Bring a request up to date with GitHub, at most every 5 s unless forced. A GitHub failure (rate
     limit, outage) or an unreadable token leaves the state as it was; checked_at still moves, so a failing
-    GitHub is not asked on every GET."""
+    GitHub is not asked on every GET.
+
+    GitHub is asked with no transaction open, on a detached copy of the row. The result is written with
+    `UPDATE ... WHERE status = <the status read>`, so a Stop or another refresh that got in first is never
+    overwritten (a cancelling request is never turned back into running)."""
     at = now()
-    if not needs_refresh(row, at):
-        return row
-    checked = aware(row.checked_at)
-    if not force and checked is not None and at - checked < THROTTLE:
+    if not _due(row, at, force):
         return row
     target = db.get(CiTarget, row.project_id)
     if target is None:
         return row
+    rid, repo, workflow, encrypted = row.id, target.repo, target.workflow, target.token_encrypted
+    before = {name: getattr(row, name) for name in CHANGEABLE}
+    work = RunRequest(id=rid, project_id=row.project_id, requested_at=row.requested_at, stopped_at=row.stopped_at,
+                      **before)
+    claimed = _claimed(db, row.project_id, rid) if row.github_run_id is None else frozenset()
+    db.commit()  # the read transaction ends here
+    changes = {}
     try:
-        _apply_github(db, row, target, secret_box.decrypt(target.token_encrypted), at)
+        _apply_github(work, repo, workflow, secret_box.decrypt(encrypted), claimed, at)
+        changes = {name: getattr(work, name) for name in CHANGEABLE if getattr(work, name) != before[name]}
     except (github_client.GitHubError, secret_box.SecretsUnavailable) as exc:
-        db.rollback()
         # A known run we cannot read (token revoked, GitHub down): keep its status, say why it is stale
-        if isinstance(exc, github_client.GitHubError) and row.github_run_id is not None:
-            row.error = exc.message[:500]
-    row.checked_at = at
+        if isinstance(exc, github_client.GitHubError) and before["github_run_id"] is not None:
+            changes = {"error": exc.message[:500]}
+    db.query(RunRequest).filter(RunRequest.id == rid, RunRequest.status == before["status"]).update(
+        {**changes, "checked_at": at}, synchronize_session=False)
     try:
         db.commit()
     except IntegrityError:  # another Play closed this row and started a new one meanwhile
         db.rollback()
-        db.refresh(row)
+    db.refresh(row)
     return row
 
 
 def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[List[int]],
            suite_id: Optional[int]) -> RunRequest:
     target, token = _target_and_token(db, project_id)
-    selection = build_selection(db, project_id, case_numbers, suite_id)
+    selection, skipped_manual = build_selection(db, project_id, case_numbers, suite_id)
     preview = dispatch_inputs(0, selection)
     if len(preview["paths"]) + len(preview["names"]) + 20 > MAX_INPUT_CHARS:
         raise BadSelection("This selection is too large for one GitHub dispatch: select fewer cases")
@@ -251,7 +282,7 @@ def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[Li
         if active.status in ACTIVE_STATUSES:
             raise RunActive(active.id)
     row = RunRequest(project_id=project_id, requested_by=user_id, requested_at=now(), selection=selection,
-                     suite_id=suite_id, status="queued")
+                     suite_id=suite_id, status="queued", skipped_manual=skipped_manual)
     db.add(row)
     try:
         db.commit()
@@ -268,7 +299,10 @@ def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[Li
         raise
     except github_client.GitHubError as exc:
         if exc.status == 0 or exc.status >= 500:
-            return row  # a timeout or a 5xx may still have started a run: the title match settles it
+            # a timeout or a 5xx may still have started a run: the title match settles it
+            row.error = AMBIGUOUS_START
+            db.commit()
+            return row
         row.status, row.error = "failed_to_start", exc.message[:500]
         db.commit()
         return row
@@ -284,7 +318,10 @@ def list_requests(db: Session, project_id: int, limit: int, offset: int) -> Tupl
     query = db.query(RunRequest).filter(RunRequest.project_id == project_id)
     total = query.count()
     rows = query.order_by(RunRequest.requested_at.desc(), RunRequest.id.desc()).offset(offset).limit(limit).all()
-    for row in rows:
+    at = now()
+    never = datetime.min.replace(tzinfo=timezone.utc)
+    due = sorted((r for r in rows if _due(r, at)), key=lambda r: aware(r.checked_at) or never)
+    for row in due[:REFRESH_PER_LIST]:  # least recently asked first, so no row starves
         refresh(db, row)
     return total, rows
 
@@ -301,7 +338,7 @@ def out(row: RunRequest) -> dict:
         "selection": selection, "case_count": len(selection), "suite_id": row.suite_id, "status": row.status,
         "conclusion": row.conclusion, "github_run_id": row.github_run_id, "github_run_url": row.github_run_url,
         "stopped_by": row.stopped_by, "stopped_at": aware(row.stopped_at), "error": row.error,
-        "checked_at": aware(row.checked_at), "refreshing": needs_refresh(row, now()),
+        "checked_at": aware(row.checked_at), "skipped_manual": row.skipped_manual or 0, "refreshing": needs_refresh(row, now()),
     }
 
 

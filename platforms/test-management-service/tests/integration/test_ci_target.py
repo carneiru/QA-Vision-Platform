@@ -66,7 +66,10 @@ def test_a_rate_limit_is_503_with_retry_after_and_stores_nothing(client, auth, o
 @pytest.mark.parametrize("changes", [
     {"repo": "acme"}, {"repo": "acme/obt/x"}, {"repo": "acme/.."}, {"repo": "a b/c"},
     {"workflow": "run.json"}, {"workflow": "../run.yml"},
-    {"ref": "-x"}, {"ref": "a..b"}, {"ref": "a\x00b"}, {"ref": "x" * 256}])
+    {"ref": "-x"}, {"ref": "a..b"}, {"ref": "a\x00b"}, {"ref": "x" * 256},
+    {"ref": "a b"}, {"ref": "a\nb"}, {"ref": "a\tb"}, {"ref": "a\x7fb"}, {"ref": "a~b"}, {"ref": "a^b"},
+    {"ref": "a:b"}, {"ref": "a?b"}, {"ref": "a*b"}, {"ref": "a[b"}, {"ref": "a\\b"}, {"ref": "a@{b"},
+    {"ref": "a//b"}, {"ref": "/a"}, {"ref": "a/"}, {"ref": "a."}, {"ref": "a.lock"}, {"ref": "a/b.lock"}])
 def test_bad_names_are_422_before_github_is_asked(client, auth, owner, http, changes):
     assert put(client, auth, **changes).status_code == 422
     assert not github_calls(http)
@@ -140,6 +143,7 @@ def test_delete_is_409_while_a_run_is_active(client, auth, owner, github, db):
     put(client, auth)
     db.add(RunRequest(project_id=1, requested_by=1, requested_at=datetime.now(timezone.utc), selection=[], status="running"))
     db.commit()
+    github.runs()  # the refresh before the check finds no run yet: still active
     assert client.delete(URL, headers=auth()).status_code == 409
     assert db.get(CiTarget, 1) is not None
 
@@ -149,3 +153,96 @@ def test_a_422_never_echoes_the_body_so_a_valid_token_without_repo_stays_secret(
     assert r.status_code == 422
     assert TOKEN not in r.text and "input" not in r.text
     assert not github_calls(http)
+
+
+@pytest.mark.parametrize("ref", ["main", "release/1.2", "feature/x_y-z", "v1.0.0", "a@b", "ünï/cødé", "x" * 255])
+def test_ordinary_branch_names_are_accepted(client, auth, owner, github, ref):
+    github.check()
+    r = put(client, auth, ref=ref)
+    assert r.status_code == 200, r.text
+    assert r.json()["ref"] == ref
+
+
+def seed_active(db, **fields):
+    row = RunRequest(project_id=1, requested_by=1, requested_at=datetime.now(timezone.utc), selection=[],
+                     status="running", github_run_id=501, **fields)
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_delete_refreshes_a_run_that_ended_on_github_and_then_disconnects(client, auth, owner, github, db):
+    github.check()
+    put(client, auth)
+    row = seed_active(db)
+    github.run(github.run_body(501, row.id, status="completed", conclusion="success"))
+    assert client.delete(URL, headers=auth()).status_code == 204
+    assert db.get(CiTarget, 1) is None
+    db.refresh(row)
+    assert row.status == "completed"
+
+
+def test_delete_is_409_when_github_says_the_run_is_still_active(client, auth, owner, github, db):
+    github.check()
+    put(client, auth)
+    row = seed_active(db)
+    github.run(github.run_body(501, row.id, status="in_progress"))
+    assert client.delete(URL, headers=auth()).status_code == 409
+    assert db.get(CiTarget, 1) is not None
+
+
+# --- Fix wave A6 ---
+
+def test_a_concurrent_first_save_retries_as_an_update(client, auth, owner, github, db, monkeypatch):
+    from src.casebook.service import ci_target_service
+    github.check()
+    assert put(client, auth).status_code == 200  # the other request's row
+    real, calls = ci_target_service.get_target, []
+
+    def blind_first_time(session, project_id):
+        calls.append(1)
+        return None if len(calls) == 1 else real(session, project_id)
+
+    monkeypatch.setattr(ci_target_service, "get_target", blind_first_time)
+    r = put(client, auth, ref="release")
+    assert r.status_code == 200, r.text
+    assert r.json()["ref"] == "release" and db.query(CiTarget).count() == 1
+    assert [e.action for e in db.query(CiTargetEvent).order_by(CiTargetEvent.id)] == ["created", "token_replaced"]
+
+
+def test_an_empty_token_keeps_the_stored_one(client, auth, owner, github, db):
+    github.check()
+    put(client, auth)
+    stored = db.get(CiTarget, 1).token_encrypted
+    r = put(client, auth, token="", ref="dev")
+    assert r.status_code == 200 and r.json()["token_last4"] == "a1b2" and r.json()["ref"] == "dev"
+    db.expire_all()
+    assert db.get(CiTarget, 1).token_encrypted == stored
+    assert db.query(CiTargetEvent).order_by(CiTargetEvent.id.desc()).first().action == "updated"
+
+
+@pytest.mark.parametrize("failure", [500, 502])
+def test_a_github_5xx_is_502_and_stores_nothing(client, auth, owner, github, db, failure):
+    github.check(status=failure)
+    r = put(client, auth)
+    assert r.status_code == 502
+    assert db.get(CiTarget, 1) is None and db.query(CiTargetEvent).count() == 0
+
+
+def test_an_expiry_header_with_an_offset_is_stored_in_utc(client, auth, owner, github):
+    github.check(expires="2027-03-12 02:00:00 +0200")
+    assert put(client, auth).json()["token_expires_at"].startswith("2027-03-12T00:00:00")
+
+
+def test_a_garbage_expiry_header_stores_null(client, auth, owner, github):
+    github.check(expires="next tuesday")
+    r = put(client, auth)
+    assert r.status_code == 200 and r.json()["token_expires_at"] is None
+
+
+def test_another_endpoints_422_keeps_loc_and_msg_and_drops_the_input(client, auth, owner):
+    r = client.put(URL, json={"repo": "acme", "token": TOKEN}, headers=auth())
+    assert r.status_code == 422
+    error = r.json()["detail"][0]
+    assert error["loc"] == ["body", "repo"] and error["msg"]
+    assert "input" not in error and "ctx" not in error and TOKEN not in r.text
