@@ -315,6 +315,16 @@ A compact visual history of a test across recent runs, as a minimum 24px-tall li
 - **Rendering:** until data arrives, the column shows 10 outlined skeleton bars (`--surface-2` fill, `--border-strong` outline). If the request fails, a dash appears and the rest of the page continues working.
 - **Column placement:** "Last runs" goes after Title as `hide-narrow`, hidden at 640px and below. A legend above the table explains the colours and shapes. It is hidden when no case on the page is linked. An unlinked case shows only the text "not linked", with no empty strip.
 
+### Run from QA Vision
+Starting a GitHub Actions run from the cases, and watching it end.
+
+- **Play:** a Primary button with the Play icon ("Run", "Run selected (n)", "Run suite"). When disabled, the reason sits beside it in Graphite text, linked when Settings can fix it.
+- **Confirmation:** an inline, non-modal card with `role="dialog"` that lists up to 10 cases then "+n more", `repo @ branch`, and the amber `.warn-note` "Tests may create real bookings in staging". Focus goes to Cancel, Escape backs out, and Run reads "Starting…" and ignores a second click.
+- **Selection bar:** sticky at the bottom of the list, with checkboxes on imported rows for editors only. A 200-case cap disables the remaining boxes.
+- **Run panel:** a card with `role="status"`. It has one state line with an 18px lucide icon whose shape differs per state (clock, spinning loader, check, cross, slash, alert), with colours from tokens, so state never rests on colour alone. The spin stops under reduced motion. It has "View in GitHub". Stop uses the Destructive Confirmation pattern ("Stop this run?" then "Stop run"), then "Stopping…", then "Stopped by <name>". When a run ends while Stop is answered, the panel quietly shows the final state. The results line appears only for a run that completed on GitHub: "Waiting for results…", or a link to the results, or after 5 minutes "Results not received: check the QA Vision upload step". The panel re-reads the clock every 30 s, so that message appears without any other update.
+- **Token expiry:** the amber `.warn-note` for owners and admins, from 14 days before expiry.
+- **Requested runs:** a tab beside Runs (route `runs/requested`) listing every Play with who requested it, the case count, the status, who stopped it, and links to GitHub and to the results.
+
 ### Cards / Containers
 - **Corner Style:** 10px.
 - **Background:** Paper on the Stone Page.

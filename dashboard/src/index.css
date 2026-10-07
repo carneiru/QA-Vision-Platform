@@ -531,3 +531,16 @@ input[readonly] { background: var(--surface-2); }
 .select-col { width: 36px; }
 .select-col input { width: 18px; height: 18px; }
 @media (pointer: coarse) { .select-col input { width: 24px; height: 24px; } }
+
+/* Run from QA Vision: the run panel (a role="status" card) */
+.run-panel { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.run-panel-state { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 600; }
+.run-panel-state svg { flex-shrink: 0; color: var(--text-secondary); }
+.run-panel-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.run-tone-running .run-panel-state svg { color: var(--accent); }
+.run-tone-passed .run-panel-state svg { color: var(--status-passed); }
+.run-tone-failed .run-panel-state svg, .run-tone-error .run-panel-state svg { color: var(--status-failed); }
+@media (prefers-reduced-motion: no-preference) {
+  .run-tone-running .run-panel-state svg { animation: run-spin 1.2s linear infinite; }
+}
+@keyframes run-spin { to { transform: rotate(360deg); } }

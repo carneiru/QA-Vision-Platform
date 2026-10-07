@@ -121,6 +121,10 @@ export default function RunsPage() {
   return (
     <section>
       <h2 className="sr-only">Runs</h2>
+      <div className="view-tabs">
+        <span aria-current="page">Runs</span>
+        <Link to="requested">Requested runs</Link>
+      </div>
       <form onSubmit={applyFilters}>
         <FilterBar>
           <FilterSelect label="Status" value={form.status} emptyLabel="All" onChange={(v) => set("status", v)}

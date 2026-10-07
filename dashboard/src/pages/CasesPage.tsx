@@ -12,6 +12,7 @@ import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
 import FolderSelect from "../components/FolderSelect";
 import RunControl from "../components/RunControl";
+import RunPanel from "../components/RunPanel";
 import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
 import { useCanEdit } from "../lib/useCanEdit";
 
@@ -173,6 +174,7 @@ export default function CasesPage() {
           </div>
         )}
       </div>
+      <RunPanel projectId={id} />
 
       <form onSubmit={apply}>
         <FilterBar>

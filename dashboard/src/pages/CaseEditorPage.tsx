@@ -7,6 +7,7 @@ import { getHistory, getTests } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import GherkinBlock from "../components/GherkinBlock";
 import RunControl from "../components/RunControl";
+import RunPanel from "../components/RunPanel";
 import StatusDot from "../components/StatusDot";
 import { useCanEdit } from "../lib/useCanEdit";
 
@@ -190,6 +191,7 @@ export default function CaseEditorPage() {
       {c?.source_path && c.status !== "archived" && (
         <RunControl projectId={id} cases={[{ number: c.number, title: c.title }]} selection={{ case_numbers: [c.number] }} label="Run" />
       )}
+      {c && <RunPanel projectId={id} caseNumber={c.number} />}
       {c && c.suites.length > 0 && (
         <p className="muted">
           In suites:{" "}
