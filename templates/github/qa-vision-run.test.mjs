@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { countScenarios, cucumberArgs, namePattern, parseNames, parsePaths } from "./qa-vision-run.mjs";
 
 const matches = (name, actual) => new RegExp(namePattern(name)).test(actual);
@@ -50,4 +52,19 @@ test("scenarios are counted from the cucumber JSON report, backgrounds left out"
   assert.equal(countScenarios([{ elements: [{ type: "background" }, { type: "scenario" }] }, { elements: [{ type: "scenario" }] }]), 2);
   assert.equal(countScenarios([]), 0);
   assert.equal(countScenarios({}), 0);
+});
+
+const workflow = readFileSync(fileURLToPath(new URL("./qa-vision-run.yml", import.meta.url)), "utf8");
+
+test("the workflow allows a long suite: timeout-minutes 200", () => {
+  assert.match(workflow, /^ {4}timeout-minutes: 200$/m);
+});
+
+test("the upload step runs after a failure, but only when QAV_URL is set", () => {
+  const step = workflow.split("- name: Upload results to QA Vision")[1].split("- name:")[0];
+  assert.match(step, /^ {8}if: always\(\) && vars\.QAV_URL != ''$/m);
+});
+
+test("the header says the files must also exist on the configured branch", () => {
+  assert.match(workflow, /configured branch/i);
 });

@@ -27,7 +27,7 @@ export default function RequestedRunsPage() {
   const oldest = items.length > 0 ? Math.min(...items.map((r) => Date.parse(r.requested_at))) : null;
   const runs = useQuery({
     queryKey: ["run-requests", id, "page-results", offset, oldest],
-    queryFn: () => listRuns(id, { limit: 100, offset: 0, since: new Date((oldest ?? 0) - MATCH_SLACK_MS).toISOString() }),
+    queryFn: () => listRuns(id, { limit: 100, offset: 0, since: new Date((oldest ?? 0) - MATCH_SLACK_MS).toISOString(), ci_provider: "github_actions" }),
     enabled: oldest !== null && items.some((r) => r.github_run_url),
   });
 
@@ -53,12 +53,16 @@ export default function RequestedRunsPage() {
             <tbody>
               {items.map((r) => {
                 const result = matchRun(runs.data ?? [], r.github_run_url);
+                const described = describeRun(r, nameOf);
                 return (
                   <tr key={r.id}>
                     <td>{new Date(r.requested_at).toLocaleString()}</td>
                     <td>{nameOf(r.requested_by)}</td>
                     <td className="num">{r.case_count}</td>
-                    <td>{describeRun(r, nameOf).text}</td>
+                    <td>
+                      {described.text}
+                      {described.detail && <div className="muted run-panel-detail">{described.detail}</div>}
+                    </td>
                     <td className="hide-narrow">{r.stopped_by != null ? nameOf(r.stopped_by) : "—"}</td>
                     <td className="row-actions">
                       {r.github_run_url && (

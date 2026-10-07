@@ -11,8 +11,8 @@ const SHOWN = 10;
 
 interface Props {
   projectId: number;
-  /** The cases the confirmation lists, in order. */
-  cases: { number: number; title: string }[];
+  /** The cases the confirmation lists, in order. A manual case cannot run: a suite run skips it, and the dialog counts it apart. */
+  cases: { number: number; title: string; manual?: boolean }[];
   selection: RunSelection;
   /** Visible text of the trigger: "Run", "Run selected (3)", "Run suite". */
   label: string;
@@ -92,7 +92,9 @@ export default function RunControl({ projectId, cases, selection, label, onStart
     start.mutate();
   }
 
-  const n = cases.length;
+  const runnable = cases.filter((c) => !c.manual);
+  const n = runnable.length;
+  const skipped = cases.length - n;
   const blocked = gate === undefined || !gate.ok || n === 0;
   return (
     <div ref={boxRef} tabIndex={-1} className="run-control">
@@ -110,9 +112,13 @@ export default function RunControl({ projectId, cases, selection, label, onStart
       {open && gate?.ok && (
         <div className="card run-confirm" role="dialog" aria-labelledby={`${ids}-title`}
           onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
-          <h3 id={`${ids}-title`}>{n === 1 ? "Run 1 test?" : `Run ${n} tests?`}</h3>
+          <h3 id={`${ids}-title`}>
+            {skipped > 0
+              ? `Run ${n === 1 ? "1 automated case" : `${n} automated cases`} (${skipped === 1 ? "1 manual case" : `${skipped} manual cases`} skipped)?`
+              : n === 1 ? "Run 1 test?" : `Run ${n} tests?`}
+          </h3>
           <ul className="run-confirm-cases">
-            {cases.slice(0, SHOWN).map((c) => <li key={c.number}>{`TC-${c.number} · ${c.title}`}</li>)}
+            {runnable.slice(0, SHOWN).map((c) => <li key={c.number}>{`TC-${c.number} · ${c.title}`}</li>)}
           </ul>
           {n > SHOWN && <p className="muted">{`+${n - SHOWN} more`}</p>}
           <p>{`${gate.target.repo} @ ${gate.target.ref}`}</p>

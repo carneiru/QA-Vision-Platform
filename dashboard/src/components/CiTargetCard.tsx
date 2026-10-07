@@ -1,7 +1,8 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, CircleAlert } from "lucide-react";
 import { CiTarget, deleteCiTarget, formatDay, getCiTarget, saveCiTarget, tokenState } from "../api/runRequests";
+import { branchError, repoError, workflowError } from "../lib/ciTargetFields";
 import { useUserNames } from "../lib/useUserNames";
 import ConfirmButton from "./ConfirmButton";
 import ErrorBanner from "./ErrorBanner";
@@ -11,7 +12,7 @@ import runnerScript from "../templates/qa-vision-run.mjs.txt?raw";
 const DEFAULT_WORKFLOW = "qa-vision-run.yml";
 const DEFAULT_BRANCH = "main";
 
-/** The template, guarded to the branch configured here (a replacer function, so "/** Owners and admins see" in a branch stays literal;
+/** The template, guarded to the branch configured here (a replacer function, so a "$&" in a branch stays literal;
  *  a single quote is doubled for the YAML single-quoted string). */
 function workflowFor(ref: string | null): string {
   if (!ref) return workflowYaml;
@@ -41,17 +42,21 @@ function CopyBlock({ name, code }: { name: string; code: string }) {
 /** Owners and admins see this from 14 days before the token expires (Settings and the run panel). */
 export function ExpiryWarning({ target }: { target: CiTarget }) {
   const state = tokenState(target);
-  if (state === "ok" || !target.token_expires_at) return null;
-  const day = formatDay(target.token_expires_at);
+  const day = state !== "ok" && target.token_expires_at ? formatDay(target.token_expires_at) : null;
+  // The live region is always there, so the warning appearing or changing (expiring, then expired) is announced
   return (
-    <p className="note warn-note" role="note">
-      <CircleAlert size={16} aria-hidden="true" />
-      <span>
-        {state === "expired"
-          ? `The GitHub token expired on ${day}. Replace it in Settings`
-          : `The GitHub token expires on ${day}. Replace it in Settings`}
-      </span>
-    </p>
+    <div role="status">
+      {day && (
+        <p className="note warn-note" role="note">
+          <CircleAlert size={16} aria-hidden="true" />
+          <span>
+            {state === "expired"
+              ? `The GitHub token expired on ${day}. Replace it in Settings`
+              : `The GitHub token expires on ${day}. Replace it in Settings`}
+          </span>
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -66,33 +71,62 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
   const [ref, setRef] = useState(DEFAULT_BRANCH);
   const [token, setToken] = useState("");
   const [replacing, setReplacing] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const edited = useRef(false); // unsaved edits: a refetch must not overwrite them
+  const ids = useId();
 
   const data = target.data;
   useEffect(() => {
-    if (!data) return;
+    if (!data || edited.current) return;
     setRepo(data.repo ?? "");
     setWorkflow(data.workflow ?? DEFAULT_WORKFLOW);
     setRef(data.ref ?? DEFAULT_BRANCH);
     setToken("");
     setReplacing(false);
+    setSubmitted(false);
   }, [data]);
+  const edit = (set: (v: string) => void) => (v: string) => { edited.current = true; set(v); };
 
   const save = useMutation({
     mutationFn: () => saveCiTarget(projectId, {
       repo: repo.trim(), workflow: workflow.trim(), ref: ref.trim(), ...(token.trim() ? { token: token.trim() } : {}),
     }),
-    onSuccess: (saved) => qc.setQueryData(queryKey, saved),
+    onSuccess: (saved) => {
+      edited.current = false;
+      qc.setQueryData(queryKey, saved);
+    },
   });
   const disconnect = useMutation({
     mutationFn: () => deleteCiTarget(projectId),
-    onSuccess: () => qc.invalidateQueries({ queryKey }),
+    onSuccess: () => {
+      edited.current = false; // the form starts over from the (now empty) target
+      save.reset();
+      return qc.invalidateQueries({ queryKey });
+    },
   });
+
+  const errors = {
+    repo: repoError(repo.trim()),
+    workflow: workflowError(workflow.trim()),
+    ref: branchError(ref.trim()),
+    token: !data?.configured && !token.trim() ? "Paste the GitHub token" : null,
+  };
+  const shown = (name: keyof typeof errors) => (submitted ? errors[name] : null);
+  const field = (name: keyof typeof errors) => ({
+    "aria-invalid": shown(name) ? true : undefined,
+    "aria-describedby": shown(name) ? `${ids}-${name}` : undefined,
+  });
+  const fieldError = (name: keyof typeof errors) =>
+    shown(name) && <span id={`${ids}-${name}`} className="field-error">{shown(name)}</span>;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+    setSubmitted(true);
+    if (Object.values(errors).some(Boolean)) return;
     save.mutate();
   }
 
+  const workflowFile = data?.workflow ?? DEFAULT_WORKFLOW;
   return (
     <div className="card">
       <h3>Run from QA Vision</h3>
@@ -112,43 +146,55 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
         <>
           {data.configured && (
             <>
-              <p className="success-note" role="status">
-                <CheckCircle2 size={16} aria-hidden="true" />
-                <span>
-                  {`Connected: ${data.repo} · token …${data.token_last4} · `}
-                  {data.token_expires_at ? `expires ${formatDay(data.token_expires_at)}` : "no expiry"}
-                </span>
-              </p>
+              {tokenState(data) === "expired" && data.token_expires_at ? (
+                <p className="muted" role="status">
+                  <CircleAlert size={16} aria-hidden="true" />{" "}
+                  <span>{`${data.repo} · token …${data.token_last4} · Expired on ${formatDay(data.token_expires_at)}`}</span>
+                </p>
+              ) : (
+                <p className="success-note" role="status">
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  <span>
+                    {`Connected: ${data.repo} · token …${data.token_last4} · `}
+                    {data.token_expires_at ? `expires ${formatDay(data.token_expires_at)}` : "no expiry"}
+                  </span>
+                </p>
+              )}
               <ExpiryWarning target={data} />
             </>
           )}
           {data.last_change && (
             <p className="muted">{`Last changed by ${nameOf(data.last_change.user_id)} on ${formatDay(data.last_change.at)}`}</p>
           )}
-          <form className="form-stack" onSubmit={onSubmit}>
+          <form className="form-stack" onSubmit={onSubmit} noValidate>
             <label>
               Repository
-              <input required value={repo} onChange={(e) => setRepo(e.target.value)} placeholder="owner/name"
-                pattern="[A-Za-z0-9\-]{1,39}/[A-Za-z0-9._\-]{1,100}" title="owner/name, as on github.com"
-                autoComplete="off" spellCheck={false} />
+              <input required value={repo} onChange={(e) => edit(setRepo)(e.target.value)} placeholder="owner/name"
+                {...field("repo")} autoComplete="off" spellCheck={false} />
+              {fieldError("repo")}
             </label>
             <label>
               Workflow file
-              <input required value={workflow} onChange={(e) => setWorkflow(e.target.value)} autoComplete="off" spellCheck={false} />
+              <input required value={workflow} onChange={(e) => edit(setWorkflow)(e.target.value)} {...field("workflow")}
+                autoComplete="off" spellCheck={false} />
+              {fieldError("workflow")}
             </label>
             <label>
               Branch
-              <input required value={ref} onChange={(e) => setRef(e.target.value)} autoComplete="off" spellCheck={false} />
+              <input required value={ref} onChange={(e) => edit(setRef)(e.target.value)} {...field("ref")}
+                autoComplete="off" spellCheck={false} />
+              {fieldError("ref")}
             </label>
             {data.configured && !replacing ? (
               <div>
-                <button type="button" onClick={() => setReplacing(true)}>Replace token</button>
+                <button type="button" onClick={() => { save.reset(); setReplacing(true); }}>Replace token</button>
               </div>
             ) : (
               <label>
                 Token
                 <input type="password" required={!data.configured} value={token} autoFocus={replacing}
-                  onChange={(e) => setToken(e.target.value)} autoComplete="off" spellCheck={false} />
+                  onChange={(e) => edit(setToken)(e.target.value)} {...field("token")} autoComplete="off" spellCheck={false} />
+                {fieldError("token")}
               </label>
             )}
             <div className="button-row">
@@ -163,13 +209,17 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
               label="Disconnect"
               question={`Disconnect ${data.repo}? Nobody can run tests from QA Vision until a token is saved again.`}
               confirmLabel="Disconnect"
-              onConfirm={() => disconnect.mutate()}
+              onConfirm={() => { save.reset(); disconnect.mutate(); }}
               disabled={disconnect.isPending}
             />
           )}
           {disconnect.error != null && <ErrorBanner error={disconnect.error} />}
           <details className="run-help">
             <summary>How to set it up</summary>
+            <p>
+              The workflow and the script must exist on the repository's default branch and also on the branch set above ({data.ref ?? DEFAULT_BRANCH}):
+              GitHub dispatches the workflow file it finds on that branch, and that run reads the script from the same branch.
+            </p>
             <ol>
               <li>
                 On GitHub, create a <strong>fine-grained personal access token</strong> (Settings › Developer settings ›
@@ -177,9 +227,9 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
                 <strong>Actions: Read and write</strong>. Paste it in Token above.
               </li>
               <li>
-                Add this workflow as <code>.github/workflows/qa-vision-run.yml</code> on the repository's{" "}
+                Add this workflow as <code>{`.github/workflows/${workflowFile}`}</code> on the repository's{" "}
                 <strong>default branch</strong> (GitHub only dispatches workflows found there):
-                <CopyBlock name="qa-vision-run.yml" code={workflowFor(data.ref)} />
+                <CopyBlock name={workflowFile} code={workflowFor(data.ref)} />
               </li>
               <li>
                 Add the script it runs as <code>.github/scripts/qa-vision-run.mjs</code>:

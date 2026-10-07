@@ -116,6 +116,8 @@ export interface SuiteCase {
   priority: Priority;
   labels: string[];
   automated_test_key: string | null;
+  /** Null for a manual case: a suite run skips it. Absent when the server does not say. */
+  source_path?: string | null;
 }
 
 export interface SuiteDetail extends Suite {

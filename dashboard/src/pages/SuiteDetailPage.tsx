@@ -73,8 +73,9 @@ export default function SuiteDetailPage() {
       </p>
       <h2>{suite.data.name}</h2>
       {suite.data.description && <p className="muted">{suite.data.description}</p>}
-      <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title }))}
-        selection={{ suite_id: sid }} label="Run suite" emptyReason="This suite has no cases" />
+      <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title, manual: c.source_path === null }))}
+        selection={{ suite_id: sid }} label="Run suite"
+        emptyReason={suite.data.cases.length === 0 ? "This suite has no cases" : "This suite has no automated cases"} />
 
       <section className="card" aria-labelledby="suite-cases">
         <h3 id="suite-cases">Cases, in order <span className="muted">({cases.length})</span></h3>

@@ -45,6 +45,8 @@ export interface RunRequest {
   stopped_at: string | null;
   error: string | null;
   checked_at: string | null;
+  /** Manual cases a whole-suite run left out (they have no automated test). */
+  skipped_manual: number;
   /** True while the server still checks GitHub for this request: keep polling. */
   refreshing: boolean;
 }

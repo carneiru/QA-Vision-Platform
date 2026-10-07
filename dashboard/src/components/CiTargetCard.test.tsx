@@ -5,7 +5,8 @@ import { MemoryRouter } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
-import CiTargetCard from "./CiTargetCard";
+import { CiTarget } from "../api/runRequests";
+import CiTargetCard, { ExpiryWarning } from "./CiTargetCard";
 
 const P = "/api/v1/projects/42";
 const NONE = { available: true, configured: false, provider: null, repo: null, workflow: null, ref: null,
@@ -25,6 +26,7 @@ function renderCard() {
   );
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={qc}><MemoryRouter><CiTargetCard projectId={42} /></MemoryRouter></QueryClientProvider>);
+  return qc;
 }
 
 test("a first save sends repo, workflow, branch and token, then shows the connection", async () => {
@@ -146,4 +148,124 @@ test("a branch with $& and a quote reaches the workflow guard literally, the quo
   await userEvent.click(await screen.findByText("How to set it up"));
   expect(screen.getByLabelText("qa-vision-run.yml"))
     .toHaveTextContent("if: github.ref == 'refs/heads/feat/it''s-$&'");
+});
+
+test("the help block names the configured workflow file, not the default", async () => {
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, workflow: "other.yml" })));
+  renderCard();
+  await userEvent.click(await screen.findByText("How to set it up"));
+  expect(screen.getByLabelText("other.yml")).toHaveTextContent("name: QA Vision run");
+  expect(screen.getByRole("button", { name: "Copy other.yml" })).toBeInTheDocument();
+  expect(screen.getByText(".github/workflows/other.yml")).toBeInTheDocument();
+  expect(screen.queryByLabelText("qa-vision-run.yml")).not.toBeInTheDocument();
+});
+
+test("the help block says the workflow and the script must exist on the configured branch too", async () => {
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, ref: "release" })));
+  renderCard();
+  await userEvent.click(await screen.findByText("How to set it up"));
+  expect(screen.getByText(/also on the branch set above \(release\)/)).toBeInTheDocument();
+});
+
+test("an expired token reads Expired on the date, not Connected", async () => {
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, token_expires_at: "2020-01-01T00:00:00Z" })));
+  renderCard();
+  expect(await screen.findByText("acme/obt · token …a1b2 · Expired on 1 Jan 2020")).toBeInTheDocument();
+  expect(screen.queryByText(/Connected/)).not.toBeInTheDocument();
+});
+
+const refuse = () => http.put(`${P}/ci-target`, () => HttpResponse.json({ detail: "GitHub refused the token" }, { status: 422 }));
+
+test("a failed save's error goes when the token is replaced", async () => {
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json(CONNECTED)), refuse());
+  renderCard();
+  await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("GitHub refused the token");
+  await userEvent.click(screen.getByRole("button", { name: "Replace token" }));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("a failed save's error goes when the target is disconnected", async () => {
+  let target: typeof NONE | typeof CONNECTED = CONNECTED;
+  server.use(
+    http.get(`${P}/ci-target`, () => HttpResponse.json(target)), refuse(),
+    http.delete(`${P}/ci-target`, () => { target = NONE; return new HttpResponse(null, { status: 204 }); }),
+  );
+  renderCard();
+  await userEvent.click(await screen.findByRole("button", { name: "Save" }));
+  await screen.findByRole("alert");
+  await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+  await userEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+  await waitFor(() => expect(screen.getByLabelText("Repository")).toHaveValue(""));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("a refetch does not overwrite what the owner is typing", async () => {
+  let reads = 0;
+  server.use(http.get(`${P}/ci-target`, () => { reads += 1; return HttpResponse.json({ ...CONNECTED, updated_at: `2026-10-07T10:0${reads}:00Z` }); }));
+  const qc = renderCard();
+  const branch = await screen.findByLabelText("Branch");
+  await userEvent.clear(branch);
+  await userEvent.type(branch, "release");
+  await qc.invalidateQueries({ queryKey: ["ci-target", 42] });
+  expect(reads).toBe(2);
+  expect(screen.getByLabelText("Branch")).toHaveValue("release");
+});
+
+test.each([
+  ["Workflow file", "my workflow.yml"],
+  ["Workflow file", "build.txt"],
+  ["Branch", "a..b"],
+  ["Branch", "has space"],
+  ["Branch", "-lead"],
+  ["Branch", "end."],
+  ["Branch", "x.lock"],
+  ["Branch", "/lead"],
+  ["Branch", "trail/"],
+  ["Branch", "a//b"],
+  ["Branch", "a@{b"],
+  ["Branch", "a~b"],
+  ["Branch", "a^b"],
+  ["Branch", "a:b"],
+  ["Branch", "a?b"],
+  ["Branch", "a*b"],
+  ["Branch", "a[b"],
+  ["Branch", "a\b"],
+  ["Branch", "x".repeat(256)],
+])("%s %j is refused in the form, with its error linked to the field", async (label, value) => {
+  let puts = 0;
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json(CONNECTED)), http.put(`${P}/ci-target`, () => { puts += 1; return HttpResponse.json(CONNECTED); }));
+  renderCard();
+  const field = await screen.findByLabelText(label);
+  await userEvent.clear(field);
+  await userEvent.click(field);
+  await userEvent.paste(value);
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  const described = field.getAttribute("aria-describedby");
+  expect(described).toBeTruthy();
+  expect(document.getElementById(described as string)).toHaveTextContent(/./);
+  expect(field).toHaveAttribute("aria-invalid", "true");
+  expect(puts).toBe(0);
+});
+
+test("a branch with a slash and a dot is accepted", async () => {
+  const bodies: unknown[] = [];
+  server.use(http.get(`${P}/ci-target`, () => HttpResponse.json(CONNECTED)),
+    http.put(`${P}/ci-target`, async ({ request }) => { bodies.push(await request.json()); return HttpResponse.json(CONNECTED); }));
+  renderCard();
+  const branch = await screen.findByLabelText("Branch");
+  await userEvent.clear(branch);
+  await userEvent.type(branch, "release/1.2-rc");
+  await userEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(bodies).toEqual([{ repo: "acme/obt", workflow: "qa-vision-run.yml", ref: "release/1.2-rc" }]));
+});
+
+test("the expiry warning sits in a live region that exists before the warning does", () => {
+  const { container, rerender } = render(<ExpiryWarning target={CONNECTED as CiTarget} />);
+  const region = container.querySelector('[role="status"]');
+  expect(region).not.toBeNull();
+  expect(region).toBeEmptyDOMElement();
+  rerender(<ExpiryWarning target={{ ...CONNECTED, token_expires_at: "2020-01-01T00:00:00Z" } as CiTarget} />);
+  expect(container.querySelector('[role="status"]')).toBe(region);
+  expect(region).toHaveTextContent("The GitHub token expired on 1 Jan 2020");
 });

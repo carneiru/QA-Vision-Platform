@@ -250,6 +250,7 @@ export default function CasesPage() {
                   <th className="select-col">
                     <input type="checkbox" aria-label="Select all imported cases on this page" disabled={pageRunnable.length === 0}
                       checked={pageRunnable.length > 0 && pageRunnable.every((c) => picked.has(c.number))}
+                      ref={(el) => { if (el) el.indeterminate = pageRunnable.some((c) => picked.has(c.number)) && !pageRunnable.every((c) => picked.has(c.number)); }}
                       onChange={(e) => toggleAll(e.target.checked, pageRunnable)} />
                   </th>
                 )}

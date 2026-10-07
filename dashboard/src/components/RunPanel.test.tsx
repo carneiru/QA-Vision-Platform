@@ -16,7 +16,7 @@ const req = (extra: Partial<RunRequest> = {}): RunRequest => ({
   selection: [{ case_number: 1, path: "tests/features/a.feature", name: "A" }, { case_number: 2, path: "tests/features/a.feature", name: "B" }],
   case_count: 2, suite_id: null, status: "running", conclusion: null, github_run_id: 501,
   github_run_url: "https://github.com/Acme/OBT/actions/runs/501", stopped_by: null, stopped_at: null, error: null,
-  checked_at: new Date().toISOString(), refreshing: true, ...extra,
+  checked_at: new Date().toISOString(), refreshing: true, skipped_manual: 0, ...extra,
 });
 
 function show(get: () => RunRequest[], role = "member", caseNumber?: number, withSibling = false) {
@@ -230,4 +230,85 @@ test.each(["member", "viewer"])("a %s does not see the expiry warning", async (r
   await waitFor(() => expect(qc.getQueryState(["ci-target", 42])?.status).toBe("success"));
   await loaded(qc);
   expect(screen.queryByText(EXPIRY)).not.toBeInTheDocument();
+});
+
+const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+test("a stale active request shows why, under the state", async () => {
+  show(() => [req({ error: "token invalid or expired" })]);
+  expect(await within(await panel()).findByText("GitHub: token invalid or expired")).toBeInTheDocument();
+});
+
+test("an active request with no error shows no GitHub line", async () => {
+  const qc = show(() => [req()]);
+  await within(await panel()).findByText(/^Running/);
+  await loaded(qc);
+  expect(screen.queryByText(/^GitHub:/)).not.toBeInTheDocument();
+});
+
+test("a request that ended because the run left GitHub says why", async () => {
+  show(() => [req({ status: "cancelled", conclusion: "cancelled", refreshing: false, error: "The run is no longer on GitHub" })]);
+  expect(await within(await panel()).findByText("Cancelled: The run is no longer on GitHub")).toBeInTheDocument();
+});
+
+test("a run longer than 60 minutes stays visible after it ends, measured from the end", async () => {
+  show(() => [req({ requested_at: ago(90), status: "completed", conclusion: "success", refreshing: false, checked_at: ago(1) })]);
+  expect(await within(await panel()).findByText("Passed")).toBeInTheDocument();
+});
+
+test("an ended run disappears 60 minutes after the end", async () => {
+  const qc = show(() => [req({ requested_at: ago(200), status: "completed", conclusion: "success", refreshing: false, checked_at: ago(61) })], "member", undefined, true);
+  await loaded(qc);
+  await waitFor(() => expect(qc.getQueryState(["project", 42])?.status).toBe("success"));
+  expect(screen.queryByRole("status", { name: "Run from QA Vision" })).not.toBeInTheDocument();
+});
+
+test("a stopped run is measured from the later of stopped_at and checked_at", async () => {
+  show(() => [req({ requested_at: ago(120), status: "cancelled", conclusion: "cancelled", stopped_by: 8, refreshing: false,
+    stopped_at: ago(2), checked_at: ago(100) })]);
+  expect(await within(await panel()).findByText("Stopped by rui@example.com")).toBeInTheDocument();
+});
+
+test("the panel polls no sooner than every 5 s", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    let calls = 0;
+    show(() => { calls += 1; return [req()]; });
+    expect(await screen.findByText(/^Running/)).toBeInTheDocument();
+    const first = calls;
+    await act(() => vi.advanceTimersByTimeAsync(4_000));
+    expect(calls).toBe(first);
+    await act(() => vi.advanceTimersByTimeAsync(1_500));
+    await waitFor(() => expect(calls).toBeGreaterThan(first));
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("the elapsed time is hidden from screen readers and the live text changes only with the status", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    const fixed = req(); // one request: a fresh one per poll would restart the elapsed time
+    show(() => [fixed]);
+    const region = await panel();
+    const elapsed = await within(region).findByText(/1m \d\ds$/);
+    expect(elapsed).toHaveAttribute("aria-hidden", "true");
+    const live = region.querySelector(".sr-only:not(a *)") as HTMLElement;
+    const before = live.textContent;
+    const elapsedBefore = elapsed.textContent;
+    expect(before).toMatch(/2 tests/);
+    expect(before).not.toMatch(/\ds/);
+    await act(() => vi.advanceTimersByTimeAsync(31_000));
+    expect(region.querySelector(".sr-only:not(a *)")?.textContent).toBe(before);
+    expect(within(region).getByText(/1m \d\ds$/).textContent).not.toBe(elapsedBefore);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("the results lookup asks only for GitHub Actions runs", async () => {
+  let query = "";
+  server.use(http.get(`${P}/runs`, ({ request }) => { query = new URL(request.url).search; return HttpResponse.json([]); }));
+  show(() => [req({ status: "completed", conclusion: "success", refreshing: false })]);
+  await waitFor(() => expect(query).toContain("ci_provider=github_actions"));
 });

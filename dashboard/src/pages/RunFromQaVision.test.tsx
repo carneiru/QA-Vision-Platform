@@ -26,7 +26,7 @@ const runRequest = (extra: object = {}) => ({
   // After a 200 dispatch the request carries its GitHub run from the start
   status: "queued", conclusion: null, github_run_id: 501, github_run_url: "https://github.com/acme/obt/actions/runs/501",
   stopped_by: null, stopped_at: null,
-  error: null, checked_at: null, refreshing: true, ...extra,
+  error: null, checked_at: null, refreshing: true, skipped_manual: 0, ...extra,
 });
 
 function asRole(role: string) {
@@ -364,4 +364,51 @@ test("with no rows left on the page, a started selection still leaves focus on t
   await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
   await waitFor(() => expect(screen.queryByRole("button", { name: /Run selected/ })).not.toBeInTheDocument());
   expect(screen.getByRole("heading", { name: "Test cases" })).toHaveFocus();
+});
+
+const suiteWith = (sourcePaths: (string | null)[]) => http.get(`${P}/suites/5`, () => HttpResponse.json({
+  id: 5, name: "Smoke", description: null, case_count: sourcePaths.length, created_at: "2026-10-06T10:00:00Z", updated_at: null,
+  cases: sourcePaths.map((source_path, i) => ({ number: i + 1, key: `TC-${i + 1}`, title: `Case ${i + 1}`, status: "draft",
+    priority: "medium", labels: [], automated_test_key: null, source_path })) }));
+
+test("a suite with manual cases says how many run and how many are skipped, and lists only the automated ones", async () => {
+  let sent: unknown = null;
+  server.use(suiteWith(["tests/a.feature", null, "tests/b.feature", null, null]),
+    http.post(`${P}/run-requests`, async ({ request }) => { sent = await request.json(); return HttpResponse.json(runRequest(), { status: 201 }); }));
+  renderAt("/projects/42/suites/5");
+  await userEvent.click(await screen.findByRole("button", { name: "Run suite" }));
+  const dialog = screen.getByRole("dialog", { name: "Run 2 automated cases (3 manual cases skipped)?" });
+  expect(within(dialog).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["TC-1 · Case 1", "TC-3 · Case 3"]);
+  await userEvent.click(within(dialog).getByRole("button", { name: "Run" }));
+  await waitFor(() => expect(sent).toEqual({ suite_id: 5 }));
+});
+
+test("one skipped manual case reads in the singular", async () => {
+  server.use(suiteWith(["tests/a.feature", null]));
+  renderAt("/projects/42/suites/5");
+  await userEvent.click(await screen.findByRole("button", { name: "Run suite" }));
+  expect(screen.getByRole("dialog", { name: "Run 1 automated case (1 manual case skipped)?" })).toBeInTheDocument();
+});
+
+test("a suite of manual cases only cannot run, and says why", async () => {
+  server.use(suiteWith([null, null]));
+  renderAt("/projects/42/suites/5");
+  expect(await screen.findByText("This suite has no automated cases")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Run suite" })).toBeDisabled();
+});
+
+test("select-all is indeterminate while only some of the page is selected", async () => {
+  listing(Array.from({ length: 3 }, (_, i) => kase(i + 1)));
+  renderAt("/projects/42/cases");
+  const all = await screen.findByRole("checkbox", { name: "Select all imported cases on this page" }) as HTMLInputElement;
+  expect(all.indeterminate).toBe(false);
+  await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  expect(all.indeterminate).toBe(true);
+  expect(all.checked).toBe(false);
+  await userEvent.click(all);
+  expect(all.indeterminate).toBe(false);
+  expect(all.checked).toBe(true);
+  await userEvent.click(all);
+  expect(all.indeterminate).toBe(false);
+  expect(all.checked).toBe(false);
 });

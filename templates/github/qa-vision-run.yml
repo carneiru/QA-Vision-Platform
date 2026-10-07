@@ -1,6 +1,7 @@
 # QA Vision: run selected scenarios on demand (QA-Vision-Platform docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md).
 # Copy to .github/workflows/qa-vision-run.yml on the repository's DEFAULT branch (GitHub dispatches only
-# workflows found there) and qa-vision-run.mjs to .github/scripts/qa-vision-run.mjs.
+# workflows found there) and qa-vision-run.mjs to .github/scripts/qa-vision-run.mjs. Both files must also
+# exist on the configured branch (Project Settings › Run from QA Vision): that run reads them from there.
 # Needs the repository secret QAV_API_KEY and the repository variable QAV_URL; the ENV secret feeds
 # ./.github/actions/setup-test-env as in the other suites.
 name: QA Vision run
@@ -31,7 +32,7 @@ jobs:
     # Only the branch configured in QA Vision (Project Settings › Run from QA Vision)
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 200
     concurrency:
       group: qa-vision-run
       cancel-in-progress: false
@@ -50,7 +51,7 @@ jobs:
           QAV_NAMES: ${{ inputs.names }}
 
       - name: Upload results to QA Vision
-        if: always()
+        if: always() && vars.QAV_URL != ''
         uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.3.0
         with:
           url: ${{ vars.QAV_URL }}
