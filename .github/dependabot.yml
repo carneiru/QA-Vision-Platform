@@ -19,6 +19,14 @@ updates:
       include: "scope"
     pull-request-branch-name:
       separator: "-"
+    groups:
+      # One PR for every minor/patch bump across all Python directories
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+      # Major bumps: one PR per dependency, covering every directory that uses it
+      python-major:
+        update-types: ["major"]
+        group-by: dependency-name
 
   # Dashboard (npm)
   - package-ecosystem: "npm"
@@ -26,6 +34,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -36,3 +47,6 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
