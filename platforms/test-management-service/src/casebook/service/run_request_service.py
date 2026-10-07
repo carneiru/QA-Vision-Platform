@@ -158,16 +158,26 @@ def _map_status(row: RunRequest, run: dict) -> None:
 
 def _apply_github(db: Session, row: RunRequest, target: CiTarget, token: str, at: datetime) -> None:
     if row.github_run_id is None:
-        run = _match(db, row, target, token)
-        if run is None:
-            if at - aware(row.requested_at) >= START_TIMEOUT:
-                row.status, row.error = "failed_to_start", NOT_STARTED
+        expired = at - aware(row.requested_at) >= START_TIMEOUT
+        try:
+            run = _match(db, row, target, token)
+        except github_client.GitHubError as exc:
+            # GitHub cannot be asked: wait, but a permanent refusal must not hold the slot for ever
+            if expired:
+                row.status, row.error = "failed_to_start", f"{NOT_STARTED}: {exc.message}"[:500]
+            else:
+                row.error = exc.message[:500]
             return
+        if run is None:
+            if expired:
+                row.status, row.error = "failed_to_start", NOT_STARTED
+            else:
+                row.error = None
+            return
+        row.error = None
     else:
         try:
             run = github_client.get_run(token, target.repo, row.github_run_id)
-        except github_client.RateLimited:
-            raise
         except github_client.GitHubError as exc:
             if exc.status == 404:  # the run (or its repository) is gone: nothing left to wait for
                 row.status, row.error = "cancelled", RUN_GONE
@@ -195,11 +205,14 @@ def refresh(db: Session, row: RunRequest, force: bool = False) -> RunRequest:
     except (github_client.GitHubError, secret_box.SecretsUnavailable) as exc:
         db.rollback()
         # A known run we cannot read (token revoked, GitHub down): keep its status, say why it is stale
-        if (isinstance(exc, github_client.GitHubError) and not isinstance(exc, github_client.RateLimited)
-                and row.github_run_id is not None):
+        if isinstance(exc, github_client.GitHubError) and row.github_run_id is not None:
             row.error = exc.message[:500]
     row.checked_at = at
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # another Play closed this row and started a new one meanwhile
+        db.rollback()
+        db.refresh(row)
     return row
 
 
@@ -232,6 +245,8 @@ def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[Li
         db.commit()
         raise
     except github_client.GitHubError as exc:
+        if exc.status == 0 or exc.status >= 500:
+            return row  # a timeout or a 5xx may still have started a run: the title match settles it
         row.status, row.error = "failed_to_start", exc.message[:500]
         db.commit()
         return row

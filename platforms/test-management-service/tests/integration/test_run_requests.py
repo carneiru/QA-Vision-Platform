@@ -201,6 +201,7 @@ def test_a_rate_limited_dispatch_leaves_nothing_behind(project, auth, github, db
     github.dispatch(status=429, headers={"retry-after": "30"})
     r = play(project, auth, case_numbers=[CARD])
     assert r.status_code == 503 and r.json()["detail"] == "GitHub rate limit, try again in 30 s"
+    assert r.headers["retry-after"] == "30"
     assert db.query(RunRequest).count() == 0
 
 
@@ -216,20 +217,57 @@ def test_an_active_run_still_running_on_github_is_409(project, auth, github, clo
 def test_a_run_that_finished_unseen_does_not_block_the_next_play(project, auth, github, clock):
     github.dispatch(run_id=500)
     first = play(project, auth, case_numbers=[CARD]).json()
+    github.run(github.run_body(500, first["id"], status="in_progress"))
+    assert get(project, auth, first["id"])["status"] == "running"  # sets checked_at: the next GET is throttled
     github.run(github.run_body(500, first["id"], status="completed", conclusion="success"))
     github.dispatch(run_id=600)
-    second = play(project, auth, case_numbers=[BOOK])  # inside the 5 s throttle: the pre-409 refresh ignores it
+    second = play(project, auth, case_numbers=[BOOK])  # no clock tick: only a forced refresh sees it ended
     assert second.status_code == 201, second.text
     assert get(project, auth, first["id"])["status"] == "completed"
 
 
 def test_double_click_dispatches_once(project, auth, github, clock):
     dispatch = github.dispatch(run_id=500)
-    github.run(github.run_body(500, 1, status="queued"))  # the pre-409 refresh asks for that run: still queued
+    run = github.run(github.run_body(500, 1, status="queued"))
     a = play(project, auth, case_numbers=[CARD])
+    assert a.status_code == 201
+    assert get(project, auth, a.json()["id"])["status"] == "queued"  # checked_at is set: a plain refresh is throttled
+    assert run.call_count == 1
     b = play(project, auth, case_numbers=[CARD])
-    assert (a.status_code, b.status_code) == (201, 409)
+    assert b.status_code == 409
+    assert run.call_count == 2  # the pre-409 refresh asked GitHub despite the throttle
     assert dispatch.call_count == 1
+
+
+def test_two_simultaneous_plays_the_index_decides_and_the_loser_is_409(project, auth, github, clock, monkeypatch):
+    dispatch = github.dispatch(run_id=500)
+    first = play(project, auth, case_numbers=[CARD])
+    assert first.status_code == 201
+    monkeypatch.setattr(run_request_service, "active_request", lambda db, project_id: None)  # the race: no one seen
+    r = play(project, auth, case_numbers=[BOOK])
+    assert r.status_code == 409
+    assert r.json()["detail"]["code"] == "run_active" and r.json()["detail"]["run_request_id"] is None
+    assert dispatch.call_count == 1
+
+
+def test_a_commit_that_loses_the_race_in_a_refresh_is_not_a_500(project, auth, github, db, clock, monkeypatch):
+    from sqlalchemy.exc import IntegrityError
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    real_commit, calls = db.commit, []
+
+    def commit():
+        calls.append(1)
+        if len(calls) == 1:
+            raise IntegrityError("insert", {}, Exception("uq_run_requests_one_active"))
+        return real_commit()
+
+    monkeypatch.setattr(db, "commit", commit)
+    row = db.get(RunRequest, rid)
+    assert run_request_service.refresh(db, row) is row
+    assert row.id == rid
 
 
 @pytest.mark.parametrize("gh_status, conclusion, status", [
@@ -310,14 +348,87 @@ def test_a_run_never_seen_after_2_minutes_failed_to_start(project, auth, github,
     assert play(project, auth, case_numbers=[BOOK]).status_code == 201
 
 
-def test_a_github_outage_during_refresh_changes_nothing(project, auth, github, http, clock):
+def test_a_github_outage_within_2_minutes_keeps_the_row_active_and_says_why(project, auth, github, http, clock):
     github.dispatch()
     rid = play(project, auth, case_numbers=[CARD]).json()["id"]
     http.get(f"https://api.github.com/repos/{github.repo}/actions/workflows/{github.workflow}/runs",
              name="gh-runs").mock(return_value=httpx.Response(503))
+    clock.tick(seconds=60)
+    body = get(project, auth, rid)
+    assert (body["status"], body["error"], body["refreshing"]) == ("queued", "GitHub answered 503", True)
+
+
+@pytest.mark.parametrize("code", [401, 404, 503])
+def test_a_github_failure_past_2_minutes_is_failed_to_start_with_the_reason(project, auth, github, http, clock, code):
+    github.dispatch()
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    http.get(f"https://api.github.com/repos/{github.repo}/actions/workflows/{github.workflow}/runs",
+             name="gh-runs").mock(return_value=httpx.Response(code))
     clock.tick(minutes=3)
     body = get(project, auth, rid)
-    assert body["status"] == "queued" and body["error"] is None
+    assert (body["status"], body["refreshing"]) == ("failed_to_start", False)
+    assert body["error"].startswith("The workflow did not start") and len(body["error"]) > len("The workflow did not start")
+    github.dispatch()
+    assert play(project, auth, case_numbers=[BOOK]).status_code == 201
+
+
+def test_a_rate_limit_on_the_fallback_past_2_minutes_is_failed_to_start(project, auth, github, http, clock):
+    github.dispatch()
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    http.get(f"https://api.github.com/repos/{github.repo}/actions/workflows/{github.workflow}/runs",
+             name="gh-runs").mock(return_value=httpx.Response(429, headers={"retry-after": "30"}))
+    clock.tick(minutes=3)
+    body = get(project, auth, rid)
+    assert body["status"] == "failed_to_start" and "rate limit" in body["error"]
+
+
+@pytest.mark.parametrize("failure", [httpx.ConnectTimeout("slow"), httpx.Response(500), httpx.Response(502)])
+def test_a_dispatch_that_may_have_started_a_run_keeps_the_row_queued_for_matching(
+        project, auth, github, http, clock, failure):
+    route = http.post(f"https://api.github.com/repos/{github.repo}/actions/workflows/{github.workflow}/dispatches",
+                      name="gh-dispatch")
+    if isinstance(failure, Exception):
+        route.mock(side_effect=failure)
+    else:
+        route.mock(return_value=failure)
+    r = play(project, auth, case_numbers=[CARD])
+    assert r.status_code == 201
+    body = r.json()
+    assert (body["status"], body["github_run_id"], body["refreshing"]) == ("queued", None, True)
+    github.runs(github.run_body(501, body["id"]))
+    clock.tick(seconds=6)
+    assert get(project, auth, body["id"])["github_run_id"] == 501
+
+
+@pytest.mark.parametrize("code", [401, 403, 404, 422])
+def test_a_dispatch_github_refused_is_failed_to_start_at_once(project, auth, github, clock, code):
+    github.dispatch(status=code)
+    body = play(project, auth, case_numbers=[CARD]).json()
+    assert (body["status"], body["refreshing"]) == ("failed_to_start", False)
+
+
+def test_a_cancelling_row_is_never_downgraded_by_a_refresh(project, auth, github, db, clock):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    db.query(RunRequest).filter(RunRequest.id == rid).update({"status": "cancelling"})
+    db.commit()
+    run = github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    body = get(project, auth, rid)
+    assert run.call_count == 1 and (body["status"], body["refreshing"]) == ("cancelling", True)
+    github.run(github.run_body(501, rid, status="completed", conclusion="cancelled"))
+    clock.tick(seconds=6)
+    assert get(project, auth, rid)["status"] == "cancelled"
+
+
+def test_a_rate_limit_on_a_known_run_keeps_the_status_and_says_so(project, auth, github, http, clock):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    http.get(f"https://api.github.com/repos/{github.repo}/actions/runs/501", name="gh-run-501").mock(
+        return_value=httpx.Response(429, headers={"retry-after": "30"}))
+    clock.tick(seconds=6)
+    body = get(project, auth, rid)
+    assert (body["status"], body["error"]) == ("queued", "GitHub rate limit, try again in 30 s")
 
 
 def test_the_list_is_newest_first_with_a_total(project, auth, github, clock):
