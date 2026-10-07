@@ -1,5 +1,5 @@
 ---
-name: QA Vision
+name: QEOS
 description: Self-hosted test-results analytics; an authenticated Operate surface for triaging CI and reading suite health.
 colors:
   page: "#f4f4f1"
@@ -165,13 +165,13 @@ components:
     padding: "{spacing.space-3}"
 ---
 
-# Design System: QA Vision
+# Design System: QEOS
 
 ## Overview
 
 **Creative North Star: "The Triage Desk"**
 
-QA Vision is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Warm off-white and near-black neutrals carry the structure, one blue accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
+QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Warm off-white and near-black neutrals carry the structure, one blue accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
 
 Density is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, and a persistent left sidebar holds the project switcher and every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.
 
@@ -315,13 +315,13 @@ A compact visual history of a test across recent runs, as a minimum 24px-tall li
 - **Rendering:** until data arrives, the column shows 10 outlined skeleton bars (`--surface-2` fill, `--border-strong` outline). If the request fails, a dash appears and the rest of the page continues working.
 - **Column placement:** "Last runs" goes after Title as `hide-narrow`, hidden at 640px and below. A legend above the table explains the colours and shapes. It is hidden when no case on the page is linked. An unlinked case shows only the text "not linked", with no empty strip.
 
-### Run from QA Vision
+### Run from QEOS
 Starting a GitHub Actions run from the cases, and watching it end.
 
 - **Play:** a Primary button with the Play icon ("Run", "Run selected (n)", "Run suite"). When disabled, the reason sits beside it in Graphite text, linked when Settings can fix it.
 - **Confirmation:** an inline, non-modal card with `role="dialog"` that lists up to 10 cases then "+n more", `repo @ branch`, and the amber `.warn-note` "Tests may create real bookings in staging". For a suite with manual cases the title reads "Run n automated cases (m manual cases skipped)?" and lists only the automated ones. Focus goes to Cancel, Escape backs out, and Run reads "Starting…" and ignores a second click.
 - **Selection bar:** sticky at the bottom of the list, with checkboxes on imported rows for editors only. A 200-case cap disables the remaining boxes. The select-all box is indeterminate while only some of the page is selected.
-- **Run panel:** a card with `role="status"`. It has one state line with an 18px lucide icon whose shape differs per state (clock, spinning loader, check, cross, slash, alert), with colours from tokens, so state never rests on colour alone. The spin stops under reduced motion. It has "View in GitHub". Stop uses the Destructive Confirmation pattern ("Stop this run?" then "Stop run"), then "Stopping…", then "Stopped by <name>". When a run ends while Stop is answered, the panel quietly shows the final state. The results line appears only for a run that completed on GitHub: "Waiting for results…", or a link to the results, or after 5 minutes "Results not received: check the QA Vision upload step". A completed run whose conclusion is skipped reads "Skipped" with the slash icon and the Stone tone, since it did not run. When the server holds an `error` for the request, the panel shows it: under the state line as a muted line on an active request ("GitHub: token invalid or expired"), and in the state text of a cancelled row ("Cancelled: The run is no longer on GitHub"). The Requested runs tab shows the same line under the status. The elapsed time on a running request is `aria-hidden`, and a visually hidden line states the status and changes only when the status does, so a screen reader is not interrupted every second. An ended run stays for 60 minutes after it ended (the later of `stopped_at` and `checked_at`), however long it ran. The panel re-reads the clock every 30 s, so that message appears without any other update, and not at all while there is no request.
+- **Run panel:** a card with `role="status"`. It has one state line with an 18px lucide icon whose shape differs per state (clock, spinning loader, check, cross, slash, alert), with colours from tokens, so state never rests on colour alone. The spin stops under reduced motion. It has "View in GitHub". Stop uses the Destructive Confirmation pattern ("Stop this run?" then "Stop run"), then "Stopping…", then "Stopped by <name>". When a run ends while Stop is answered, the panel quietly shows the final state. The results line appears only for a run that completed on GitHub: "Waiting for results…", or a link to the results, or after 5 minutes "Results not received: check the QEOS upload step". A completed run whose conclusion is skipped reads "Skipped" with the slash icon and the Stone tone, since it did not run. When the server holds an `error` for the request, the panel shows it: under the state line as a muted line on an active request ("GitHub: token invalid or expired"), and in the state text of a cancelled row ("Cancelled: The run is no longer on GitHub"). The Requested runs tab shows the same line under the status. The elapsed time on a running request is `aria-hidden`, and a visually hidden line states the status and changes only when the status does, so a screen reader is not interrupted every second. An ended run stays for 60 minutes after it ended (the later of `stopped_at` and `checked_at`), however long it ran. The panel re-reads the clock every 30 s, so that message appears without any other update, and not at all while there is no request.
 - **Token expiry:** the amber `.warn-note` for owners and admins, from 14 days before expiry, inside a `role="status"` region that is always present so a change is announced. An expired token reads "Expired on <date>" in the Settings connection line, never "Connected".
 - **Requested runs:** a tab beside Runs (route `runs/requested`) listing every Play with who requested it, the case count, the status, who stopped it, and links to GitHub and to the results.
 
@@ -363,7 +363,7 @@ Stone Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horiz
 ### Accessibility Plumbing
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
 - **Route focus:** on each user navigation (not the first render, not redirects), focus moves to the view's content region, which is the project tab panel or `<main>`. Regions take focus without a visible ring; the ring belongs to controls.
-- **Titles:** each view sets `document.title` as "View · Project · QA Vision".
+- **Titles:** each view sets `document.title` as "View · Project · QEOS".
 
 ## Do's and Don'ts
 

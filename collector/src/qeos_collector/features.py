@@ -1,4 +1,4 @@
-"""qav-collector import-features: keep test cases in sync with the repository's .feature files.
+"""qeos-collector import-features: keep test cases in sync with the repository's .feature files.
 
 The API key is traded for a 5-minute import token (ADR-024); the import is full by default, so
 cases of deleted files are archived, and the server refuses a mass archive unless allowed."""
@@ -10,9 +10,9 @@ import json
 import os
 from typing import Callable, Dict, List, Mapping, Optional
 
-from qav_collector.ci import detect
-from qav_collector.config_file import load_config
-from qav_collector.upload import COLLECT_PATH, ConfigError, _send, endpoint_for, make_context
+from qeos_collector.ci import detect
+from qeos_collector.config_file import load_config
+from qeos_collector.upload import COLLECT_PATH, ConfigError, _send, endpoint_for, make_context
 
 TOKEN_PATH = "/api/v1/collect/token"
 DEFAULT_BRANCH = "master"
@@ -133,12 +133,12 @@ def report(result: dict, say: Callable[[str], None], dry_run: bool) -> None:
 
 def run(args, env: Mapping[str, str], api_key: str, say: Callable[[str], None], cwd: str) -> int:
     config = load_config(cwd)
-    url: Optional[str] = args.url or env.get("QAV_URL") or config.get("url")
+    url: Optional[str] = args.url or env.get("QEOS_URL") or config.get("url")
     if not url:
-        raise ConfigError("no platform URL: pass --url, set QAV_URL, or add url to .qav.yml")
+        raise ConfigError("no platform URL: pass --url, set QEOS_URL, or add url to .qeos.yml")
     if not api_key:
-        raise ConfigError("QAV_API_KEY is not set")
-    sync_branch = args.branch or env.get("QAV_IMPORT_BRANCH") or DEFAULT_BRANCH
+        raise ConfigError("QEOS_API_KEY is not set")
+    sync_branch = args.branch or env.get("QEOS_IMPORT_BRANCH") or DEFAULT_BRANCH
     current = detect(env).branch
     if current and current != sync_branch:
         say(f"skipped: on {current}; cases sync from {sync_branch}")
@@ -147,7 +147,7 @@ def run(args, env: Mapping[str, str], api_key: str, say: Callable[[str], None], 
     files = collect_files(list(patterns), cwd)
     if not files:
         raise ConfigError(f"no .feature files match {', '.join(patterns)}")
-    context = make_context(args.ca_file or env.get("QAV_CA_FILE") or config.get("ca-file"))
+    context = make_context(args.ca_file or env.get("QEOS_CA_FILE") or config.get("ca-file"))
     base = base_url(url)
     try:
         grant = trade_key(base, api_key, context)

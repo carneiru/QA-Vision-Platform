@@ -1,6 +1,6 @@
 # Organization Service
 
-Part of the QA Vision Platform (QEOS) – Platform Domain.
+Part of QEOS – Platform Domain.
 
 Provides CRUD operations for Organizations (tenants) and related metadata.
 

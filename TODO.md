@@ -1,4 +1,4 @@
-# QA Vision Platform Implementation Progress
+# QEOS Implementation Progress
 
 > Live item-level record. Forward plan: IMPLEMENTATION_PLAN.md. Target
 > architecture + adoption triggers: ARCHITECTURE_BLUEPRINT_V1_0.md (read its
@@ -9,7 +9,7 @@
 ## Completed Tasks
 
 ### Phase 1: Foundation Services - AUTHENTICATION SERVICE (COMPLETED)
-1. [x] Analyze QA Vision platform requirements and architecture specifications
+1. [x] Analyze QEOS platform requirements and architecture specifications
 2. [x] Brainstorm core architecture components and their interactions
 3. [x] Design database schema for PostgreSQL based on requirements
 4. [x] Plan microservices architecture and communication patterns
@@ -125,19 +125,19 @@
   reports `projects_held: 1`, and the export runs through the gateway.
 
 ### Collector agent (Phase 2, step 2)
-- [x] `qav-collector upload`: JUnit XML (pytest, Surefire, Playwright, cucumber-js), one run per CI job
+- [x] `qeos-collector upload`: JUnit XML (pytest, Surefire, Playwright, cucumber-js), one run per CI job
 - [x] GitHub Actions, GitLab CI and Jenkins detection; retry-safe Idempotency-Keys; parts past 20,000 results / 9 MB
 - [x] Retries with backoff and a 2-minute budget; HTTPS and verified TLS; the key never printed
 - [x] CI: tests on Python 3.9 and 3.12; end-to-end upload through the gateway in the smoke test
 - [x] Tag `collector-v0.1.0` — release workflow builds+verifies on the tag
-- [x] Dogfooding: this repository's CI reports its own results (four service suites, dashboard, collector on 3.9/3.12) through the collector built from the same commit; enabled by the QAV_URL repository variable + QAV_API_KEY secret, push and same-repo PRs only, never fails the build
+- [x] Dogfooding: this repository's CI reports its own results (four service suites, dashboard, collector on 3.9/3.12) through the collector built from the same commit; enabled by the QEOS_URL repository variable + QEOS_API_KEY secret, push and same-repo PRs only, never fails the build
 - [ ] Phase 2 exit criteria: agents on 3 CI platforms in real projects; 10k test executions ingested
 
 ### Collector — nice to have
 Distribution
-- [~] Publish to PyPI: workflow ready (trusted publishing, gated on repo variable PYPI_PUBLISH=true); needs the one-off publisher config on pypi.org (project qav-collector, repo carneiru/QA-Vision-Platform, workflow release-collector.yml, environment pypi)
-- [x] Ready-made GitHub Action (`uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0`) and GitLab CI template (`templates/qav-collector.gitlab-ci.yml`) — both install the collector pinned to the tag
-- [x] A Jenkins shared-library step — `collector-jenkins/vars/qavCollectorUpload.groovy` (workspace venv install, PEP 668-safe; key via env only). Proven against a real Jenkins LTS in Docker: library loaded from a git repo via JCasC, pipeline build SUCCESS, run stored with ci_provider=jenkins and the build URL
+- [~] Publish to PyPI: workflow ready (trusted publishing, gated on repo variable PYPI_PUBLISH=true); needs the one-off publisher config on pypi.org (project qeos-collector, repo carneiru/QA-Vision-Platform, workflow release-collector.yml, environment pypi)
+- [x] Ready-made GitHub Action (`uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.1.0`) and GitLab CI template (`templates/qeos-collector.gitlab-ci.yml`) — both install the collector pinned to the tag
+- [x] A Jenkins shared-library step — `collector-jenkins/vars/qeosCollectorUpload.groovy` (workspace venv install, PEP 668-safe; key via env only). Proven against a real Jenkins LTS in Docker: library loaded from a git repo via JCasC, pipeline build SUCCESS, run stored with ci_provider=jenkins and the build URL
 - [x] Azure DevOps (collector 0.2.0). The collector detects Azure Pipelines (`TF_BUILD`):
   commit, branch (the source branch on PRs), PR number (the visible number for GitHub-hosted
   code), target branch and build URL (project names percent-encoded). A job retry is a new
@@ -147,11 +147,11 @@ Distribution
     and `org@` clone URLs), stored as owner `org/project`, project-service migration 003. They
     are verified through the anonymous REST API; a private project's 401/203 reads as
     "not found or private".
-  - Step template `templates/qav-collector.azure-pipelines.yml` and an Azure Pipelines CI
+  - Step template `templates/qeos-collector.azure-pipelines.yml` and an Azure Pipelines CI
     snippet in Settings.
   - Verified live: an upload with an Azure PR environment was stored with every field, and a
     real public Azure repository was verified.
-- [x] A Docker image and a single-file (zipapp) build for runners without pip — zipapp (`collector/scripts/build_zipapp.py`, stdlib-only, runs on any Python 3.9+) and `collector/Dockerfile` (python:3.12-slim + git). On every `collector-v*` tag the release workflow uploads sdist+wheel+pyz to a GitHub Release and pushes `ghcr.io/carneiru/qav-collector:<version>` + `:latest` (user-approved public surfaces, 2026-10-03)
+- [x] A Docker image and a single-file (zipapp) build for runners without pip — zipapp (`collector/scripts/build_zipapp.py`, stdlib-only, runs on any Python 3.9+) and `collector/Dockerfile` (python:3.12-slim + git). On every `collector-v*` tag the release workflow uploads sdist+wheel+pyz to a GitHub Release and pushes `ghcr.io/carneiru/qeos-collector:<version>` + `:latest` (user-approved public surfaces, 2026-10-03)
 
 Formats
 - [x] Cucumber JSON (classic formatter) — scenarios map to the existing result shape (suite=feature, class=uri; background folds in; failed step fails, undefined/pending skip). Rich tags/steps columns still need ingestion fields — deferred until a consumer exists
@@ -162,17 +162,17 @@ Richer data
 - [x] Keep each retry attempt as its own result, so flaky tests become visible — Surefire flakyFailure/flakyError/rerunFailure/rerunError expand into per-attempt results (duplicate testcases, pytest-rerunfailures style, already passed through)
 - [x] Git metadata: commit author and message (git log -1, best effort), PR number + base branch (GitHub/GitLab env), stored per run and shown on run detail
 - [x] Code-change data, not just JUnit: changed files and diff stats per run — collector gitdiff module, ingestion migration 005 + run API, dashboard Changes card. Correlation analytics remain Phase 6 input.
-- [x] Components under test: `--component NAME@SHA` (or `QAV_COMPONENTS`) records which repo versions the run exercised (e.g. the product build an E2E suite ran against) — ingestion migration 008 + run API, "Under test" line on run detail. Dormant Phase 6 input; cross-repo correlation and Workspaces stay behind their triggers (ADR-018).
+- [x] Components under test: `--component NAME@SHA` (or `QEOS_COMPONENTS`) records which repo versions the run exercised (e.g. the product build an E2E suite ran against) — ingestion migration 008 + run API, "Under test" line on run detail. Dormant Phase 6 input; cross-repo correlation and Workspaces stay behind their triggers (ADR-018).
 - [x] Test ownership from CODEOWNERS — collector matches each result's `file` (git semantics, last line wins; root/.github/docs locations), ingestion stores `owner` per result (migration 009), run detail shows it
 - [ ] Artifact upload (screenshots, videos, traces) — blocked behind the blueprint's MinIO adoption trigger (artifact storage); starts when the artifacts feature is pulled, not before
 
 Reliability and operations
 - [x] Keep a failed upload on disk and retry it later — automatic via `--spool` (below); a separate `retry` command adds nothing, the next upload resends first
 - [ ] Stream partial results during long runs — needs a long-running watch mode (the collector currently runs after the tests finish; multi-part uploads already flow sequentially). Revisit if a real pipeline shows the need
-- [x] `qav-collector check`: verifies URL shape, TLS trust, API key (GET /collect/key names the project) and report parsing, without uploading; exits 2 on the first failure
-- [x] Keep-and-retry failed uploads: `--spool DIR` / `QAV_SPOOL` stores undelivered parts (base64 JSON, capped at 100) and the next invocation resends them under their original Idempotency-Key; non-retryable rejections (401/409/4xx/TLS) are dropped, not respooled
-- [x] A `.qav.yml` config file — flat keys + string lists, built-in reader (zero dependencies kept for the zipapp); precedence flags > env > file; API key never accepted in the file
-- [x] Client certificates (mTLS) — `--client-cert`/`--client-key` (`QAV_CLIENT_CERT`/`QAV_CLIENT_KEY`) load into the TLS context; server-side enforcement is a deployment concern (nginx `ssl_verify_client`), not in the local stack
+- [x] `qeos-collector check`: verifies URL shape, TLS trust, API key (GET /collect/key names the project) and report parsing, without uploading; exits 2 on the first failure
+- [x] Keep-and-retry failed uploads: `--spool DIR` / `QEOS_SPOOL` stores undelivered parts (base64 JSON, capped at 100) and the next invocation resends them under their original Idempotency-Key; non-retryable rejections (401/409/4xx/TLS) are dropped, not respooled
+- [x] A `.qeos.yml` config file — flat keys + string lists, built-in reader (zero dependencies kept for the zipapp); precedence flags > env > file; API key never accepted in the file
+- [x] Client certificates (mTLS) — `--client-cert`/`--client-key` (`QEOS_CLIENT_CERT`/`QEOS_CLIENT_KEY`) load into the TLS context; server-side enforcement is a deployment concern (nginx `ssl_verify_client`), not in the local stack
 
 ### Microsoft SSO
 - [x] Sign in with Microsoft (Entra ID) ID tokens from an allowlist of tenants; link to an existing account
@@ -196,7 +196,7 @@ Reliability and operations
 
 ### Dashboard follow-ups
 - [x] SSO sign-in buttons (Google, Microsoft) in the login page — rendered only when `VITE_*` client ids are baked at build time; manual verification against a real tenant still pending
-- [x] Refresh token in an httpOnly cookie — `qav_refresh`, Secure, SameSite=Strict, Path=/api/v1/auth (ADR-013)
+- [x] Refresh token in an httpOnly cookie — `qeos_refresh`, Secure, SameSite=Strict, Path=/api/v1/auth (ADR-013)
 - [x] Mute / acknowledge flaky tests
 - [x] CSV export buttons on the tests and flaky views (client-side; tests view pages the API at limit=200, capped at 10k rows)
 - [x] Branch comparison — per-branch aggregates endpoint + Branches tab with two-branch pass-rate chart
@@ -204,7 +204,7 @@ Reliability and operations
 
 - [x] Registration in the UI — /register page (full name optional, "check your email" state says where the link lands when SMTP is unconfigured), /verify-email SPA landing that verifies and signs the person in (the emailed link now points there instead of the raw API endpoint), Create account link on the login page
 - [x] Dashboard redesign (2026-10-04, user decisions: sidebar navigation, overview as the project entry, nothing sacred) — design tokens (spacing scale, radius, two-step shadows, accent-text/accent-fill/danger-text with every text pair computed >= 4.5:1 in both themes), app shell with a sidebar (project switcher grouped by organization, project views with icons, workspace and account sections) that becomes an accessible drawer under 900px, an Overview page answering 'what is broken now' (latest run verdict in words, its failures, this week's pass rate and the flaky count, as the API computed them; a guided empty state), and a Projects page listing every organization's projects at once. Verified rendered: desktop light and dark, 390px, zero horizontal scroll
-- [x] Keyboard and screen-reader navigation — skip link + <main> landmark (WCAG 2.4.1), per-view document titles e.g. "Runs · Shop E2E · QA Vision" (2.4.2), focus moves to the new view's content on navigation (not on load or redirects). Destructive actions (revoke API key, remove member, revoke invitation) confirm in place: the confirm button takes focus, Escape/Cancel return it to the trigger
+- [x] Keyboard and screen-reader navigation — skip link + <main> landmark (WCAG 2.4.1), per-view document titles e.g. "Runs · Shop E2E · QEOS" (2.4.2), focus moves to the new view's content on navigation (not on load or redirects). Destructive actions (revoke API key, remove member, revoke invitation) confirm in place: the confirm button takes focus, Escape/Cancel return it to the trigger
 - [x] Error banner text in dark mode was 3.6:1 — new --danger-text token (#d03b3b light 4.6:1, #ec7272 dark 6.0:1); charts and status dots keep the validated status hue
 - [x] CI wiring snippets in project Settings — ready-to-paste GitHub Action / GitLab include / Jenkins step / plain CLI, with this deployment's origin filled in and the key always referenced as a CI secret. Decision 2026-10-03: ingestion stays push-based; a "connect repository" (GitHub App, webhooks, artifact pull) would still require the repo's CI to produce JUnit XML, adds third-party credential custody, and locks to one forge — deferred to the Phase 4/6 slice below
 - [x] Quality report (roadmap Phase 3, step 5). The project's **Report** view covers the last
@@ -281,7 +281,7 @@ Reliability and operations
 
 ## Next Version (v2) — Backlog
 
-Not scheduled. These move QA Vision from *observing* test runs (the roadmap's scope: a
+Not scheduled. These move QEOS from *observing* test runs (the roadmap's scope: a
 collector reports results from the customer's own CI) to also *authoring and running*
 them. Items marked *(suggested)* were added during review as natural companions to the
 requested ones. Each group needs its own design spec before implementation.
@@ -294,7 +294,7 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Dynamic suites defined by a label query, e.g. `smoke AND checkout` *(suggested)*
 - [ ] TC versioning: who changed what, and when *(suggested)*
 - [x] Import existing TCs from the repo (Gherkin `.feature` files, JUnit XML) *(suggested)* (Gherkin done 2026-10-06, ADR-023; JUnit still open)
-- [x] qav-collector import-features: CI keeps cases in sync; API-key access to test-management; refuse a full import that would archive over half the imported cases without --allow-mass-archive (2026-10-06, ADR-024)
+- [x] qeos-collector import-features: CI keeps cases in sync; API-key access to test-management; refuse a full import that would archive over half the imported cases without --allow-mass-archive (2026-10-06, ADR-024)
 - [x] Dashboard 'complete features folder' option (full=true): archives cases of missing files, keeps renamed files' numbers; the confirm button names the archive count (2026-10-06)
 - [x] Case filters: folder dropdown with the tree, feature, Azure DevOps item, link and latest-result filters on All Cases (`/cases/search`, `/case-folders`, `/case-features`, `latest-keys`), the searchable `FilterSelect`, gateway route and smoke checks (2026-10-06)
 - [x] Last runs column: run-strip endpoint, RunStrip component with one-link design and shape cues, Cases column with skeleton and error states, legend, DESIGN.md and TODO docs (2026-10-06)
@@ -305,18 +305,18 @@ requested ones. Each group needs its own design spec before implementation.
 ### B. Test execution
 - [x] Run a single TC, a selection ("bunch"), or a whole suite (v1 Play and Stop, 2026-10-07; spec `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`)
 - [ ] Re-run only the failures from a previous run
-- [x] First version triggers the customer's CI (GitHub Actions `workflow_dispatch`) rather than running tests on QA Vision's own infrastructure *(suggested — far smaller security surface than executing customer code)* (v1 Play and Stop, 2026-10-07; spec `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`)
+- [x] First version triggers the customer's CI (GitHub Actions `workflow_dispatch`) rather than running tests on QEOS's own infrastructure *(suggested — far smaller security surface than executing customer code)* (v1 Play and Stop, 2026-10-07; spec `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`)
 - [ ] Live run progress and cancel a running job (see `specs/2026-07-13-qa-vision-realtime-features.md`) *(suggested)* (cancel done in v1 as Stop; live step progress is out of scope)
-- [ ] Pause and Resume a running job (cucumber `BeforeStep` hook asks QA Vision whether to continue; screenshot on pause; time limit; fails open if QA Vision is unreachable)
+- [ ] Pause and Resume a running job (cucumber `BeforeStep` hook asks QEOS whether to continue; screenshot on pause; time limit; fails open if QEOS is unreachable)
 - [ ] Stop followed by a resuming re-run, plus "Re-run failures" of a finished run
 - [ ] A GitHub App instead of the personal token (short-lived installation tokens owned by no single person)
-- [ ] Run parameters (target environment, browser/device matrix), scheduled runs (nightly, per branch) and more CI providers (GitLab, Azure Pipelines) for runs from QA Vision *(suggested)*
+- [ ] Run parameters (target environment, browser/device matrix), scheduled runs (nightly, per branch) and more CI providers (GitLab, Azure Pipelines) for runs from QEOS *(suggested)*
 - [ ] A dedicated `execution-service` once execution outgrows test-management
 - [x] Flaky-test quarantine. Quarantining a test (Flaky view, the former Mute) keeps it running and
   shown, but its failures stop counting:
   - a run failing only in quarantine reads "Passed · N quarantined";
   - failure alerts skip such runs, and otherwise mention "N quarantined, not counted";
-  - the upload receipt carries `quarantined`/`blocking`, and `qav-collector upload --gate` exits 1
+  - the upload receipt carries `quarantined`/`blocking`, and `qeos-collector upload --gate` exits 1
     on failures outside quarantine (and fails closed when the upload did not happen).
   The run page and the failure groups mark quarantined tests. An auto-retry policy stays with the
   test runner (Playwright `retries`, pytest-rerunfailures); the platform already keeps every attempt.
@@ -341,7 +341,7 @@ requested ones. Each group needs its own design spec before implementation.
     redirects), and URLs are never returned.
 
   Spec: `docs/superpowers/specs/2026-10-05-failure-notifications-design.md`. Email goes through
-  `qav_shared.mail`, shared with auth. Compose now passes `SMTP_*` to auth and ingestion: before,
+  `qeos_shared.mail`, shared with auth. Compose now passes `SMTP_*` to auth and ingestion: before,
   the documented SMTP settings reached no container. Verified with a local Mailpit sink: the
   verification email, a test message and a failed-run message were all delivered. Roadmap
   Phase 3, step 4.
@@ -375,7 +375,7 @@ after the one before it is proven:
 - [ ] **Level 1 — live output console (read-only):** stream a run's stdout/stderr as it happens, with ANSI colours, search, and download. No input. Low risk; reuses the run/job infrastructure from group B
 - [ ] **Level 2 — command console (allow-listed):** a terminal-style prompt that only accepts platform commands (`run suite smoke`, `rerun failed`, `git status`, `show config`), each mapped to an API call and bound by the same per-action permissions as the UI. No arbitrary shell
 - [ ] **Level 3 — full interactive shell:** a real PTY inside an ephemeral, per-user sandbox container (repo checked out, test toolchain installed), destroyed at session end. Requires: container isolation (gVisor/Firecracker class, no host mounts, no Docker socket), egress restrictions, CPU/memory/time limits, idle timeout, no platform secrets inside the sandbox, session recording to the audit log, and an explicit per-organization opt-in
-- Note: Level 3 means running customer code on QA Vision's own infrastructure — the exact surface group B's `workflow_dispatch` approach avoids. Build it only if Levels 1–2 leave a real gap.
+- Note: Level 3 means running customer code on QEOS's own infrastructure — the exact surface group B's `workflow_dispatch` approach avoids. Build it only if Levels 1–2 leave a real gap.
 
 ### H. Platform prerequisites for v2
 These are not features, but groups B, C, D, E and G cannot ship without them:

@@ -13,7 +13,7 @@
 # Context
 
 ## Business Problem
-As the QA Vision Platform evolved from an AI Engine focus to a comprehensive Quality Engineering Operating System (QEOS), we needed an architectural approach that:
+As QEOS evolved from an AI Engine focus to a comprehensive Quality Engineering Operating System, we needed an architectural approach that:
 - Supports complex business domains
 - Enables team autonomy
 - Aligns with Conway's Law (system structure mirrors communication structure)

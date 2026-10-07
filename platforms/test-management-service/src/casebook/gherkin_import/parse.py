@@ -9,7 +9,7 @@ from typing import Iterable, List, Optional
 from gherkin.errors import CompositeParserException, ParserError
 from gherkin.parser import Parser
 
-from qav_shared.keys import test_key
+from qeos_shared.keys import test_key
 
 PRIORITIES = ("low", "medium", "high", "critical")
 LABEL = re.compile(r"^[a-z0-9._-]{1,40}$")
@@ -116,7 +116,7 @@ def _add(result: ParsedFile, seen: set, feature: dict, feature_name: str, rule: 
     if rule is not None:
         background += _background_steps(rule.get("children", []))
     # The collector cuts suite to 500 and name to 1000 characters before hashing
-    # (collector/src/qav_collector/junit.py), so a scenario name over 1000 characters never links
+    # (collector/src/qeos_collector/junit.py), so a scenario name over 1000 characters never links
     test_name = _first_example_name(name, scenario)
     description = (scenario.get("description") or "").strip() or None
     result.scenarios.append(ParsedScenario(

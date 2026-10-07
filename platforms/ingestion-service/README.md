@@ -16,7 +16,7 @@ Receives test results from CI. Design: `docs/superpowers/specs/2026-09-29-ingest
 
    ```bash
    curl -k -X POST https://localhost:8443/api/v1/collect/runs \
-     -H "Authorization: Bearer $QAV_API_KEY" -H "Idempotency-Key: $CI_RUN_ID-$CI_JOB" \
+     -H "Authorization: Bearer $QEOS_API_KEY" -H "Idempotency-Key: $CI_RUN_ID-$CI_JOB" \
      -H "Content-Type: application/json" -d @run.json
    ```
 
@@ -33,9 +33,9 @@ Receives test results from CI. Design: `docs/superpowers/specs/2026-09-29-ingest
 
 ## Import token
 
-`POST /api/v1/collect/token` with `Authorization: Bearer qav_…` returns
+`POST /api/v1/collect/token` with `Authorization: Bearer qeos_…` returns
 `{"token", "expires_in": 300, "project_id"}`. The token is a JWT that test-management accepts only
-on `POST /api/v1/projects/{id}/cases/import` for that project, so `qav-collector import-features`
+on `POST /api/v1/projects/{id}/cases/import` for that project, so `qeos-collector import-features`
 can sync cases without a user login. See ADR-024.
 
 ## Limits
@@ -77,7 +77,7 @@ readable. Test names, suites, classes, files and branches are never changed.
 | `authorization` | the value of an `Authorization` / `Proxy-Authorization` header (the scheme word is kept) |
 | `url_password` | the password in `scheme://user:password@` |
 | `jwt` | JSON Web Tokens |
-| `github_token`, `gitlab_token`, `aws_access_key`, `slack_token`, `stripe_key`, `google_api_key`, `npm_token`, `qav_key` | well-known token formats |
+| `github_token`, `gitlab_token`, `aws_access_key`, `slack_token`, `stripe_key`, `google_api_key`, `npm_token`, `qav_key` | well-known token formats (`qav_key`: project API keys, `qeos_…` and the pre-rename `qav_…`; the kind keeps its pre-rename name for compatibility) |
 | `password`, `secret`, `token`, `api_key`, `access_key`, `client_secret`, `private_key`, `credentials` | the value in `key=value`, `key: value`, `key => value`, `"key": "value"` (also escaped inside a log line) when the key ends with one of these names (`DB_PASSWORD`, `SECRET_KEY`, `X-Api-Key`, `accessToken`, …); also `curl -u user:pw`, `--password pw` and `<password>pw</password>` |
 | `cookie` | the value of a `Cookie:` / `Set-Cookie:` header |
 | `email` | email addresses |
@@ -131,7 +131,7 @@ has the counts, branch and commit, the first 5 failing tests (masked as stored) 
   - `webhook`: any public `https` URL; it gets JSON with `event: "run.failed"` or, for the
     weekly summary, `event: "weekly.summary"`.
   - `email`: one to five addresses, as plain text through the SMTP settings shared with auth
-    (`qav_shared.mail`). Without `SMTP_HOST` the delivery is recorded as failed, saying so.
+    (`qeos_shared.mail`). Without `SMTP_HOST` the delivery is recorded as failed, saying so.
 - **API:** `GET/POST /api/v1/projects/{id}/notification-channels`, `PATCH`/`DELETE …/{cid}`
   (`name`, `enabled`, `branch`, `on_failure`, `weekly_summary`), and `POST …/{cid}/test`
   (`?message=weekly` sends last week's real summary instead of a sample). Members and up can
@@ -186,7 +186,7 @@ Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that
 
 - `pass_rate` = passed ÷ (total − skipped); errored counts as not passed; `null` when nothing ran.
 - An empty filter (`?branch=`) means no filter; `tz` must be a zone name from the IANA list.
-- **Flaky, confirmed (`same_commit`):** the test both passed and failed (or errored) on the same commit **in the same environment**, with the pass and the fail in two different runs of that commit. Set `QAV_ENVIRONMENT` (or `--environment`) per CI matrix leg: legs that do not set it share one environment, so a failure specific to one leg shows as confirmed.
+- **Flaky, confirmed (`same_commit`):** the test both passed and failed (or errored) on the same commit **in the same environment**, with the pass and the fail in two different runs of that commit. Set `QEOS_ENVIRONMENT` (or `--environment`) per CI matrix leg: legs that do not set it share one environment, so a failure specific to one leg shows as confirmed.
 - **Flaky, suspected (`flips`):** for other tests, the share of consecutive executions on a branch whose outcome (pass vs failed/errored) changed, over at least `min_runs` executions; skipped results are ignored.
 - Computed on request; migration 003 adds the indexes the queries use.
 
@@ -213,7 +213,7 @@ The flaky window goes up to 90 days. Flip counting recombines from the `flaky_da
 
 - `GET /health`; `GET /metrics` (Prometheus, inside the Docker network only — not routed by the
   gateway): `qav_ingest_runs_total`, `qav_ingest_results_total`, `qav_ingest_rejected_total{reason}`,
-  `qav_ingest_duration_seconds`.
+  `qav_ingest_duration_seconds` (the `qav_` prefix predates the QEOS rename and is kept so dashboards and alerts keep working).
 - Uploads never call another service; key management and reads need project-service (503 if it is down).
 
 ## Known limitations

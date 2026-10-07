@@ -7,7 +7,8 @@ The SPA stored the refresh token in sessionStorage — XSS-readable, an
 accepted trade-off in the original dashboard spec.
 
 ## Decision
-Every token-issuing endpoint also sets `qav_refresh`: httpOnly, Secure,
+Every token-issuing endpoint also sets `qeos_refresh` (named `qav_refresh` before the QEOS
+rename; that name is still read as a fallback, replaced on refresh and cleared on logout): httpOnly, Secure,
 SameSite=Strict, Path=/api/v1/auth, 30 d. `/auth/refresh-token` and
 `/auth/logout` take body **or** cookie; the body token remains issued and
 accepted so non-browser clients keep working. The SPA never touches the

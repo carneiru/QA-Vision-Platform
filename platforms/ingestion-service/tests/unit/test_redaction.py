@@ -15,7 +15,8 @@ TOKENS = [
     ("stripe_key", "sk_" + "test_" + "4eC39HqLyjWDarjtT1zdp7dc"),
     ("google_api_key", "AIza" + "S" * 35),
     ("npm_token", "npm_" + "a" * 36),
-    ("qav_key", "qav_" + "x" * 43),
+    ("qav_key", "qeos_" + "x" * 43),
+    ("qav_key", "qav_" + "x" * 43),  # keys issued before the QEOS rename
 ]
 
 

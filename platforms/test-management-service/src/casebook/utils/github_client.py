@@ -1,4 +1,4 @@
-"""The few GitHub REST calls Play and Stop need (run-from-QA-Vision spec, "GitHub client").
+"""The few GitHub REST calls Play and Stop need (run-from-QEOS spec, "GitHub client").
 
 https://api.github.com only, never following redirects, 10 s timeout. The token goes in a header and
 never into an exception, a message or a log line; httpx errors are replaced, not chained."""
@@ -46,7 +46,7 @@ def _client(token: str) -> httpx.Client:
     return httpx.Client(
         base_url=API, timeout=TIMEOUT_SECONDS, follow_redirects=False,
         headers={"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-                 "Authorization": f"Bearer {token}", "User-Agent": "qa-vision-test-management"},
+                 "Authorization": f"Bearer {token}", "User-Agent": "qeos-test-management"},
     )
 
 
@@ -76,7 +76,7 @@ def _send(token: str, method: str, path: str, **kwargs) -> httpx.Response:
     if wait is not None:
         raise RateLimited(wait)
     if 300 <= response.status_code < 400:
-        raise GitHubError(response.status_code, "GitHub answered with a redirect, which QA Vision does not follow")
+        raise GitHubError(response.status_code, "GitHub answered with a redirect, which QEOS does not follow")
     if response.status_code == 401:
         raise GitHubError(401, UNAUTHORIZED)
     if response.status_code == 403:
@@ -152,10 +152,11 @@ def dispatch(token: str, repo: str, workflow: str, ref: str, inputs: dict) -> Op
     return DispatchResult(run_id=run_id, html_url=html_url if isinstance(html_url, str) else None)
 
 
-def find_run(token: str, repo: str, workflow: str, title: str, since: datetime,
+def find_run(token: str, repo: str, workflow: str, title: "str | tuple[str, ...]", since: datetime,
              exclude_ids: frozenset = frozenset()) -> Optional[dict]:
     """The oldest workflow_dispatch run of the workflow, created at or after `since`, whose display_title
-    is exactly `title` and whose id no other request has claimed."""
+    is exactly `title` (or one of several titles) and whose id no other request has claimed."""
+    titles = (title,) if isinstance(title, str) else tuple(title)
     _check_names(repo, workflow)
     if since.tzinfo is None:  # naive datetimes (SQLite) are UTC
         since = since.replace(tzinfo=timezone.utc)
@@ -164,7 +165,7 @@ def find_run(token: str, repo: str, workflow: str, title: str, since: datetime,
     runs = _json(response).get("workflow_runs") or []
     matches = []
     for run in runs:
-        if not isinstance(run, dict) or run.get("display_title") != title:
+        if not isinstance(run, dict) or run.get("display_title") not in titles:
             continue
         if run.get("event") != "workflow_dispatch" or run.get("id") in exclude_ids:
             continue

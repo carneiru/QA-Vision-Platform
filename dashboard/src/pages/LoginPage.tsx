@@ -84,7 +84,8 @@ export default function LoginPage() {
   if (mfaToken !== null) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
+        <p className="brand-subtitle">Quality Engineering OS</p>
         <form className="card" onSubmit={onMfaSubmit}>
           <p>Enter the code from your authenticator app, or a recovery code.</p>
           <p>
@@ -112,7 +113,8 @@ export default function LoginPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>QA Vision</h1>
+      <h1>QEOS</h1>
+      <p className="brand-subtitle">Quality Engineering OS</p>
       <form className="card" onSubmit={onSubmit}>
         <p>
           <label>

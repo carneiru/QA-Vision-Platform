@@ -1,4 +1,4 @@
-/* QA Vision — operate surface. Restrained: warm neutrals, one blue accent,
+/* QEOS — operate surface. Restrained: warm neutrals, one blue accent,
    status hues reserved for status. Every text pair below is checked >= 4.5:1. */
 :root {
   color-scheme: light;
@@ -146,6 +146,8 @@ button.ghost { background: transparent; border-color: transparent; }
 @media (max-width: 640px) { .page { padding: var(--space-5) var(--space-4); } }
 /* Single-card focus pages: sign in, register, verify. */
 .page-narrow { max-width: 400px; padding-top: var(--space-7); }
+/* The product lockup on the sign-in screens: the name, then what it stands for (a line, not a heading) */
+.brand-subtitle { margin: var(--space-1) 0 0; font-size: 13px; line-height: 1.4; color: var(--text-secondary); }
 .page-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-5); }
 .page-header > span { display: flex; align-items: center; gap: var(--space-3); }
 /* Cards carry their own vertical rhythm like every other block: margins
@@ -519,7 +521,7 @@ input[readonly] { background: var(--surface-2); }
 @media (max-width: 640px) { .folder-popup { min-width: 0; } }
 @media (pointer: coarse) { .folder-tree .folder-row { min-height: 44px; } }
 
-/* Run from QA Vision: Play, the reason it is disabled, the inline confirmation and the selection bar */
+/* Run from QEOS: Play, the reason it is disabled, the inline confirmation and the selection bar */
 .run-control { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-3) 0; }
 .run-control > button svg { vertical-align: -3px; }
 .run-reason { color: var(--text-secondary); font-size: 13px; }
@@ -532,7 +534,7 @@ input[readonly] { background: var(--surface-2); }
 .select-col input { width: 18px; height: 18px; }
 @media (pointer: coarse) { .select-col input { width: 24px; height: 24px; } }
 
-/* Run from QA Vision: the run panel (a role="status" card) */
+/* Run from QEOS: the run panel (a role="status" card) */
 .run-panel { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
 .run-panel-state { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-weight: 600; }
 .run-panel-state svg { flex-shrink: 0; color: var(--text-secondary); }

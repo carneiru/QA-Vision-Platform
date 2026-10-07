@@ -8,8 +8,8 @@ from src.casebook.models import CiTarget, CiTargetEvent, RunRequest
 
 URL = "/api/v1/projects/1/ci-target"
 TOKEN = "github_pat_11AAAAAAA0" + "b" * 30 + "a1b2"
-BODY = {"repo": "acme/obt", "workflow": "qa-vision-run.yml", "ref": "main", "token": TOKEN}
-NOT_CONFIGURED = "Running tests from QA Vision is not configured on this server"
+BODY = {"repo": "acme/obt", "workflow": "qeos-run.yml", "ref": "main", "token": TOKEN}
+NOT_CONFIGURED = "Running tests from QEOS is not configured on this server"
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def test_save_checks_github_stores_ciphertext_and_shows_last4_only(client, auth,
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["available"] is True and body["configured"] is True
-    assert (body["repo"], body["workflow"], body["ref"], body["token_last4"]) == ("acme/obt", "qa-vision-run.yml", "main", "a1b2")
+    assert (body["repo"], body["workflow"], body["ref"], body["token_last4"]) == ("acme/obt", "qeos-run.yml", "main", "a1b2")
     assert body["token_expires_at"].startswith("2027-03-12")
     assert body["last_change"]["action"] == "created" and body["last_change"]["user_id"] == 1
     assert TOKEN not in r.text and TOKEN not in client.get(URL, headers=auth()).text

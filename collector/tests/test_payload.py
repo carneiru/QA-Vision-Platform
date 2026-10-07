@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from qav_collector import __version__, payload
-from qav_collector.payload import build_parts, build_run, run_times, summarize
+from qeos_collector import __version__, payload
+from qeos_collector.payload import build_parts, build_run, run_times, summarize
 
 NOW = datetime(2026, 9, 29, 12, 0, tzinfo=timezone.utc)
 RUN = {"ci_provider": "local", "started_at": "x", "finished_at": "x"}
@@ -47,7 +47,7 @@ def test_build_run_sends_what_the_server_accepts():
     )
     assert run == {
         "ci_provider": "github_actions",
-        "agent_version": f"qav-collector/{__version__}",
+        "agent_version": f"qeos-collector/{__version__}",
         "started_at": "2026-09-29T11:59:00+00:00",
         "finished_at": "2026-09-29T12:00:00+00:00",
         "ci_run_url": "https://github.com/acme/shop/actions/runs/1",
@@ -123,7 +123,7 @@ def test_summarize():
 
 def test_build_parts_carries_changes_in_every_part():
     import json as _json
-    from qav_collector.payload import build_parts
+    from qeos_collector.payload import build_parts
 
     run = {"ci_provider": "local", "started_at": "2026-10-02T00:00:00+00:00",
            "finished_at": "2026-10-02T00:01:00+00:00"}
@@ -139,7 +139,7 @@ def test_build_parts_carries_changes_in_every_part():
 
 
 def test_build_run_carries_git_metadata_when_valid():
-    from qav_collector.payload import build_run
+    from qeos_collector.payload import build_run
     from datetime import datetime, timezone
 
     now = datetime(2026, 10, 2, tzinfo=timezone.utc)

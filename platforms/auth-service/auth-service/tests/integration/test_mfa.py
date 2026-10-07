@@ -42,7 +42,7 @@ def test_enroll_confirm_then_login_requires_a_code(client, register_and_verify):
     )
     assert verify.status_code == 200, verify.text
     assert "access_token" in verify.json()
-    assert "qav_refresh=" in verify.headers.get("set-cookie", "")
+    assert "qeos_refresh=" in verify.headers.get("set-cookie", "")
 
 
 def test_wrong_code_is_rejected_and_token_reusable_until_expiry(client, register_and_verify):

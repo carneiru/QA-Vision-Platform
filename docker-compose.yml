@@ -13,7 +13,7 @@ x-app-healthcheck: &app-healthcheck
 
 # Each service and its -migrate job share one environment block, so they cannot drift apart.
 
-# Outgoing email (qav_shared.mail), set in .env. Empty SMTP_HOST: no email is sent; auth logs
+# Outgoing email (qeos_shared.mail), set in .env. Empty SMTP_HOST: no email is sent; auth logs
 # its links instead, and email notification channels record "SMTP is not configured"
 x-smtp-env: &smtp-env
   SMTP_HOST: ${SMTP_HOST:-}
@@ -22,7 +22,7 @@ x-smtp-env: &smtp-env
   SMTP_USER: ${SMTP_USER:-}
   SMTP_PASSWORD: ${SMTP_PASSWORD:-}
   EMAILS_FROM_EMAIL: ${EMAILS_FROM_EMAIL:-}
-  EMAILS_FROM_NAME: ${EMAILS_FROM_NAME:-QA Vision}
+  EMAILS_FROM_NAME: ${EMAILS_FROM_NAME:-QEOS}
 
 x-auth-env: &auth-env
   <<: *smtp-env
@@ -100,7 +100,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
-      - qav_postgres_data:/var/lib/postgresql/data
+      - qeos_postgres_data:/var/lib/postgresql/data
     healthcheck:
       # Over TCP, not the Unix socket: on a fresh volume the image first runs a temporary,
       # socket-only server for initialisation, and a socket check can pass on that one --
@@ -281,7 +281,7 @@ services:
       GATEWAY_HTTPS_PORT: ${GATEWAY_HTTPS_PORT:-8443}
       GATEWAY_IMPORT_MAX_BODY: ${GATEWAY_IMPORT_MAX_BODY:-25m}
     volumes:
-      - qav_gateway_certs:/etc/nginx/certs
+      - qeos_gateway_certs:/etc/nginx/certs
     healthcheck:
       test: ["CMD", "curl", "-fsk", "https://localhost/health"]
       interval: 5s
@@ -309,5 +309,9 @@ services:
         condition: service_started
 
 volumes:
-  qav_postgres_data:
-  qav_gateway_certs:
+  # Explicit names: the physical volumes keep the names they had before the QEOS rename
+  # (compose project "qa-vision", keys "qav_*"), so no data moves and nothing is recreated.
+  qeos_postgres_data:
+    name: qa-vision_qav_postgres_data
+  qeos_gateway_certs:
+    name: qa-vision_qav_gateway_certs

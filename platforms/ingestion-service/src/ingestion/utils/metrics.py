@@ -4,6 +4,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, H
 
 REGISTRY = CollectorRegistry()
 
+# The qav_ prefix predates the QEOS rename and is kept for compatibility: renaming a metric breaks
+# every dashboard and alert built on it.
+
 RUNS = Counter("qav_ingest_runs", "Test runs stored", registry=REGISTRY)
 RESULTS = Counter("qav_ingest_results", "Test results stored", registry=REGISTRY)
 REJECTED = Counter("qav_ingest_rejected", "Uploads rejected", ["reason"], registry=REGISTRY)

@@ -26,7 +26,7 @@ def test_a_key_is_traded_for_a_short_import_token(client, make_key, db):
     assert row.last_used_at is not None
 
 
-@pytest.mark.parametrize("headers", [{}, bearer("not-a-key"), bearer("qav_unknown_key_000000")])
+@pytest.mark.parametrize("headers", [{}, bearer("not-a-key"), bearer("qeos_unknown_key_000000")])
 def test_no_valid_key_is_401(client, headers):
     assert client.post(URL, headers=headers).status_code == 401
 

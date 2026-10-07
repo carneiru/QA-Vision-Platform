@@ -1,4 +1,4 @@
-"""GET/PUT/DELETE /projects/{id}/ci-target (run-from-QA-Vision spec)."""
+"""GET/PUT/DELETE /projects/{id}/ci-target (run-from-QEOS spec)."""
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 

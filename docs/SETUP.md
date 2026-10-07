@@ -1,6 +1,6 @@
-# QA Vision — setup guide
+# QEOS — setup guide
 
-Everything needed to run QA Vision, connect CI to it, and move it to a server. Three stages,
+Everything needed to run QEOS, connect CI to it, and move it to a server. Three stages,
 each building on the previous one:
 
 | Stage | Where it runs | Who can send results | Guide |
@@ -78,18 +78,18 @@ Data lives in Docker volumes (`qa-vision_*`): it survives `down` and restarts, n
    or its JSON reporter), `dotnet test --logger trx` (writes `TestResults/*.trx`).
 3. **Upload**, from the folder holding the reports:
    ```powershell
-   pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
+   pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
    # the local stack's certificate is self-signed; run this in the QA-Vision-Platform folder
-   docker compose cp gateway:/etc/nginx/certs/tls.crt $HOME\qav-ca.crt
+   docker compose cp gateway:/etc/nginx/certs/tls.crt $HOME\qeos-ca.crt
 
-   $env:QAV_URL = "https://localhost:8443"
-   $env:QAV_API_KEY = "<your key>"
-   qav-collector check "reports/**/*.xml" --ca-file $HOME\qav-ca.crt    # verifies everything, uploads nothing
-   qav-collector upload "reports/**/*.xml" --ca-file $HOME\qav-ca.crt
+   $env:QEOS_URL = "https://localhost:8443"
+   $env:QEOS_API_KEY = "<your key>"
+   qeos-collector check "reports/**/*.xml" --ca-file $HOME\qeos-ca.crt    # verifies everything, uploads nothing
+   qeos-collector upload "reports/**/*.xml" --ca-file $HOME\qeos-ca.crt
    ```
    To keep test cases in sync from your `.feature` files, add a second CI step after the upload:
-   `qav-collector import-features "tests/features/**/*.feature"`. It uses the same `QAV_API_KEY`
-   and syncs only from `master` (set `QAV_IMPORT_BRANCH` to change that); see ADR-024.
+   `qeos-collector import-features "tests/features/**/*.feature"`. It uses the same `QEOS_API_KEY`
+   and syncs only from `master` (set `QEOS_IMPORT_BRANCH` to change that); see ADR-024.
 4. The project's **Overview** shows the run, what failed and the pass rate. **Settings → Wire up
    your CI** always shows the right snippet for where the platform is running.
 
@@ -106,32 +106,32 @@ machine to the internet while it is open.
    (Install `cloudflared` from Cloudflare's site if missing.) It prints an address like
    `https://random-words.trycloudflare.com`. Ctrl+C closes it.
 2. **In the GitHub repository → Settings → Secrets and variables → Actions:**
-   - secret `QAV_API_KEY` = the project's API key
-   - variable `QAV_URL` = the tunnel address, without a trailing slash
+   - secret `QEOS_API_KEY` = the project's API key
+   - variable `QEOS_URL` = the tunnel address, without a trailing slash
 3. **Add the upload step to the workflow**, after the tests (they must write JUnit XML):
    ```yaml
-   - uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.3.0
+   - uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.4.0
      if: always()                       # report failing builds too
      with:
-       url: ${{ vars.QAV_URL }}
+       url: ${{ vars.QEOS_URL }}
        patterns: "reports/**/*.xml"
      env:
-       QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+       QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
    ```
    For a change list per build, check out with `fetch-depth: 2`. This repository's own
    `.github/workflows/ci.yml` is a complete working example (one run per job).
 4. **Push.** Each build appears in the project a minute later.
 
-Pilot limits: the tunnel address **changes every time it restarts** (update `QAV_URL`), and
+Pilot limits: the tunnel address **changes every time it restarts** (update `QEOS_URL`), and
 results sent while the tunnel or the laptop is down are lost; the builds themselves stay
 green — the collector never fails a build because the platform is unreachable.
 
-GitLab: `include:` the template in `templates/qav-collector.gitlab-ci.yml` and set `QAV_URL`
-and a masked `QAV_API_KEY` as CI/CD variables. Jenkins: the shared library in
-`collector-jenkins/` (`qavCollectorUpload` step). Azure Pipelines: add `QAV_API_KEY` as a
+GitLab: `include:` the template in `templates/qeos-collector.gitlab-ci.yml` and set `QEOS_URL`
+and a masked `QEOS_API_KEY` as CI/CD variables. Jenkins: the shared library in
+`collector-jenkins/` (`qeosCollectorUpload` step). Azure Pipelines: add `QEOS_API_KEY` as a
 **secret** pipeline variable and map it in the step's `env:` (Azure gives secrets to scripts
-only that way), or use the step template `templates/qav-collector.azure-pipelines.yml`;
-Microsoft-hosted agents need a public `QAV_URL`, as with GitHub. The **Wire up your CI** card
+only that way), or use the step template `templates/qeos-collector.azure-pipelines.yml`;
+Microsoft-hosted agents need a public `QEOS_URL`, as with GitHub. The **Wire up your CI** card
 shows every one of them with this deployment's address filled in.
 
 ## 6. Production
@@ -141,8 +141,8 @@ or results become worth keeping. Follow **[`deploy/README.md`](../deploy/README.
 VM, a DNS record, three commands; certificates renew themselves and backups run daily.
 
 Moving the pilot: back up the local database first if you want to keep it
-(`docker compose exec -T postgres pg_dumpall -U postgres > qav-pilot.sql`) and restore it on
-the VM (`deploy/README.md` §7). Then point every repository's `QAV_URL` at the new domain and
+(`docker compose exec -T postgres pg_dumpall -U postgres > qeos-pilot.sql`) and restore it on
+the VM (`deploy/README.md` §7). Then point every repository's `QEOS_URL` at the new domain and
 close the tunnel for good.
 
 ---
@@ -157,6 +157,6 @@ close the tunnel for good.
 | Signed out after changing `.env` | `SECRET_KEY` changed; sign in again. API keys keep working. |
 | Collector: certificate errors on localhost | Pass `--ca-file` with the gateway certificate (section 4). |
 | `curl` on Windows fails on a valid certificate | Windows' TLS checks revocation, which local CAs don't publish: add `--ssl-no-revoke`. |
-| GitHub build passes but nothing arrives | `QAV_URL` variable missing, or the tunnel was closed/restarted (new address). |
-| Collector exits with code 2 | A configuration problem (URL, key, no matching files): `qav-collector check` names it. |
+| GitHub build passes but nothing arrives | `QEOS_URL` variable missing, or the tunnel was closed/restarted (new address). |
+| Collector exits with code 2 | A configuration problem (URL, key, no matching files): `qeos-collector check` names it. |
 | `exec … no such file or directory` building a container | A shell script has Windows line endings; the repository's `.gitattributes` forces LF on commit, re-checkout the file. |

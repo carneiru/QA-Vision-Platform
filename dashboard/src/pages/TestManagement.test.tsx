@@ -237,7 +237,7 @@ test("an imported case shows its source and Gherkin read-only", async () => {
   expect(screen.queryByRole("button", { name: /add step/i })).not.toBeInTheDocument();
 });
 
-test("saving an imported case sends only the fields QA Vision owns", async () => {
+test("saving an imported case sends only the fields QEOS owns", async () => {
   asRole("member");
   let sent: Record<string, unknown> | null = null;
   server.use(

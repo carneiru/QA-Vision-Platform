@@ -8,7 +8,7 @@ this central. When SMTP_HOST is empty (the default), the link is logged instead 
 """
 import logging
 
-from qav_shared.mail import mail_configured, send_mail
+from qeos_shared.mail import mail_configured, send_mail
 
 from src.auth.config import settings
 
@@ -37,7 +37,7 @@ class EmailSender:
     @staticmethod
     def send_password_reset_email(to_email: str, reset_link: str, expire_minutes: int) -> None:
         body = (
-            f"Someone asked to reset the password of your QA Vision account.\n\n{reset_link}\n\n"
+            f"Someone asked to reset the password of your QEOS account.\n\n{reset_link}\n\n"
             f"The link works once and expires in {expire_minutes} minutes. If you did not ask "
             "for this, ignore this email: your password stays as it is."
         )

@@ -8,7 +8,7 @@ from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from qav_shared.keys import test_key
+from qeos_shared.keys import test_key
 from src.ingestion.core.config import settings
 from src.ingestion.models import ApiKey, Run, RunChangedFile, RunComponent, RunResult
 from src.ingestion.schemas.collect import RunUpload

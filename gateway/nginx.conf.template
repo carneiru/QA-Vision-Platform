@@ -1,4 +1,4 @@
-# QA Vision gateway. Rendered by entrypoint.sh; only the HTTPS port variable is substituted.
+# QEOS gateway. Rendered by entrypoint.sh; only the HTTPS port variable is substituted.
 # Routing, limits and TLS are specified in docs/superpowers/specs/2026-09-28-api-gateway-design.md.
 
 worker_processes auto;

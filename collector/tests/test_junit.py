@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from qav_collector import junit
-from qav_collector.junit import parse_file
+from qeos_collector import junit
+from qeos_collector.junit import parse_file
 
 FIXTURES = Path(__file__).parent / "fixtures"
 

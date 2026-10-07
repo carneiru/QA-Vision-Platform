@@ -29,7 +29,7 @@ def test_sends_via_smtp_when_configured(monkeypatch):
     mock_server = MagicMock()
     mock_server.__enter__.return_value = mock_server
     with patch(
-        "qav_shared.mail.smtplib.SMTP", return_value=mock_server
+        "qeos_shared.mail.smtplib.SMTP", return_value=mock_server
     ) as mock_smtp:
         EmailSender.send_verification_email(
             "person@example.com", "http://example.com/verify?token=abc"

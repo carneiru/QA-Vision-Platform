@@ -4,13 +4,13 @@ FROM nginx:1.27-alpine
 # curl: the compose healthcheck
 RUN apk add --no-cache openssl gettext curl
 
-COPY nginx.conf.template /etc/qav/nginx.conf.template
-COPY entrypoint.sh /usr/local/bin/qav-gateway-entrypoint
-RUN chmod +x /usr/local/bin/qav-gateway-entrypoint
+COPY nginx.conf.template /etc/qeos/nginx.conf.template
+COPY entrypoint.sh /usr/local/bin/qeos-gateway-entrypoint
+RUN chmod +x /usr/local/bin/qeos-gateway-entrypoint
 
 EXPOSE 80 443
 
 # Replaces the stock nginx entrypoint on purpose: it would otherwise also render
 # /etc/nginx/templates/* into conf.d and run its own scripts.
-ENTRYPOINT ["/usr/local/bin/qav-gateway-entrypoint"]
+ENTRYPOINT ["/usr/local/bin/qeos-gateway-entrypoint"]
 CMD ["nginx", "-g", "daemon off;"]

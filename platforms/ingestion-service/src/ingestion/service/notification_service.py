@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Callable, List, Optional, Tuple
 
 import httpx
-from qav_shared.mail import MailNotConfigured, send_mail
+from qeos_shared.mail import MailNotConfigured, send_mail
 from sqlalchemy.orm import Session
 
 from src.ingestion.core.config import settings
@@ -99,7 +99,7 @@ def _test_label(failure: dict) -> str:
 
 def _headline(channel_name: str, s: RunSummary) -> str:
     if s.test:
-        return f"{channel_name}: QA Vision test message. This channel is set up correctly."
+        return f"{channel_name}: QEOS test message. This channel is set up correctly."
     return f"{channel_name}: {s.broken} of {s.total} tests failed"
 
 
@@ -121,7 +121,7 @@ def slack_payload(channel_name: str, s: RunSummary) -> dict:
     lines += [f"• {_test_label(f)}" for f in s.failures]
     if s.broken > len(s.failures) and s.failures:
         lines.append(f"… and {s.broken - len(s.failures)} more")
-    links = [f"<{s.link}|Open in QA Vision>"] if s.link else []
+    links = [f"<{s.link}|Open in QEOS>"] if s.link else []
     if s.ci_run_url:
         links.append(f"<{s.ci_run_url}|CI job>")
     if links:
@@ -139,7 +139,7 @@ def teams_payload(channel_name: str, s: RunSummary) -> dict:
         body.append({"type": "TextBlock", "text": f"… and {s.broken - len(s.failures)} more", "isSubtle": True})
     actions = []
     if s.link:
-        actions.append({"type": "Action.OpenUrl", "title": "Open in QA Vision", "url": s.link})
+        actions.append({"type": "Action.OpenUrl", "title": "Open in QEOS", "url": s.link})
     if s.ci_run_url:
         actions.append({"type": "Action.OpenUrl", "title": "CI job", "url": s.ci_run_url})
     card = {"$schema": "http://adaptivecards.io/schemas/adaptive-card.json", "type": "AdaptiveCard",
@@ -171,10 +171,10 @@ def email_payload(channel_name: str, s: RunSummary) -> dict:
             lines.append(f"  … and {s.broken - len(s.failures)} more")
         lines.append("")
     if s.link:
-        lines.append(f"Open in QA Vision: {s.link}")
+        lines.append(f"Open in QEOS: {s.link}")
     if s.ci_run_url:
         lines.append(f"CI job: {s.ci_run_url}")
-    lines += ["", "You get this because the address is a notification channel of this project in QA Vision."]
+    lines += ["", "You get this because the address is a notification channel of this project in QEOS."]
     return {"subject": _headline(channel_name, s), "body": chr(10).join(lines)}
 
 

@@ -3,11 +3,11 @@ import threading
 
 import pytest
 
-from qav_collector import __version__, upload
-from qav_collector.payload import Part
-from qav_collector.upload import ConfigError, UploadError, endpoint_for, make_context, upload_part
+from qeos_collector import __version__, upload
+from qeos_collector.payload import Part
+from qeos_collector.upload import ConfigError, UploadError, endpoint_for, make_context, upload_part
 
-KEY = "qav_test_key_123"
+KEY = "qeos_test_key_123"
 PART = Part(body=b'{"run":{},"results":[]}', idempotency_key="gh-1-1-test", count=0)
 RECEIPT = {"id": 42, "project_id": 1, "total": 2, "passed": 1, "failed": 1, "skipped": 0, "errored": 0,
            "created_at": "2026-09-29T12:00:00Z"}
@@ -57,7 +57,7 @@ def test_a_stored_run_is_returned_with_its_status(platform):
     assert request["headers"]["Authorization"] == f"Bearer {KEY}"
     assert request["headers"]["Idempotency-Key"] == "gh-1-1-test"
     assert request["headers"]["Content-Type"] == "application/json"
-    assert request["headers"]["User-Agent"] == f"qav-collector/{__version__}"
+    assert request["headers"]["User-Agent"] == f"qeos-collector/{__version__}"
 
 
 def test_a_replay_counts_as_success(platform):
@@ -198,9 +198,9 @@ def test_tls_errors_are_not_retried(not_tls):
 
 
 @pytest.mark.parametrize("url, endpoint", [
-    ("https://qav.acme.test", "https://qav.acme.test/api/v1/collect/runs"),
-    ("https://qav.acme.test/", "https://qav.acme.test/api/v1/collect/runs"),
-    (" https://qav.acme.test:8443 ", "https://qav.acme.test:8443/api/v1/collect/runs"),
+    ("https://qeos.acme.test", "https://qeos.acme.test/api/v1/collect/runs"),
+    ("https://qeos.acme.test/", "https://qeos.acme.test/api/v1/collect/runs"),
+    (" https://qeos.acme.test:8443 ", "https://qeos.acme.test:8443/api/v1/collect/runs"),
     ("http://localhost:8080", "http://localhost:8080/api/v1/collect/runs"),
     ("http://127.0.0.1:9", "http://127.0.0.1:9/api/v1/collect/runs"),
     ("http://[::1]:9", "http://[::1]:9/api/v1/collect/runs"),
@@ -209,7 +209,7 @@ def test_endpoint_for(url, endpoint):
     assert endpoint_for(url) == endpoint
 
 
-@pytest.mark.parametrize("url", ["http://qav.acme.test", "ftp://qav.acme.test", "qav.acme.test", "", "https://", "http://[::1"])
+@pytest.mark.parametrize("url", ["http://qeos.acme.test", "ftp://qeos.acme.test", "qeos.acme.test", "", "https://", "http://[::1"])
 def test_endpoint_for_refuses_what_cannot_work(url):
     with pytest.raises(ConfigError, match="https://"):
         endpoint_for(url)
@@ -264,7 +264,7 @@ def _self_signed(tmp_path):
         import pytest
         pytest.skip("cryptography not installed in this venv")
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "qav-client")])
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "qeos-client")])
     now = datetime.datetime.now(datetime.timezone.utc)
     cert = (x509.CertificateBuilder().subject_name(name).issuer_name(name)
             .public_key(key.public_key()).serial_number(x509.random_serial_number())

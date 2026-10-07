@@ -102,7 +102,7 @@ check "create a project" 201 POST "$BASE/api/v1/organizations/$ORG_ID/projects" 
 PROJECT_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
 check "create an API key -> ingestion-service (overlap route)" 201 POST \
   "$BASE/api/v1/projects/$PROJECT_ID/api-keys" "${AUTH[@]}" -H "Content-Type: application/json" -d '{"name":"smoke"}'
-API_KEY="$(sed -n 's/.*"key":"\(qav_[^"]*\)".*/\1/p' "$TMP/body")"
+API_KEY="$(sed -n 's/.*"key":"\(qeos_[^"]*\)".*/\1/p' "$TMP/body")"
 KEY_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
 # ---- test-management-service: a case through the gateway (ADR-022) ----
 check "create a test case -> test-management-service (overlap route)" 201 POST   "$BASE/api/v1/projects/$PROJECT_ID/cases" "${AUTH[@]}" -H "Content-Type: application/json"   -d '{"title":"Smoke case","labels":["smoke"]}'
@@ -117,7 +117,7 @@ check "case folders -> test-management-service" 200 GET "$BASE/api/v1/projects/$
 body_has "... the imported folder is listed" '"path":"tests/features"'
 check "case features -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-features" "${AUTH[@]}"
 check "ci target -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/ci-target" "${AUTH[@]}"
-body_has "... says whether running from QA Vision is available" '"available"'
+body_has "... says whether running from QEOS is available" '"available"'
 check "run requests -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/run-requests" "${AUTH[@]}"
 body_has "... an empty list" '"total":0'
 check "search cases by test keys -> test-management-service" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/search" \
@@ -170,7 +170,7 @@ body_has "... includes the run" "\"id\":$RUN_ID"
 check "read the run -> /api/v1/runs" 200 GET "$BASE/api/v1/runs/$RUN_ID?status=failed" "${AUTH[@]}"
 body_has "... with the failed result" '"name":"fails"'
 
-# ---- the collector, end to end: JUnit file -> qav-collector -> gateway -> ingestion ----
+# ---- the collector, end to end: JUnit file -> qeos-collector -> gateway -> ingestion ----
 # Runs from collector/src, so nothing is installed; the CI collector job covers installing it.
 PY=""
 for candidate in python3 python; do
@@ -195,7 +195,7 @@ else
   </testsuite>
 </testsuites>
 XML
-  if (cd collector/src && QAV_URL="$BASE" QAV_API_KEY="$API_KEY" "$PY" -m qav_collector upload \
+  if (cd collector/src && QEOS_URL="$BASE" QEOS_API_KEY="$API_KEY" "$PY" -m qeos_collector upload \
         "$TMP/junit.xml" --ca-file "$TMP/gateway.crt" --branch smoke-collector --fail-on-error) \
         2>"$TMP/collector_err"; then
     pass "collector uploads a JUnit file through the gateway"

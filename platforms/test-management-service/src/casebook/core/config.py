@@ -1,5 +1,5 @@
 """Configuration management for Test Management Service."""
-from qav_shared.config import BaseServiceSettings
+from qeos_shared.config import BaseServiceSettings
 
 
 class Settings(BaseServiceSettings):
@@ -18,7 +18,7 @@ class Settings(BaseServiceSettings):
     IMPORT_MAX_FILE_BYTES: int = 262144
     IMPORT_MAX_TOTAL_BYTES: int = 10485760
 
-    # Running tests from QA Vision: the Fernet key that encrypts each project's GitHub token.
+    # Running tests from QEOS: the Fernet key that encrypts each project's GitHub token.
     # Empty turns the feature off (GET ci-target says available=false, PUT answers 503). Generate one:
     #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     TM_SECRETS_KEY: str = ""

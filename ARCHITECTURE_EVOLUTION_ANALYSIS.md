@@ -1,8 +1,8 @@
-# QA Vision Platform Architecture Evolution Analysis
+# QEOS Architecture Evolution Analysis
 # Historical Decision Record
 
 ## Executive Summary
-This document captures the key architectural decisions made during the evolution of the QA Vision Platform from an AI Engine-focused architecture to the AI-native Quality Engineering Operating System (QEOS). It serves as a historical record of the analysis, decisions, and lessons learned throughout the transformation process.
+This document captures the key architectural decisions made during the evolution of QEOS from an AI Engine-focused architecture to the AI-native Quality Engineering Operating System. It serves as a historical record of the analysis, decisions, and lessons learned throughout the transformation process.
 
 ## Key Decisions Made
 

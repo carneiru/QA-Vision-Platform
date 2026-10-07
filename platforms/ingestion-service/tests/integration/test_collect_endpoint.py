@@ -59,7 +59,7 @@ def test_last_used_at_is_set(client, make_key, db):
     assert row.last_used_at is not None
 
 
-@pytest.mark.parametrize("header", [None, "Bearer", "Bearer ", "Bearer not-a-qav-key", "Basic dXNlcjpwdw=="])
+@pytest.mark.parametrize("header", [None, "Bearer", "Bearer ", "Bearer not-a-qeos-key", "Basic dXNlcjpwdw=="])
 def test_missing_or_malformed_key_is_401(client, header):
     headers = {} if header is None else {"Authorization": header}
     response = client.post(URL, json=upload_body(), headers=headers)
@@ -69,6 +69,22 @@ def test_missing_or_malformed_key_is_401(client, header):
 
 
 def test_unknown_key_is_401(client, db):
+    assert client.post(URL, json=upload_body(), headers=key_headers("qeos_" + "A" * 43)).status_code == 401
+
+
+def test_legacy_qav_key_still_authenticates(client, db):
+    """Keys issued before the QEOS rename start with qav_ and keep working."""
+    from src.ingestion.models import ApiKey
+    from src.ingestion.utils.keys import display_prefix, hash_key
+
+    legacy = "qav_" + "L" * 43
+    db.add(ApiKey(project_id=1, organization_id=10, name="old", key_prefix=display_prefix(legacy),
+                  key_hash=hash_key(legacy), created_by=1))
+    db.commit()
+    assert client.post(URL, json=upload_body(), headers=key_headers(legacy)).status_code == 201
+
+
+def test_unknown_legacy_key_is_401(client, db):
     assert client.post(URL, json=upload_body(), headers=key_headers("qav_" + "A" * 43)).status_code == 401
 
 
@@ -78,7 +94,7 @@ def test_revoked_key_is_401(client, make_key):
 
 
 def test_invalid_key_and_invalid_body_is_401_not_422(client):
-    response = client.post(URL, json={"nonsense": True}, headers=key_headers("qav_" + "B" * 43))
+    response = client.post(URL, json={"nonsense": True}, headers=key_headers("qeos_" + "B" * 43))
     assert response.status_code == 401
 
 
@@ -148,7 +164,7 @@ def test_invalid_payload_is_422_and_counted(client, make_key, db):
 
 def test_auth_rejection_is_counted(client):
     before = rejected("auth")
-    client.post(URL, json=upload_body(), headers=key_headers("qav_" + "C" * 43))
+    client.post(URL, json=upload_body(), headers=key_headers("qeos_" + "C" * 43))
     assert rejected("auth") == before + 1
 
 

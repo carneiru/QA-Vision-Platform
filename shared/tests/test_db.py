@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from qav_shared.db import make_get_db, make_session_factory
+from qeos_shared.db import make_get_db, make_session_factory
 
 SQLITE_URL = "sqlite://"  # in-memory, no file, no cleanup
 

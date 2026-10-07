@@ -306,6 +306,15 @@ def test_after_a_204_the_run_is_matched_by_display_title(project, auth, github, 
     assert get(project, auth, rid)["status"] == "running"
 
 
+def test_after_a_204_a_run_titled_by_a_pre_rename_workflow_still_matches(project, auth, github, clock):
+    """Workflows copied before the QEOS rename keep run-name "QA Vision #<id>"."""
+    github.dispatch()
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.runs(github.run_body(501, rid, title=f"QA Vision #{rid}"))
+    clock.tick(seconds=6)
+    assert get(project, auth, rid)["github_run_id"] == 501
+
+
 def test_a_run_url_outside_github_is_not_stored(project, auth, github, clock):
     github.dispatch()
     rid = play(project, auth, case_numbers=[CARD]).json()["id"]

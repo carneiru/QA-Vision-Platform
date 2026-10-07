@@ -6,10 +6,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from qav_collector import __version__, cli, payload
-from qav_collector.cli import main
+from qeos_collector import __version__, cli, payload
+from qeos_collector.cli import main
 
-KEY = "qav_cli_secret_key"
+KEY = "qeos_cli_secret_key"
 NOW = datetime(2026, 9, 29, 10, 5, tzinfo=timezone.utc)
 RECEIPT = {"id": 42, "project_id": 1, "total": 2, "passed": 1, "failed": 1, "skipped": 0, "errored": 0,
            "created_at": "2026-09-29T10:05:00Z"}
@@ -24,7 +24,7 @@ GITHUB = {
     "GITHUB_SERVER_URL": "https://github.com", "GITHUB_REPOSITORY": "acme/shop",
     "GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "2", "GITHUB_JOB": "test",
 }
-CONFIGURED = {"QAV_URL": "https://qav.acme.test", "QAV_API_KEY": KEY}
+CONFIGURED = {"QEOS_URL": "https://qeos.acme.test", "QEOS_API_KEY": KEY}
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def report(tmp_path):
 
 
 def env_for(platform, **extra):
-    return {"QAV_URL": platform.url, "QAV_API_KEY": KEY, **extra}
+    return {"QEOS_URL": platform.url, "QEOS_API_KEY": KEY, **extra}
 
 
 def run(argv, env):
@@ -58,8 +58,8 @@ def test_uploads_one_run(platform, report, capsys):
     assert [r["name"] for r in body["results"]] == ["passes", "fails"]
     assert platform.requests[0]["headers"]["Idempotency-Key"].startswith("local-")
     err = capsys.readouterr().err
-    assert "qav: parsed 1 file(s), 2 results (1 failed, 0 errored, 0 skipped)" in err
-    assert "qav: uploaded run 42 (201)" in err
+    assert "qeos: parsed 1 file(s), 2 results (1 failed, 0 errored, 0 skipped)" in err
+    assert "qeos: uploaded run 42 (201)" in err
 
 
 def test_each_local_invocation_gets_a_new_key(platform, report):
@@ -112,7 +112,7 @@ def test_matrix_legs_and_repeated_uploads_in_one_job_get_different_keys(platform
 
 def test_flags_beat_variables(platform, report):
     platform.reply(201, RECEIPT)
-    env = env_for(platform, **GITHUB, QAV_BRANCH="from-env", QAV_IDEMPOTENCY_KEY="from env")
+    env = env_for(platform, **GITHUB, QEOS_BRANCH="from-env", QEOS_IDEMPOTENCY_KEY="from env")
 
     argv = ["upload", str(report), "--branch", "from-flag", "--ci-provider", "other",
             "--idempotency-key", "from flag", "--environment", "staging"]
@@ -126,8 +126,8 @@ def test_flags_beat_variables(platform, report):
 
 def test_variables_beat_detection(platform, report):
     platform.reply(201, RECEIPT)
-    env = env_for(platform, **GITHUB, QAV_BRANCH="from-env", QAV_COMMIT="b" * 40,
-                  QAV_IDEMPOTENCY_KEY="from env", QAV_CI_PROVIDER="other")
+    env = env_for(platform, **GITHUB, QEOS_BRANCH="from-env", QEOS_COMMIT="b" * 40,
+                  QEOS_IDEMPOTENCY_KEY="from env", QEOS_CI_PROVIDER="other")
 
     assert run(["upload", str(report)], env) == 0
     body = sent(platform)
@@ -144,7 +144,7 @@ def test_dry_run_prints_the_json_and_needs_no_key(report, capsys):
     body = json.loads(captured.out)
     assert [r["name"] for r in body["results"]] == ["passes", "fails"]
     assert body["run"]["ci_provider"] == "local"
-    assert "qav: dry run: 1 part(s), nothing uploaded" in captured.err
+    assert "qeos: dry run: 1 part(s), nothing uploaded" in captured.err
 
 
 def test_parts_are_uploaded_in_order_and_a_failure_names_what_was_stored(platform, report, monkeypatch, capsys):
@@ -155,10 +155,10 @@ def test_parts_are_uploaded_in_order_and_a_failure_names_what_was_stored(platfor
     assert run(["upload", str(report), "--idempotency-key", "job-7"], env_for(platform)) == 0
     assert [r["headers"]["Idempotency-Key"] for r in platform.requests] == ["job-7-part-1", "job-7-part-2"]
     err = capsys.readouterr().err
-    assert "qav: uploaded run 42 (201), part 1 of 2" in err
-    assert "qav: upload failed: the API key is invalid or revoked (401)" in err
-    assert "qav: stored before the failure: run 42 (part 1 of 2)" in err
-    assert "qav: not failing the build (pass --fail-on-error to change that)" in err
+    assert "qeos: uploaded run 42 (201), part 1 of 2" in err
+    assert "qeos: upload failed: the API key is invalid or revoked (401)" in err
+    assert "qeos: stored before the failure: run 42 (part 1 of 2)" in err
+    assert "qeos: not failing the build (pass --fail-on-error to change that)" in err
 
 
 def test_an_upload_failure_exits_0_by_default(platform, report):
@@ -168,8 +168,8 @@ def test_an_upload_failure_exits_0_by_default(platform, report):
 
 @pytest.mark.parametrize("argv_extra, env_extra", [
     (["--fail-on-error"], {}),
-    ([], {"QAV_FAIL_ON_ERROR": "1"}),
-    ([], {"QAV_FAIL_ON_ERROR": "true"}),
+    ([], {"QEOS_FAIL_ON_ERROR": "1"}),
+    ([], {"QEOS_FAIL_ON_ERROR": "true"}),
 ])
 def test_fail_on_error_exits_1(platform, report, argv_extra, env_extra):
     platform.reply(401, {"detail": "Invalid API key"})
@@ -177,13 +177,13 @@ def test_fail_on_error_exits_1(platform, report, argv_extra, env_extra):
 
 
 @pytest.mark.parametrize("argv_extra, env, message", [
-    ([], {"QAV_API_KEY": KEY}, "QAV_URL is not set"),
-    ([], {"QAV_URL": "https://qav.acme.test"}, "QAV_API_KEY is not set"),
-    ([], {"QAV_URL": "http://qav.acme.test", "QAV_API_KEY": KEY}, "must be an https:// URL"),
+    ([], {"QEOS_API_KEY": KEY}, "QEOS_URL is not set"),
+    ([], {"QEOS_URL": "https://qeos.acme.test"}, "QEOS_API_KEY is not set"),
+    ([], {"QEOS_URL": "http://qeos.acme.test", "QEOS_API_KEY": KEY}, "must be an https:// URL"),
     (["--ca-file", "missing.pem"], CONFIGURED, "cannot use --ca-file"),
-    ([], {**CONFIGURED, "QAV_CA_FILE": "missing.pem"}, "cannot use --ca-file"),
-    ([], {**CONFIGURED, "QAV_CI_PROVIDER": "travis"}, "QAV_CI_PROVIDER must be one of"),
-    (["--fail-on-error"], {"QAV_API_KEY": KEY}, "QAV_URL is not set"),
+    ([], {**CONFIGURED, "QEOS_CA_FILE": "missing.pem"}, "cannot use --ca-file"),
+    ([], {**CONFIGURED, "QEOS_CI_PROVIDER": "travis"}, "QEOS_CI_PROVIDER must be one of"),
+    (["--fail-on-error"], {"QEOS_API_KEY": KEY}, "QEOS_URL is not set"),
 ])
 def test_configuration_errors_exit_2(report, capsys, argv_extra, env, message):
     assert run(["upload", str(report), *argv_extra], env) == 2
@@ -201,7 +201,7 @@ def test_files_without_test_cases_upload_nothing(platform, tmp_path, capsys):
 
     assert run(["upload", str(empty)], env_for(platform)) == 0
     assert platform.requests == []
-    assert "qav: no test results found" in capsys.readouterr().err
+    assert "qeos: no test results found" in capsys.readouterr().err
 
 
 def test_skipped_files_are_reported_and_the_rest_uploaded(platform, report, capsys):
@@ -212,7 +212,7 @@ def test_skipped_files_are_reported_and_the_rest_uploaded(platform, report, caps
     assert run(["upload", str(report.parent / "*.xml")], env_for(platform)) == 0
     assert len(sent(platform)["results"]) == 2
     err = capsys.readouterr().err
-    assert f"qav: skipped {broken}: not well-formed XML" in err
+    assert f"qeos: skipped {broken}: not well-formed XML" in err
     assert "parsed 1 file(s)" in err
 
 
@@ -222,24 +222,24 @@ def test_usage_errors_exit_2(capsys):
     assert run(["upload", "x.xml", "--ci-provider", "travis"], {}) == 2
 
 
-@pytest.mark.parametrize("bad_key", ["qav_first\nsecond", "qav_has xyzzy", "qav_café"])
+@pytest.mark.parametrize("bad_key", ["qeos_first\nsecond", "qeos_has xyzzy", "qeos_café"])
 def test_an_unusable_api_key_is_a_configuration_error_and_is_never_printed(report, capsys, bad_key):
-    assert run(["upload", str(report)], {"QAV_URL": "https://qav.acme.test", "QAV_API_KEY": bad_key}) == 2
+    assert run(["upload", str(report)], {"QEOS_URL": "https://qeos.acme.test", "QEOS_API_KEY": bad_key}) == 2
     err = capsys.readouterr().err
-    assert "QAV_API_KEY" in err
+    assert "QEOS_API_KEY" in err
     for piece in bad_key.split():
         assert piece not in err
 
 
 def test_version(capsys):
     assert run(["--version"], {}) == 0
-    assert capsys.readouterr().out.strip() == f"qav-collector {__version__}"
+    assert capsys.readouterr().out.strip() == f"qeos-collector {__version__}"
 
 
 def test_python_dash_m_runs_the_cli():
-    completed = subprocess.run([sys.executable, "-m", "qav_collector", "--version"], capture_output=True, text=True)
+    completed = subprocess.run([sys.executable, "-m", "qeos_collector", "--version"], capture_output=True, text=True)
     assert completed.returncode == 0
-    assert completed.stdout.strip() == f"qav-collector {__version__}"
+    assert completed.stdout.strip() == f"qeos-collector {__version__}"
 
 
 def test_the_key_never_appears_in_the_output(platform, report, capsys):
@@ -260,7 +260,7 @@ def test_an_unexpected_error_follows_the_upload_failure_rule(platform, report, m
 
     assert run(["upload", str(report), *argv_extra], env_for(platform)) == code
     err = capsys.readouterr().err
-    assert "qav: unexpected error: RuntimeError: boom ***" in err
+    assert "qeos: unexpected error: RuntimeError: boom ***" in err
     assert KEY not in err
 
 
@@ -281,7 +281,7 @@ def test_component_flags_are_sent(platform, report):
 def test_components_from_environment(platform, report):
     platform.reply(201, RECEIPT)
 
-    env = env_for(platform, QAV_COMPONENTS=f"product-api@{SHA_A},web@0f1e2d3c")
+    env = env_for(platform, QEOS_COMPONENTS=f"product-api@{SHA_A},web@0f1e2d3c")
     assert run(["upload", str(report)], env) == 0
     assert sent(platform)["components"] == [
         {"name": "product-api", "sha": SHA_A},
@@ -292,7 +292,7 @@ def test_components_from_environment(platform, report):
 def test_component_flags_beat_the_environment(platform, report):
     platform.reply(201, RECEIPT)
 
-    env = env_for(platform, QAV_COMPONENTS="ignored@0f1e2d3c")
+    env = env_for(platform, QEOS_COMPONENTS="ignored@0f1e2d3c")
     assert run(["upload", str(report), "--component", "web@aa11bb22"], env) == 0
     assert sent(platform)["components"] == [{"name": "web", "sha": "aa11bb22"}]
 
@@ -311,7 +311,7 @@ def test_no_components_means_no_components_key(platform, report):
     ("api@0f1e2d3c,api@aa11bb22", "unique"),
 ])
 def test_bad_components_are_a_config_error(platform, report, capsys, value, complaint):
-    env = env_for(platform, QAV_COMPONENTS=value)
+    env = env_for(platform, QEOS_COMPONENTS=value)
     assert run(["upload", str(report)], env) == 2
     assert complaint in capsys.readouterr().err
 
@@ -321,9 +321,9 @@ def test_check_passes_and_uploads_nothing(platform, report, capsys):
 
     assert run(["check", str(report)], env_for(platform)) == 0
     err = capsys.readouterr().err
-    assert "qav: url: ok" in err
-    assert "qav: key: ok (project 7, key 'ci')" in err
-    assert "qav: reports: 1 file(s), 2 results" in err
+    assert "qeos: url: ok" in err
+    assert "qeos: key: ok (project 7, key 'ci')" in err
+    assert "qeos: reports: 1 file(s), 2 results" in err
     assert [r["path"] for r in platform.requests] == ["/api/v1/collect/key"]
 
 
@@ -349,13 +349,13 @@ def test_check_fails_when_no_file_matches(platform, capsys):
 
 
 def test_check_needs_a_url(capsys):
-    assert run(["check"], {"QAV_API_KEY": KEY}) == 2
-    assert "QAV_URL" in capsys.readouterr().err
+    assert run(["check"], {"QEOS_API_KEY": KEY}) == 2
+    assert "QEOS_URL" in capsys.readouterr().err
 
 
 def test_check_needs_a_key(platform, capsys):
-    assert run(["check"], {"QAV_URL": platform.url}) == 2
-    assert "QAV_API_KEY" in capsys.readouterr().err
+    assert run(["check"], {"QEOS_URL": platform.url}) == 2
+    assert "QEOS_API_KEY" in capsys.readouterr().err
 
 
 def test_a_failed_upload_is_spooled_for_the_next_run(platform, report, tmp_path, capsys):
@@ -365,7 +365,7 @@ def test_a_failed_upload_is_spooled_for_the_next_run(platform, report, tmp_path,
     assert run(["upload", str(report), "--spool", str(tmp_path), "--idempotency-key", "job-9"],
                env_for(platform)) == 0
     err = capsys.readouterr().err
-    assert "qav: spooled 1 part(s) for the next run" in err
+    assert "qeos: spooled 1 part(s) for the next run" in err
     files = list(tmp_path.glob("*.json"))
     assert len(files) == 1
 
@@ -383,7 +383,7 @@ def test_spooled_parts_are_resent_before_the_current_run(platform, report, tmp_p
     keys = [r["headers"]["Idempotency-Key"] for r in platform.requests[5:]]
     assert keys == ["job-9", "job-10"]
     assert list(tmp_path.glob("*.json")) == []
-    assert "qav: resent 1 spooled part(s)" in capsys.readouterr().err
+    assert "qeos: resent 1 spooled part(s)" in capsys.readouterr().err
 
 
 def test_a_still_failing_spooled_part_is_kept_and_the_run_continues(platform, report, tmp_path, capsys):
@@ -399,8 +399,8 @@ def test_a_still_failing_spooled_part_is_kept_and_the_run_continues(platform, re
                env_for(platform)) == 0
     assert len(list(tmp_path.glob("*.json"))) == 1
     err = capsys.readouterr().err
-    assert "qav: a spooled part still fails" in err
-    assert "qav: uploaded run 42 (201)" in err
+    assert "qeos: a spooled part still fails" in err
+    assert "qeos: uploaded run 42 (201)" in err
 
 
 def test_a_rejected_upload_is_not_spooled(platform, report, tmp_path):
@@ -433,26 +433,26 @@ def test_a_trx_report_uploads_like_junit(platform, tmp_path, capsys):
     assert run(["upload", str(trx)], env_for(platform)) == 0
     body = sent(platform)
     assert [(r["name"], r["status"]) for r in body["results"]] == [("Adds", "passed"), ("Pays", "failed")]
-    assert "qav: parsed 1 file(s), 2 results" in capsys.readouterr().err
+    assert "qeos: parsed 1 file(s), 2 results" in capsys.readouterr().err
 
 
 def test_config_file_supplies_defaults_and_flags_win(platform, tmp_path, monkeypatch, capsys):
     reports = tmp_path / "reports"
     reports.mkdir()
     (reports / "junit.xml").write_text(REPORT, encoding="utf-8")
-    (tmp_path / ".qav.yml").write_text(
+    (tmp_path / ".qeos.yml").write_text(
         f"url: {platform.url}\nenvironment: from-file\npatterns:\n  - \"reports/**/*.xml\"\n",
         encoding="utf-8",
     )
     monkeypatch.chdir(tmp_path)
     platform.reply(201, RECEIPT)
 
-    # no patterns and no --url on the command line: both come from .qav.yml
-    assert run(["upload"], {"QAV_API_KEY": KEY}) == 0
+    # no patterns and no --url on the command line: both come from .qeos.yml
+    assert run(["upload"], {"QEOS_API_KEY": KEY}) == 0
     assert sent(platform)["run"]["environment"] == "from-file"
 
     platform.reply(201, RECEIPT)
-    assert run(["upload", "--environment", "from-flag"], {"QAV_API_KEY": KEY}) == 0
+    assert run(["upload", "--environment", "from-flag"], {"QEOS_API_KEY": KEY}) == 0
     assert sent(platform, 1)["run"]["environment"] == "from-flag"
 
 
@@ -484,13 +484,13 @@ def test_codeowners_attach_owners_to_results(platform, tmp_path, monkeypatch):
 def test_gate_passes_when_only_quarantined_tests_failed(platform, report, capsys):
     platform.reply(201, {**RECEIPT, "quarantined": 1, "blocking": 0})
     assert run(["upload", str(report), "--gate"], env_for(platform)) == 0
-    assert "qav: gate passed: 1 failure(s) in quarantine, not counted" in capsys.readouterr().err
+    assert "qeos: gate passed: 1 failure(s) in quarantine, not counted" in capsys.readouterr().err
 
 
 def test_gate_fails_on_failures_outside_quarantine(platform, report, capsys):
     platform.reply(201, {**RECEIPT, "quarantined": 0, "blocking": 1})
     assert run(["upload", str(report), "--gate"], env_for(platform)) == 1
-    assert "qav: gate failed: 1 failing test(s) outside quarantine" in capsys.readouterr().err
+    assert "qeos: gate failed: 1 failing test(s) outside quarantine" in capsys.readouterr().err
 
 
 def test_without_the_gate_failures_never_fail_the_build(platform, report):
@@ -502,7 +502,7 @@ def test_gate_from_the_environment_and_the_last_part_decides(platform, report, m
     monkeypatch.setattr(payload, "MAX_RESULTS_PER_PART", 1)
     platform.reply(201, {**RECEIPT, "blocking": 0})
     platform.reply(201, {**RECEIPT, "blocking": 1})   # the receipt counts the whole run so far
-    assert run(["upload", str(report)], env_for(platform, QAV_GATE="true")) == 1
+    assert run(["upload", str(report)], env_for(platform, QEOS_GATE="true")) == 1
 
 
 def test_gate_against_an_older_platform_counts_every_failure(platform, report, capsys):

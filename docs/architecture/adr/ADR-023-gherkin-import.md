@@ -3,7 +3,7 @@
 Status: Accepted (2026-10-06) · Spec: `docs/superpowers/specs/2026-10-06-gherkin-import-design.md`
 
 ## Context
-The `.feature` files live in the product test repositories, not in QA Vision. Test management
+The `.feature` files live in the product test repositories, not in QEOS. Test management
 (ADR-022) kept cases written by hand. Teams that already have hundreds of scenarios in Git do not
 want to type them again, and do not want two copies that drift apart.
 
@@ -12,11 +12,11 @@ class_name = the result's `uri`, name = scenario name. A case can only show its 
 its link carries the same key.
 
 On 2026-10-06 the user chose one endpoint for the dashboard upload now and a later
-`qav-collector import-features` CI command, with the repository as the source of truth.
+`qeos-collector import-features` CI command, with the repository as the source of truth.
 
 ## Decision
 - **Field ownership.** For an imported case, title, steps, labels and Gherkin text come from the
-  file and are read-only in QA Vision (`PATCH` answers 422). Steps stay empty: the Gherkin text
+  file and are read-only in QEOS (`PATCH` answers 422). Steps stay empty: the Gherkin text
   replaces them. Priority, status, description, suites and the
   automated-test link stay editable. A `@priority:` tag sets the priority; without one the case
   keeps its current priority.
@@ -49,7 +49,7 @@ On 2026-10-06 the user chose one endpoint for the dashboard upload now and a lat
   equals `test_key(feature name, the case's current source_path, its automated_name)`; an update,
   move or reactivation refreshes an import-owned link, and the plan counts a stale one as an
   update. Any other link was picked by hand and is never touched. No column records who set it.
-- **`test_key` lives in `qav_shared`.** It moved out of ingestion's `ingest_service.py`. Ingestion
+- **`test_key` lives in `qeos_shared`.** It moved out of ingestion's `ingest_service.py`. Ingestion
   and test-management import the same function, and a contract test (a `.feature` fixture and its
   Cucumber JSON) holds the two sides together.
 - **A separate gateway body limit.** JSON escaping makes the request larger than the file content,

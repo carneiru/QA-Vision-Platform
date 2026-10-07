@@ -1,4 +1,4 @@
-// Client-side checks for Settings › Run from QA Vision. They mirror the server (test-management's schemas/ci.py);
+// Client-side checks for Settings › Run from QEOS. They mirror the server (test-management's schemas/ci.py);
 // the server still decides, these only save a round trip and say what is wrong next to the field.
 const REPO = /^[A-Za-z0-9-]{1,39}\/[A-Za-z0-9._-]{1,100}$/;
 const WORKFLOW = /^[A-Za-z0-9._-]{1,100}\.ya?ml$/;

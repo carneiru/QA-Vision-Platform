@@ -1,7 +1,7 @@
 """The import plan (pure) and its application to the database."""
 import pytest
 
-from qav_shared.keys import test_key
+from qeos_shared.keys import test_key
 from src.casebook.gherkin_import.parse import parse_feature
 from src.casebook.gherkin_import.plan import Existing, build_plan
 from src.casebook.models import Case, CaseLabel

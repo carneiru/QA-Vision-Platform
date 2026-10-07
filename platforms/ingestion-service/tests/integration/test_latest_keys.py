@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from qav_shared.keys import test_key
+from qeos_shared.keys import test_key
 
 URL = "/api/v1/projects/7/analytics/latest-keys"
 

@@ -1,0 +1,68 @@
+# QEOS: run selected scenarios on demand (QA-Vision-Platform docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md).
+# Copy to .github/workflows/qeos-run.yml on the repository's DEFAULT branch (GitHub dispatches only
+# workflows found there) and qeos-run.mjs to .github/scripts/qeos-run.mjs. Both files must also
+# exist on the configured branch (Project Settings › Run from QEOS): that run reads them from there.
+# Needs the repository secret QEOS_API_KEY and the repository variable QEOS_URL; the ENV secret feeds
+# ./.github/actions/setup-test-env as in the other suites.
+name: QEOS run
+run-name: "QEOS #${{ inputs.request_id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: JSON array of .feature paths (set by QEOS)
+        required: true
+        type: string
+      names:
+        description: JSON array of scenario names (set by QEOS)
+        required: true
+        type: string
+      request_id:
+        description: QEOS run request id
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: QEOS run
+    # Only the branch configured in QEOS (Project Settings › Run from QEOS)
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    concurrency:
+      group: qeos-run
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - uses: ./.github/actions/setup-test-env
+        with:
+          env-file-content: ${{ secrets.ENV }}
+
+      - name: Run the selected scenarios
+        run: node .github/scripts/qeos-run.mjs
+        env:
+          CI: "true"
+          QEOS_PATHS: ${{ inputs.paths }}
+          QEOS_NAMES: ${{ inputs.names }}
+
+      - name: Upload results to QEOS
+        if: always() && vars.QEOS_URL != ''
+        uses: carneiru/QA-Vision-Platform/collector-action@collector-v0.4.0
+        with:
+          url: ${{ vars.QEOS_URL }}
+          patterns: test-results/cucumber-report.json
+        env:
+          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
+
+      - name: Upload the Cucumber HTML report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qeos-run-${{ inputs.request_id }}-report
+          path: test-results/cucumber-report.html
+          if-no-files-found: ignore

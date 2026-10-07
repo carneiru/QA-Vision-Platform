@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Writes the production .env at the repository root with strong random secrets.
-# Usage (from the repository root):  bash deploy/init-env.sh qa-vision.example.com ops@example.com
+# Usage (from the repository root):  bash deploy/init-env.sh qeos.example.com ops@example.com
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,8 +22,8 @@ tm_key="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '\r\n')"
 
 umask 077  # the file holds every secret of the deployment
 cat > .env <<EOF
-# QA Vision production settings (git-ignored). Generated $(date -u +%Y-%m-%dT%H:%MZ).
-QAV_DOMAIN=$domain
+# QEOS production settings (git-ignored). Generated $(date -u +%Y-%m-%dT%H:%MZ).
+QEOS_DOMAIN=$domain
 ACME_EMAIL=$email
 SECRET_KEY=$(secret 64)
 INTERNAL_API_PASSWORD=$(secret 40)

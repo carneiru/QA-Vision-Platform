@@ -40,7 +40,7 @@ function toInput(d: Draft): CaseInput {
   };
 }
 
-/** An imported case's title, steps and labels belong to its .feature file: save only what QA Vision owns. */
+/** An imported case's title, steps and labels belong to its .feature file: save only what QEOS owns. */
 function toOwnedInput(d: Draft): CaseInput {
   return { description: d.description.trim() || null, priority: d.priority, status: d.status };
 }

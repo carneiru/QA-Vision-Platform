@@ -1,4 +1,4 @@
-"""POST/GET /projects/{id}/run-requests (run-from-QA-Vision spec): Play and its state."""
+"""POST/GET /projects/{id}/run-requests (run-from-QEOS spec): Play and its state."""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 

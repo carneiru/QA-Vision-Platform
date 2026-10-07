@@ -8,7 +8,7 @@ set -eu
 export GATEWAY_HTTPS_PORT GATEWAY_IMPORT_MAX_BODY
 
 # Substitute ONLY these variables, so NGINX's own $host, $request_uri, ... are left alone
-envsubst '${GATEWAY_HTTPS_PORT} ${GATEWAY_IMPORT_MAX_BODY}' < /etc/qav/nginx.conf.template > /etc/nginx/nginx.conf
+envsubst '${GATEWAY_HTTPS_PORT} ${GATEWAY_IMPORT_MAX_BODY}' < /etc/qeos/nginx.conf.template > /etc/nginx/nginx.conf
 
 # Behind a TLS edge proxy (deploy/ on a VM) every request arrives from the proxy's
 # address, so per-IP rate limits would be shared by all users. GATEWAY_TRUSTED_PROXIES
@@ -29,7 +29,7 @@ fi
 CERT_DIR=/etc/nginx/certs
 mkdir -p "$CERT_DIR"
 if [ ! -s "$CERT_DIR/tls.crt" ] || [ ! -s "$CERT_DIR/tls.key" ]; then
-  echo "qav-gateway: generating a self-signed certificate for localhost"
+  echo "qeos-gateway: generating a self-signed certificate for localhost"
   openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
     -subj "/CN=localhost" \
     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,DNS:gateway,DNS:host.docker.internal" \

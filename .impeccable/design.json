@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-10-04T19:11:21.352Z",
-  "title": "Design System: QA Vision",
+  "title": "Design System: QEOS",
   "extensions": {
     "colorMeta": {
       "accent": {
@@ -511,7 +511,7 @@
   ],
   "narrative": {
     "northStar": "The Triage Desk",
-    "overview": "QA Vision is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Warm off-white and near-black neutrals carry the structure, one blue accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.\n\nDensity is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, and a persistent left sidebar holds the project switcher and every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.\n\nDepth is light and ambient: hairline borders do the structural work, and a faint shadow lifts cards off the page. Motion is short and functional (120ms colour/border transitions, a 200ms drawer slide) and switches off under `prefers-reduced-motion`.",
+    "overview": "QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Warm off-white and near-black neutrals carry the structure, one blue accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.\n\nDensity is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, and a persistent left sidebar holds the project switcher and every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.\n\nDepth is light and ambient: hairline borders do the structural work, and a faint shadow lifts cards off the page. Motion is short and functional (120ms colour/border transitions, a 200ms drawer slide) and switches off under `prefers-reduced-motion`.",
     "keyCharacteristics": [
       "Warm neutrals, one blue accent, status hues reserved for status.",
       "Every readable text pair is at least 4.5:1 in both themes. Each accent and danger hue has a separate role token for text and for fill.",

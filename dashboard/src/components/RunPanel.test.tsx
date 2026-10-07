@@ -44,7 +44,7 @@ const loaded = (qc: QueryClient) => waitFor(() => {
   expect(qc.getQueryState(["run-requests", 42, "latest"])?.status).toBe("success");
 });
 
-const panel = () => screen.findByRole("status", { name: "Run from QA Vision" });
+const panel = () => screen.findByRole("status", { name: "Run from QEOS" });
 
 test.each([
   ["queued", req({ status: "queued" }), /^Queued$/],
@@ -167,7 +167,7 @@ test("5 minutes after the end, with no other update, it points at the upload ste
       checked_at: new Date(Date.now() - 4 * 60_000).toISOString() })]);
     expect(await screen.findByText("Waiting for results…")).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(90_000));
-    expect(await screen.findByText("Results not received: check the QA Vision upload step")).toBeInTheDocument();
+    expect(await screen.findByText("Results not received: check the QEOS upload step")).toBeInTheDocument();
     expect(screen.queryByText("Waiting for results…")).not.toBeInTheDocument();
   } finally {
     vi.useRealTimers();
@@ -177,7 +177,7 @@ test("5 minutes after the end, with no other update, it points at the upload ste
 test("after 5 minutes without results it points at the upload step", async () => {
   show(() => [req({ status: "completed", conclusion: "success", refreshing: false,
     checked_at: new Date(Date.now() - 6 * 60_000).toISOString() })]);
-  expect(await screen.findByText("Results not received: check the QA Vision upload step")).toBeInTheDocument();
+  expect(await screen.findByText("Results not received: check the QEOS upload step")).toBeInTheDocument();
 });
 
 test.each([
@@ -194,10 +194,10 @@ test.each([
 test("on a case detail the panel does not show a case outside the active request", async () => {
   // The sibling panel (whole project) proves the request and the names have loaded
   const qc = show(() => [req()], "member", 3, true);
-  const panels = await screen.findAllByRole("status", { name: "Run from QA Vision" });
+  const panels = await screen.findAllByRole("status", { name: "Run from QEOS" });
   await loaded(qc);
   expect(panels).toHaveLength(1);
-  expect(screen.getAllByRole("status", { name: "Run from QA Vision" })).toHaveLength(1);
+  expect(screen.getAllByRole("status", { name: "Run from QEOS" })).toHaveLength(1);
 });
 
 test("on a case detail of a selected case the panel shows", async () => {
@@ -209,12 +209,12 @@ test("on a case detail the panel hides once the run has ended", async () => {
   const qc = show(() => [req({ status: "completed", conclusion: "success", refreshing: false })], "member", 2, true);
   await screen.findByText("Passed");
   await loaded(qc);
-  expect(screen.getAllByRole("status", { name: "Run from QA Vision" })).toHaveLength(1);
+  expect(screen.getAllByRole("status", { name: "Run from QEOS" })).toHaveLength(1);
 });
 
 const soon = () => new Date(Date.now() + 3 * 86_400_000).toISOString();
 const expiring = () => http.get(`${P}/ci-target`, () => HttpResponse.json({ available: true, configured: true, provider: "github",
-  repo: "acme/obt", workflow: "qa-vision-run.yml", ref: "main", token_last4: "a1b2", token_expires_at: soon(),
+  repo: "acme/obt", workflow: "qeos-run.yml", ref: "main", token_last4: "a1b2", token_expires_at: soon(),
   updated_at: null, last_change: null }));
 const EXPIRY = /^The GitHub token expires on .+\. Replace it in Settings$/;
 
@@ -260,7 +260,7 @@ test("an ended run disappears 60 minutes after the end", async () => {
   const qc = show(() => [req({ requested_at: ago(200), status: "completed", conclusion: "success", refreshing: false, checked_at: ago(61) })], "member", undefined, true);
   await loaded(qc);
   await waitFor(() => expect(qc.getQueryState(["project", 42])?.status).toBe("success"));
-  expect(screen.queryByRole("status", { name: "Run from QA Vision" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("status", { name: "Run from QEOS" })).not.toBeInTheDocument();
 });
 
 test("a stopped run is measured from the later of stopped_at and checked_at", async () => {

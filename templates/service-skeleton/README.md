@@ -1,6 +1,6 @@
 # {{SERVICE_DESCRIPTION}}
 
-Part of the QA Vision Platform (QEOS) – Platform Domain.
+Part of QEOS – Platform Domain.
 
 Provides CRUD operations for {{SERVICE_TITLE}}s (tenants) and related metadata.
 

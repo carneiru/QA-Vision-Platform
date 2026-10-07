@@ -1,6 +1,6 @@
 # Gateway
 
-NGINX in front of every QA Vision service. Configuration only — no code.
+NGINX in front of every QEOS service. Configuration only — no code.
 Design: `docs/superpowers/specs/2026-09-28-api-gateway-design.md`.
 
 ## Routes
@@ -35,8 +35,8 @@ what takes `/organizations/{id}/projects` away from organization-service.
 
 HTTPS on host port `${GATEWAY_HTTPS_PORT:-8443}`; HTTP on `${GATEWAY_HTTP_PORT:-8080}` redirects
 to it. On first start the entrypoint generates a self-signed certificate for `localhost` into the
-`qav_gateway_certs` volume. Use `curl -k`, or trust it once:
-`docker compose cp gateway:/etc/nginx/certs/tls.crt ./qav-localhost.crt`.
+compose volume `qeos_gateway_certs` (physical name `qa-vision_qav_gateway_certs`). Use `curl -k`, or trust it once:
+`docker compose cp gateway:/etc/nginx/certs/tls.crt ./qeos-localhost.crt`.
 To use your own, put `tls.crt` and `tls.key` in that volume before starting.
 
 ## Requests and logs

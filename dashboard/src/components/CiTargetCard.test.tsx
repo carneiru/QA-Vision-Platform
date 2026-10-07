@@ -11,7 +11,7 @@ import CiTargetCard, { ExpiryWarning } from "./CiTargetCard";
 const P = "/api/v1/projects/42";
 const NONE = { available: true, configured: false, provider: null, repo: null, workflow: null, ref: null,
   token_last4: null, token_expires_at: null, updated_at: null, last_change: null };
-const CONNECTED = { ...NONE, configured: true, provider: "github", repo: "acme/obt", workflow: "qa-vision-run.yml",
+const CONNECTED = { ...NONE, configured: true, provider: "github", repo: "acme/obt", workflow: "qeos-run.yml",
   ref: "main", token_last4: "a1b2", token_expires_at: "2027-03-12T00:00:00Z", updated_at: "2026-10-07T10:00:00Z",
   last_change: { action: "created", user_id: 7, at: "2026-10-07T10:00:00Z" } };
 const TOKEN = "github_pat_xyz0000000000000000a1b2";
@@ -42,12 +42,12 @@ test("a first save sends repo, workflow, branch and token, then shows the connec
   );
   renderCard();
   await userEvent.type(await screen.findByLabelText("Repository"), "acme/obt");
-  expect(screen.getByLabelText("Workflow file")).toHaveValue("qa-vision-run.yml");
+  expect(screen.getByLabelText("Workflow file")).toHaveValue("qeos-run.yml");
   expect(screen.getByLabelText("Branch")).toHaveValue("main");
   await userEvent.type(screen.getByLabelText("Token"), TOKEN);
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
   expect(await screen.findByText("Connected: acme/obt · token …a1b2 · expires 12 Mar 2027")).toBeInTheDocument();
-  expect(sent).toEqual({ repo: "acme/obt", workflow: "qa-vision-run.yml", ref: "main", token: TOKEN });
+  expect(sent).toEqual({ repo: "acme/obt", workflow: "qeos-run.yml", ref: "main", token: TOKEN });
   expect(await screen.findByText("Last changed by ana@example.com on 7 Oct 2026")).toBeInTheDocument();
   expect(screen.queryByLabelText("Token")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Replace token" })).toBeInTheDocument();
@@ -77,7 +77,7 @@ test("saving keeps the stored token; Replace token sends a new one", async () =>
   await userEvent.clear(branch);
   await userEvent.type(branch, "release");
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(bodies).toEqual([{ repo: "acme/obt", workflow: "qa-vision-run.yml", ref: "release" }]));
+  await waitFor(() => expect(bodies).toEqual([{ repo: "acme/obt", workflow: "qeos-run.yml", ref: "release" }]));
   await userEvent.click(screen.getByRole("button", { name: "Replace token" }));
   expect(screen.getByLabelText("Token")).toHaveFocus();
   await userEvent.type(screen.getByLabelText("Token"), "github_pat_new0000000000000000zzzz");
@@ -133,20 +133,20 @@ test("the help block holds the workflow for the configured branch and the script
   server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, ref: "release" })));
   renderCard();
   await userEvent.click(await screen.findByText("How to set it up"));
-  const workflow = screen.getByLabelText("qa-vision-run.yml");
+  const workflow = screen.getByLabelText("qeos-run.yml");
   expect(workflow).toHaveTextContent("if: github.ref == 'refs/heads/release'");
-  expect(workflow).toHaveTextContent('run-name: "QA Vision #${{ inputs.request_id }}"');
-  expect(screen.getByLabelText("qa-vision-run.mjs")).toHaveTextContent('"--retry", "0"');
+  expect(workflow).toHaveTextContent('run-name: "QEOS #${{ inputs.request_id }}"');
+  expect(screen.getByLabelText("qeos-run.mjs")).toHaveTextContent('"--retry", "0"');
   expect(screen.getByText(/Actions: Read and write/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Copy qa-vision-run.yml" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Copy qa-vision-run.mjs" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy qeos-run.yml" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Copy qeos-run.mjs" })).toBeInTheDocument();
 });
 
 test("a branch with $& and a quote reaches the workflow guard literally, the quote doubled", async () => {
   server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, ref: "feat/it's-$&" })));
   renderCard();
   await userEvent.click(await screen.findByText("How to set it up"));
-  expect(screen.getByLabelText("qa-vision-run.yml"))
+  expect(screen.getByLabelText("qeos-run.yml"))
     .toHaveTextContent("if: github.ref == 'refs/heads/feat/it''s-$&'");
 });
 
@@ -154,10 +154,10 @@ test("the help block names the configured workflow file, not the default", async
   server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...CONNECTED, workflow: "other.yml" })));
   renderCard();
   await userEvent.click(await screen.findByText("How to set it up"));
-  expect(screen.getByLabelText("other.yml")).toHaveTextContent("name: QA Vision run");
+  expect(screen.getByLabelText("other.yml")).toHaveTextContent("name: QEOS run");
   expect(screen.getByRole("button", { name: "Copy other.yml" })).toBeInTheDocument();
   expect(screen.getByText(".github/workflows/other.yml")).toBeInTheDocument();
-  expect(screen.queryByLabelText("qa-vision-run.yml")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("qeos-run.yml")).not.toBeInTheDocument();
 });
 
 test("the help block says the workflow and the script must exist on the configured branch too", async () => {
@@ -258,7 +258,7 @@ test("a branch with a slash and a dot is accepted", async () => {
   await userEvent.clear(branch);
   await userEvent.type(branch, "release/1.2-rc");
   await userEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(bodies).toEqual([{ repo: "acme/obt", workflow: "qa-vision-run.yml", ref: "release/1.2-rc" }]));
+  await waitFor(() => expect(bodies).toEqual([{ repo: "acme/obt", workflow: "qeos-run.yml", ref: "release/1.2-rc" }]));
 });
 
 test("the expiry warning sits in a live region that exists before the warning does", () => {

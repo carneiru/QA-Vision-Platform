@@ -2,7 +2,7 @@
 import hashlib
 from pathlib import Path
 
-from qav_shared.keys import test_key as make_test_key
+from qeos_shared.keys import test_key as make_test_key
 from src.casebook.gherkin_import.parse import parse_feature, source_key
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"

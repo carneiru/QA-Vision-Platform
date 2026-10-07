@@ -1,10 +1,10 @@
 # Authentication Service
 
-Authentication for the QA Vision platform: email/password accounts, JWT access tokens with revocable database-backed refresh tokens, and Google SSO.
+Authentication for the QEOS platform: email/password accounts, JWT access tokens with revocable database-backed refresh tokens, and Google SSO.
 
 ## Overview
 
-This service provides core authentication and authorization functionality for the QA Vision platform. It implements industry-standard security practices including:
+This service provides core authentication and authorization functionality for the QEOS platform. It implements industry-standard security practices including:
 - Secure user registration and authentication with bcrypt password hashing
 - JWT access tokens (configurable, default 60 minutes)
 - Opaque refresh tokens stored server-side, rotated on use and revocable on logout

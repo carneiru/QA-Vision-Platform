@@ -10,7 +10,7 @@ import CaseEditorPage from "./CaseEditorPage";
 import SuiteDetailPage from "./SuiteDetailPage";
 
 const P = "/api/v1/projects/42";
-const TARGET = { available: true, configured: true, provider: "github", repo: "acme/obt", workflow: "qa-vision-run.yml",
+const TARGET = { available: true, configured: true, provider: "github", repo: "acme/obt", workflow: "qeos-run.yml",
   ref: "main", token_last4: "a1b2", token_expires_at: null, updated_at: "2026-10-07T10:00:00Z", last_change: null };
 
 const kase = (number: number, extra: object = {}) => ({
@@ -269,7 +269,7 @@ test("a 412 closes the dialog, says why and refreshes the target", async () => {
     http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))),
     http.post(`${P}/run-requests`, () => {
       server.use(http.get(`${P}/ci-target`, () => HttpResponse.json({ ...TARGET, configured: false })));
-      return HttpResponse.json({ detail: "Running tests from QA Vision is not set up for this project" }, { status: 412 });
+      return HttpResponse.json({ detail: "Running tests from QEOS is not set up for this project" }, { status: 412 });
     }),
   );
   renderAt("/projects/42/cases/1");

@@ -25,7 +25,7 @@ WEEK_BEFORE = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
 @pytest.fixture(autouse=True)
 def public_dns(monkeypatch):
     monkeypatch.setattr(notify_targets, "resolve", lambda host: ["93.184.216.34"])
-    monkeypatch.setattr(settings, "DASHBOARD_URL", "https://qav.example.com")
+    monkeypatch.setattr(settings, "DASHBOARD_URL", "https://qeos.example.com")
     monkeypatch.setattr(settings, "WEEKLY_SUMMARY_HOUR_UTC", 7)
 
 
@@ -84,7 +84,7 @@ def test_summary_counts_last_week_only_and_compares_with_the_week_before(db, add
     assert s.pass_rate == pytest.approx(2 / 5)
     assert s.previous_pass_rate == pytest.approx(1.0)
     assert [(t["name"], t["failures"]) for t in s.top_failing] == [("b", 2), ("d", 1)]
-    assert s.link == "https://qav.example.com/projects/1/report"
+    assert s.link == "https://qeos.example.com/projects/1/report"
 
 
 def test_summary_honours_the_channel_branch(db, add_run):
@@ -106,7 +106,7 @@ def test_payloads_for_every_kind(db, add_run):
     s = weekly_summary.build(db, 1, MONDAY, branch=None)
     slack = json.dumps(weekly_summary.PAYLOADS["slack"]("QA", s), ensure_ascii=False)
     assert "QA: week 2026-W40" in slack and "50%" in slack and "checkout › Cart › b" in slack
-    assert "https://qav.example.com/projects/1/report" in slack
+    assert "https://qeos.example.com/projects/1/report" in slack
     teams = weekly_summary.PAYLOADS["teams"]("QA", s)
     assert teams["attachments"][0]["content"]["type"] == "AdaptiveCard"
     hook = weekly_summary.PAYLOADS["webhook"]("QA", s)

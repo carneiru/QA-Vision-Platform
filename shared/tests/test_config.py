@@ -2,7 +2,7 @@ import pytest
 import sqlalchemy
 from pydantic import ValidationError
 
-from qav_shared.config import BaseServiceSettings
+from qeos_shared.config import BaseServiceSettings
 
 
 class _Settings(BaseServiceSettings):

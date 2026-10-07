@@ -3,14 +3,14 @@
 Status: Accepted (2026-10-06) · Spec: `docs/superpowers/specs/2026-10-06-ci-feature-import-design.md`
 
 ## Context
-CI holds only a project API key (`qav_…`). Only ingestion can check it. test-management takes user
+CI holds only a project API key (`qeos_…`). Only ingestion can check it. test-management takes user
 JWTs and asks project-service for the caller's role. ADR-022 says services do not call each other,
 so test-management cannot ask ingestion whether a key is valid. Yet ADR-023 wants CI to keep
-imported cases in sync with `qav-collector import-features`, with no user login in the pipeline.
+imported cases in sync with `qeos-collector import-features`, with no user login in the pipeline.
 
 ## Decision
 - **A token trade on ingestion.** `POST /api/v1/collect/token`, authenticated with
-  `Authorization: Bearer qav_…` through the same check as `POST /api/v1/collect/runs`, returns
+  `Authorization: Bearer qeos_…` through the same check as `POST /api/v1/collect/runs`, returns
   `{"token", "expires_in": 300, "project_id"}`. The token is a JWT signed with the platform's
   `SECRET_KEY`, which every service already shares.
 - **Claims.**

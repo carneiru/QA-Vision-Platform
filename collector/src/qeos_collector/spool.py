@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 from typing import List, Tuple
 
-from qav_collector.payload import Part
+from qeos_collector.payload import Part
 
 # A platform outage lasting many runs must not fill the runner's disk
 MAX_SPOOLED = 100

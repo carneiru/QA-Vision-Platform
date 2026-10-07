@@ -1,6 +1,6 @@
-# qav-shared
+# qeos-shared
 
-Configuration and database wiring shared by QA Vision Platform services.
+Configuration and database wiring shared by QEOS services.
 
 ## What's here
 
@@ -30,8 +30,8 @@ Add to your service's `requirements.txt`, as a path relative to that file:
 Then:
 
 ```python
-from qav_shared.config import BaseServiceSettings
-from qav_shared.db import make_get_db, make_session_factory
+from qeos_shared.config import BaseServiceSettings
+from qeos_shared.db import make_get_db, make_session_factory
 
 
 class Settings(BaseServiceSettings):

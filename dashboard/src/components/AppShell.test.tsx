@@ -44,7 +44,7 @@ test("inside a project the sidebar lists its views; following one moves focus an
   await userEvent.click(screen.getByRole("link", { name: "Settings" }));
   expect(await screen.findByText("Settings view")).toBeInTheDocument();
   expect(document.getElementById("content")).toHaveFocus();
-  expect(document.title).toBe("Settings · Shop E2E · QA Vision");
+  expect(document.title).toBe("Settings · Shop E2E · QEOS");
 });
 
 test("the project switcher lists every project and opens the chosen one's overview", async () => {

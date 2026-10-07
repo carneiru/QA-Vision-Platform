@@ -1,4 +1,4 @@
-from qav_collector.ci import CIInfo, detect, sanitize_key
+from qeos_collector.ci import CIInfo, detect, sanitize_key
 
 GITHUB = {
     "GITHUB_ACTIONS": "true",

@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qav-shared"
+name = "qeos-shared"
 version = "0.1.0"
-description = "Shared configuration and database wiring for QA Vision Platform services"
+description = "Shared configuration and database wiring for QEOS services"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
@@ -14,6 +14,6 @@ dependencies = [
 ]
 
 # Declared explicitly rather than left to auto-discovery: with tests/ sitting beside
-# qav_shared/, setuptools' flat-layout discovery errors out rather than guessing.
+# qeos_shared/, setuptools' flat-layout discovery errors out rather than guessing.
 [tool.setuptools]
-packages = ["qav_shared"]
+packages = ["qeos_shared"]

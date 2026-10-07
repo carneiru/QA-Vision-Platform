@@ -1,4 +1,4 @@
-"""Running tests from QA Vision (docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md)."""
+"""Running tests from QEOS (docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md)."""
 from sqlalchemy import JSON, BigInteger, CheckConstraint, Column, DateTime, Index, Integer, String, Text, text
 
 from src.casebook.db.base import Base

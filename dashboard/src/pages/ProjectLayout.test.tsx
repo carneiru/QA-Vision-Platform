@@ -28,7 +28,7 @@ function renderAt(path: string) {
 test("the title names the view and the project", async () => {
   renderAt("/projects/42/runs");
   await screen.findByRole("heading", { name: "Shop E2E" });
-  expect(document.title).toBe("Runs · Shop E2E · QA Vision");
+  expect(document.title).toBe("Runs · Shop E2E · QEOS");
 });
 
 test("header shows the project name once loaded", async () => {
@@ -39,5 +39,5 @@ test("header shows the project name once loaded", async () => {
 test("the import page is titled as such, not as a case number", async () => {
   renderAt("/projects/42/cases/import");
   await screen.findByRole("heading", { name: "Shop E2E" });
-  expect(document.title).toBe("Import from Gherkin · Shop E2E · QA Vision");
+  expect(document.title).toBe("Import from Gherkin · Shop E2E · QEOS");
 });

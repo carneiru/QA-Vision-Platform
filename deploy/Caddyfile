@@ -3,7 +3,7 @@
 	email {$ACME_EMAIL}
 }
 
-{$QAV_DOMAIN} {
+{$QEOS_DOMAIN} {
 	encode zstd gzip
 
 	# Browsers keep to HTTPS for a year once they have seen the site over it

@@ -38,5 +38,5 @@ test("a skip link jumps past the header straight to the main content", async () 
 test("each view has its own document title", () => {
   clearTokens();
   renderAt("/register");
-  expect(document.title).toBe("Create account · QA Vision");
+  expect(document.title).toBe("Create account · QEOS");
 });

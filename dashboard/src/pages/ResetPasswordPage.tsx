@@ -43,7 +43,7 @@ export default function ResetPasswordPage() {
   if (!token) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
         <div className="card">
           <p>This reset link is incomplete — it carries no token. Use the full link from the email.</p>
           <Link to="/forgot-password">Request a new link</Link>
@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
   if (done) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
         <div className="card">
           <h2>Password changed</h2>
           <p className="success-note" role="status">
@@ -74,7 +74,7 @@ export default function ResetPasswordPage() {
   if (error instanceof ApiError && error.status === 400) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
         <div className="card">
           <h2>This link no longer works</h2>
           <ErrorBanner error={error} />
@@ -89,7 +89,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>QA Vision</h1>
+      <h1>QEOS</h1>
       <form className="card" onSubmit={onSubmit}>
         <h2>Choose a new password</h2>
         {error != null && <ErrorBanner error={error} />}

@@ -65,7 +65,7 @@ def export_project(
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*EXPORT_ROLES)),
 ):
-    filename = f"qa-vision-project-{access.project_id}-{datetime.now(timezone.utc):%Y%m%d}.ndjson"
+    filename = f"qeos-project-{access.project_id}-{datetime.now(timezone.utc):%Y%m%d}.ndjson"
     return StreamingResponse(
         _export(db, access.project_id),
         media_type="application/x-ndjson",

@@ -1,11 +1,11 @@
-"""qav-collector import-features (ADR-024)."""
+"""qeos-collector import-features (ADR-024)."""
 import json
 
 import pytest
 
-from qav_collector.cli import main
+from qeos_collector.cli import main
 
-KEY = "qav_test_key_123"
+KEY = "qeos_test_key_123"
 GRANT = {"token": "t0k", "expires_in": 300, "project_id": 7}
 SUMMARY = {"created": 1, "updated": 0, "moved": 0, "reactivated": 0, "archived": 0, "unchanged": 0,
            "skipped": 0, "mass_archive": False}
@@ -24,7 +24,7 @@ def repo(tmp_path, monkeypatch):
 
 
 def env(platform, **extra):
-    return {"QAV_URL": platform.url, "QAV_API_KEY": KEY, **extra}
+    return {"QEOS_URL": platform.url, "QEOS_API_KEY": KEY, **extra}
 
 
 def sent(platform, i):
@@ -54,8 +54,8 @@ def test_flags_reach_the_request(platform, repo):
     assert body["full"] is False and body["allow_mass_archive"] is True
 
 
-def test_qav_yml_features_are_the_default_patterns(platform, repo):
-    (repo / ".qav.yml").write_text("features:\n  - features/sub/*.feature\n", encoding="utf-8")
+def test_qeos_yml_features_are_the_default_patterns(platform, repo):
+    (repo / ".qeos.yml").write_text("features:\n  - features/sub/*.feature\n", encoding="utf-8")
     platform.reply(200, GRANT)
     platform.reply(200, RESULT)
     assert main(["import-features"], env(platform)) == 0
@@ -109,7 +109,7 @@ def test_parse_errors_fail_only_with_strict(platform, repo):
         assert main(argv, env(platform)) == code
 
 
-@pytest.mark.parametrize("environment", [{"QAV_API_KEY": KEY}, {"QAV_URL": "https://qav.example"}])
+@pytest.mark.parametrize("environment", [{"QEOS_API_KEY": KEY}, {"QEOS_URL": "https://qeos.example"}])
 def test_missing_url_or_key_is_a_configuration_error(repo, environment):
     assert main(["import-features"], environment) == 2
 
@@ -161,7 +161,7 @@ def test_an_unreachable_platform_fails_the_build(repo):
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    assert main(["import-features"], {"QAV_URL": f"http://127.0.0.1:{port}", "QAV_API_KEY": KEY}) == 1
+    assert main(["import-features"], {"QEOS_URL": f"http://127.0.0.1:{port}", "QEOS_API_KEY": KEY}) == 1
 
 
 def test_node_modules_are_not_imported(platform, repo):

@@ -1,6 +1,6 @@
-# qav-collector for runners without Python:
-#   docker run --rm -v "$PWD:/work" -w /work -e QAV_URL -e QAV_API_KEY \
-#     ghcr.io/carneiru/qav-collector:0.1.0 upload "reports/**/*.xml"
+# qeos-collector for runners without Python:
+#   docker run --rm -v "$PWD:/work" -w /work -e QEOS_URL -e QEOS_API_KEY \
+#     ghcr.io/carneiru/qeos-collector:0.4.0 upload "reports/**/*.xml"
 FROM python:3.12-slim
 
 # git: code-change data and commit metadata (best effort without it)
@@ -14,5 +14,5 @@ RUN pip install --no-cache-dir /src && rm -rf /src
 # Mounted workspaces belong to the host user; git refuses to read them otherwise
 RUN git config --system safe.directory '*'
 
-ENTRYPOINT ["qav-collector"]
+ENTRYPOINT ["qeos-collector"]
 CMD ["--help"]

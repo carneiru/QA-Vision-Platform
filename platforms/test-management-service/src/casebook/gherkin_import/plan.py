@@ -5,7 +5,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from qav_shared.keys import test_key
+from qeos_shared.keys import test_key
 from src.casebook.gherkin_import.parse import Issue, ParsedFile, ParsedScenario
 
 SUMMARY_NAMES = {"create": "created", "update": "updated", "move": "moved", "reactivate": "reactivated",

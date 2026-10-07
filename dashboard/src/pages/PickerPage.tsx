@@ -149,7 +149,7 @@ export default function PickerPage() {
       {orgs.isPending && <p className="muted">Loading organizations…</p>}
       {orgs.data?.length === 0 && !orgFormOpen && (
         <div className="card">
-          <h2>Welcome to QA Vision</h2>
+          <h2>Welcome to QEOS</h2>
           <p className="muted">
             You are not a member of any organization yet. Create one to start a project, or open
             the invitation link a teammate sent you.

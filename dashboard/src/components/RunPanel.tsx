@@ -26,7 +26,7 @@ interface Props {
   caseNumber?: number;
 }
 
-/** The newest run requested from QA Vision: its state, View in GitHub, Stop, then its results. */
+/** The newest run requested from QEOS: its state, View in GitHub, Stop, then its results. */
 export default function RunPanel({ projectId, caseNumber }: Props) {
   const qc = useQueryClient();
   const latest = useLatestRunRequest(projectId);
@@ -81,7 +81,7 @@ export default function RunPanel({ projectId, caseNumber }: Props) {
   return (
     <>
       {warning}
-      <section className={`card run-panel run-tone-${described.tone}`} role="status" aria-label="Run from QA Vision">
+      <section className={`card run-panel run-tone-${described.tone}`} role="status" aria-label="Run from QEOS">
         <p className="run-panel-state">
           <Icon size={18} aria-hidden="true" />
           {stopping || described.liveText === described.text ? <span>{text}</span> : (
@@ -109,7 +109,7 @@ export default function RunPanel({ projectId, caseNumber }: Props) {
           results.data ? (
             <p><Link to={`/projects/${projectId}/runs/${results.data.id}`}>{`Open the results (run #${results.data.id})`}</Link></p>
           ) : waitedTooLong ? (
-            <p className="muted">Results not received: check the QA Vision upload step</p>
+            <p className="muted">Results not received: check the QEOS upload step</p>
           ) : (
             <p className="muted">Waiting for results…</p>
           )

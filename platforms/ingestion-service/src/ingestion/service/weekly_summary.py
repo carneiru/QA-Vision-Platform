@@ -155,7 +155,7 @@ def email_payload(channel_name: str, s: WeeklySummary) -> dict:
     lines = [_headline(channel_name, s), ""] + _lines(s) + [""]
     if s.link:
         lines.append(f"Open the report: {s.link}")
-    lines += ["", "You get this because the address is a notification channel of this project in QA Vision,",
+    lines += ["", "You get this because the address is a notification channel of this project in QEOS,",
               "with the weekly summary switched on."]
     return {"subject": _headline(channel_name, s), "body": chr(10).join(lines)}
 

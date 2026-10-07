@@ -1,4 +1,4 @@
-# QA Vision Platform — Technical Specification (Current State)
+# QEOS — Technical Specification (Current State)
 
 Updated 2026-10-02. This document specifies the system **as it runs today**.
 The target architecture lives in ARCHITECTURE_BLUEPRINT_V1_0.md (see its
@@ -13,7 +13,7 @@ agent, and two background jobs — all on PostgreSQL 15, all deployed via the
 repository-root docker-compose.
 
 ```
-qav-collector (CI) ──► gateway ──► ingestion-service ──► ingestion_db
+qeos-collector (CI) ──► gateway ──► ingestion-service ──► ingestion_db
 browser (dashboard SPA) ─► gateway ─► auth / organization / project / ingestion
 jobs: ingestion-retention, analytics-rollup (ingestion image, advisory locks)
 ```
@@ -29,9 +29,11 @@ target gated on the 1000+ events/s trigger).
   GET /auth/verify-email; unverified addresses are unclaimed).
 - Login: JWT access token (60 min) + opaque refresh token (30 d, DB-stored,
   rotated on use, replay ⇒ every session revoked). Refresh token also set as
-  httpOnly cookie `qav_refresh` (Secure, SameSite=Strict, Path=/api/v1/auth);
+  httpOnly cookie `qeos_refresh` (Secure, SameSite=Strict, Path=/api/v1/auth);
   body token kept for API clients; `/auth/refresh-token` and `/auth/logout`
-  accept body or cookie.
+  accept body or cookie. The pre-rename cookie `qav_refresh` is still read when
+  `qeos_refresh` is absent; every token issue clears it, and logout clears both
+  cookies and revokes the session behind each.
 - MFA (TOTP): `/auth/mfa/enroll|confirm|disable`; login answers
   `{mfa_required, mfa_token}` (5-min purpose-bound JWT) and
   `/auth/mfa/verify` completes with a TOTP or single-use recovery code
@@ -53,7 +55,8 @@ retention endpoint (HTTP Basic, INTERNAL_API_PASSWORD) consumed by the
 retention job.
 
 ### 2.4 ingestion-service
-- **Collect**: `POST /collect/runs` with project API key (`qav_` bearer).
+- **Collect**: `POST /collect/runs` with project API key (`qeos_` bearer; keys issued
+  before the QEOS rename start with `qav_` and are still accepted).
   Validation (extra="forbid"), idempotency keys with body-hash replay
   detection, PII masking before truncation, server-computed counts, optional
   `changes` block (base ref + ≤1000 changed files; git name-status letters;
@@ -132,7 +135,7 @@ color-alone (PRODUCT.md commitments).
 
 ## 7. Collector (`collector/`)
 
-`qav-collector upload`: JUnit XML (pytest, Surefire incl.
+`qeos-collector upload`: JUnit XML (pytest, Surefire incl.
 flaky/rerun attempt expansion, Playwright, cucumber-js), CI detection
 (GitHub Actions/GitLab/Jenkins), git code-change data
 (GITHUB_BASE_REF / MR target / commit parent; never blocks an upload),

@@ -1,4 +1,4 @@
-"""Running tests from QA Vision: the CI target and run requests."""
+"""Running tests from QEOS: the CI target and run requests."""
 import re
 from datetime import datetime
 from typing import Annotated, List, Optional
@@ -10,7 +10,7 @@ WORKFLOW_PATTERN = r"^[A-Za-z0-9._-]{1,100}\.ya?ml$"
 TOKEN = re.compile(r"^[A-Za-z0-9_]{20,255}$")
 # git check-ref-format: no whitespace or control characters (DEL included), none of ~ ^ : ? * [ and backslash
 BRANCH_FORBIDDEN = re.compile(r"[\x00-\x20\x7f~^:?*\[\\]")
-DEFAULT_WORKFLOW = "qa-vision-run.yml"
+DEFAULT_WORKFLOW = "qeos-run.yml"
 
 
 class CiTargetIn(BaseModel):

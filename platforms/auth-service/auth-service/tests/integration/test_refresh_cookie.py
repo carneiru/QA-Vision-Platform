@@ -4,7 +4,8 @@ API clients."""
 
 from src.auth.models.pending_registration import PendingRegistration
 
-COOKIE = "qav_refresh"
+COOKIE = "qeos_refresh"
+LEGACY_COOKIE = "qav_refresh"  # the name before the QEOS rename; still read
 
 
 def _make_user(client, db, email="cookie@example.com"):
@@ -91,5 +92,83 @@ def test_logout_from_cookie_revokes_and_clears_it(client, db):
 
     # The revoked token no longer refreshes.
     client.cookies.clear()
+    replay = client.post("/api/v1/auth/refresh-token", json={"refresh_token": refresh})
+    assert replay.status_code == 401
+
+
+def _cleared(set_cookies, name):
+    return any(c.startswith(f'{name}="";') or c.startswith(f"{name}=;") for c in set_cookies)
+
+
+def test_refresh_from_legacy_cookie_reissues_new_and_clears_old(client, db):
+    _make_user(client, db)
+    old_refresh = _login(client).json()["refresh_token"]
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/v1/auth/refresh-token", json={}, headers={"Cookie": f"{LEGACY_COOKIE}={old_refresh}"}
+    )
+    assert response.status_code == 200, response.text
+    set_cookies = response.headers.get_list("set-cookie")
+    new_refresh = response.json()["refresh_token"]
+    assert any(c.startswith(f"{COOKIE}={new_refresh}") for c in set_cookies)
+    assert _cleared(set_cookies, LEGACY_COOKIE)
+
+
+def test_refresh_prefers_new_cookie_over_legacy(client, db):
+    _make_user(client, db)
+    current = _login(client).json()["refresh_token"]
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/v1/auth/refresh-token",
+        json={},
+        headers={"Cookie": f"{COOKIE}={current}; {LEGACY_COOKIE}=stale-token"},
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_every_token_issue_clears_a_stale_legacy_cookie(client, db):
+    _make_user(client, db)
+    login = _login(client)
+    assert _cleared(login.headers.get_list("set-cookie"), LEGACY_COOKIE)
+    response = client.post("/api/v1/auth/refresh-token", json={})
+    assert response.status_code == 200, response.text
+    assert _cleared(response.headers.get_list("set-cookie"), LEGACY_COOKIE)
+
+
+def test_logout_with_both_cookies_revokes_both_sessions(client, db):
+    _make_user(client, db)
+    first = _login(client).json()
+    second = _login(client).json()
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/v1/auth/logout",
+        json={},
+        headers={"Authorization": f"Bearer {second['access_token']}",
+                 "Cookie": f"{COOKIE}={second['refresh_token']}; {LEGACY_COOKIE}={first['refresh_token']}"},
+    )
+    assert response.status_code == 200, response.text
+    for token in (first["refresh_token"], second["refresh_token"]):
+        assert client.post("/api/v1/auth/refresh-token", json={"refresh_token": token}).status_code == 401
+
+
+def test_logout_with_legacy_cookie_revokes_it_and_clears_both(client, db):
+    _make_user(client, db)
+    login = _login(client)
+    access, refresh = login.json()["access_token"], login.json()["refresh_token"]
+    client.cookies.clear()
+
+    response = client.post(
+        "/api/v1/auth/logout",
+        json={},
+        headers={"Authorization": f"Bearer {access}", "Cookie": f"{LEGACY_COOKIE}={refresh}"},
+    )
+    assert response.status_code == 200, response.text
+    set_cookies = response.headers.get_list("set-cookie")
+    assert _cleared(set_cookies, COOKIE)
+    assert _cleared(set_cookies, LEGACY_COOKIE)
+
     replay = client.post("/api/v1/auth/refresh-token", json={"refresh_token": refresh})
     assert replay.status_code == 401

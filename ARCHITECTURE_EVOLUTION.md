@@ -1,7 +1,7 @@
-# QA Vision Platform Architecture Evolution
+# QEOS Architecture Evolution
 
 ## 1. Purpose
-This document describes the evolution of the QA Vision Platform from its initial AI Engine-focused architecture to an AI-native Quality Engineering Operating System (QEOS). It captures the strategic decisions, migration approach, and progress toward a business capability-driven architecture that aligns with enterprise standards while preserving existing investments.
+This document describes the evolution of QEOS from its initial AI Engine-focused architecture to an AI-native Quality Engineering Operating System. It captures the strategic decisions, migration approach, and progress toward a business capability-driven architecture that aligns with enterprise standards while preserving existing investments.
 
 ## 2. Drivers
 - **Business Need**: Shift from point solutions to an integrated quality engineering platform
@@ -160,7 +160,7 @@ The migration paths above predate delivery. As of 2026-10-02 the running
 platform is: auth-service (SSO, TOTP MFA, httpOnly refresh cookie, rotation +
 replay detection), organization-service, project-service, ingestion-service
 (collect API, PII masking, retention, analytics incl. 90-day flaky windows
-from daily rollups, mute, branches, code-change data), qav-collector
+from daily rollups, mute, branches, code-change data), qeos-collector
 (incl. Surefire rerun-attempt expansion and git diff data), NGINX gateway,
 React dashboard, retention + analytics-rollup jobs — PostgreSQL-only,
 docker-compose, CI with a 70+-check full-stack smoke. TODO.md is the live

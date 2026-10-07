@@ -61,7 +61,7 @@ fi
 # Update README.md
 if [[ -f "$TARGET_PATH/README.md" ]]; then
   sed -i "s/# Organization Service/# $SERVICE_TITLE/g" "$TARGET_PATH/README.md"
-  sed -i "s/Part of the QA Vision Platform (QEOS) – Platform Domain./Part of the QA Vision Platform (QEOS) – $DOMAIN Domain./g" "$TARGET_PATH/README.md"
+  sed -i "s/Part of QEOS – Platform Domain./Part of QEOS – $DOMAIN Domain./g" "$TARGET_PATH/README.md"
   sed -i "s/Provides CRUD operations for Organizations (tenants) and related metadata./Provides CRUD operations for $SERVICE_DESCRIPTION./g" "$TARGET_PATH/README.md"
 fi
 

@@ -18,7 +18,7 @@ Two confirmed audiences, served equally:
 
 ## Product Purpose
 
-QA Vision ingests test results from any CI (JUnit XML via the `qav-collector`
+QEOS ingests test results from any CI (JUnit XML via the `qeos-collector`
 agent), stores them per project, and turns them into analytics: daily trends,
 per-test statistics and history, and flaky-test detection. Success: a team
 answers "what is broken, what is flaky, what is getting worse" from one place

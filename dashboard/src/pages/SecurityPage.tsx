@@ -216,7 +216,7 @@ export default function SecurityPage() {
                 </li>
               ))}
             </ul>
-            <button onClick={() => downloadCsv("qa-vision-recovery-codes.txt", recovery.join("\n"))}>
+            <button onClick={() => downloadCsv("qeos-recovery-codes.txt", recovery.join("\n"))}>
               Download codes
             </button>
           </>

@@ -55,7 +55,7 @@ export function describeRun(r: RunRequest, nameOf: (id: number | null) => string
   return { text: d.text, tone: d.tone, liveText: d.liveText ?? d.text, detail };
 }
 
-/** The QA Vision test run this request's GitHub run uploaded: same CI URL, ignoring case
+/** The QEOS test run this request's GitHub run uploaded: same CI URL, ignoring case
  *  (GitHub may return owner/repo with different capitals). */
 export function matchRun(runs: Run[], url: string | null): Run | undefined {
   if (!url) return undefined;

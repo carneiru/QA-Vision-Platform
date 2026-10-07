@@ -2,7 +2,7 @@
 Git-style matching — last matching line wins, `*` stays inside one path
 segment, `**` crosses, a leading `/` anchors to the repo root."""
 
-from qav_collector.codeowners import load_codeowners
+from qeos_collector.codeowners import load_codeowners
 
 CODEOWNERS = """
 # Comments and blank lines are ignored

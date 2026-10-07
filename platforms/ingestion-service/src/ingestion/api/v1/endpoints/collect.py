@@ -21,7 +21,7 @@ IMPORT_SCOPE = "cases:import"
 
 @router.get("/key", response_model=KeyCheck)
 def check_key(key: ApiKey = Depends(get_api_key)):
-    """Proof the key works, for `qav-collector check` — uploads nothing."""
+    """Proof the key works, for `qeos-collector check` — uploads nothing."""
     return key
 
 

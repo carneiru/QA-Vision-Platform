@@ -18,7 +18,7 @@ def test_without_a_key_nothing_can_be_sealed(no_secrets_key):
     assert not secret_box.is_available()
     with pytest.raises(secret_box.SecretsUnavailable) as err:
         secret_box.encrypt(TOKEN)
-    assert str(err.value) == "Running tests from QA Vision is not configured on this server"
+    assert str(err.value) == "Running tests from QEOS is not configured on this server"
 
 
 def test_a_malformed_key_is_unavailable(monkeypatch):

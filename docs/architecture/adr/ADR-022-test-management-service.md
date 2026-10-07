@@ -24,7 +24,7 @@ On 2026-10-06 the user asked for it now, and chose two things:
 ## Consequences
 - One more container, database, CI matrix entry and gateway route.
 - The project-role client and the auth dependencies are now copied in two services.
-  - Moving them into `qav_shared` is the obvious follow-up once a third copy appears.
+  - Moving them into `qeos_shared` is the obvious follow-up once a third copy appears.
   - Until then the copies are kept identical, and their tests mirror each other.
-- Executing suites from QA Vision (backlog B) will need this service and ingestion to agree on
+- Executing suites from QEOS (backlog B) will need this service and ingestion to agree on
   run ↔ suite links. That is designed when execution starts, not now.

@@ -28,7 +28,8 @@ export default function RegisterPage() {
   if (done) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
+        <p className="brand-subtitle">Quality Engineering OS</p>
         <div className="card">
           <p role="status">Check your email to complete registration.</p>
           <p className="muted">
@@ -43,7 +44,8 @@ export default function RegisterPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>QA Vision</h1>
+      <h1>QEOS</h1>
+      <p className="brand-subtitle">Quality Engineering OS</p>
       <form className="card" onSubmit={onSubmit}>
         <h2>Create account</h2>
         {error != null && <ErrorBanner error={error} />}

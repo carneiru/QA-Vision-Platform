@@ -17,7 +17,7 @@ SLACK = "https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXXabcd"
 @pytest.fixture(autouse=True)
 def public_dns(monkeypatch):
     monkeypatch.setattr(notify_targets, "resolve", lambda host: ["93.184.216.34"])
-    monkeypatch.setattr(settings, "DASHBOARD_URL", "https://qav.example.com")
+    monkeypatch.setattr(settings, "DASHBOARD_URL", "https://qeos.example.com")
 
 
 def quarantine(db, *names, project_id=1):

@@ -52,7 +52,7 @@ test("lists who requested, how many cases, the status, who stopped it, and the l
 
 test("with no requests yet it says so", async () => {
   renderPage([]);
-  expect(await screen.findByText("No runs requested from QA Vision yet.")).toBeInTheDocument();
+  expect(await screen.findByText("No runs requested from QEOS yet.")).toBeInTheDocument();
 });
 
 test("shows why a request is stale or was cancelled, and looks results up among GitHub Actions runs only", async () => {

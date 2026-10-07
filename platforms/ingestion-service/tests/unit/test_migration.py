@@ -15,7 +15,7 @@ SERVICE_ROOT = Path(__file__).resolve().parents[2]
 
 KEY = (
     "INSERT INTO api_keys (project_id, organization_id, name, key_prefix, key_hash, created_by)"
-    " VALUES (1, 1, 'k', 'qav_abcdefgh', :hash, 1)"
+    " VALUES (1, 1, 'k', 'qeos_abcdefgh', :hash, 1)"
 )
 RUN = (
     "INSERT INTO test_runs (project_id, api_key_id, idempotency_key, request_hash, ci_provider,"
@@ -115,3 +115,25 @@ def test_analytics_indexes_exist(migrated_engine):
 def test_model_indexes_match_the_migration():
     assert "ix_test_results_test_key_run" in {ix.name for ix in Base.metadata.tables["test_results"].indexes}
     assert "ix_test_runs_project_started" in {ix.name for ix in Base.metadata.tables["test_runs"].indexes}
+
+
+def test_key_prefix_fits_the_qeos_prefix(migrated_engine):
+    """Migration 015 widens key_prefix: "qeos_" + 8 is 13 characters, over the old String(12)."""
+    columns = {col["name"]: col for col in inspect(migrated_engine).get_columns("api_keys")}
+    assert columns["key_prefix"]["type"].length == 16
+    assert Base.metadata.tables["api_keys"].c.key_prefix.type.length == 16
+
+
+def test_key_prefix_downgrade_restores_12(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'downgrade_test.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "014")
+    engine = create_engine(url)
+    try:
+        columns = {col["name"]: col for col in inspect(engine).get_columns("api_keys")}
+        assert columns["key_prefix"]["type"].length == 12
+    finally:
+        engine.dispose()

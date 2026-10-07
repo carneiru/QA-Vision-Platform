@@ -5,7 +5,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import RedisDsn
-from qav_shared.config import BaseServiceSettings
+from qeos_shared.config import BaseServiceSettings
 
 # Load environment variables
 load_dotenv()
@@ -49,7 +49,7 @@ class Settings(BaseServiceSettings):
     INTERNAL_API_USERNAME: str = "organization-service"
     INTERNAL_API_PASSWORD: str = ""
 
-    # Email: SMTP_* and EMAILS_FROM_* come from qav_shared's BaseServiceSettings
+    # Email: SMTP_* and EMAILS_FROM_* come from qeos_shared's BaseServiceSettings
 
     # Email verification (registration). BASE_URL has no other purpose in this service --
     # it exists so the verification link in the email points somewhere real. Defaulting to

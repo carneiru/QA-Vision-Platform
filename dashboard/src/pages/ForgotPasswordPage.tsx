@@ -28,13 +28,13 @@ export default function ForgotPasswordPage() {
   if (sentTo !== null) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
         <div className="card">
           <h2>Check your email</h2>
           <p className="success-note" role="status">
             <MailCheck size={18} aria-hidden="true" />
             <span>
-              If <strong>{sentTo}</strong> has a QA Vision password, a reset link is on its way.
+              If <strong>{sentTo}</strong> has a QEOS password, a reset link is on its way.
               It works once and expires in 30 minutes.
             </span>
           </p>
@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>QA Vision</h1>
+      <h1>QEOS</h1>
       <form className="card" onSubmit={onSubmit}>
         <h2>Reset your password</h2>
         <p className="muted">Enter the email you sign in with and we'll send you a link to choose a new password.</p>

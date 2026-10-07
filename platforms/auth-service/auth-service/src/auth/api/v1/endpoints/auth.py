@@ -19,7 +19,12 @@ from src.auth.models.pending_registration import PendingRegistration
 from src.auth.models.password_reset import PasswordReset
 from src.auth.models.user import User
 from src.auth.utils.password import get_password_hash, verify_password
-from src.auth.utils.refresh_cookie import REFRESH_COOKIE, clear_refresh_cookie, set_refresh_cookie
+from src.auth.utils.refresh_cookie import (
+    clear_refresh_cookie,
+    legacy_refresh_cookie,
+    read_refresh_cookie,
+    set_refresh_cookie,
+)
 from src.auth.config import settings
 
 logger = logging.getLogger(__name__)
@@ -316,7 +321,8 @@ def refresh_access_token(
     Refresh access token using refresh token (JSON body, or the httpOnly
     cookie the browser carries).
     """
-    presented = request.refresh_token or http_request.cookies.get(REFRESH_COOKIE)
+    cookie_token, _ = read_refresh_cookie(http_request)
+    presented = request.refresh_token or cookie_token
     if not presented:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -388,8 +394,12 @@ def logout_user(
     Logout user by revoking the refresh token (body or cookie). The cookie is
     cleared either way, so logout is idempotent for browsers.
     """
-    presented = request.refresh_token or http_request.cookies.get(REFRESH_COOKIE)
+    presented = request.refresh_token or read_refresh_cookie(http_request)[0]
     clear_refresh_cookie(response)
+    # Both cookies can arrive (one from before the QEOS rename): end the legacy one's session too
+    legacy = legacy_refresh_cookie(http_request)
+    if legacy and legacy != presented:
+        AuthService.revoke_refresh_token(db, legacy, user_id=current_user.id)
     if not presented:
         return {"message": "Successfully logged out"}
     success = AuthService.revoke_refresh_token(db, presented, user_id=current_user.id)

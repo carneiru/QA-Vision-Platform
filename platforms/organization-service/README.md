@@ -1,6 +1,6 @@
 # Organization Service
 
-Manages organizations (tenants) and their memberships for QA Vision Platform.
+Manages organizations (tenants) and their memberships for QEOS.
 
 ## Responsibilities
 

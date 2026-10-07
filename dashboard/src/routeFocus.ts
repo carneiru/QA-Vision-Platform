@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
-const APP_NAME = "QA Vision";
+const APP_NAME = "QEOS";
 
 export function pageTitle(...parts: string[]): string {
   return [...parts, APP_NAME].join(" · ");

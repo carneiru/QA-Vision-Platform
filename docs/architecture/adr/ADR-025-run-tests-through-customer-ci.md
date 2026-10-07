@@ -1,4 +1,4 @@
-# ADR-025: Run tests from QA Vision through the customer's CI (workflow_dispatch, encrypted PAT, no execution on our side)
+# ADR-025: Run tests from QEOS through the customer's CI (workflow_dispatch, encrypted PAT, no execution on our side)
 
 Status: Accepted (2026-10-07) · Spec: `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`
 
@@ -11,7 +11,7 @@ code with network access and would need isolation, quotas and secret handling th
 not have.
 
 ## Decision
-- **QA Vision never executes tests.** Play dispatches a GitHub Actions workflow in the customer's
+- **QEOS never executes tests.** Play dispatches a GitHub Actions workflow in the customer's
   repository (`POST .../actions/workflows/{file}/dispatches` with `return_run_details`). The workflow
   runs Cucumber and uploads the results with the collector, so the run shows up in Results as any CI
   run does.
@@ -24,23 +24,23 @@ not have.
   request, at most 3 rows per list call, and no database transaction open during a GitHub call).
   Writes are conditional on the status that was read, so Stop is never overwritten.
 - **One active run per project**, enforced by a partial unique index. A request is matched to its
-  GitHub run through the run details of the dispatch, or by the title `QA Vision #<id>` when GitHub
-  answers 204.
+  GitHub run through the run details of the dispatch, or by the title `QEOS #<id>` when GitHub
+  answers 204 (`QA Vision #<id>`, set by workflows copied before the QEOS rename, still matches).
 - **Selection becomes files and names.** `paths` and `names` are JSON arrays sent as workflow inputs.
   A whole-suite run skips manual cases and records `skipped_manual`; an explicit selection rejects
   them.
-- **The workflow ships as a template** (`templates/github/qa-vision-run.yml` and `.mjs`), copyable
+- **The workflow ships as a template** (`templates/github/qeos-run.yml` and `.mjs`), copyable
   from Project Settings. The customer owns it and must have it on the configured branch and on the
   default branch.
 
 ## Alternatives rejected
-- **Run the tests on QA Vision's infrastructure.** A far larger security surface, and the customer
+- **Run the tests on QEOS's infrastructure.** A far larger security surface, and the customer
   would have to hand over secrets and network access.
 - **A GitHub App.** Short-lived installation tokens owned by no person are better, but need app
   registration, a callback and an installation flow. Parked in TODO.
 - **A worker that polls GitHub.** One more moving part for a state that only matters while someone
   looks at it.
-- **The token in the customer's repository secrets.** QA Vision must call GitHub, so it needs the
+- **The token in the customer's repository secrets.** QEOS must call GitHub, so it needs the
   token itself.
 
 ## Consequences

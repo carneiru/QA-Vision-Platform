@@ -61,13 +61,13 @@ def test_redirects_are_not_followed(http):
     http.get(f"{gh.API}/repos/acme/obt").mock(
         return_value=httpx.Response(301, headers={"location": "https://evil.example/steal"}))
     with pytest.raises(gh.GitHubError):  # following it would hit an unrouted host and raise something else
-        gh.check_target(TOKEN, "acme/obt", "qa-vision-run.yml")
+        gh.check_target(TOKEN, "acme/obt", "qeos-run.yml")
 
 
 def test_a_network_error_is_a_github_error_without_details(http):
     http.get(f"{gh.API}/repos/acme/obt").mock(side_effect=httpx.ConnectTimeout("boom"))
     with pytest.raises(gh.GitHubError) as err:
-        gh.check_target(TOKEN, "acme/obt", "qa-vision-run.yml")
+        gh.check_target(TOKEN, "acme/obt", "qeos-run.yml")
     assert err.value.status == 0 and TOKEN not in err.value.message
 
 
@@ -95,21 +95,28 @@ def test_a_204_dispatch_returns_none_for_the_matching_fallback(github):
 
 @pytest.mark.parametrize("body", [{}, {"workflow_run_id": "501"}, {"workflow_run_id": True}, ["x"]])
 def test_a_200_without_a_usable_run_id_also_falls_back(http, body):
-    http.post(f"{gh.API}/repos/acme/obt/actions/workflows/qa-vision-run.yml/dispatches").mock(
+    http.post(f"{gh.API}/repos/acme/obt/actions/workflows/qeos-run.yml/dispatches").mock(
         return_value=httpx.Response(200, json=body))
-    assert gh.dispatch(TOKEN, "acme/obt", "qa-vision-run.yml", "main", {"request_id": "7"}) is None
+    assert gh.dispatch(TOKEN, "acme/obt", "qeos-run.yml", "main", {"request_id": "7"}) is None
 
 
 def test_find_run_matches_the_exact_title(github):
     since = datetime(2026, 10, 7, 9, 59, tzinfo=timezone.utc)
-    github.runs(github.run_body(2, 8), github.run_body(4, 7, title="QA Vision #77"), github.run_body(3, 7))
-    assert gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", since)["id"] == 3
+    github.runs(github.run_body(2, 8), github.run_body(4, 7, title="QEOS #77"), github.run_body(3, 7))
+    assert gh.find_run(TOKEN, github.repo, github.workflow, "QEOS #7", since)["id"] == 3
+
+
+def test_find_run_accepts_several_titles(github):
+    """A workflow copied before the QEOS rename still names its runs "QA Vision #<id>"."""
+    since = datetime(2026, 10, 7, 9, 59, tzinfo=timezone.utc)
+    github.runs(github.run_body(2, 8), github.run_body(3, 7, title="QA Vision #7"))
+    assert gh.find_run(TOKEN, github.repo, github.workflow, ("QEOS #7", "QA Vision #7"), since)["id"] == 3
 
 
 def test_find_run_sends_created_in_utc_z(github):
     route = github.runs()
     since = datetime(2026, 10, 7, 10, 59, tzinfo=timezone(timedelta(hours=1)))
-    assert gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", since) is None
+    assert gh.find_run(TOKEN, github.repo, github.workflow, "QEOS #7", since) is None
     params = route.calls.last.request.url.params
     assert params["created"] == ">=2026-10-07T09:59:00Z"
     assert params["event"] == "workflow_dispatch"
@@ -124,7 +131,7 @@ def test_find_run_skips_older_runs_other_events_and_claimed_ids(github):
         github.run_body(5, 7, created_at="2026-10-07T09:59:20Z"),
         github.run_body(4, 7, created_at="2026-10-07T09:59:10Z"),   # ours: GitHub's clock is 50 s behind ours
     )
-    run = gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", since, exclude_ids=frozenset({3}))
+    run = gh.find_run(TOKEN, github.repo, github.workflow, "QEOS #7", since, exclude_ids=frozenset({3}))
     assert run["id"] == 4   # the oldest remaining match
 
 
@@ -153,21 +160,21 @@ def test_a_trailing_newline_in_a_name_is_rejected_before_any_request(http, repo,
 def test_find_run_accepts_a_naive_since_as_utc(github):
     github.runs(github.run_body(3, 7))
     naive = datetime(2026, 10, 7, 9, 59)
-    assert gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", naive)["id"] == 3
+    assert gh.find_run(TOKEN, github.repo, github.workflow, "QEOS #7", naive)["id"] == 3
 
 
 @pytest.mark.parametrize("status", [301, 302, 307])
 def test_every_redirect_is_an_error_even_without_a_location(http, status):
     http.get(f"{gh.API}/repos/acme/obt").mock(return_value=httpx.Response(status))
     with pytest.raises(gh.GitHubError) as err:
-        gh.check_target(TOKEN, "acme/obt", "qa-vision-run.yml")
+        gh.check_target(TOKEN, "acme/obt", "qeos-run.yml")
     assert err.value.status == status
 
 
 def test_a_bare_429_is_a_rate_limit(http):
     http.get(f"{gh.API}/repos/acme/obt").mock(return_value=httpx.Response(429))
     with pytest.raises(gh.RateLimited) as err:
-        gh.check_target(TOKEN, "acme/obt", "qa-vision-run.yml")
+        gh.check_target(TOKEN, "acme/obt", "qeos-run.yml")
     assert err.value.retry_after >= 1
 
 
@@ -176,7 +183,7 @@ def test_a_run_without_an_event_is_not_matched(github):
     no_event = github.run_body(3, 7)
     del no_event["event"]
     github.runs(no_event)
-    assert gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", since) is None
+    assert gh.find_run(TOKEN, github.repo, github.workflow, "QEOS #7", since) is None
 
 
 def test_a_5xx_is_a_github_error_with_its_status(github):

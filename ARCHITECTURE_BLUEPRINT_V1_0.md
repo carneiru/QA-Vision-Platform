@@ -1,4 +1,4 @@
-# QA Vision Platform Architecture Blueprint v1.0
+# QEOS Architecture Blueprint v1.0
 
 > **IMPLEMENTATION STATUS — read this first (updated 2026-10-02).**
 > This blueprint describes the TARGET architecture (QEOS). Unless a section is
@@ -58,7 +58,7 @@
 
 ## 1. Product Vision & North Star
 
-The QA Vision Platform evolves from an AI Engine focus to an AI-native Quality Engineering Operating System (QEOS) that orchestrates the complete quality engineering lifecycle. As the central nervous system for quality engineering, QEOS integrates planning, execution, intelligence, automation, collaboration, and administration into a cohesive platform that shifts quality from a reactive cost center to a proactive strategic advantage.
+QEOS (Quality Engineering Operating System) evolves from an AI Engine focus to an AI-native operating system for quality engineering that orchestrates the complete quality engineering lifecycle. As the central nervous system for quality engineering, QEOS integrates planning, execution, intelligence, automation, collaboration, and administration into a cohesive platform that shifts quality from a reactive cost center to a proactive strategic advantage.
 
 **North Star Vision**: To become the intelligent, self-optimizing operating system that autonomously ensures quality at speed throughout the software delivery lifecycle, reducing defects by 50% and accelerating release velocity by 30% for enterprise organizations.
 
@@ -1079,9 +1079,9 @@ QA-Vision-Platform/
 │   │                                 #   analytics (trends/tests/history/flaky+rollups/branches), analytics-rollup job
 │   └── qip-service/                  # UNWIRED PROTOTYPE
 ├── dashboard/                    # React + Vite + TS SPA (login/MFA/SSO, picker, trends, tests, history, flaky, branches, runs, security)
-├── collector/                    # qav-collector: JUnit parsing (incl. Surefire rerun attempts), git change data, retrying uploader
+├── collector/                    # qeos-collector: JUnit parsing (incl. Surefire rerun attempts), git change data, retrying uploader
 ├── gateway/                      # NGINX: routing, rate zones, TLS, JSON errors, request IDs, SPA catch-all (JSON 404 kept for /api/)
-├── shared/                       # qav_shared (config, db helpers) — installed editable by services, tested in CI
+├── shared/                       # qeos_shared (config, db helpers) — installed editable by services, tested in CI
 ├── scripts/                      # smoke_gateway.sh (70+ checks), analytics_benchmark.py, postgres-init.sh, new-service.sh
 ├── docs/superpowers/             # Per-feature specs and implementation plans (the working design record)
 ├── execution/ automation/ marketplace/ collaboration/ intelligence/   # UNWIRED PROTOTYPES (see ARCHITECTURE_EVOLUTION.md)
@@ -1107,7 +1107,7 @@ platforms/<name>-service/
 
 ## 15.1 Context Overview
 
-QA Vision is organized using Domain-Driven Design (DDD), where each bounded context represents an autonomous business capability with clearly defined responsibilities, ownership, APIs, events, and data models.
+QEOS is organized using Domain-Driven Design (DDD), where each bounded context represents an autonomous business capability with clearly defined responsibilities, ownership, APIs, events, and data models.
 
 The platform consists of the following bounded contexts:
 
@@ -1624,7 +1624,7 @@ Recovery within defined RTO and RPO.
 
 ## Architecture Principles
 
-The QA Vision Platform follows a set of architectural principles that govern every technical and business decision.
+QEOS follows a set of architectural principles that govern every technical and business decision.
 
 ### Business Principles
 
@@ -1671,7 +1671,7 @@ The QA Vision Platform follows a set of architectural principles that govern eve
                                   |
                                   v
                 +-----------------------------------+
-                |        QA Vision Platform         |
+                |                QEOS               |
                 | AI-Native Quality Engineering OS  |
                 +-----------------------------------+
                   |      |      |      |      |
@@ -2176,7 +2176,7 @@ Dashboard
 
 # 21. Conclusion
 
-QA Vision is designed as an AI-Native Quality Engineering Operating System (QEOS) based on Domain-Driven Design, cloud-native architecture, event-driven communication, and enterprise engineering principles.
+QEOS is designed as an AI-Native Quality Engineering Operating System based on Domain-Driven Design, cloud-native architecture, event-driven communication, and enterprise engineering principles.
 
 The architecture emphasizes:
 
@@ -2189,7 +2189,7 @@ The architecture emphasizes:
 - Enterprise security
 - Continuous evolution
 
-This blueprint establishes the long-term architectural foundation for QA Vision and serves as the authoritative reference for architecture, governance, implementation, and future platform evolution.
+This blueprint establishes the long-term architectural foundation for QEOS and serves as the authoritative reference for architecture, governance, implementation, and future platform evolution.
 
 ---
 # 22. Document Status & Future Evolution
@@ -2198,7 +2198,7 @@ This blueprint establishes the long-term architectural foundation for QA Vision 
 
 | Attribute | Value |
 |----------|-------|
-| Document | QA Vision Architecture Blueprint |
+| Document | QEOS Architecture Blueprint |
 | Version | 1.0 |
 | Status | Approved Baseline |
 | Classification | Internal |
@@ -2210,7 +2210,7 @@ This blueprint establishes the long-term architectural foundation for QA Vision 
 
 ## Future Evolution
 
-This blueprint establishes the architectural baseline for the QA Vision platform.
+This blueprint establishes the architectural baseline for the QEOS platform.
 
 Future revisions shall follow the Architecture Decision Record (ADR) process and preserve architectural consistency with the principles defined throughout this document.
 
@@ -2223,7 +2223,7 @@ Major architectural changes must:
 - Demonstrate alignment with the platform vision and quality attributes.
 - Be reviewed by the Architecture Governance Board before implementation.
 
-This document represents the authoritative architectural reference for all future development of the QA Vision platform.
+This document represents the authoritative architectural reference for all future development of the QEOS platform.
 
 ---
 
@@ -2231,7 +2231,7 @@ This document represents the authoritative architectural reference for all futur
 
 ## 22.1 Purpose
 
-The Risk Register identifies architectural, technical, operational, security, and business risks that may impact the successful implementation and operation of the QA Vision Platform.
+The Risk Register identifies architectural, technical, operational, security, and business risks that may impact the successful implementation and operation of QEOS.
 
 Each risk shall have an assigned owner, mitigation strategy, monitoring mechanism, and review cadence.
 
@@ -2299,7 +2299,7 @@ Current implementation includes:
 
 ## 23.2 Target State
 
-QA Vision evolves into a complete AI-Native Quality Engineering Operating System (QEOS) consisting of:
+QEOS evolves into a complete AI-Native Quality Engineering Operating System consisting of:
 
 - Platform
 - Integrations
@@ -2386,7 +2386,7 @@ Marketplace
 
 ## 23.4 Long-Term Vision
 
-QA Vision becomes an AI-first engineering platform capable of autonomous quality engineering through continuous learning, prediction, optimization, and workflow orchestration.
+QEOS becomes an AI-first engineering platform capable of autonomous quality engineering through continuous learning, prediction, optimization, and workflow orchestration.
 
 ---
 
@@ -2539,6 +2539,6 @@ The platform enables organizations to:
 
 ## Final Statement
 
-This Architecture Blueprint represents the strategic technical foundation for QA Vision.
+This Architecture Blueprint represents the strategic technical foundation for QEOS.
 
 It shall serve as the authoritative reference for architecture decisions, implementation guidance, governance, and long-term platform evolution.

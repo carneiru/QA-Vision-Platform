@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import workflowYaml from "./qa-vision-run.yml.txt?raw";
-import runnerScript from "./qa-vision-run.mjs.txt?raw";
+import workflowYaml from "./qeos-run.yml.txt?raw";
+import runnerScript from "./qeos-run.mjs.txt?raw";
 
 // The dashboard's Docker build sees only dashboard/, so the help block reads these copies; they must
 // stay identical to the templates people copy from the repository.
@@ -20,6 +20,6 @@ function repoRoot(): string {
 const repoFile = (name: string) => readFileSync(resolve(repoRoot(), name), "utf8");
 
 test("the dashboard's copies match templates/github", () => {
-  expect(workflowYaml).toBe(repoFile("qa-vision-run.yml"));
-  expect(runnerScript).toBe(repoFile("qa-vision-run.mjs"));
+  expect(workflowYaml).toBe(repoFile("qeos-run.yml"));
+  expect(runnerScript).toBe(repoFile("qeos-run.mjs"));
 });

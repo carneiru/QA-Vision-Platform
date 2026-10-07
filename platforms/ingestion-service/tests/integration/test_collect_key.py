@@ -1,5 +1,5 @@
 """GET /collect/key: lets a collector prove its API key works without
-uploading anything (the `qav-collector check` command)."""
+uploading anything (the `qeos-collector check` command)."""
 
 URL = "/api/v1/collect/key"
 
@@ -12,7 +12,7 @@ def test_a_valid_key_names_its_project(client, make_key):
 
 
 def test_an_invalid_key_is_401(client):
-    response = client.get(URL, headers={"Authorization": "Bearer qav_wrong000000000"})
+    response = client.get(URL, headers={"Authorization": "Bearer qeos_wrong000000000"})
     assert response.status_code == 401
 
 

@@ -14,7 +14,7 @@ ingest time is lost.
 ## Decision
 Capture the link now, analyse later. An upload may carry up to 20
 `{name, sha}` component pairs (collector `--component NAME@SHA`, repeatable,
-or `QAV_COMPONENTS`); the ingestion service stores them per run
+or `QEOS_COMPONENTS`); the ingestion service stores them per run
 (`run_components`, CASCADE with the run) and echoes them on the run read
 API. No analysis, no new technology, no workspace entity yet — the data lies
 dormant until Phase 6's trigger fires. Bad component input is a config error

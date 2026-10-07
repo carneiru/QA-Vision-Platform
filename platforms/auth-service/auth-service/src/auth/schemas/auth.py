@@ -38,7 +38,7 @@ class RefreshTokenRequest(BaseModel):
     # /auth/refresh-token and /auth/logout previously declared `refresh_token: str` as a bare
     # parameter, which FastAPI reads as a QUERY parameter -- so a JSON body could never
     # satisfy them and both always returned 422.
-    # Optional since the httpOnly qav_refresh cookie became the browser path; API
+    # Optional since the httpOnly qeos_refresh cookie became the browser path; API
     # clients keep sending it in the body.
     refresh_token: Optional[str] = None
 

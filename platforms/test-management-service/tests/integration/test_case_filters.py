@@ -1,7 +1,7 @@
 """Case list filters: folder, link, feature, Azure DevOps item, test keys; folder and feature facets."""
 import pytest
 
-from qav_shared.keys import test_key as make_test_key
+from qeos_shared.keys import test_key as make_test_key
 
 P = "/api/v1/projects/1"
 

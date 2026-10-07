@@ -1,5 +1,5 @@
 """Configuration management for Organization Service."""
-from qav_shared.config import BaseServiceSettings
+from qeos_shared.config import BaseServiceSettings
 
 
 class Settings(BaseServiceSettings):

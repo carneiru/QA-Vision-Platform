@@ -38,7 +38,7 @@ export default function DataCard({ project: initial, canManage }: Props) {
     mutationFn: async () => {
       const blob = await apiBlob(`/api/v1/projects/${project.id}/export`);
       const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
-      downloadBlob(`qa-vision-project-${project.id}-${date}.ndjson`, blob);
+      downloadBlob(`qeos-project-${project.id}-${date}.ndjson`, blob);
     },
   });
 

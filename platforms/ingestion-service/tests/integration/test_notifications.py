@@ -18,7 +18,7 @@ HOOK = "https://alerts.example.com/qa"
 @pytest.fixture(autouse=True)
 def public_dns(monkeypatch):
     monkeypatch.setattr(notify_targets, "resolve", lambda host: ["93.184.216.34"])
-    monkeypatch.setattr(settings, "DASHBOARD_URL", "https://qav.example.com")
+    monkeypatch.setattr(settings, "DASHBOARD_URL", "https://qeos.example.com")
 
 
 @pytest.fixture
@@ -123,7 +123,7 @@ def test_a_failed_run_is_announced_with_counts_tests_and_a_link(client, db, make
     text = json.dumps(payload, ensure_ascii=False)
     assert "7 of 8 tests failed" in payload["text"]
     assert "main" in text and "3f2a9c1" in text
-    assert f"https://qav.example.com/projects/1/runs/{created.json()['id']}" in text
+    assert f"https://qeos.example.com/projects/1/runs/{created.json()['id']}" in text
     assert "checkout › Cart › case 0" in text and "case 5" not in text   # first five only
     assert "hunter2" not in text                                           # stored masked, sent masked
     db.expire_all()
@@ -208,7 +208,7 @@ def test_an_email_channel_mails_the_summary(client, db, make_key, monkeypatch):
     assert to == ["qa@example.com", "lead@example.com"]
     assert subject == "QA: 2 of 3 tests failed"
     assert "checkout › Cart › case 1" in body and "hunter2" not in body
-    assert f"https://qav.example.com/projects/1/runs/{created.json()['id']}" in body
+    assert f"https://qeos.example.com/projects/1/runs/{created.json()['id']}" in body
     db.expire_all()
     assert db.query(NotificationChannel).one().last_status == "delivered"
 

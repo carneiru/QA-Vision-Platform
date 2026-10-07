@@ -57,7 +57,13 @@ def aware(moment: Optional[datetime]) -> Optional[datetime]:
 
 
 def run_title(request_id: int) -> str:
-    return f"QA Vision #{request_id}"
+    return f"QEOS #{request_id}"
+
+
+def run_titles(request_id: int) -> tuple:
+    """The run-name the workflow template sets, then the one workflows copied before the QEOS
+    rename still set, so their runs keep matching."""
+    return run_title(request_id), f"QA Vision #{request_id}"
 
 
 def _keys(numbers: List[int]) -> str:
@@ -155,7 +161,7 @@ def safe_run_url(url: Optional[str]) -> Optional[str]:
 
 def _match(row: RunRequest, repo: str, workflow: str, token: str, claimed: frozenset) -> Optional[dict]:
     """The 204 fallback only: GitHub gave no run details at dispatch, so find the run by its title."""
-    run = github_client.find_run(token, repo, workflow, run_title(row.id), aware(row.requested_at) - MATCH_WINDOW,
+    run = github_client.find_run(token, repo, workflow, run_titles(row.id), aware(row.requested_at) - MATCH_WINDOW,
                                  claimed)
     if run is not None:
         row.github_run_id = int(run["id"])

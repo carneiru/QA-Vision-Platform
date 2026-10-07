@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 from typing import Iterator, Optional
 from xml.parsers import expat
 
-from qav_collector.junit import (
+from qeos_collector.junit import (
     CLASS_NAME_LENGTH, MAX_DURATION_MS, MAX_FILE_BYTES, NAME_LENGTH, SUITE_LENGTH,
     ParsedFile, _cut, _first_line, _read_xml, _Refused, _seconds, _skip, _timestamp, _walk,
 )

@@ -53,3 +53,9 @@ test("links back to sign in", async () => {
   await userEvent.click(screen.getByRole("link", { name: /sign in/i }));
   expect(await screen.findByText("LOGIN")).toBeInTheDocument();
 });
+
+test("the register screen shows the product name and what it stands for", () => {
+  renderPage();
+  expect(screen.getByRole("heading", { level: 1, name: "QEOS" })).toBeInTheDocument();
+  expect(screen.getByText("Quality Engineering OS")).toBeInTheDocument();
+});

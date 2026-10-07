@@ -1,4 +1,6 @@
-"""`.qav.yml`: optional per-project defaults, read from the working directory.
+"""`.qeos.yml`: optional per-project defaults, read from the working directory.
+
+`.qav.yml`, the name before the QEOS rename, is read when `.qeos.yml` does not exist.
 
 Parsed by a deliberately small built-in reader — flat `key: value` pairs and
 string lists — so the collector keeps zero dependencies (the single-file
@@ -10,9 +12,10 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Union
 
-from qav_collector.upload import ConfigError
+from qeos_collector.upload import ConfigError
 
-FILE_NAME = ".qav.yml"
+FILE_NAME = ".qeos.yml"
+LEGACY_FILE_NAME = ".qav.yml"  # deprecated; read only when FILE_NAME is missing
 
 STRING_KEYS = ("url", "environment", "ca-file", "spool", "ci-provider", "branch")
 BOOL_KEYS = ("fail-on-error", "no-changes", "gate")
@@ -22,8 +25,15 @@ KNOWN = (*STRING_KEYS, *BOOL_KEYS, *LIST_KEYS)
 Value = Union[str, bool, List[str]]
 
 
+def uses_legacy_file(directory: str) -> bool:
+    """True when only the deprecated `.qav.yml` exists, so it is the one read."""
+    return (not os.path.exists(os.path.join(directory, FILE_NAME))
+            and os.path.exists(os.path.join(directory, LEGACY_FILE_NAME)))
+
+
 def load_config(directory: str) -> Dict[str, Value]:
-    path = os.path.join(directory, FILE_NAME)
+    name = LEGACY_FILE_NAME if uses_legacy_file(directory) else FILE_NAME
+    path = os.path.join(directory, name)
     try:
         with open(path, "r", encoding="utf-8") as fh:
             lines = fh.read().splitlines()

@@ -25,7 +25,7 @@ export function useCiTarget(projectId: number) {
 /** Whether Play may start a run, and if not the reason to show; first matching reason wins. */
 export function gate(role: string | undefined, target: CiTarget, latest: RunRequest | null, now: number = Date.now()): RunGate {
   if (!RUN_ROLES.includes(role ?? "")) return { ok: false, reason: "Viewers can't run tests", toSettings: false };
-  if (!target.available) return { ok: false, reason: "Running tests from QA Vision is not configured on this server", toSettings: false };
+  if (!target.available) return { ok: false, reason: "Running tests from QEOS is not configured on this server", toSettings: false };
   if (!target.configured) return { ok: false, reason: "Configure in Settings", toSettings: true };
   if (tokenState(target, now) === "expired") return { ok: false, reason: "GitHub token expired", toSettings: true };
   if (latest && isActive(latest)) return { ok: false, reason: "A run is in progress", toSettings: false };

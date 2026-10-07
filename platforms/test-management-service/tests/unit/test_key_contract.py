@@ -5,13 +5,13 @@ import json
 import sys
 from pathlib import Path
 
-from qav_shared.keys import test_key
+from qeos_shared.keys import test_key
 from src.casebook.gherkin_import.parse import parse_feature
 
 REPO = Path(__file__).resolve().parents[4]
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 sys.path.insert(0, str(REPO / "collector" / "src"))
-from qav_collector.formats import parse_file  # noqa: E402
+from qeos_collector.formats import parse_file  # noqa: E402
 
 
 def test_imported_cases_link_to_the_keys_results_are_stored_under():

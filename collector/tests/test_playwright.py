@@ -3,7 +3,7 @@ every retry attempt kept as its own result, like Surefire reruns."""
 import json
 from datetime import datetime, timezone
 
-from qav_collector.formats import parse_file
+from qeos_collector.formats import parse_file
 
 
 def write(tmp_path, data):

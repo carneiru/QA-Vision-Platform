@@ -1,7 +1,7 @@
-// QA Vision: run the scenarios a QA Vision Play selected. qa-vision-run.yml calls this.
-// Copy to .github/scripts/qa-vision-run.mjs in the test repository.
+// QEOS: run the scenarios a QEOS Play selected. qeos-run.yml calls this.
+// Copy to .github/scripts/qeos-run.mjs in the test repository.
 //
-// The inputs arrive only through environment variables (QAV_PATHS, QAV_NAMES), never through ${{ }}
+// The inputs arrive only through environment variables (QEOS_PATHS, QEOS_NAMES), never through ${{ }}
 // inside run:, and cucumber-js is started with an argument array, never through a shell: a scenario
 // name is data and can never become a command.
 import { spawn } from "node:child_process";
@@ -14,8 +14,8 @@ const FEATURE_PATH = /^tests\/features\/[^\u0000-\u001f\\:*?"<>|]+\.feature$/;
 const PLACEHOLDER = /<[^<>]+>/g;
 const REPORT = "test-results/cucumber-report.json";
 const NO_MATCH =
-  "No scenario matched this QA Vision selection. A scenario was probably renamed or moved since the last " +
-  "import: re-import the .feature files in QA Vision, then run it again.";
+  "No scenario matched this QEOS selection. A scenario was probably renamed or moved since the last " +
+  "import: re-import the .feature files in QEOS, then run it again.";
 
 function jsonArrayOfStrings(raw, variable) {
   let value;
@@ -32,7 +32,7 @@ function jsonArrayOfStrings(raw, variable) {
 
 /** The selected .feature files, once each: only under tests/features, never with "..". */
 export function parsePaths(raw) {
-  const paths = jsonArrayOfStrings(raw, "QAV_PATHS");
+  const paths = jsonArrayOfStrings(raw, "QEOS_PATHS");
   for (const path of paths) {
     if (!FEATURE_PATH.test(path) || path.split("/").includes("..")) {
       throw new Error(`path not allowed: ${JSON.stringify(path)}`);
@@ -42,7 +42,7 @@ export function parsePaths(raw) {
 }
 
 export function parseNames(raw) {
-  return jsonArrayOfStrings(raw, "QAV_NAMES");
+  return jsonArrayOfStrings(raw, "QEOS_NAMES");
 }
 
 /** A scenario name as a cucumber-js --name pattern: the whole name, literally, except that each
@@ -82,8 +82,8 @@ function run(args) {
 }
 
 async function main() {
-  const paths = parsePaths(process.env.QAV_PATHS);
-  const names = parseNames(process.env.QAV_NAMES);
+  const paths = parsePaths(process.env.QEOS_PATHS);
+  const names = parseNames(process.env.QEOS_NAMES);
   const code = await run(cucumberArgs(paths, names));
   let report = [];
   try {
@@ -92,15 +92,15 @@ async function main() {
     // no report: cucumber-js stopped before running anything, and its own output says why
   }
   if (countScenarios(report) === 0) {
-    console.log(`::warning title=QA Vision::${NO_MATCH}`);
-    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### QA Vision\n\n${NO_MATCH}\n`);
+    console.log(`::warning title=QEOS::${NO_MATCH}`);
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### QEOS\n\n${NO_MATCH}\n`);
   }
   process.exitCode = code;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    console.log(`::error title=QA Vision::${error.message}`);
+    console.log(`::error title=QEOS::${error.message}`);
     process.exitCode = 1;
   });
 }

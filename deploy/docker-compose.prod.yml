@@ -13,7 +13,7 @@ services:
     restart: unless-stopped
     environment:
       # Verification links in emails must point at the public address
-      BASE_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+      BASE_URL: https://${QEOS_DOMAIN:?set QEOS_DOMAIN (see deploy/README.md)}
   organization-service:
     restart: unless-stopped
   project-service:
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     environment:
       # Run links in failure notifications must point at the public address
-      DASHBOARD_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+      DASHBOARD_URL: https://${QEOS_DOMAIN:?set QEOS_DOMAIN (see deploy/README.md)}
   test-management-service:
     restart: unless-stopped
   ingestion-retention:
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
     environment:
       # Report links in weekly summaries must point at the public address
-      DASHBOARD_URL: https://${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+      DASHBOARD_URL: https://${QEOS_DOMAIN:?set QEOS_DOMAIN (see deploy/README.md)}
   dashboard:
     restart: unless-stopped
 
@@ -56,12 +56,12 @@ services:
       - "${EDGE_HTTP_PORT:-80}:80"
       - "${EDGE_HTTPS_PORT:-443}:443"
     environment:
-      QAV_DOMAIN: ${QAV_DOMAIN:?set QAV_DOMAIN (see deploy/README.md)}
+      QEOS_DOMAIN: ${QEOS_DOMAIN:?set QEOS_DOMAIN (see deploy/README.md)}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL (Let's Encrypt expiry notices)}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - qav_caddy_data:/data
-      - qav_caddy_config:/config
+      - qeos_caddy_data:/data
+      - qeos_caddy_config:/config
     networks:
       default:
         # The one address the gateway trusts for X-Forwarded-For
@@ -81,5 +81,8 @@ networks:
 
 volumes:
   # Certificates and the ACME account: losing this volume means re-issuing, not data loss
-  qav_caddy_data:
-  qav_caddy_config:
+  # Explicit names: the physical volumes keep the names they had before the QEOS rename
+  qeos_caddy_data:
+    name: qa-vision_qav_caddy_data
+  qeos_caddy_config:
+    name: qa-vision_qav_caddy_config

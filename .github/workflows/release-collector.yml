@@ -2,7 +2,7 @@ name: Release collector
 
 # Tag collector-vX.Y.Z to release. Publishing to PyPI uses trusted publishing
 # (OIDC, no token): configure the publisher once on pypi.org for project
-# qav-collector (owner carneiru, repo QA-Vision-Platform, this workflow,
+# qeos-collector (owner carneiru, repo QA-Vision-Platform, this workflow,
 # environment pypi), then set the repository variable PYPI_PUBLISH=true.
 # Until that variable exists the publish job is skipped and a tag only
 # builds + verifies the artifacts.
@@ -47,7 +47,7 @@ jobs:
           python-version: "3.12"
       - name: Tag must match the package version
         run: |
-          version="$(python -c 'import sys; sys.path.insert(0, "src"); from qav_collector import __version__; print(__version__)')"
+          version="$(python -c 'import sys; sys.path.insert(0, "src"); from qeos_collector import __version__; print(__version__)')"
           tag="${GITHUB_REF_NAME#collector-v}"
           test "$version" = "$tag" || { echo "tag $tag != __version__ $version"; exit 1; }
       - run: python -m pip install build twine
@@ -55,8 +55,10 @@ jobs:
       - run: python -m twine check dist/*
       - name: Single-file build (zipapp)
         run: |
-          python scripts/build_zipapp.py --out dist/qav-collector.pyz
-          python dist/qav-collector.pyz --version
+          python scripts/build_zipapp.py --out dist/qeos-collector.pyz
+          python dist/qeos-collector.pyz --version
+          # The same file under the name before the QEOS rename, so .../latest/download/qav-collector.pyz keeps working
+          cp dist/qeos-collector.pyz dist/qav-collector.pyz
       - uses: actions/upload-artifact@v4
         with:
           name: collector-dist
@@ -99,11 +101,15 @@ jobs:
       - name: Build, verify, push
         run: |
           version="${GITHUB_REF_NAME#collector-v}"
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/qav-collector"
-          docker build collector -t "$image:$version" -t "$image:latest"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/qeos-collector"
+          # Also pushed under the name before the QEOS rename, so pinned users keep getting updates
+          legacy="ghcr.io/${GITHUB_REPOSITORY_OWNER}/qav-collector"
+          docker build collector -t "$image:$version" -t "$image:latest" -t "$legacy:$version" -t "$legacy:latest"
           docker run --rm "$image:$version" --version
           docker push "$image:$version"
           docker push "$image:latest"
+          docker push "$legacy:$version"
+          docker push "$legacy:latest"
 
   publish:
     name: Publish to PyPI (trusted publishing)

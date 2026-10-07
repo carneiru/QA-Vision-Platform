@@ -15,4 +15,4 @@ Its JWT code predates two platform rules, so do not wire it up as it is:
   wired service's `utils/tokens.py` into `security/jwt.py`, `middleware/auth.py` and
   `middleware/permissions.py`, which today accept any token signed with `SECRET_KEY`.
 - `config.py` defaults `SECRET_KEY` to `"your-secret-key-here"`. A wired service must refuse to
-  start without a real key, as the others do through `qav_shared.config`.
+  start without a real key, as the others do through `qeos_shared.config`.

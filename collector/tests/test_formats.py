@@ -2,7 +2,7 @@
 NUnit 3, xUnit.net v2 and TestNG all land in the same result shape."""
 from datetime import datetime, timezone
 
-from qav_collector.formats import parse_file
+from qeos_collector.formats import parse_file
 
 
 def write(tmp_path, text, name="report.xml"):

@@ -1,4 +1,4 @@
-"""cases.scenario_name; ci_targets, run_requests, ci_target_events (run from QA Vision)
+"""cases.scenario_name; ci_targets, run_requests, ci_target_events (run from QEOS)
 
 Revision ID: 004
 Revises: 003

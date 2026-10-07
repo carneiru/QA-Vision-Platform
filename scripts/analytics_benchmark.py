@@ -43,7 +43,7 @@ def timed(label, fn):
 
 
 try:
-    api_key = ApiKey(project_id=PROJECT, organization_id=1, name="bench", key_prefix="qav_bench0",
+    api_key = ApiKey(project_id=PROJECT, organization_id=1, name="bench", key_prefix="qeos_bench0",
                      key_hash="b" * 64, created_by=1)
     db.add(api_key)
     db.flush()

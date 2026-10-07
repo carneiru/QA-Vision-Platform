@@ -6,10 +6,10 @@ import { branchError, repoError, workflowError } from "../lib/ciTargetFields";
 import { useUserNames } from "../lib/useUserNames";
 import ConfirmButton from "./ConfirmButton";
 import ErrorBanner from "./ErrorBanner";
-import workflowYaml from "../templates/qa-vision-run.yml.txt?raw";
-import runnerScript from "../templates/qa-vision-run.mjs.txt?raw";
+import workflowYaml from "../templates/qeos-run.yml.txt?raw";
+import runnerScript from "../templates/qeos-run.mjs.txt?raw";
 
-const DEFAULT_WORKFLOW = "qa-vision-run.yml";
+const DEFAULT_WORKFLOW = "qeos-run.yml";
 const DEFAULT_BRANCH = "main";
 
 /** The template, guarded to the branch configured here (a replacer function, so a "$&" in a branch stays literal;
@@ -60,7 +60,7 @@ export function ExpiryWarning({ target }: { target: CiTarget }) {
   );
 }
 
-/** Settings › Run from QA Vision: the repository, workflow, branch and token Play dispatches with. */
+/** Settings › Run from QEOS: the repository, workflow, branch and token Play dispatches with. */
 export default function CiTargetCard({ projectId }: { projectId: number }) {
   const qc = useQueryClient();
   const queryKey = ["ci-target", projectId];
@@ -129,16 +129,16 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
   const workflowFile = data?.workflow ?? DEFAULT_WORKFLOW;
   return (
     <div className="card">
-      <h3>Run from QA Vision</h3>
+      <h3>Run from QEOS</h3>
       <p className="muted">
         Play runs the selected scenarios in this repository's GitHub Actions, through a dedicated workflow.
-        QA Vision never runs test code itself.
+        QEOS never runs test code itself.
       </p>
       {target.error != null && <ErrorBanner error={target.error} onRetry={() => target.refetch()} />}
       {target.isPending && <p className="muted">Loading…</p>}
       {data && !data.available && (
         <p className="note" role="note">
-          Running tests from QA Vision is not configured on this server. An administrator sets{" "}
+          Running tests from QEOS is not configured on this server. An administrator sets{" "}
           <code>TM_SECRETS_KEY</code> on test-management-service.
         </p>
       )}
@@ -207,7 +207,7 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
           {data.configured && (
             <ConfirmButton
               label="Disconnect"
-              question={`Disconnect ${data.repo}? Nobody can run tests from QA Vision until a token is saved again.`}
+              question={`Disconnect ${data.repo}? Nobody can run tests from QEOS until a token is saved again.`}
               confirmLabel="Disconnect"
               onConfirm={() => { save.reset(); disconnect.mutate(); }}
               disabled={disconnect.isPending}
@@ -232,12 +232,12 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
                 <CopyBlock name={workflowFile} code={workflowFor(data.ref)} />
               </li>
               <li>
-                Add the script it runs as <code>.github/scripts/qa-vision-run.mjs</code>:
-                <CopyBlock name="qa-vision-run.mjs" code={runnerScript} />
+                Add the script it runs as <code>.github/scripts/qeos-run.mjs</code>:
+                <CopyBlock name="qeos-run.mjs" code={runnerScript} />
               </li>
               <li>
-                In the repository's Settings › Secrets and variables › Actions, add the secret <code>QAV_API_KEY</code>{" "}
-                (a project API key from this page) and the variable <code>QAV_URL</code> ={" "}
+                In the repository's Settings › Secrets and variables › Actions, add the secret <code>QEOS_API_KEY</code>{" "}
+                (a project API key from this page) and the variable <code>QEOS_URL</code> ={" "}
                 <code>{window.location.origin}</code>.
               </li>
             </ol>

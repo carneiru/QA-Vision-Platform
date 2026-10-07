@@ -1,8 +1,8 @@
 """The spool keeps parts a failed upload could not deliver, so the next
 invocation can retry them with their original Idempotency-Key."""
 
-from qav_collector.payload import Part
-from qav_collector import spool
+from qeos_collector.payload import Part
+from qeos_collector import spool
 
 
 def part(key="job-1", body=b'{"run":{}}'):

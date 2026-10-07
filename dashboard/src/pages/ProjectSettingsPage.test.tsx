@@ -8,9 +8,9 @@ import { setAccessToken } from "../auth/tokens";
 import ProjectSettingsPage, { isLocalOrigin } from "./ProjectSettingsPage";
 
 const KEYS = [
-  { id: 1, name: "ci", key_prefix: "qav_abcdefgh", created_at: "2026-10-01T10:00:00Z",
+  { id: 1, name: "ci", key_prefix: "qeos_abcdefgh", created_at: "2026-10-01T10:00:00Z",
     last_used_at: "2026-10-03T10:00:00Z", revoked_at: null },
-  { id: 2, name: "old", key_prefix: "qav_zzzzzzzz", created_at: "2026-09-01T10:00:00Z",
+  { id: 2, name: "old", key_prefix: "qeos_zzzzzzzz", created_at: "2026-09-01T10:00:00Z",
     last_used_at: null, revoked_at: "2026-09-15T10:00:00Z" },
 ];
 
@@ -52,7 +52,7 @@ test("a viewer gets the repositories read-only", async () => {
 test("lists keys with prefix, last use, and revoked state", async () => {
   server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json(KEYS)));
   renderPage();
-  expect(await screen.findByText("qav_abcdefgh…")).toBeInTheDocument();
+  expect(await screen.findByText("qeos_abcdefgh…")).toBeInTheDocument();
   expect(screen.getByText("ci")).toBeInTheDocument();
   expect(screen.getByText(/revoked/i)).toBeInTheDocument();
   // a revoked key offers no revoke action
@@ -64,7 +64,7 @@ test("creating a key shows the full key exactly once", async () => {
     http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])),
     http.post("/api/v1/projects/42/api-keys", () =>
       HttpResponse.json(
-        { id: 3, name: "new-ci", key_prefix: "qav_newnewne", key: "qav_newnewnewFULLSECRET",
+        { id: 3, name: "new-ci", key_prefix: "qeos_newnewne", key: "qeos_newnewnewFULLSECRET",
           created_at: "2026-10-03T12:00:00Z" },
         { status: 201 },
       )),
@@ -73,13 +73,13 @@ test("creating a key shows the full key exactly once", async () => {
   await screen.findByText(/no api keys/i);
   await userEvent.type(screen.getByPlaceholderText("e.g. github-actions"), "new-ci");
   await userEvent.click(screen.getByRole("button", { name: /create key/i }));
-  expect(await screen.findByText("qav_newnewnewFULLSECRET")).toBeInTheDocument();
+  expect(await screen.findByText("qeos_newnewnewFULLSECRET")).toBeInTheDocument();
   expect(screen.getByText(/only shown once/i)).toBeInTheDocument();
 
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
   await userEvent.click(screen.getByRole("button", { name: /copy the api key/i }));
-  expect(writeText).toHaveBeenCalledWith("qav_newnewnewFULLSECRET");
+  expect(writeText).toHaveBeenCalledWith("qeos_newnewnewFULLSECRET");
 });
 
 test("revoking a key calls the API and refreshes", async () => {
@@ -109,7 +109,7 @@ test("on localhost the CLI snippet leads, with the self-signed certificate step"
   // the test page itself is served from http://localhost:3000
   expect(screen.getByLabelText(/ci platform/i)).toHaveValue("cli");
   const snippet = screen.getByTestId("ci-snippet");
-  expect(snippet).toHaveTextContent("qav-collector upload");
+  expect(snippet).toHaveTextContent("qeos-collector upload");
   expect(snippet).toHaveTextContent("--ca-file");
   expect(screen.queryByRole("note")).not.toBeInTheDocument();
 });
@@ -120,24 +120,24 @@ test("hosted CI runners on localhost get a warning, not a silent snippet", async
   await screen.findByText(/no api keys/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "github");
-  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("collector-action@collector-v0.3.0");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("collector-action@collector-v0.4.0");
   expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "gitlab");
   expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "azure");
-  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("QAV_API_KEY: $(QAV_API_KEY)");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("QEOS_API_KEY: $(QEOS_API_KEY)");
   expect(screen.getByTestId("ci-snippet")).toHaveTextContent("condition: always()");
   expect(screen.getByRole("note")).toHaveTextContent(/cannot reach localhost/i);
 
   await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), "jenkins");
-  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("qavCollectorUpload");
+  expect(screen.getByTestId("ci-snippet")).toHaveTextContent("qeosCollectorUpload");
 
   const writeText = vi.fn().mockResolvedValue(undefined);
   Object.assign(navigator, { clipboard: { writeText } });
   await userEvent.click(screen.getByRole("button", { name: /copy the ci snippet/i }));
-  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("qavCollectorUpload"));
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("qeosCollectorUpload"));
 });
 
 test.each([
@@ -145,7 +145,7 @@ test.each([
   ["https://localhost:8443", true],
   ["http://127.0.0.1:5173", true],
   ["http://[::1]:8443", true],
-  ["https://qa-vision.example.com", false],
+  ["https://qeos.example.com", false],
   ["https://localhost.example.com", false],
 ])("isLocalOrigin(%s) is %s", (origin, expected) => {
   expect(isLocalOrigin(origin)).toBe(expected);
@@ -160,28 +160,28 @@ test("every CI snippet syncs test cases from .feature files with the pinned coll
     await userEvent.selectOptions(screen.getByLabelText(/ci platform/i), platform);
     const snippet = screen.getByTestId("ci-snippet");
     expect(snippet).toHaveTextContent("import-features");
-    expect(snippet).toHaveTextContent("collector-v0.3.0");
+    expect(snippet).toHaveTextContent("collector-v0.4.0");
     if (platform === "jenkins") {
       // Groovy comments are //, never #
       const lines = (snippet.textContent ?? "").split(/\r?\n/).map((l) => l.trim());
       expect(lines.filter((l) => l.startsWith("#"))).toEqual([]);
-      // reuses the venv qavCollectorUpload creates; no bare pip / qav-collector (PEP 668 agents)
-      expect(snippet).toHaveTextContent('.qav-venv/bin/python -m qav_collector import-features "tests/features/**/*.feature"');
+      // reuses the venv qeosCollectorUpload creates; no bare pip / qeos-collector (PEP 668 agents)
+      expect(snippet).toHaveTextContent('.qeos-venv/bin/python -m qeos_collector import-features "tests/features/**/*.feature"');
       expect(snippet.textContent).not.toMatch(/^\s*pip install/m);
-      expect(snippet.textContent).not.toMatch(/^\s*qav-collector/m);
+      expect(snippet.textContent).not.toMatch(/^\s*qeos-collector/m);
     }
   }
 });
 
-test("Run from QA Vision is shown to owners and admins", async () => {
+test("Run from QEOS is shown to owners and admins", async () => {
   server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
   renderPage("admin");
-  expect(await screen.findByRole("heading", { name: "Run from QA Vision" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Run from QEOS" })).toBeInTheDocument();
 });
 
-test("members do not see Run from QA Vision", async () => {
+test("members do not see Run from QEOS", async () => {
   server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
   renderPage("member");
   await screen.findByLabelText(/repository url/i); // the member role has loaded: editing is enabled
-  expect(screen.queryByRole("heading", { name: "Run from QA Vision" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Run from QEOS" })).not.toBeInTheDocument();
 });

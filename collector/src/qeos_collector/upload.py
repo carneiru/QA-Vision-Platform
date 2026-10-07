@@ -12,8 +12,8 @@ import urllib.parse
 import urllib.request
 from typing import Callable, Mapping, Optional, Tuple
 
-from qav_collector import __version__
-from qav_collector.payload import Part
+from qeos_collector import __version__
+from qeos_collector.payload import Part
 
 COLLECT_PATH = "/api/v1/collect/runs"
 KEY_CHECK_PATH = "/api/v1/collect/key"
@@ -50,7 +50,7 @@ def endpoint_for(url: str) -> str:
     secure = parts is not None and parts.scheme == "https" and bool(host)
     local = parts is not None and parts.scheme == "http" and host in LOCAL_HOSTS
     if not (secure or local):
-        raise ConfigError(f"QAV_URL must be an https:// URL (http:// only for localhost), got {url!r}")
+        raise ConfigError(f"QEOS_URL must be an https:// URL (http:// only for localhost), got {url!r}")
     return url.rstrip("/") + COLLECT_PATH
 
 
@@ -99,7 +99,7 @@ def upload_part(
         "Accept": "application/json",
         # Always sent: a retried POST whose first attempt was stored is then replayed, not stored twice
         "Idempotency-Key": part.idempotency_key,
-        "User-Agent": f"qav-collector/{__version__}",
+        "User-Agent": f"qeos-collector/{__version__}",
     }
     started = clock()
     attempt = 0
@@ -136,7 +136,7 @@ def check_key(url: str, api_key: str, context: Optional[ssl.SSLContext] = None) 
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Accept": "application/json",
-        "User-Agent": f"qav-collector/{__version__}",
+        "User-Agent": f"qeos-collector/{__version__}",
     }
     try:
         status, body, response_headers = _send(endpoint, None, headers, context)
@@ -152,7 +152,7 @@ def check_key(url: str, api_key: str, context: Optional[ssl.SSLContext] = None) 
         raise UploadError("the API key is invalid or revoked (401)")
     if 300 <= status < 400:
         raise UploadError(
-            f"the platform redirected to {response_headers.get('Location', '?')} ({status}); set QAV_URL to that address"
+            f"the platform redirected to {response_headers.get('Location', '?')} ({status}); set QEOS_URL to that address"
         )
     raise UploadError(f"the platform answered {status}: {_detail(body)}")
 
@@ -220,7 +220,7 @@ def _explain(status: int, body: bytes, headers: Mapping[str, str]) -> str:
     if status == 409:
         return "this Idempotency-Key was already used for different results (409)"
     if 300 <= status < 400:
-        return f"the platform redirected to {headers.get('Location', '?')} ({status}); set QAV_URL to that address"
+        return f"the platform redirected to {headers.get('Location', '?')} ({status}); set QEOS_URL to that address"
     return f"the platform rejected the upload ({status}): {_detail(body)}"
 
 

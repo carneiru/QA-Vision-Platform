@@ -1,4 +1,4 @@
-"""Settings shared by every QA Vision Platform service."""
+"""Settings shared by every QEOS service."""
 from typing import Optional
 from urllib.parse import quote
 
@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class BaseServiceSettings(BaseSettings):
     """Subclass this and add whatever else your service needs."""
 
-    APP_NAME: str = "QA Vision Service"
+    APP_NAME: str = "QEOS Service"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
@@ -29,7 +29,7 @@ class BaseServiceSettings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
-    # Outgoing email (qav_shared.mail). Empty SMTP_HOST: no email is sent
+    # Outgoing email (qeos_shared.mail). Empty SMTP_HOST: no email is sent
     SMTP_TLS: bool = True
     SMTP_PORT: int = 587
     SMTP_HOST: str = ""

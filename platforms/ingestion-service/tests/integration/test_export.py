@@ -46,7 +46,7 @@ def test_an_owner_downloads_every_run_and_result_of_the_project(client, auth, pr
 
     assert response.status_code == 200, response.text
     assert response.headers["content-type"].startswith("application/x-ndjson")
-    assert 'attachment; filename="qa-vision-project-1-' in response.headers["content-disposition"]
+    assert 'attachment; filename="qeos-project-1-' in response.headers["content-disposition"]
     header, run, *results = lines(response)
     assert header["type"] == "export" and header["project_id"] == 1 and header["format"] == 1
     assert run["type"] == "run" and run["id"] == mine and run["branch"] == "main"

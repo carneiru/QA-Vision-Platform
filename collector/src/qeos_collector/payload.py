@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from qav_collector import __version__
+from qeos_collector import __version__
 
 MAX_RESULTS_PER_PART = 20000
 # The gateway accepts bodies up to 10 MB
@@ -60,7 +60,7 @@ def build_run(
     """Metadata the server would reject is left out or cut, so it never costs the whole run."""
     run = {
         "ci_provider": ci_provider,
-        "agent_version": f"qav-collector/{__version__}",
+        "agent_version": f"qeos-collector/{__version__}",
         "started_at": started_at.astimezone(timezone.utc).isoformat(),
         "finished_at": finished_at.astimezone(timezone.utc).isoformat(),
     }

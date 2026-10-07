@@ -53,7 +53,10 @@ _TOKENS = (
     ("stripe_key", re.compile(r"\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,255}\b")),
     ("google_api_key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}(?![0-9A-Za-z_\-])")),
     ("npm_token", re.compile(r"\bnpm_[A-Za-z0-9]{36}\b")),
-    ("qav_key", re.compile(r"\bqav_[A-Za-z0-9_\-]{43}(?![A-Za-z0-9_\-])")),
+    # Project API keys: `qeos_…`, and `qav_…` issued before the QEOS rename. The kind keeps its
+    # pre-rename name, so markers already stored ([REDACTED:qav_key]) and the redactions metric's
+    # label stay the same; it is kept for compatibility, not an oversight.
+    ("qav_key", re.compile(r"\b(?:qeos|qav)_[A-Za-z0-9_\-]{43}(?![A-Za-z0-9_\-])")),
 )
 
 # key=value, key: value, "key": "value", 'key': 'value'. The key is matched as a whole word and

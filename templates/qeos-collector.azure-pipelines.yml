@@ -1,0 +1,52 @@
+# Azure Pipelines step template: upload test results to a QEOS platform.
+#
+# Copy this file into your repository (or reference it through a repository resource), then
+# after your test step:
+#
+#   steps:
+#     - template: templates/qeos-collector.azure-pipelines.yml
+#       parameters:
+#         url: https://qeos.example.com
+#         patterns: "reports/**/*.xml"
+#
+# Add QEOS_API_KEY to the pipeline as a secret variable. Azure Pipelines never gives secret
+# variables to scripts on its own; the env mapping below is what passes it to the collector.
+# A pipeline set up before the QEOS rename has the secret named QAV_API_KEY: rename it to
+# QEOS_API_KEY, or change the mapping below to `QEOS_API_KEY: $(QAV_API_KEY)`. An undefined
+# secret reaches the collector as the literal text "$(QEOS_API_KEY)" and the upload fails with 401.
+
+parameters:
+  - name: url
+    type: string
+  - name: patterns
+    type: string
+    default: "reports/**/*.xml"
+  - name: environment
+    type: string
+    default: ""
+  - name: ref
+    type: string
+    default: collector-v0.4.0
+  # Reporting is a side effect: by default a failed upload does not fail the pipeline
+  - name: failOnError
+    type: boolean
+    default: false
+
+steps:
+  - task: UsePythonVersion@0
+    displayName: Python for qeos-collector
+    condition: always()
+    inputs:
+      versionSpec: "3.x"
+
+  - script: |
+      python -m pip install --quiet --disable-pip-version-check "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${{ parameters.ref }}#subdirectory=collector"
+      qeos-collector upload "${{ parameters.patterns }}"
+    displayName: Upload test results to QEOS
+    condition: always()  # report results even when the tests failed
+    continueOnError: ${{ not(parameters.failOnError) }}
+    env:
+      QEOS_URL: ${{ parameters.url }}
+      QEOS_API_KEY: $(QEOS_API_KEY)   # secret named QAV_API_KEY (before the rename)? map $(QAV_API_KEY)
+      ${{ if ne(parameters.environment, '') }}:
+        QEOS_ENVIRONMENT: ${{ parameters.environment }}

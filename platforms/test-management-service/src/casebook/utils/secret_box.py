@@ -3,7 +3,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from src.casebook.core.config import settings
 
-NOT_CONFIGURED = "Running tests from QA Vision is not configured on this server"
+NOT_CONFIGURED = "Running tests from QEOS is not configured on this server"
 UNREADABLE = "The stored GitHub token cannot be read with this server's key: replace it in Settings"
 
 

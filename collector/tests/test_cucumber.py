@@ -3,7 +3,7 @@ dispatcher: a feature's scenarios become results in the shared shape."""
 import json
 from datetime import datetime, timezone
 
-from qav_collector.formats import parse_file
+from qeos_collector.formats import parse_file
 
 
 def write(tmp_path, data, name="cucumber.json"):

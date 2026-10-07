@@ -35,7 +35,7 @@ export default function VerifyEmailPage() {
   if (!token) {
     return (
       <div className="page page-narrow">
-        <h1>QA Vision</h1>
+        <h1>QEOS</h1>
         <div className="card">
           <p>This verification link is incomplete — it carries no token. Use the full link from the email.</p>
           <Link to="/register">Register</Link>
@@ -47,7 +47,7 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="page page-narrow">
-      <h1>QA Vision</h1>
+      <h1>QEOS</h1>
       <div className="card">
         {state === "working" && <p className="muted">Verifying your email…</p>}
         {state === "failed" && (

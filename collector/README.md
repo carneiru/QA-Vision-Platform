@@ -1,22 +1,53 @@
-# qav-collector
+# qeos-collector
 
-Uploads JUnit XML test results from a CI job to the QA Vision platform. Standard library only,
+Uploads JUnit XML test results from a CI job to the QEOS platform. Standard library only,
 Python 3.9 or newer, nothing else to install.
 
 ## Install
 
 ```bash
-pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
+pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
 ```
+
+### Renamed from `qav-collector` (0.4.0)
+
+The collector was `qav-collector` before QEOS got its name. Version 0.4.0, the `collector-v0.4.0`
+tag that comes with this release, is the first one called `qeos-collector`. The old names keep
+working, so a pipeline that already uses them does not break:
+
+- The `qav-collector` command still runs the collector, after one stderr line:
+  `qav-collector is deprecated; use qeos-collector`.
+- Every `QAV_*` environment variable (`QAV_URL`, `QAV_API_KEY`, `QAV_ENVIRONMENT`, ...) still works
+  when its `QEOS_*` name is not set, with a one-line deprecation warning. If both are set, the
+  `QEOS_*` name wins.
+- `.qav.yml` is read when there is no `.qeos.yml`, with a deprecation warning.
+- API keys that start with `qav_` keep authenticating; new keys start with `qeos_`.
+
+Older tags (`collector-v0.3.0` and before) install the package under its old name, `qav-collector`.
+
+Things that do not rename themselves in your CI configuration:
+
+- **Azure Pipelines:** the template and snippet map `QEOS_API_KEY: $(QEOS_API_KEY)`. A pipeline whose
+  secret variable is still named `QAV_API_KEY` must rename it, or map `QEOS_API_KEY: $(QAV_API_KEY)`:
+  an undefined secret reaches the collector as the literal text `$(QEOS_API_KEY)`, and the upload
+  fails with 401 (without failing the pipeline, by default).
+- **GitLab template:** `templates/qav-collector.gitlab-ci.yml` became `templates/qeos-collector.gitlab-ci.yml`,
+  its jobs `.qav-collector` / `qav-collector-upload` became `.qeos-collector` / `qeos-collector-upload`
+  (rename a job override), and its variables became `QEOS_PATTERNS`, `QEOS_EXTRA_ARGS` and
+  `QEOS_COLLECTOR_REF`. The `QAV_*` versions of those three still apply when the new ones are unset.
+- **Release assets:** the single-file build is `qeos-collector.pyz` and the image is
+  `ghcr.io/carneiru/qeos-collector`. Each release also publishes the same file as `qav-collector.pyz`
+  and the same image as `ghcr.io/carneiru/qav-collector`, so existing download URLs and image pins keep
+  getting updates.
 
 ## Use
 
-Create an API key for the project in the platform, store it as a CI secret named `QAV_API_KEY`,
+Create an API key for the project in the platform, store it as a CI secret named `QEOS_API_KEY`,
 and run the collector after the tests — also when they fail:
 
 ```bash
-export QAV_URL=https://qav.example.com
-qav-collector upload "reports/**/*.xml"
+export QEOS_URL=https://qeos.example.com
+qeos-collector upload "reports/**/*.xml"
 ```
 
 All matching files become **one run**. On GitHub Actions, GitLab CI, Jenkins and Azure Pipelines the commit, branch
@@ -30,14 +61,14 @@ instead of storing it twice.
       - name: Run tests
         run: pytest --junitxml=reports/junit.xml
 
-      - name: Upload results to QA Vision
+      - name: Upload results to QEOS
         if: always()
         env:
-          QAV_URL: https://qav.example.com
-          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+          QEOS_URL: https://qeos.example.com
+          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
         run: |
-          pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
-          qav-collector upload "reports/**/*.xml"
+          pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
+          qeos-collector upload "reports/**/*.xml"
 ```
 
 ### GitLab CI
@@ -47,11 +78,11 @@ test:
   script:
     - pytest --junitxml=reports/junit.xml
   after_script:
-    - pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
-    - qav-collector upload "reports/**/*.xml"
+    - pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
+    - qeos-collector upload "reports/**/*.xml"
   variables:
-    QAV_URL: https://qav.example.com
-  # QAV_API_KEY: a masked CI/CD variable in the project settings
+    QEOS_URL: https://qeos.example.com
+  # QEOS_API_KEY: a masked CI/CD variable in the project settings
 ```
 
 ### Jenkins
@@ -59,17 +90,17 @@ test:
 ```groovy
 post {
   always {
-    withCredentials([string(credentialsId: 'qav-api-key', variable: 'QAV_API_KEY')]) {
+    withCredentials([string(credentialsId: 'qeos-api-key', variable: 'QEOS_API_KEY')]) {
       sh '''
-        pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
-        QAV_URL=https://qav.example.com qav-collector upload "target/surefire-reports/*.xml"
+        pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
+        QEOS_URL=https://qeos.example.com qeos-collector upload "target/surefire-reports/*.xml"
       '''
     }
   }
 }
 ```
 
-`import-features` skips itself when the branch is not the sync branch (`master`, or `QAV_IMPORT_BRANCH`).
+`import-features` skips itself when the branch is not the sync branch (`master`, or `QEOS_IMPORT_BRANCH`).
 If the agent provides no branch (a pipeline without SCM, `GIT_BRANCH` unset) the command cannot tell and
 runs. Guard the stage with `when { branch 'master' }` or make sure `GIT_BRANCH` is set; the server's
 mass-archive guard is the backstop.
@@ -80,26 +111,26 @@ mass-archive guard is the backstop.
 steps:
   - script: mvn test   # or pytest --junitxml=reports/junit.xml, dotnet test --logger trx, …
   - script: |
-      pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
-      qav-collector upload "**/TEST-*.xml"
-    displayName: Upload test results to QA Vision
+      pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
+      qeos-collector upload "**/TEST-*.xml"
+    displayName: Upload test results to QEOS
     condition: always()        # report results even when the tests failed
     continueOnError: true      # a failed upload does not fail the pipeline
     env:
-      QAV_URL: https://qav.example.com
-      QAV_API_KEY: $(QAV_API_KEY)   # a secret variable reaches scripts only when mapped like this
+      QEOS_URL: https://qeos.example.com
+      QEOS_API_KEY: $(QEOS_API_KEY)   # a secret variable reaches scripts only when mapped like this
 ```
 
 Commit, branch (the source branch on a pull request), PR number, target branch and the build URL
 are detected from `TF_BUILD` and the `BUILD_*` / `SYSTEM_*` variables; a retried job
-(`System.JobAttempt`) is a new run. Reusable step template: `templates/qav-collector.azure-pipelines.yml`.
+(`System.JobAttempt`) is a new run. Reusable step template: `templates/qeos-collector.azure-pipelines.yml`.
 Hosted agents cannot reach a platform on `localhost`: use a self-hosted agent on that network or
 a deployment with a public address.
 
 ### See what would be sent
 
 ```bash
-qav-collector upload "reports/**/*.xml" --dry-run
+qeos-collector upload "reports/**/*.xml" --dry-run
 ```
 
 prints the JSON and uploads nothing; no URL or key is needed.
@@ -111,29 +142,29 @@ variable, and both win over what is detected from the CI system.
 
 | Option | Variable | Meaning |
 |---|---|---|
-| `--url` | `QAV_URL` | Platform URL (required unless `--dry-run`) |
-| — | `QAV_API_KEY` | The project's API key. Environment only, never a flag |
-| `--ci-provider` | `QAV_CI_PROVIDER` | `github_actions`, `gitlab_ci`, `jenkins`, `other` or `local` |
-| `--branch` | `QAV_BRANCH` | Branch name |
-| `--commit` | `QAV_COMMIT` | Commit SHA (7 to 40 hex characters; anything else is left out) |
-| `--ci-run-url` | `QAV_CI_RUN_URL` | Link to the CI job |
-| `--environment` | `QAV_ENVIRONMENT` | e.g. `staging` |
-| `--idempotency-key` | `QAV_IDEMPOTENCY_KEY` | Overrides the key derived from the CI job |
-| `--ca-file` | `QAV_CA_FILE` | Extra CA certificate to trust (a private CA, or the local stack's self-signed one) |
-| `--component` | `QAV_COMPONENTS` | `NAME@SHA` of a repo/version this run exercised, e.g. the product build an E2E suite ran against. Flag repeatable; variable comma-separated. Up to 20 |
-| `--client-cert` | `QAV_CLIENT_CERT` | Client certificate for mTLS, presented when the server asks for one |
-| `--client-key` | `QAV_CLIENT_KEY` | Private key belonging to `--client-cert` |
-| `--fail-on-error` | `QAV_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
-| `--gate` | `QAV_GATE=1` | Exit 1 if the run has failures outside quarantine, or could not be uploaded (see below) |
-| `--spool` | `QAV_SPOOL` | Directory keeping parts a failed upload could not deliver; the next invocation resends them first, under their original Idempotency-Key (so nothing is ever stored twice). Capped at 100 files; rejected uploads (401/409) are never spooled. Point it at a persistent runner path — a wiped workspace wipes the spool |
+| `--url` | `QEOS_URL` | Platform URL (required unless `--dry-run`) |
+| — | `QEOS_API_KEY` | The project's API key. Environment only, never a flag |
+| `--ci-provider` | `QEOS_CI_PROVIDER` | `github_actions`, `gitlab_ci`, `jenkins`, `other` or `local` |
+| `--branch` | `QEOS_BRANCH` | Branch name |
+| `--commit` | `QEOS_COMMIT` | Commit SHA (7 to 40 hex characters; anything else is left out) |
+| `--ci-run-url` | `QEOS_CI_RUN_URL` | Link to the CI job |
+| `--environment` | `QEOS_ENVIRONMENT` | e.g. `staging` |
+| `--idempotency-key` | `QEOS_IDEMPOTENCY_KEY` | Overrides the key derived from the CI job |
+| `--ca-file` | `QEOS_CA_FILE` | Extra CA certificate to trust (a private CA, or the local stack's self-signed one) |
+| `--component` | `QEOS_COMPONENTS` | `NAME@SHA` of a repo/version this run exercised, e.g. the product build an E2E suite ran against. Flag repeatable; variable comma-separated. Up to 20 |
+| `--client-cert` | `QEOS_CLIENT_CERT` | Client certificate for mTLS, presented when the server asks for one |
+| `--client-key` | `QEOS_CLIENT_KEY` | Private key belonging to `--client-cert` |
+| `--fail-on-error` | `QEOS_FAIL_ON_ERROR=1` | Exit 1 if the upload fails |
+| `--gate` | `QEOS_GATE=1` | Exit 1 if the run has failures outside quarantine, or could not be uploaded (see below) |
+| `--spool` | `QEOS_SPOOL` | Directory keeping parts a failed upload could not deliver; the next invocation resends them first, under their original Idempotency-Key (so nothing is ever stored twice). Capped at 100 files; rejected uploads (401/409) are never spooled. Point it at a persistent runner path — a wiped workspace wipes the spool |
 | `--dry-run` | — | Print the JSON; upload nothing |
 
-## `qav-collector check`
+## `qeos-collector check`
 
 Verifies the setup without uploading — run it once when wiring a new pipeline:
 
 ```
-qav-collector check "reports/**/*.xml" --url https://qa-vision.example.com
+qeos-collector check "reports/**/*.xml" --url https://qeos.example.com
 ```
 
 It checks, in order: the URL shape, the TLS trust (`--ca-file` honoured), the
@@ -141,25 +172,25 @@ API key (a `GET /api/v1/collect/key` names the project it belongs to), and —
 when patterns are given — that report files match and parse. Exits 2 on the
 first failed check, 0 when everything passes.
 
-## `qav-collector import-features`
+## `qeos-collector import-features`
 
 Keeps the project's test cases in sync with the Gherkin `.feature` files in your repository.
-The API key (`QAV_API_KEY`, environment only) is traded for a 5-minute import token that works
+The API key (`QEOS_API_KEY`, environment only) is traded for a 5-minute import token that works
 only for the case import of that project; changes it makes are recorded as made by CI.
 
 ```
-qav-collector import-features                       # every **/*.feature
-qav-collector import-features "features/**/*.feature" --dry-run
+qeos-collector import-features                       # every **/*.feature
+qeos-collector import-features "features/**/*.feature" --dry-run
 ```
 
-- **Branch rule.** It runs only on the sync branch: `--branch`, else `$QAV_IMPORT_BRANCH`, else
+- **Branch rule.** It runs only on the sync branch: `--branch`, else `$QEOS_IMPORT_BRANCH`, else
   `master`. On any other detected branch it prints `skipped: on <branch>; cases sync from <name>`
   and exits 0, so the same pipeline step can run on every build.
 - **Full by default.** The import is a full sync: cases of deleted `.feature` files are archived.
   `--no-full` compares only the files given and never archives anything.
 - **Mass-archive guard.** The platform refuses a full import that would archive more than half of
   the imported cases (409). If that is intended, pass `--allow-mass-archive`.
-- **Patterns.** Arguments, else `features:` in `.qav.yml`, else `**/*.feature`. Paths with a `node_modules` segment are always skipped, and so are dot-directories; patterns cannot reach outside the working directory.
+- **Patterns.** Arguments, else `features:` in `.qeos.yml`, else `**/*.feature`. Paths with a `node_modules` segment are always skipped, and so are dot-directories; patterns cannot reach outside the working directory.
 - `--dry-run` prints the plan and changes nothing; `--strict` exits 1 when a file fails to parse.
 
 ```yaml
@@ -186,24 +217,24 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
-      - run: pip install "qav-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.3.0#subdirectory=collector"
-      - run: qav-collector import-features
+      - run: pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.0#subdirectory=collector"
+      - run: qeos-collector import-features
         env:
-          QAV_URL: ${{ vars.QAV_URL }}
-          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+          QEOS_URL: ${{ vars.QEOS_URL }}
+          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
 ```
 
-## `.qav.yml`
+## `.qeos.yml`
 
 Project defaults, read from the working directory — flags beat environment
 variables beat the file. Flat keys and string lists only (a built-in reader,
 no YAML dependency); the API key is never accepted here:
 
 ```yaml
-url: https://qa-vision.example.com
+url: https://qeos.example.com
 environment: staging
 ca-file: certs/internal-ca.pem
-spool: .qav-spool
+spool: .qeos-spool
 fail-on-error: true
 patterns:
   - "reports/**/*.xml"
@@ -270,7 +301,7 @@ showing up, but its failures stop counting. With `--gate`, the collector decides
 - Certificates are always verified; there is no option to turn that off. Use `--ca-file` for a
   private CA.
 - `HTTPS_PROXY` and `NO_PROXY` are honoured.
-- Redirects are not followed, so the key is never sent anywhere but `QAV_URL`.
+- Redirects are not followed, so the key is never sent anywhere but `QEOS_URL`.
 - Retries: connection errors, timeouts and 5xx answers are retried after 1, 2, 4 and 8 seconds;
   429 waits for `Retry-After` (at most 10 s). At most 5 attempts and 2 minutes per run.
 - The API key is never printed.
@@ -285,4 +316,4 @@ uv venv --seed --python 3.9 .venv
 ```
 
 A release is a git tag `collector-v<version>` on this repository, matching `__version__` in
-`src/qav_collector/__init__.py`.
+`src/qeos_collector/__init__.py`.

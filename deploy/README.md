@@ -1,4 +1,4 @@
-# Deploying QA Vision on one VM
+# Deploying QEOS on one VM
 
 The whole platform runs on a single Linux VM with the same Docker Compose stack used in
 development, plus one extra service: **Caddy**, which obtains and renews a Let's Encrypt
@@ -14,7 +14,7 @@ internet ──443──▶ edge (Caddy, Let's Encrypt) ──▶ gateway (NGINX
 
 - **A VM**: Ubuntu 24.04 LTS, 2 vCPU, 4 GB RAM, 30 GB disk is enough for a pilot
   (Azure `B2s`, AWS `t3.medium` or similar).
-- **A domain name** you can add a DNS record to, e.g. `qa-vision.example.com`.
+- **A domain name** you can add a DNS record to, e.g. `qeos.example.com`.
 - **An email address** for Let's Encrypt certificate-expiry notices.
 
 ## 2. Network
@@ -36,19 +36,19 @@ sudo usermod -aG docker "$USER"   # log out and back in afterwards
 docker compose version            # 2.24 or newer
 ```
 
-## 4. Install QA Vision
+## 4. Install QEOS
 
 ```bash
 git clone https://github.com/carneiru/QA-Vision-Platform.git
 cd QA-Vision-Platform
-bash deploy/init-env.sh qa-vision.example.com ops@example.com
+bash deploy/init-env.sh qeos.example.com ops@example.com
 ```
 
 `init-env.sh` writes `.env` (mode 600, git-ignored) with the domain and freshly generated
 secrets: `SECRET_KEY`, `INTERNAL_API_PASSWORD`, `POSTGRES_PASSWORD`, `TM_SECRETS_KEY`. It refuses to overwrite
 an existing `.env`. **Back this file up somewhere safe**: losing it means losing access to
 the database. Include it in every `.env` backup: `TM_SECRETS_KEY` encrypts the GitHub tokens used to
-run tests from QA Vision, and losing it means re-entering each project's GitHub token.
+run tests from QEOS, and losing it means re-entering each project's GitHub token.
 
 Then start everything:
 
@@ -57,17 +57,17 @@ docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --b
 ```
 
 The first start takes a few minutes (image builds, migrations, certificate issuance).
-Open `https://qa-vision.example.com`, create the first account, organization and project.
+Open `https://qeos.example.com`, create the first account, organization and project.
 
-> Tip: put `alias qav='docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml'`
-> in `~/.bashrc`; the commands below then shorten to `qav ps`, `qav logs -f gateway`, …
+> Tip: put `alias qeos='docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml'`
+> in `~/.bashrc`; the commands below then shorten to `qeos ps`, `qeos logs -f gateway`, …
 
 ## 5. Email
 
 Without SMTP settings the platform still works: verification and password-reset links are
-written to the auth-service log (`qav logs auth-service | grep "Verification email"`), and
+written to the auth-service log (`qeos logs auth-service | grep "Verification email"`), and
 email notification channels report "SMTP is not configured". To send real email, add to `.env`
-and recreate the services that send mail (`qav up -d auth-service ingestion-service weekly-summary`).
+and recreate the services that send mail (`qeos up -d auth-service ingestion-service weekly-summary`).
 Compose passes these variables to all three:
 
 ```
@@ -75,16 +75,16 @@ SMTP_HOST=smtp.example.com
 SMTP_PORT=587
 SMTP_USER=…
 SMTP_PASSWORD=…
-EMAILS_FROM_EMAIL=qa-vision@example.com
-# optional: SMTP_TLS=false for a relay without STARTTLS; EMAILS_FROM_NAME=QA Vision
+EMAILS_FROM_EMAIL=qeos@example.com
+# optional: SMTP_TLS=false for a relay without STARTTLS; EMAILS_FROM_NAME=QEOS
 ```
 
 ## 6. Connect CI
 
-In each repository that reports to QA Vision:
+In each repository that reports to QEOS:
 
-- secret `QAV_API_KEY`: a key from the project's **Settings → API keys**
-- variable or env `QAV_URL`: `https://qa-vision.example.com`
+- secret `QEOS_API_KEY`: a key from the project's **Settings → API keys**
+- variable or env `QEOS_URL`: `https://qeos.example.com`
 
 The **Settings → Wire up your CI** card shows the ready-to-paste snippet for GitHub
 Actions, GitLab CI, Jenkins or the plain CLI, with this address filled in. No `--ca-file`
@@ -102,15 +102,15 @@ crontab -e
 ```
 
 Copy the `backups/` directory off the VM regularly (object storage, another machine):
-a backup on the same disk does not survive the disk. Settings: `QAV_BACKUP_DIR`,
-`QAV_BACKUP_KEEP_DAYS`.
+a backup on the same disk does not survive the disk. Settings: `QEOS_BACKUP_DIR`,
+`QEOS_BACKUP_KEEP_DAYS`.
 
 **Restore** (onto a fresh install with the same `.env`):
 
 ```bash
-qav up -d --wait postgres
-gunzip -c backups/qav-<timestamp>.sql.gz | qav exec -T postgres psql -U postgres
-qav up -d --build --wait edge
+qeos up -d --wait postgres
+gunzip -c backups/qeos-<timestamp>.sql.gz | qeos exec -T postgres psql -U postgres
+qeos up -d --build --wait edge
 ```
 
 One `ERROR: role "postgres" already exists` during the restore is expected and harmless.
@@ -121,25 +121,45 @@ One `ERROR: role "postgres" already exists` during the restore is expected and h
 cd QA-Vision-Platform
 bash deploy/backup.sh          # always before an update
 git pull
-qav up -d --build --wait edge
+qeos up -d --build --wait edge
 ```
 
 Database migrations run automatically on every start.
 
 **Existing installs and `TM_SECRETS_KEY`.** `init-env.sh` never overwrites an existing `.env`, so an install
-made before "Run from QA Vision" has no `TM_SECRETS_KEY`. Add it once, by hand, then restart:
+made before "Run from QEOS" has no `TM_SECRETS_KEY`. Add it once, by hand, then restart:
 
 ```bash
 # either (needs only openssl)
 echo "TM_SECRETS_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
 # or (needs the cryptography package)
 python3 -c "from cryptography.fernet import Fernet; print('TM_SECRETS_KEY=' + Fernet.generate_key().decode())" >> .env
-qav up -d --wait edge
+qeos up -d --wait edge
 ```
 
-Without the key everything else works, but Project Settings shows "Running tests from QA Vision is not
+Without the key everything else works, but Project Settings shows "Running tests from QEOS is not
 configured on this server" and Play stays disabled. Keep the key in your `.env` backups: changing or losing
 it makes stored GitHub tokens unreadable, and owners then save them again in Settings.
+
+### Upgrading from QA Vision names
+
+The platform was called QA Vision before it became QEOS. An install from before the rename keeps
+working after `git pull`; only these settings change name:
+
+- **`.env`:** rename `QAV_DOMAIN` to `QEOS_DOMAIN` (compose stops with "set QEOS_DOMAIN" until you
+  do). If `EMAILS_FROM_NAME=QA Vision` is set, change it to `QEOS`. `TM_SECRETS_KEY` and every
+  other variable keep their names. `deploy/backup.sh` still reads `QAV_BACKUP_DIR` and
+  `QAV_BACKUP_KEEP_DAYS` when the `QEOS_*` names are not set, and old `qav-*.sql.gz` dumps age
+  out with the new ones.
+- **CI:** the collector reads `QEOS_URL` and `QEOS_API_KEY`. The `QAV_*` names still work, with
+  a one-line deprecation warning, and so does the `qav-collector` command (see `collector/README.md`).
+- **What keeps working unchanged:** API keys that start with `qav_` (new keys start with `qeos_`),
+  and signed-in browsers: the old `qav_refresh` cookie is accepted once and replaced by
+  `qeos_refresh`, so nobody is logged out.
+- **Data:** the Docker volumes keep their physical names (`qa-vision_qav_postgres_data`,
+  `qa-vision_qav_gateway_certs`, `qa-vision_qav_caddy_data`, `qa-vision_qav_caddy_config`) and
+  the compose project is still `qa-vision`, so no data moves. If Compose ever asks to recreate a
+  volume, answer N.
 
 ## 9. Security notes
 

@@ -40,7 +40,7 @@ export default function RequestedRunsPage() {
       </div>
       {list.error != null && <ErrorBanner error={list.error} onRetry={() => list.refetch()} />}
       {list.isPending && <p className="muted">Loading requested runs…</p>}
-      {list.data && list.data.total === 0 && <p className="muted">No runs requested from QA Vision yet.</p>}
+      {list.data && list.data.total === 0 && <p className="muted">No runs requested from QEOS yet.</p>}
       {items.length > 0 && (
         <div className="card" tabIndex={0} role="region" aria-label="Requested runs">
           <table className="data">

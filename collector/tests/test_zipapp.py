@@ -4,13 +4,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from qav_collector import __version__
+from qeos_collector import __version__
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "build_zipapp.py"
 
 
 def build(tmp_path):
-    out = tmp_path / "qav-collector.pyz"
+    out = tmp_path / "qeos-collector.pyz"
     result = subprocess.run([sys.executable, str(SCRIPT), "--out", str(out)],
                             capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -21,7 +21,7 @@ def test_the_archive_runs_and_names_its_version(tmp_path):
     out = build(tmp_path)
     result = subprocess.run([sys.executable, str(out), "--version"], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == f"qav-collector {__version__}"
+    assert result.stdout.strip() == f"qeos-collector {__version__}"
 
 
 def test_the_archive_parses_and_dry_runs(tmp_path):
@@ -44,5 +44,5 @@ def test_no_pycache_ships_in_the_archive(tmp_path):
     out = build(tmp_path)
     names = zipfile.ZipFile(out).namelist()
     assert not [n for n in names if "__pycache__" in n or n.endswith(".pyc")]
-    assert "qav_collector/cli.py" in names
+    assert "qeos_collector/cli.py" in names
     assert "__main__.py" in names

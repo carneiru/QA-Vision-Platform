@@ -1,4 +1,4 @@
-"""Database session wiring shared by every QA Vision Platform service.
+"""Database session wiring shared by every QEOS service.
 
 Note what is NOT here: the declarative Base. A declarative base is a mutable global
 registry of mapped classes, so one shared instance would put separate services'

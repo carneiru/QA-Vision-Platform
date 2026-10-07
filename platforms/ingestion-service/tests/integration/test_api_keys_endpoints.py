@@ -32,8 +32,8 @@ def test_revoke_is_for_editors(client, auth, project_role, make_key, role):
 def test_create_returns_the_key_once_and_stores_only_its_hash(client, auth, project_role, db):
     project_role("admin", organization_id=77)
     body = client.post(BASE, json={"name": "GitHub Actions"}, headers=auth(9)).json()
-    assert body["key"].startswith("qav_")
-    assert body["key_prefix"] == body["key"][:12]
+    assert body["key"].startswith("qeos_")
+    assert body["key_prefix"] == body["key"][:13]
     row = db.query(ApiKey).one()
     assert row.key_hash == hash_key(body["key"])
     assert body["key"] not in {row.key_hash, row.key_prefix, row.name}

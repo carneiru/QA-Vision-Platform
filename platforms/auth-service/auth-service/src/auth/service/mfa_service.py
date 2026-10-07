@@ -20,7 +20,7 @@ from src.auth.utils.password import get_password_hash, verify_password
 
 MFA_TOKEN_MINUTES = 5
 RECOVERY_CODES = 8
-ISSUER = "QA Vision"
+ISSUER = "QEOS"
 
 
 def start_enrollment(db: Session, user: User) -> tuple[str, str]:

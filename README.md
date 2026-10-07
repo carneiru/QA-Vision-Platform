@@ -1,10 +1,12 @@
-# QA Vision Platform
+# QEOS
+
+**Quality Engineering OS**
 
 A comprehensive quality assurance and analytics platform with AI-powered test analysis capabilities.
 
 ## Overview
 
-QA Vision is a microservices-based platform designed to provide end-to-end quality assurance workflow management, test analytics, and AI-driven insights. The platform consists of several independent services that communicate via well-defined APIs.
+QEOS is a microservices-based platform designed to provide end-to-end quality assurance workflow management, test analytics, and AI-driven insights. The platform consists of several independent services that communicate via well-defined APIs.
 
 ## Current Implementation: Authentication Service (Phase 1)
 
@@ -117,7 +119,7 @@ curl -k https://localhost:8443/health          # {"status":"healthy"}
 
 - All API calls go through `https://localhost:8443/api/v1/...` (see `gateway/README.md` for the
   routes). The certificate is self-signed: use `curl -k`, or trust
-  `docker compose cp gateway:/etc/nginx/certs/tls.crt ./qav-localhost.crt` once.
+  `docker compose cp gateway:/etc/nginx/certs/tls.crt ./qeos-localhost.crt` once.
 - Databases are created and migrated automatically on every `up`.
 - Inspect a database: `docker compose exec postgres psql -U postgres -d project_db`.
 - Stop: `docker compose down`. Wipe all data: `docker compose down --volumes`.
@@ -141,9 +143,9 @@ generated from the auth-service template and are not running services yet.
 
 ```
 QA-Vision-Platform/
-├── shared/                         # qav-shared: settings + DB session wiring used by services
+├── shared/                         # qeos-shared: settings + DB session wiring used by services
 ├── gateway/                        # NGINX gateway: routing, rate limits, TLS
-├── collector/                      # qav-collector: uploads JUnit results from CI (see collector/README.md)
+├── collector/                      # qeos-collector: uploads JUnit results from CI (see collector/README.md)
 ├── platforms/
 │   ├── auth-service/auth-service/  # Authentication (implemented)
 │   │   ├── src/auth/
@@ -189,7 +191,7 @@ already-issued access token remains valid until it expires.
 
 ## Future Phases
 
-The QA Vision platform is planned to be implemented in multiple phases:
+The QEOS platform is planned to be implemented in multiple phases:
 
 1. **Phase 1: Foundation Services** (Current) - Auth, Organization, Project services
 2. **Phase 2: Test Management** - Test case management, execution tracking

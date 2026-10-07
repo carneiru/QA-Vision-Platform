@@ -1,5 +1,5 @@
 /* The access token lives in memory only. The refresh token never reaches
-   JavaScript: it travels as the httpOnly `qav_refresh` cookie the auth
+   JavaScript: it travels as the httpOnly `qeos_refresh` cookie the auth
    service sets, scoped to /api/v1/auth. */
 
 let accessToken: string | null = null;

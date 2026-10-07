@@ -43,7 +43,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 | `GET` / `PATCH` / `DELETE` | `/suites/{id}` | detail lists the cases in order; delete keeps the cases |
 | `PUT` | `/suites/{id}/cases` | `{"cases": [3, 1, 2]}` replaces the ordered list |
 | `GET` | `/ci-target` | `{available, configured, provider, repo, workflow, ref, token_last4, token_expires_at, updated_at, last_change}`; every role; the token itself is never returned |
-| `PUT` | `/ci-target` | owner or admin; `{repo, workflow="qa-vision-run.yml", ref="main", token?}`; the token is required on the first save; checked with GitHub first: 422 "token invalid or expired" (401), "token has no Actions access to this repository" (403), "repository or workflow not found. The workflow file must exist on the repository's default branch" (404); 503 without `TM_SECRETS_KEY` or on a GitHub rate limit |
+| `PUT` | `/ci-target` | owner or admin; `{repo, workflow="qeos-run.yml", ref="main", token?}`; the token is required on the first save; checked with GitHub first: 422 "token invalid or expired" (401), "token has no Actions access to this repository" (403), "repository or workflow not found. The workflow file must exist on the repository's default branch" (404); 503 without `TM_SECRETS_KEY` or on a GitHub rate limit |
 | `DELETE` | `/ci-target` | owner or admin; 409 while a run is still active (the active run is first refreshed from GitHub, so one that already ended does not block); the audit trail (`ci_target_events`) is kept |
 | `POST` | `/run-requests` | owner, admin or member; `{case_numbers: [1..200]}` or `{suite_id}`; 201 with the request (also when it is `failed_to_start`); 412 no target; 409 `run_active`; 422 names the cases that cannot run (manual, archived, unknown, or with no scenario name yet: re-import). A whole suite skips its manual cases instead (`skipped_manual` in the response; 422 when none is automated) |
 | `GET` | `/run-requests?limit=&offset=` | `{total, items}`, newest first; an active request is refreshed from GitHub when last checked over 5 s ago; `refreshing` says whether to keep polling |
@@ -60,7 +60,7 @@ Limits:
 
 After deploying migration 003, run a full import once to fill Feature on existing imported cases (every imported case shows as updated in that run).
 
-## Run from QA Vision (Play and Stop)
+## Run from QEOS (Play and Stop)
 
 Design: `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`.
 
@@ -69,11 +69,15 @@ Design: `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`.
 1. Set `TM_SECRETS_KEY` in `.env`. Generate one with
    `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
    Keep it in your `.env` backups: losing it means re-entering the GitHub token.
-2. Copy `templates/github/qa-vision-run.yml` to `.github/workflows/` and
-   `templates/github/qa-vision-run.mjs` to `.github/scripts/` **on the repository's default branch**
+2. Copy `templates/github/qeos-run.yml` to `.github/workflows/` and
+   `templates/github/qeos-run.mjs` to `.github/scripts/` **on the repository's default branch**
    before the first Play. GitHub accepts `workflow_dispatch` only for a workflow on the default branch.
-3. Add the secret `QAV_API_KEY` and the variable `QAV_URL` in the repository.
+3. Add the secret `QEOS_API_KEY` and the variable `QEOS_URL` in the repository.
 4. An owner or admin saves the repository and token in Project Settings.
+
+A repository set up before the QEOS rename keeps working unchanged: its CI target keeps the stored
+workflow file name (`qa-vision-run.yml`), runs titled `QA Vision #<id>` still match, and the
+collector still accepts `QAV_API_KEY` and `QAV_URL`. Copying the new templates is optional.
 
 ### Limits
 
@@ -87,7 +91,7 @@ Design: `docs/superpowers/specs/2026-10-07-run-from-qa-vision-design.md`.
   window: the request is cancelled locally, and the run is cancelled on GitHub only if it is found in time.
 - A 404 on a known run (the token lost access, or the repository was changed in Settings) ends the request
   as `cancelled` while the GitHub run may continue.
-- GitHub's concurrency group cancels an older pending `qa-vision-run` when a newer one is queued.
+- GitHub's concurrency group cancels an older pending `qeos-run` when a newer one is queued.
 - The workflow file must be on the repository's default branch, and on the configured branch.
 
 ### Selection
@@ -104,9 +108,9 @@ old imported case answers 422 "re-import the .feature files first".
 - **What the token can do:** a fine-grained token limited to one repository with "Actions: Read and write".
   It can start, cancel, re-run and delete that repository's workflow runs and logs, and read its workflow
   files. It cannot read or change code.
-- **Wider than QA Vision's workflow:** that scope can start *any* `workflow_dispatch` workflow in the
+- **Wider than QEOS's workflow:** that scope can start *any* `workflow_dispatch` workflow in the
   repository, deploy workflows included, and they run with the repository's secrets. It can also read run
-  logs. Use a dedicated repository for the test workflow where you can, or keep `qa-vision-run.yml` the only
+  logs. Use a dedicated repository for the test workflow where you can, or keep `qeos-run.yml` the only
   workflow that has a `workflow_dispatch` trigger, so a leaked token reaches no more than that.
 - **At rest:** it is stored Fernet-encrypted with `TM_SECRETS_KEY` and never returned or logged. Responses
   show the last 4 characters.

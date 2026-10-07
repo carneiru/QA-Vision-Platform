@@ -1,6 +1,6 @@
 # Manages team collaboration features: comments, notifications, file sharing, and real-time communication
 
-Part of the QA Vision Platform (QEOS) – collaboration Domain.
+Part of QEOS – collaboration Domain.
 
 Provides CRUD operations for Collaboration Services (tenants) and related metadata.
 

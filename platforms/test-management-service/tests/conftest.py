@@ -117,7 +117,7 @@ class GitHubStub:
     call with the same name replaces the earlier answer. Nothing reaches the real api.github.com."""
 
     repo = "acme/obt"
-    workflow = "qa-vision-run.yml"
+    workflow = "qeos-run.yml"
 
     def __init__(self, router):
         self.router = router
@@ -159,7 +159,7 @@ class GitHubStub:
 
     def run_body(self, run_id, request_id, status="queued", conclusion=None, title=None,
                  created_at="2026-10-07T10:00:05Z"):
-        return {"id": run_id, "display_title": title or f"QA Vision #{request_id}", "status": status,
+        return {"id": run_id, "display_title": title or f"QEOS #{request_id}", "status": status,
                 "conclusion": conclusion, "event": "workflow_dispatch", "created_at": created_at,
                 "html_url": f"https://github.com/{self.repo}/actions/runs/{run_id}"}
 

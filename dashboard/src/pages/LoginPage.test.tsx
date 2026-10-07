@@ -149,3 +149,9 @@ test("bad credentials show the API detail", async () => {
   await userEvent.click(screen.getByRole("button", { name: /sign in/i }));
   expect(await screen.findByText("Incorrect email or password")).toBeInTheDocument();
 });
+
+test("the sign-in screen shows the product name and what it stands for", () => {
+  renderLogin();
+  expect(screen.getByRole("heading", { level: 1, name: "QEOS" })).toBeInTheDocument();
+  expect(screen.getByText("Quality Engineering OS")).toBeInTheDocument();
+});

@@ -81,7 +81,7 @@ export default function AppShell() {
           <Menu size={20} aria-hidden="true" />
         </button>
         <span className="brand">
-          <ScanSearch size={18} aria-hidden="true" /> QA Vision
+          <ScanSearch size={18} aria-hidden="true" /> QEOS
         </span>
       </header>
 
@@ -96,7 +96,7 @@ export default function AppShell() {
       >
         <div className="brand brand-row">
           <span className="brand-mark">
-            <ScanSearch size={18} aria-hidden="true" /> QA Vision
+            <ScanSearch size={18} aria-hidden="true" /> QEOS
           </span>
           {open && (
             <button className="ghost" aria-label="Close navigation" onClick={() => setOpen(false)}>

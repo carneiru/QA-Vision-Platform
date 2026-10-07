@@ -71,18 +71,18 @@ jobs:
         if: matrix.extra_tests != ''
         run: python -m pytest ${{ matrix.extra_tests }} -q --junitxml=reports/junit-extra.xml
 
-      # Dogfooding: the repository reports its own test results to a QA Vision
-      # deployment. Runs only when the QAV_URL repository variable is set, and never
+      # Dogfooding: the repository reports its own test results to a QEOS
+      # deployment. Runs only when the QEOS_URL (or pre-rename QAV_URL) repository variable is set, and never
       # on fork PRs (no secrets there). Reporting can never turn the build red.
-      - name: Report results to QA Vision
-        if: always() && vars.QAV_URL != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+      - name: Report results to QEOS
+        if: always() && (vars.QEOS_URL || vars.QAV_URL) != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         env:
-          QAV_URL: ${{ vars.QAV_URL }}
-          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+          QEOS_URL: ${{ vars.QEOS_URL || vars.QAV_URL }}
+          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY || secrets.QAV_API_KEY }}
         run: |
           python -m pip install --quiet "${{ github.workspace }}/collector"
-          qav-collector upload "reports/*.xml" --environment ${{ matrix.service }}
+          qeos-collector upload "reports/*.xml" --environment ${{ matrix.service }}
 
   smoke:
     name: Container smoke test (${{ matrix.service }})
@@ -163,28 +163,28 @@ jobs:
         run: npm run test -- --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml
 
       - name: Workflow template tests (templates/github)
-        run: node --test ../templates/github/qa-vision-run.test.mjs
+        run: node --test ../templates/github/qeos-run.test.mjs
 
       - name: Build
         run: npm run build
 
       - uses: actions/setup-python@v7
-        if: always() && vars.QAV_URL != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: always() && (vars.QEOS_URL || vars.QAV_URL) != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         with:
           python-version: "3.12"
 
-      # Dogfooding: the repository reports its own test results to a QA Vision
-      # deployment. Runs only when the QAV_URL repository variable is set, and never
+      # Dogfooding: the repository reports its own test results to a QEOS
+      # deployment. Runs only when the QEOS_URL (or pre-rename QAV_URL) repository variable is set, and never
       # on fork PRs (no secrets there). Reporting can never turn the build red.
-      - name: Report results to QA Vision
-        if: always() && vars.QAV_URL != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+      - name: Report results to QEOS
+        if: always() && (vars.QEOS_URL || vars.QAV_URL) != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         env:
-          QAV_URL: ${{ vars.QAV_URL }}
-          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+          QEOS_URL: ${{ vars.QEOS_URL || vars.QAV_URL }}
+          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY || secrets.QAV_API_KEY }}
         run: |
           python -m pip install --quiet "${{ github.workspace }}/collector"
-          qav-collector upload "reports/*.xml" --environment dashboard
+          qeos-collector upload "reports/*.xml" --environment dashboard
 
   collector:
     name: Collector (Python ${{ matrix.python }})
@@ -213,22 +213,22 @@ jobs:
         run: python -m pip install . pytest cryptography
 
       - name: The entry point works
-        run: qav-collector --version
+        run: qeos-collector --version
 
       - name: Run tests
         run: python -m pytest -q --junitxml=reports/junit.xml
 
-      # Dogfooding: the repository reports its own test results to a QA Vision
-      # deployment. Runs only when the QAV_URL repository variable is set, and never
+      # Dogfooding: the repository reports its own test results to a QEOS
+      # deployment. Runs only when the QEOS_URL (or pre-rename QAV_URL) repository variable is set, and never
       # on fork PRs (no secrets there). Reporting can never turn the build red.
-      - name: Report results to QA Vision
-        if: always() && vars.QAV_URL != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
+      - name: Report results to QEOS
+        if: always() && (vars.QEOS_URL || vars.QAV_URL) != '' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         continue-on-error: true
         env:
-          QAV_URL: ${{ vars.QAV_URL }}
-          QAV_API_KEY: ${{ secrets.QAV_API_KEY }}
+          QEOS_URL: ${{ vars.QEOS_URL || vars.QAV_URL }}
+          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY || secrets.QAV_API_KEY }}
         run: |
-          qav-collector upload "reports/*.xml" --environment collector-py${{ matrix.python }}
+          qeos-collector upload "reports/*.xml" --environment collector-py${{ matrix.python }}
 
   gateway:
     name: Gateway and full stack
