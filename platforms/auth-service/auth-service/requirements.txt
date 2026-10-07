@@ -20,7 +20,7 @@ python3-saml
 Authlib==1.8.0
 requests==2.34.2
 # Test dependencies (the suite could not run without these; matches organization-service)
-pytest==8.1.1
+pytest==9.1.1
 httpx==0.28.1
 # Relative path, resolved from this file's directory. The Dockerfile mirrors the repo
 # layout so this same path resolves inside the image.
