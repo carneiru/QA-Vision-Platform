@@ -37,5 +37,5 @@ def decrypt(ciphertext: str) -> str:
     box = _fernet()
     try:
         return box.decrypt(ciphertext.encode("ascii")).decode("utf-8")
-    except InvalidToken:
+    except (InvalidToken, ValueError, TypeError):  # incl. UnicodeEncodeError/UnicodeDecodeError
         raise SecretsUnavailable(UNREADABLE) from None

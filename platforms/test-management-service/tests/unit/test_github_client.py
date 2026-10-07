@@ -141,3 +141,60 @@ def test_cancelling_a_finished_run_is_a_409_github_error(github):
     with pytest.raises(gh.GitHubError) as err:
         gh.cancel_run(TOKEN, github.repo, 9)
     assert err.value.status == 409
+
+
+@pytest.mark.parametrize("repo, workflow", [("acme/obt\n", "x.yml"), ("acme/obt", "x.yml\n")])
+def test_a_trailing_newline_in_a_name_is_rejected_before_any_request(http, repo, workflow):
+    with pytest.raises(ValueError):
+        gh.check_target(TOKEN, repo, workflow)
+    assert not http.calls
+
+
+def test_find_run_accepts_a_naive_since_as_utc(github):
+    github.runs(github.run_body(3, 7))
+    naive = datetime(2026, 10, 7, 9, 59)
+    assert gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", naive)["id"] == 3
+
+
+@pytest.mark.parametrize("status", [301, 302, 307])
+def test_every_redirect_is_an_error_even_without_a_location(http, status):
+    http.get(f"{gh.API}/repos/acme/obt").mock(return_value=httpx.Response(status))
+    with pytest.raises(gh.GitHubError) as err:
+        gh.check_target(TOKEN, "acme/obt", "qa-vision-run.yml")
+    assert err.value.status == status
+
+
+def test_a_bare_429_is_a_rate_limit(http):
+    http.get(f"{gh.API}/repos/acme/obt").mock(return_value=httpx.Response(429))
+    with pytest.raises(gh.RateLimited) as err:
+        gh.check_target(TOKEN, "acme/obt", "qa-vision-run.yml")
+    assert err.value.retry_after >= 1
+
+
+def test_a_run_without_an_event_is_not_matched(github):
+    since = datetime(2026, 10, 7, 9, 59, tzinfo=timezone.utc)
+    no_event = github.run_body(3, 7)
+    del no_event["event"]
+    github.runs(no_event)
+    assert gh.find_run(TOKEN, github.repo, github.workflow, "QA Vision #7", since) is None
+
+
+def test_a_5xx_is_a_github_error_with_its_status(github):
+    github.check(status=502)
+    with pytest.raises(gh.GitHubError) as err:
+        gh.check_target(TOKEN, github.repo, github.workflow)
+    assert err.value.status == 502 and not isinstance(err.value, gh.RateLimited)
+
+
+def test_a_retry_after_header_sets_the_wait(github):
+    github.check(status=403, headers={"retry-after": "17"})
+    with pytest.raises(gh.RateLimited) as err:
+        gh.check_target(TOKEN, github.repo, github.workflow)
+    assert err.value.retry_after == 17
+
+
+def test_a_rate_limited_dispatch_raises_rate_limited(github):
+    github.dispatch(status=429, headers={"retry-after": "30"})
+    with pytest.raises(gh.RateLimited) as err:
+        gh.dispatch(TOKEN, github.repo, github.workflow, "main", {"request_id": "7"})
+    assert err.value.retry_after == 30

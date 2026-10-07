@@ -36,9 +36,9 @@ class RateLimited(GitHubError):
 
 
 def _check_names(repo: str, workflow: Optional[str] = None) -> None:
-    if not REPO.match(repo) or repo.split("/")[1] in (".", ".."):
+    if not REPO.fullmatch(repo) or repo.split("/")[1] in (".", ".."):
         raise ValueError("repository name not allowed")
-    if workflow is not None and not WORKFLOW.match(workflow):
+    if workflow is not None and not WORKFLOW.fullmatch(workflow):
         raise ValueError("workflow file name not allowed")
 
 
@@ -61,6 +61,8 @@ def _retry_after(response: httpx.Response) -> Optional[int]:
         if reset.isdigit():
             return max(1, int(reset) - int(datetime.now(timezone.utc).timestamp()))
         return 60
+    if response.status_code == 429:  # GitHub sends no headers on some secondary limits
+        return 60
     return None
 
 
@@ -73,7 +75,7 @@ def _send(token: str, method: str, path: str, **kwargs) -> httpx.Response:
     wait = _retry_after(response)
     if wait is not None:
         raise RateLimited(wait)
-    if response.is_redirect:
+    if 300 <= response.status_code < 400:
         raise GitHubError(response.status_code, "GitHub answered with a redirect, which QA Vision does not follow")
     if response.status_code == 401:
         raise GitHubError(401, UNAUTHORIZED)
@@ -155,6 +157,8 @@ def find_run(token: str, repo: str, workflow: str, title: str, since: datetime,
     """The oldest workflow_dispatch run of the workflow, created at or after `since`, whose display_title
     is exactly `title` and whose id no other request has claimed."""
     _check_names(repo, workflow)
+    if since.tzinfo is None:  # naive datetimes (SQLite) are UTC
+        since = since.replace(tzinfo=timezone.utc)
     response = _send(token, "GET", f"/repos/{repo}/actions/workflows/{workflow}/runs",
                      params={"event": "workflow_dispatch", "created": f">={github_time(since)}", "per_page": 100})
     runs = _json(response).get("workflow_runs") or []
@@ -162,7 +166,7 @@ def find_run(token: str, repo: str, workflow: str, title: str, since: datetime,
     for run in runs:
         if not isinstance(run, dict) or run.get("display_title") != title:
             continue
-        if run.get("event", "workflow_dispatch") != "workflow_dispatch" or run.get("id") in exclude_ids:
+        if run.get("event") != "workflow_dispatch" or run.get("id") in exclude_ids:
             continue
         created = _created(run)
         if created is not None and created < since:

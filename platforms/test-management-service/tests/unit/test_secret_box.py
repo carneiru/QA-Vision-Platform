@@ -32,3 +32,10 @@ def test_a_token_sealed_with_another_key_cannot_be_read(secrets_key, monkeypatch
     with pytest.raises(secret_box.SecretsUnavailable) as err:
         secret_box.decrypt(sealed)
     assert TOKEN not in str(err.value)
+
+
+@pytest.mark.parametrize("garbage", ["not-a-token", "caf\u00e9", ""])
+def test_unreadable_ciphertext_is_secrets_unavailable_without_echo(secrets_key, garbage):
+    with pytest.raises(secret_box.SecretsUnavailable) as err:
+        secret_box.decrypt(garbage)
+    assert garbage not in str(err.value) or garbage == ""
