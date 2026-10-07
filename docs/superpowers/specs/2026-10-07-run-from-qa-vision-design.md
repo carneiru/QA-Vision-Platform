@@ -130,18 +130,23 @@ role lookup.
 - It returns 412 when no target is configured.
 - It inserts the row as `queued`, then calls
   `POST /repos/{repo}/actions/workflows/{workflow}/dispatches` with
-  `{ref, inputs: {paths, names, request_id}}`:
+  `{ref, inputs: {paths, names, request_id}, return_run_details: true}`:
   - `paths`: a JSON array of the deduplicated files (file names can contain spaces);
   - `names`: a JSON array of scenario names;
   - `request_id`: the row id.
 - If the dispatch fails, the row becomes `failed_to_start` with the error.
+- On 200, GitHub's body `{workflow_run_id, run_url, html_url}` gives the run directly: the row
+  stores `github_run_id` and `github_run_url` (the `html_url`) at once, so Stop works immediately
+  ([changelog, 2026-02-19](https://github.blog/changelog/2026-02-19-workflow-dispatch-api-now-returns-run-ids/)).
+- On 204 (a GitHub that does not return run details), the row keeps no run id and the title
+  matching below finds it. This is the fallback only.
 
 ### Polling
 
 There is no background worker. A `GET` of an active request refreshes it from GitHub when
 `checked_at` is older than 5 seconds.
 
-- **Matching the run:** when `github_run_id` is null, the service lists the workflow's runs
+- **Matching the run (fallback, after a 204 dispatch only):** when `github_run_id` is null, the service lists the workflow's runs
   (`event=workflow_dispatch`, `created>=` the request time minus 1 minute). It picks the run whose
   `display_title` is `QA Vision #<id>`.
 - **Updating the status:**
