@@ -42,7 +42,7 @@ Copied from the spec. Every task implicitly includes all of them.
 - **Regexes and names:**
   - repo: `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`.
   - workflow: `^[A-Za-z0-9._-]{1,100}\.ya?ml$`.
-  - ref: a branch name, default `main`, with no NUL, no `..` and no leading `-` (String(255)).
+  - ref: a branch name, default `main`, following git branch-name rules (`git check-ref-format --branch`: no whitespace or control characters, none of `~ ^ : ? * [` or backslash, no `..`, `@{` or `//`, no leading or trailing `/`, no leading `-`, no trailing `.`, no part ending in `.lock`), at most 255 characters. Final fix wave A3.
   - OBT path: starts with `tests/features/`, ends with `.feature`, holds no control character and none of `\ : * ? " < > |`, and has no `..` segment. Arguments reach cucumber-js as an array, never through a shell.
   - Scenario selection is by file and **raw Gherkin scenario name**: `--name "^<name>$"`. In a Scenario Outline each `<placeholder>` becomes `.*`.
 - **GitHub client:**

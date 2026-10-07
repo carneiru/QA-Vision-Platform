@@ -230,7 +230,8 @@ test.each([
   ["Branch", "a?b"],
   ["Branch", "a*b"],
   ["Branch", "a[b"],
-  ["Branch", "a\b"],
+  ["Branch", "a\\b"],
+  ["Branch", "a.lock/b"],
   ["Branch", "x".repeat(256)],
 ])("%s %j is refused in the form, with its error linked to the field", async (label, value) => {
   let puts = 0;
