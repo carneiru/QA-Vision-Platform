@@ -9,4 +9,11 @@ export const server = setupServer(
   http.get("/api/v1/runs/:runId/failure-groups", () => HttpResponse.json({ total: 0, groups: [] })),
   // The run page looks for the previous run to compare with
   http.get("/api/v1/projects/:projectId/runs", () => HttpResponse.json([])),
+  // Run from QA Vision: pages that show Play or the run panel ask for these; tests about them override
+  http.get("/api/v1/projects/:projectId/ci-target", () =>
+    HttpResponse.json({ available: true, configured: false, provider: null, repo: null, workflow: null, ref: null,
+      token_last4: null, token_expires_at: null, updated_at: null, last_change: null })),
+  http.get("/api/v1/projects/:projectId/run-requests", () => HttpResponse.json({ total: 0, items: [] })),
+  // Names of the people who ran or stopped something
+  http.get("/api/v1/organizations/:orgId/members", () => HttpResponse.json([])),
 );

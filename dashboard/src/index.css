@@ -252,6 +252,9 @@ input.mono { font-family: var(--font-mono); }
 .error-banner { border: 1px solid var(--danger-text); color: var(--danger-text); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; display: flex; gap: var(--space-3); align-items: center; background: color-mix(in srgb, var(--status-failed) 6%, transparent); }
 /* A caution beside a control: neutral surface, accent edge kept to a 1px border. */
 .note { border: 1px solid var(--border-strong); background: var(--accent-soft); border-radius: var(--radius-sm); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0; }
+/* A warning note (token expiry, the Play confirmation): amber edge, text stays Ink */
+.warn-note { display: flex; gap: var(--space-2); align-items: flex-start; border-color: var(--status-rerun); background: color-mix(in srgb, var(--status-rerun) 10%, transparent); }
+.warn-note svg { color: var(--status-rerun); flex-shrink: 0; margin-top: 2px; }
 /* Copyable code (CI snippets): one step below the card surface so it reads apart from prose. */
 .code-block { background: var(--page); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-3); overflow-x: auto; font-size: 13px; }
 /* An expanded failure message inside a table cell: keeps line breaks, no box. */

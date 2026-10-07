@@ -172,3 +172,16 @@ test("every CI snippet syncs test cases from .feature files with the pinned coll
     }
   }
 });
+
+test("Run from QA Vision is shown to owners and admins", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage("admin");
+  expect(await screen.findByRole("heading", { name: "Run from QA Vision" })).toBeInTheDocument();
+});
+
+test("members do not see Run from QA Vision", async () => {
+  server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
+  renderPage("member");
+  await screen.findByLabelText(/repository url/i); // the member role has loaded: editing is enabled
+  expect(screen.queryByRole("heading", { name: "Run from QA Vision" })).not.toBeInTheDocument();
+});
