@@ -34,6 +34,10 @@ class SuiteNotFound(Exception):
     pass
 
 
+class AlreadyFinished(Exception):
+    """Stop on a request that is no longer active."""
+
+
 class RunActive(Exception):
     def __init__(self, request_id: Optional[int]):
         super().__init__("A run is in progress")
@@ -118,8 +122,14 @@ def active_request(db: Session, project_id: int) -> Optional[RunRequest]:
         RunRequest.project_id == project_id, RunRequest.status.in_(ACTIVE_STATUSES)).one_or_none()
 
 
+def _pending_cancel(row: RunRequest, at: datetime) -> bool:
+    """Stopped before GitHub listed its run: keep looking for 2 minutes, so it is cancelled there too."""
+    return (row.status == "cancelled" and row.github_run_id is None and row.stopped_at is not None
+            and at - aware(row.requested_at) < START_TIMEOUT)
+
+
 def needs_refresh(row: RunRequest, at: datetime) -> bool:
-    return row.status in ACTIVE_STATUSES
+    return row.status in ACTIVE_STATUSES or _pending_cancel(row, at)
 
 
 def _claimed(db: Session, project_id: int, own_id: int) -> frozenset:
@@ -157,6 +167,18 @@ def _map_status(row: RunRequest, run: dict) -> None:
 
 
 def _apply_github(db: Session, row: RunRequest, target: CiTarget, token: str, at: datetime) -> None:
+    if _pending_cancel(row, at):
+        try:
+            found = _match(db, row, target, token)
+        except github_client.GitHubError:
+            return  # GitHub cannot be asked now: the next GET tries again, within the 2 minutes
+        if found is not None:
+            try:
+                github_client.cancel_run(token, target.repo, row.github_run_id)
+            except github_client.GitHubError as exc:
+                if exc.status not in (404, 409):  # 404/409: it is gone or already ended, nothing left to cancel
+                    raise
+        return
     if row.github_run_id is None:
         expired = at - aware(row.requested_at) >= START_TIMEOUT
         try:
@@ -281,3 +303,48 @@ def out(row: RunRequest) -> dict:
         "stopped_by": row.stopped_by, "stopped_at": aware(row.stopped_at), "error": row.error,
         "checked_at": aware(row.checked_at), "refreshing": needs_refresh(row, now()),
     }
+
+
+ACTIVE_STOPPABLE = ("queued", "running")
+
+
+def _stopped(db: Session, row: RunRequest, user_id: int, at: datetime, **changes) -> RunRequest:
+    """Write the stop only while the request is still queued or running, so a refresh that saw the run end
+    (or another Stop) in between is never overwritten. A lost race: 409, or the row as the other Stop left it."""
+    done = db.query(RunRequest).filter(
+        RunRequest.id == row.id, RunRequest.status.in_(ACTIVE_STOPPABLE)).update(
+        {"stopped_by": user_id, "stopped_at": at, **changes}, synchronize_session=False)
+    db.commit()
+    db.refresh(row)
+    if not done and row.status != "cancelling":
+        raise AlreadyFinished()
+    return row
+
+
+def stop(db: Session, row: RunRequest, user_id: int) -> RunRequest:
+    """Cancel on GitHub and mark cancelling. The run id normally came with Play (a 200 dispatch); only
+    after a 204 can a request still have none: it is cancelled locally, then on GitHub once a GET matches
+    it (for 2 minutes after the request, then it is left alone)."""
+    if row.status == "cancelling":
+        return row  # already stopping: keep who stopped it first
+    if row.status not in ACTIVE_STATUSES:
+        raise AlreadyFinished()
+    at = now()
+    if row.github_run_id is None:
+        return _stopped(db, row, user_id, at, status="cancelled")
+    target, token = _target_and_token(db, row.project_id)
+    try:
+        github_client.cancel_run(token, target.repo, row.github_run_id)
+    except github_client.RateLimited:
+        raise  # nothing changes; the caller answers 503 with Retry-After
+    except github_client.GitHubError as exc:
+        if exc.status == 409:  # the run ended just now
+            refresh(db, row, force=True)
+            raise AlreadyFinished()
+        if exc.status == 404:  # GitHub no longer knows the run: there is nothing left to stop
+            return _stopped(db, row, user_id, at, status="cancelled", error=RUN_GONE)
+        db.rollback()
+        row.error = exc.message[:500]
+        db.commit()
+        raise
+    return _stopped(db, row, user_id, at, status="cancelling")

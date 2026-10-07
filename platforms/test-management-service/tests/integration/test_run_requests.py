@@ -486,3 +486,167 @@ def test_a_github_failure_that_clears_removes_the_stored_error(project, auth, gi
     clock.tick(seconds=6)
     body = get(project, auth, rid)
     assert (body["status"], body["error"]) == ("running", None)
+
+
+# --- Task 5: Stop ---
+
+def known_run(project, auth, github, clock, status="in_progress"):
+    """A request whose GitHub run (id 501, from the 200 dispatch) is in the given state."""
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status=status))
+    clock.tick(seconds=6)
+    assert get(project, auth, rid)["github_run_id"] == 501
+    return rid
+
+
+def test_stop_right_after_play_cancels_the_run_at_once(project, auth, github, clock):
+    github.dispatch(run_id=501)
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.run(github.run_body(501, rid, status="queued"))
+    cancel = github.cancel(501)
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))  # no tick, no matching: the id came with Play
+    assert r.status_code == 200, r.text
+    assert (r.json()["status"], r.json()["stopped_by"]) == ("cancelling", 7)
+    assert cancel.call_count == 1
+
+
+def test_stop_cancels_on_github_and_records_who(project, auth, github, clock):
+    rid = known_run(project, auth, github, clock)
+    cancel = github.cancel(501)
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
+    assert r.status_code == 200, r.text
+    assert (r.json()["status"], r.json()["stopped_by"]) == ("cancelling", 7) and r.json()["stopped_at"]
+    assert cancel.call_count == 1
+    github.run(github.run_body(501, rid, status="in_progress"))
+    clock.tick(seconds=6)
+    assert get(project, auth, rid)["status"] == "cancelling"  # until GitHub says it ended
+    github.run(github.run_body(501, rid, status="completed", conclusion="cancelled"))
+    clock.tick(seconds=6)
+    after = get(project, auth, rid)
+    assert (after["status"], after["stopped_by"], after["refreshing"]) == ("cancelled", 7, False)
+
+
+def test_stopping_a_finished_run_is_409(project, auth, github, clock):
+    rid = known_run(project, auth, github, clock, status="completed")
+    cancel = github.cancel(501)
+    r = project.post(f"{URL}/{rid}/stop", headers=auth())
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "run_finished"
+    assert not cancel.called
+
+
+def test_a_run_that_ends_while_stopping_is_409(project, auth, github, clock):
+    rid = known_run(project, auth, github, clock)
+    github.cancel(501, status=409)
+    github.run(github.run_body(501, rid, status="completed", conclusion="success"))
+    assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == 409
+    assert get(project, auth, rid)["status"] == "completed"
+
+
+def test_a_run_that_turns_completed_during_the_cancel_call_is_409_and_not_overwritten(
+        project, auth, github, db, clock, monkeypatch):
+    rid = known_run(project, auth, github, clock)
+
+    def cancel_while_it_ends(token, repo, run_id):
+        db.query(RunRequest).filter(RunRequest.id == rid).update({"status": "completed", "conclusion": "success"})
+        db.commit()  # a concurrent refresh wrote the end of the run first
+
+    monkeypatch.setattr(run_request_service.github_client, "cancel_run", cancel_while_it_ends)
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "run_finished"
+    row = db.query(RunRequest).filter(RunRequest.id == rid).one()
+    db.refresh(row)
+    assert (row.status, row.stopped_by) == ("completed", None)
+
+
+def test_a_second_stop_leaves_the_first_stoppers_name(project, auth, github, clock):
+    rid = known_run(project, auth, github, clock)
+    cancel = github.cancel(501)
+    first = project.post(f"{URL}/{rid}/stop", headers=auth(7)).json()
+    second = project.post(f"{URL}/{rid}/stop", headers=auth(8))
+    assert second.status_code == 200
+    assert second.json()["status"] == "cancelling"
+    assert (second.json()["stopped_by"], second.json()["stopped_at"]) == (7, first["stopped_at"])
+    assert cancel.call_count == 1
+
+
+def test_stop_when_github_no_longer_knows_the_run_ends_it_cancelled(project, auth, github, clock):
+    rid = known_run(project, auth, github, clock)
+    github.cancel(501, status=404)
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert (body["status"], body["error"], body["stopped_by"], body["refreshing"]) == (
+        "cancelled", "The run is no longer on GitHub", 7, False)
+    github.dispatch(run_id=502)
+    assert play(project, auth, case_numbers=[BOOK]).status_code == 201
+
+
+@pytest.mark.parametrize("code", [401, 403, 500, 502])
+def test_stop_failing_at_github_keeps_the_state_and_says_why(project, auth, github, clock, code):
+    rid = known_run(project, auth, github, clock)
+    github.cancel(501, status=code)
+    assert project.post(f"{URL}/{rid}/stop", headers=auth(7)).status_code == 502
+    body = project.get(f"{URL}/{rid}", headers=auth()).json()
+    assert (body["status"], body["stopped_by"], body["stopped_at"]) == ("running", None, None)
+    assert body["error"]
+
+
+def test_stop_on_a_network_failure_is_502_and_changes_nothing(project, auth, github, http, clock):
+    rid = known_run(project, auth, github, clock)
+    http.post(f"https://api.github.com/repos/{github.repo}/actions/runs/501/cancel", name="gh-cancel-501").mock(
+        side_effect=httpx.ConnectError("down"))
+    assert project.post(f"{URL}/{rid}/stop", headers=auth(7)).status_code == 502
+    body = get(project, auth, rid)
+    assert (body["status"], body["stopped_by"]) == ("running", None)
+
+
+def test_stop_during_a_rate_limit_is_503_with_retry_after_and_changes_nothing(project, auth, github, http, clock):
+    rid = known_run(project, auth, github, clock)
+    http.post(f"https://api.github.com/repos/{github.repo}/actions/runs/501/cancel", name="gh-cancel-501").mock(
+        return_value=httpx.Response(429, headers={"retry-after": "30"}))
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
+    assert r.status_code == 503 and r.headers["retry-after"] == "30"
+    body = get(project, auth, rid)
+    assert (body["status"], body["stopped_by"], body["error"]) == ("running", None, None)
+
+
+def test_stop_without_a_target_is_412(project, auth, github, db, clock):
+    rid = known_run(project, auth, github, clock)
+    db.query(CiTarget).delete()
+    db.commit()
+    assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == 412
+
+
+def test_after_a_204_a_queued_request_without_a_run_is_cancelled_locally_then_on_github(project, auth, github, clock):
+    github.dispatch()  # 204: no run details, the fallback
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.runs()
+    r = project.post(f"{URL}/{rid}/stop", headers=auth(7))
+    assert r.status_code == 200, r.text
+    assert (r.json()["status"], r.json()["stopped_by"], r.json()["refreshing"]) == ("cancelled", 7, True)
+    assert play(project, auth, case_numbers=[LOG_IN]).status_code == 201  # the slot is free
+    github.runs(github.run_body(501, rid))
+    cancel = github.cancel(501)
+    clock.tick(seconds=6)
+    body = get(project, auth, rid)
+    assert (body["status"], body["github_run_id"], body["refreshing"]) == ("cancelled", 501, False)
+    assert cancel.call_count == 1
+
+
+def test_after_a_204_a_stopped_request_whose_run_never_appears_stops_looking_after_2_minutes(project, auth, github, clock):
+    github.dispatch()  # 204
+    rid = play(project, auth, case_numbers=[CARD]).json()["id"]
+    github.runs()
+    project.post(f"{URL}/{rid}/stop", headers=auth())
+    clock.tick(minutes=2, seconds=1)
+    body = get(project, auth, rid)
+    assert (body["status"], body["refreshing"]) == ("cancelled", False)
+
+
+def test_a_viewer_cannot_stop_and_an_unknown_request_is_404(project, auth, github, clock, project_role):
+    rid = known_run(project, auth, github, clock)
+    project_role("viewer")
+    assert project.post(f"{URL}/{rid}/stop", headers=auth()).status_code == 403
+    project_role("member")
+    assert project.post(f"{URL}/9999/stop", headers=auth()).status_code == 404

@@ -62,3 +62,24 @@ def get_run_request(
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
     return runs.out(_row_or_404(db, access, request_id))
+
+
+@router.post("/{request_id}/stop", response_model=RunRequestOut)
+def stop_run_request(
+    request_id: int,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
+):
+    row = _row_or_404(db, access, request_id)
+    try:
+        row = runs.stop(db, row, access.user_id)
+    except runs.AlreadyFinished:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail={
+            "code": "run_finished", "message": "This run has already finished"})
+    except runs.NoTarget:
+        raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, detail=NO_TARGET)
+    except secret_box.SecretsUnavailable as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    except github_client.GitHubError as exc:
+        raise github_failure(exc, status.HTTP_502_BAD_GATEWAY)
+    return runs.out(row)
