@@ -45,7 +45,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 | `GET` | `/ci-target` | `{available, configured, provider, repo, workflow, ref, token_last4, token_expires_at, updated_at, last_change}`; every role; the token itself is never returned |
 | `PUT` | `/ci-target` | owner or admin; `{repo, workflow="qa-vision-run.yml", ref="main", token?}`; the token is required on the first save; checked with GitHub first: 422 "token invalid or expired" (401), "token has no Actions access to this repository" (403), "repository or workflow not found. The workflow file must exist on the repository's default branch" (404); 503 without `TM_SECRETS_KEY` or on a GitHub rate limit |
 | `DELETE` | `/ci-target` | owner or admin; 409 while a run is active; the audit trail (`ci_target_events`) is kept |
-| `POST` | `/run-requests` | owner, admin or member; `{case_numbers: [1..200]}` or `{suite_id}`; 201 with the request (also when it is `failed_to_start`); 412 no target; 409 `run_active`; 422 names the cases that cannot run (manual, archived, unknown, or with no scenario name yet: re-import) |
+| `POST` | `/run-requests` | owner, admin or member; `{case_numbers: [1..200]}` or `{suite_id}`; 201 with the request (also when it is `failed_to_start`); 412 no target; 409 `run_active`; 422 names the cases that cannot run (manual, archived, unknown, or with no scenario name yet: re-import). A whole suite skips its manual cases instead (`skipped_manual` in the response; 422 when none is automated) |
 | `GET` | `/run-requests?limit=&offset=` | `{total, items}`, newest first; an active request is refreshed from GitHub when last checked over 5 s ago; `refreshing` says whether to keep polling |
 | `GET` | `/run-requests/{id}` | the same refresh rule |
 | `POST` | `/run-requests/{id}/stop` | owner, admin or member; cancels on GitHub (`cancelling`, `stopped_by`); 409 `run_finished` |
@@ -104,6 +104,10 @@ old imported case answers 422 "re-import the .feature files first".
 - **What the token can do:** a fine-grained token limited to one repository with "Actions: Read and write".
   It can start, cancel, re-run and delete that repository's workflow runs and logs, and read its workflow
   files. It cannot read or change code.
+- **Wider than QA Vision's workflow:** that scope can start *any* `workflow_dispatch` workflow in the
+  repository, deploy workflows included, and they run with the repository's secrets. It can also read run
+  logs. Use a dedicated repository for the test workflow where you can, or keep `qa-vision-run.yml` the only
+  workflow that has a `workflow_dispatch` trigger, so a leaked token reaches no more than that.
 - **At rest:** it is stored Fernet-encrypted with `TM_SECRETS_KEY` and never returned or logged. Responses
   show the last 4 characters.
 - **Who can do what:** owners and admins set and remove it. Owners, admins and members can run and stop.

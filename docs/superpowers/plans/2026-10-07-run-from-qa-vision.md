@@ -43,7 +43,7 @@ Copied from the spec. Every task implicitly includes all of them.
   - repo: `^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$`.
   - workflow: `^[A-Za-z0-9._-]{1,100}\.ya?ml$`.
   - ref: a branch name, default `main`, with no NUL, no `..` and no leading `-` (String(255)).
-  - OBT path: starts with `tests/features/`, ends with `.feature`, holds no control character and none of `\ : * ? " < > |`, and has no `..` segment. Arguments reach cucumber-js as an array, never through a shell (widened from the spec's first regex so OBT names with `+` and spaces run).
+  - OBT path: starts with `tests/features/`, ends with `.feature`, holds no control character and none of `\ : * ? " < > |`, and has no `..` segment. Arguments reach cucumber-js as an array, never through a shell.
   - Scenario selection is by file and **raw Gherkin scenario name**: `--name "^<name>$"`. In a Scenario Outline each `<placeholder>` becomes `.*`.
 - **GitHub client:**
   - It uses `httpx` with a 10-second timeout and calls `https://api.github.com` only, **never following redirects**.

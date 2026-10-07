@@ -126,6 +126,21 @@ qav up -d --build --wait edge
 
 Database migrations run automatically on every start.
 
+**Existing installs and `TM_SECRETS_KEY`.** `init-env.sh` never overwrites an existing `.env`, so an install
+made before "Run from QA Vision" has no `TM_SECRETS_KEY`. Add it once, by hand, then restart:
+
+```bash
+# either (needs only openssl)
+echo "TM_SECRETS_KEY=$(openssl rand -base64 32 | tr '+/' '-_')" >> .env
+# or (needs the cryptography package)
+python3 -c "from cryptography.fernet import Fernet; print('TM_SECRETS_KEY=' + Fernet.generate_key().decode())" >> .env
+qav up -d --wait edge
+```
+
+Without the key everything else works, but Project Settings shows "Running tests from QA Vision is not
+configured on this server" and Play stays disabled. Keep the key in your `.env` backups: changing or losing
+it makes stored GitHub tokens unreadable, and owners then save them again in Settings.
+
 ## 9. Security notes
 
 - Only Caddy publishes ports. The gateway trusts `X-Forwarded-For` from Caddy's fixed

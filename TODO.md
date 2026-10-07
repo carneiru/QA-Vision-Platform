@@ -310,10 +310,8 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Pause and Resume a running job (cucumber `BeforeStep` hook asks QA Vision whether to continue; screenshot on pause; time limit; fails open if QA Vision is unreachable)
 - [ ] Stop followed by a resuming re-run, plus "Re-run failures" of a finished run
 - [ ] A GitHub App instead of the personal token (short-lived installation tokens owned by no single person)
-- [ ] Run parameters, scheduled runs and more CI providers (GitLab, Azure Pipelines) for runs from QA Vision
+- [ ] Run parameters (target environment, browser/device matrix), scheduled runs (nightly, per branch) and more CI providers (GitLab, Azure Pipelines) for runs from QA Vision *(suggested)*
 - [ ] A dedicated `execution-service` once execution outgrows test-management
-- [ ] Run parameters: target environment, browser/device matrix *(suggested)*
-- [ ] Scheduled runs (nightly, per branch) *(suggested)*
 - [x] Flaky-test quarantine. Quarantining a test (Flaky view, the former Mute) keeps it running and
   shown, but its failures stop counting:
   - a run failing only in quarantine reads "Passed · N quarantined";
