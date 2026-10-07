@@ -11,6 +11,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 
 READ_ROLES = project_client.ROLES
 EDIT_ROLES = ("owner", "admin", "member")
+MANAGE_ROLES = ("owner", "admin")
 
 
 class Caller(NamedTuple):
@@ -104,5 +105,5 @@ def require_import_access(project_id: int, token: str = Depends(oauth2_scheme)) 
 __all__ = [
     "get_db", "get_caller", "check_project_role", "require_project_role",
     "require_import_access", "CI_USER_ID", "IMPORT_SCOPE",
-    "Caller", "ProjectAccess", "READ_ROLES", "EDIT_ROLES",
+    "Caller", "ProjectAccess", "READ_ROLES", "EDIT_ROLES", "MANAGE_ROLES",
 ]
