@@ -11,7 +11,7 @@ httpx==0.27.0
 cryptography==43.0.3
 respx==0.21.1
 gherkin-official==42.0.1
-pytest==8.1.1
+pytest==9.1.1
 # Relative path, resolved from this file's directory. The Dockerfile mirrors the repo
 # layout so this same path resolves inside the image.
 -e ../../shared
