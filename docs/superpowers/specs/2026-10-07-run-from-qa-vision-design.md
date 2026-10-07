@@ -39,6 +39,7 @@ dispatches a workflow and can cancel it. It never runs test code itself. This is
 | `ref` | String(255) | A branch name, default `main`. No NUL, no `..`, no leading `-` |
 | `token_encrypted` | Text | Fernet ciphertext |
 | `token_last4` | String(4) | Shown as "token …a1b2" |
+| `token_expires_at` | DateTime(timezone), nullable | From GitHub's `github-authentication-token-expiration` response header when the token is checked. NULL for a token without expiry |
 | `updated_by` | Integer | |
 | `updated_at` | DateTime(timezone) | |
 
@@ -63,6 +64,19 @@ dispatches a workflow and can cancel it. It never runs test code itself. This is
 
 A partial unique index on `project_id`, where `status` is `queued`, `running` or `cancelling`,
 enforces one active run per project.
+
+**`ci_target_events`** is the audit trail for the credential.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | Integer, primary key | |
+| `project_id` | Integer, indexed | |
+| `user_id` | Integer | |
+| `action` | String(20) | `created`, `updated`, `token_replaced` or `deleted` |
+| `at` | DateTime(timezone) | |
+
+Run starts and stops are already recorded in `run_requests` (`requested_by`, `stopped_by`). The
+events table is never deleted when the target is deleted.
 
 ### Token encryption
 
@@ -96,7 +110,10 @@ role lookup.
 - If a check fails, it answers 422 with a specific message:
   - 401: "token invalid or expired";
   - 403: "token has no Actions access to this repository";
-  - 404: "repository or workflow not found".
+  - 404: "repository or workflow not found. The workflow file must exist on the repository's
+    default branch", because GitHub accepts `workflow_dispatch` only for a workflow that is on the
+    default branch.
+- A successful save stores `token_expires_at` and writes a `ci_target_events` row.
 
 **Starting a run:**
 - Each case becomes `{path: source_path, name: scenario_name}`.
@@ -106,7 +123,11 @@ role lookup.
   - a case is archived;
   - a case is unknown;
   - the selection is empty after a suite expands.
-- It returns 409 when a run is already active, and 412 when no target is configured.
+- Before it answers 409 for an already active run, it refreshes that run from GitHub, ignoring the
+  5-second throttle. It answers 409 only if the run is still active. Otherwise the refresh closes
+  it and the new run starts. Without this, a run that finished while nobody had the page open would
+  block every later Play.
+- It returns 412 when no target is configured.
 - It inserts the row as `queued`, then calls
   `POST /repos/{repo}/actions/workflows/{workflow}/dispatches` with
   `{ref, inputs: {paths, names, request_id}}`:
@@ -157,8 +178,12 @@ This section is visible to `owner` and `admin`.
   - branch (default `main`);
   - token, as a password field. When a token is already stored, a "Replace token" button shows
     instead.
-- **Save:** saving shows "Connected: owner/name · token …a1b2", or the service's specific error
-  next to the form.
+- **Save:** saving shows "Connected: owner/name · token …a1b2 · expires 12 Mar 2027", or the
+  service's specific error next to the form.
+- **Audit line:** "Last changed by <name> on <date>", from `ci_target_events`.
+- **Expiry warning:** from 14 days before `token_expires_at`, owners and admins see a warning,
+  "The GitHub token expires on <date>. Replace it in Settings", in this section and in the run
+  panel. After expiry, Play is disabled with "GitHub token expired".
 - **Disconnect:** a "Disconnect" button removes the target after a confirmation.
 - **Help block:**
   - how to create the token: fine-grained, only this repository, "Actions: Read and write";
@@ -199,7 +224,8 @@ request.
   - Stop asks for confirmation ("Stop this run?"), then shows "Stopping…".
   - The panel ends on "Stopped by <name>".
 - **After completion:**
-  - The panel links to the QA Vision test run whose CI URL equals `github_run_url`.
+  - The panel links to the QA Vision test run whose CI URL equals `github_run_url`, compared
+    case-insensitively, because GitHub may return `owner/repo` with different capitals.
   - Until that run arrives, it shows "Waiting for results…".
   - After 5 minutes with no results, it shows "Results not received: check the QA Vision upload
     step".
@@ -246,7 +272,10 @@ GitHub is stubbed in these tests; nothing calls the real API.
 - **Encryption:** a round trip works; no response carries the token; without `TM_SECRETS_KEY`, `PUT`
   returns 503 and `GET` reports `available: false`.
 - **`PUT ci-target`:** OK, 401, 403 and 404 from GitHub; regex rejection of bad `repo`, `workflow`
-  and `ref`; the roles.
+  and `ref`; the roles; `token_expires_at` stored from the header, and NULL without it; a
+  `ci_target_events` row for each create, update, token replacement and delete.
+- **Stale active run:** a run that finished on GitHub while nobody polled does not block a new
+  Play; one that is still running does (409).
 - **Import:** the import fills `scenario_name`, a re-import fills it on old cases, and a manual case keeps NULL.
 - **`POST run-requests`:**
   - cases are translated to files and names, and a suite expands;
@@ -286,7 +315,8 @@ GitHub is stubbed in these tests; nothing calls the real API.
 
 ## Documentation
 
-- **test-management README:** the endpoints and `TM_SECRETS_KEY`.
+- **test-management README:** the endpoints, `TM_SECRETS_KEY`, and that `qa-vision-run.yml` must be
+  on the default branch before the first Play.
 - **`.env.example`:** gains `TM_SECRETS_KEY`, with how to generate it.
 - **DESIGN.md:** the run panel and the Play and Stop controls.
 - **TODO.md section B:** v1 marked done, and the future phases listed.
