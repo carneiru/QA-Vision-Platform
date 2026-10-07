@@ -13,7 +13,7 @@ prometheus-client==0.26.0
 # Linear-time regex engine for user-supplied masking patterns: no pattern can stall ingestion
 google-re2==1.1.20251105
 # IANA time zones for zoneinfo on systems without a zone database (Windows, slim images)
-tzdata==2025.2
+tzdata==2026.5
 pytest==9.1.1
 # Relative path, resolved from this file's directory. The Dockerfile mirrors the repo
 # layout so this same path resolves inside the image.
