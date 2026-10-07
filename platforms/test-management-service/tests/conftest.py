@@ -1,8 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
+import httpx
 import jwt
 import pytest
 import respx
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -83,8 +85,6 @@ def project_body(project_id: int, organization_id: int, role: str) -> dict:
 def project_role(http):
     """Mock project-service's GET /projects/{id} for one project; calling it again for the same
     project replaces the answer (respx replaces routes that share a name)."""
-    import httpx
-
     def _set(role="owner", project_id=1, organization_id=10, status_code=200, body=None, exc=None):
         route = http.get(
             PROJECT_URL.format(base=settings.PROJECT_SERVICE_URL, project_id=project_id),
@@ -96,3 +96,74 @@ def project_role(http):
         return route.mock(return_value=httpx.Response(status_code, json=payload))
 
     return _set
+
+
+GH = "https://api.github.com"
+
+
+@pytest.fixture
+def secrets_key(monkeypatch):
+    """TM_SECRETS_KEY set to a fresh Fernet key for this test."""
+    monkeypatch.setattr(settings, "TM_SECRETS_KEY", Fernet.generate_key().decode())
+
+
+@pytest.fixture
+def no_secrets_key(monkeypatch):
+    monkeypatch.setattr(settings, "TM_SECRETS_KEY", "")
+
+
+class GitHubStub:
+    """GitHub's REST API on the test's respx router: each method answers one endpoint, and a later
+    call with the same name replaces the earlier answer. Nothing reaches the real api.github.com."""
+
+    repo = "acme/obt"
+    workflow = "qa-vision-run.yml"
+
+    def __init__(self, router):
+        self.router = router
+
+    def _url(self, path: str) -> str:
+        return f"{GH}/repos/{self.repo}{path}"
+
+    def check(self, status=200, workflow_status=None, expires="2027-03-12 00:00:00 UTC", headers=None):
+        extra = {"github-authentication-token-expiration": expires} if expires else {}
+        extra.update(headers or {})
+        self.router.get(self._url(""), name="gh-repo").mock(
+            return_value=httpx.Response(status, json={"full_name": self.repo}, headers=extra))
+        return self.router.get(self._url(f"/actions/workflows/{self.workflow}"), name="gh-workflow").mock(
+            return_value=httpx.Response(workflow_status if workflow_status is not None else status,
+                                        json={"id": 1, "path": f".github/workflows/{self.workflow}"}))
+
+    def dispatch(self, run_id=None, status=None, headers=None):
+        """With run_id: GitHub's 200 with run details (return_run_details). Without: a 204, the fallback."""
+        if run_id is not None:
+            body = {"workflow_run_id": run_id, "run_url": f"{GH}/repos/{self.repo}/actions/runs/{run_id}",
+                    "html_url": f"https://github.com/{self.repo}/actions/runs/{run_id}"}
+            response = httpx.Response(status or 200, json=body, headers=headers or {})
+        else:
+            response = httpx.Response(status or 204, headers=headers or {})
+        return self.router.post(self._url(f"/actions/workflows/{self.workflow}/dispatches"), name="gh-dispatch").mock(
+            return_value=response)
+
+    def runs(self, *runs):
+        return self.router.get(self._url(f"/actions/workflows/{self.workflow}/runs"), name="gh-runs").mock(
+            return_value=httpx.Response(200, json={"total_count": len(runs), "workflow_runs": list(runs)}))
+
+    def run(self, body):
+        return self.router.get(self._url(f"/actions/runs/{body['id']}"), name=f"gh-run-{body['id']}").mock(
+            return_value=httpx.Response(200, json=body))
+
+    def cancel(self, run_id, status=202):
+        return self.router.post(self._url(f"/actions/runs/{run_id}/cancel"), name=f"gh-cancel-{run_id}").mock(
+            return_value=httpx.Response(status, json={}))
+
+    def run_body(self, run_id, request_id, status="queued", conclusion=None, title=None,
+                 created_at="2026-10-07T10:00:05Z"):
+        return {"id": run_id, "display_title": title or f"QA Vision #{request_id}", "status": status,
+                "conclusion": conclusion, "event": "workflow_dispatch", "created_at": created_at,
+                "html_url": f"https://github.com/{self.repo}/actions/runs/{run_id}"}
+
+
+@pytest.fixture
+def github(http):
+    return GitHubStub(http)

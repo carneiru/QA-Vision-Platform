@@ -8,6 +8,7 @@ alembic==1.13.1
 PyJWT==2.8.0
 python-dotenv==1.0.0
 httpx==0.27.0
+cryptography==43.0.3
 respx==0.21.1
 gherkin-official==42.0.1
 pytest==8.1.1
