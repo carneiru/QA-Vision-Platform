@@ -19,6 +19,14 @@ updates:
       include: "scope"
     pull-request-branch-name:
       separator: "-"
+    ignore:
+      # SQLAlchemy 2.1 makes postgresql:// default to psycopg 3; the services use psycopg2.
+      # Stay on 2.0.x until a planned migration (TODO.md).
+      - dependency-name: "sqlalchemy"
+        versions: [">=2.1"]
+      # bcrypt 5 breaks passlib (auth-service): hashing raises "password cannot be longer than 72 bytes"
+      - dependency-name: "bcrypt"
+        versions: [">=5"]
     groups:
       # One PR for every minor/patch bump across all Python directories
       python-minor-patch:

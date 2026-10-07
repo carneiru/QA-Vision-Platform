@@ -5,12 +5,12 @@ python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 # passlib 1.7.4 predates bcrypt 4.1+ and misreads its version, failing every hash with a
 # bogus "password cannot be longer than 72 bytes". Pin bcrypt until passlib is replaced.
-bcrypt==5.0.0
+bcrypt==4.0.1
 python-dotenv==1.2.4
 email-validator==2.3.0
 pydantic[email]==2.13.5
 pydantic-settings==2.15.0
-SQLAlchemy==2.1.3
+SQLAlchemy==2.0.54
 psycopg2-binary==2.9.13
 alembic==1.20.0
 redis==8.1.0

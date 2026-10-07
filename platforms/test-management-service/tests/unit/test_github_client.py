@@ -1,4 +1,5 @@
 """The GitHub REST client: api.github.com only, no redirects, specific messages, no token in errors."""
+import json
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -84,8 +85,9 @@ def test_dispatch_asks_for_run_details_and_returns_the_run(github):
     route = github.dispatch(run_id=501)
     result = gh.dispatch(TOKEN, github.repo, github.workflow, "main", {"paths": "[]", "names": "[]", "request_id": "7"})
     assert result == gh.DispatchResult(run_id=501, html_url=f"https://github.com/{github.repo}/actions/runs/501")
-    assert route.calls.last.request.read() == (
-        b'{"ref": "main", "inputs": {"paths": "[]", "names": "[]", "request_id": "7"}, "return_run_details": true}')
+    # Compare the parsed body: httpx 0.28 sends compact JSON, older versions add spaces
+    assert json.loads(route.calls.last.request.read()) == {
+        "ref": "main", "inputs": {"paths": "[]", "names": "[]", "request_id": "7"}, "return_run_details": True}
 
 
 def test_a_204_dispatch_returns_none_for_the_matching_fallback(github):
