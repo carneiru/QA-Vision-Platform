@@ -299,7 +299,7 @@ requested ones. Each group needs its own design spec before implementation.
 - [x] Case filters: folder dropdown with the tree, feature, Azure DevOps item, link and latest-result filters on All Cases (`/cases/search`, `/case-folders`, `/case-features`, `latest-keys`), the searchable `FilterSelect`, gateway route and smoke checks (2026-10-06)
 - [x] Last runs column: run-strip endpoint, RunStrip component with one-link design and shape cues, Cases column with skeleton and error states, legend, DESIGN.md and TODO docs (2026-10-06)
 - [ ] Bound latest-keys (window over full history) — time-bound or DISTINCT ON when projects get large (suggested)
-- [ ] Dashboard toolchain upgrade in one step: Vite 6+/7, vitest 3+, msw 3, TypeScript 6/7 once typescript-eslint supports it; lift the Dependabot ignores. Piecemeal major PRs broke `npm ci` on 2026-10-07 (msw 3 needs Vite 6+, typescript-eslint rejects TypeScript 7)
+- [ ] Dashboard major upgrades as coordinated sets: React 19 (react + react-dom + @types), ESLint 10 (eslint + @eslint/js), Vite 6+/7 with vitest 3+ and msw 3, TypeScript 6/7 once typescript-eslint supports it. Dependabot skips npm majors until then. Piecemeal major PRs broke `npm ci` on 2026-10-07 (msw 3 needs Vite 6+, typescript-eslint rejects TypeScript 7)
 - [ ] SQLAlchemy 2.1: switch the services to psycopg 3 (or explicit `postgresql+psycopg2://` URLs) and lift the Dependabot ignore. 2.1 makes `postgresql://` default to psycopg 3, which broke CI on 2026-10-07 (pinned back to 2.0.54)
 - [ ] Link TCs to requirements/tickets (Azure DevOps, Jira) *(suggested)*
 - [ ] Bulk actions: label, move, archive many TCs at once *(suggested)*
