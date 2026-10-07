@@ -8,6 +8,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
 import { LIVE_REFRESH_MS } from "../lib/live";
+import { pageOffset, withOffset } from "../lib/useUrlState";
 
 const PAGE = 50;
 
@@ -57,19 +58,19 @@ export default function RunsPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const [params, setParams] = useSearchParams();
-  const search = params.toString();
+  const filterSearch = withOffset(params, 0).toString();
+  const offset = pageOffset(params, PAGE);
+  const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
   const applied = readValues(params);
   const filters = toFilters(applied);
   const active = KEYS.filter((k) => applied[k] !== "").length;
   const advancedActive = ADVANCED.filter((k) => applied[k] !== "").length;
   const [form, setForm] = useState<Values>(applied);
-  const [offset, setOffset] = useState(0);
 
   // A pasted link or back/forward changes the URL: the form follows it
   useEffect(() => {
-    setForm(readValues(new URLSearchParams(search)));
-    setOffset(0);
-  }, [search]);
+    setForm(readValues(new URLSearchParams(filterSearch)));
+  }, [filterSearch]);
 
   const query = useQuery({
     queryKey: ["runs", id, filters, offset],
@@ -82,7 +83,7 @@ export default function RunsPage() {
   // Runs that arrived since the first page was last shown, announced once
   const newest = useRef<{ view: string; top: number } | null>(null);
   const [fresh, setFresh] = useState<Set<number>>(new Set());
-  const view = `${id}?${search}`;
+  const view = `${id}?${filterSearch}`;
   useEffect(() => {
     const data = query.data;
     if (!data || offset !== 0 || query.isPlaceholderData) return;
@@ -108,12 +109,10 @@ export default function RunsPage() {
       if (value) next.set(k, value);
     }
     setParams(next);
-    setOffset(0);
   }
 
   function clearFilters() {
     setParams(new URLSearchParams());
-    setOffset(0);
   }
 
   const rows = query.data ?? [];

@@ -506,3 +506,18 @@ test("a failing run-strip leaves the list usable", async () => {
   expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
   expect(await screen.findByLabelText(/last runs unavailable/i)).toBeInTheDocument();
 });
+
+test("the page of cases is in the URL: read on load, written by Next", async () => {
+  asRole("member");
+  const seen: URLSearchParams[] = [];
+  server.use(http.get(`${P}/cases`, ({ request }) => {
+    const sp = listParams(request);
+    if (sp) seen.push(sp);
+    return HttpResponse.json({ total: 200, items: [kase(51)] });
+  }));
+  renderAt("/projects/42/cases?offset=50&priority=high");
+  await waitFor(() => expect(seen.at(-1)?.get("offset")).toBe("50"));
+  await userEvent.click(await screen.findByRole("button", { name: "Next" }));
+  expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?offset=100&priority=high");
+  await waitFor(() => expect(seen.at(-1)?.get("offset")).toBe("100"));
+});

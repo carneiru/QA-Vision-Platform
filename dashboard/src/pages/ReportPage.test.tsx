@@ -106,3 +106,18 @@ test("save as PDF prints the page; CSV downloads the tests behind the report", a
   print.mockRestore();
   click.mockRestore();
 });
+
+test("a failed section shows its error with Retry instead of a false 'nothing in this period'", async () => {
+  serve();
+  let fail = true;
+  server.use(http.get(`${A}/flaky`, () => fail
+    ? HttpResponse.json({ detail: "Flaky analysis unavailable" }, { status: 500 })
+    : HttpResponse.json([])));
+  renderPage();
+  const section = await screen.findByRole("region", { name: "Flaky tests" });
+  expect(await within(section).findByText(/flaky analysis unavailable/i)).toBeInTheDocument();
+  expect(within(section).queryByText(/nothing in this period/i)).not.toBeInTheDocument();
+  fail = false;
+  await userEvent.click(within(section).getByRole("button", { name: "Retry" }));
+  expect(await within(section).findByText(/nothing in this period/i)).toBeInTheDocument();
+});

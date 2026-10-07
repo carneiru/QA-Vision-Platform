@@ -7,28 +7,33 @@ import { fetchAllTests } from "../lib/exportData";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
+import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 
 const PAGE = 50;
+const DEFAULTS = { days: "30", sort: "failures", search: "" } as const;
+const DAYS = ["7", "30", "90"] as const;
+const SORTS = ["failures", "duration", "name"] as const;
 
 export default function TestsPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
-  const [days, setDays] = useState(30);
-  const [sort, setSort] = useState<"failures" | "duration" | "name">("failures");
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [offset, setOffset] = useState(0);
+  const { values, offset, update, setOffset } = useUrlState(DEFAULTS, PAGE);
+  const days = Number(oneOf(values.days, DAYS, "30"));
+  const sort = oneOf(values.sort, SORTS, "failures");
+  const search = values.search;
+  // The text box is a draft until Apply (per-keystroke requests hit the shared rate limit)
+  const [searchInput, setSearchInput] = useDraft(search);
 
+  // One extra row tells whether another page exists, so an exact multiple of the page size ends cleanly
   const query = useQuery({
     queryKey: ["tests", id, days, sort, search, offset],
-    queryFn: () => getTests(id, { days, sort, search: search || undefined, limit: PAGE, offset }),
+    queryFn: () => getTests(id, { days, sort, search: search || undefined, limit: PAGE + 1, offset }),
     placeholderData: keepPreviousData,
   });
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    setSearch(searchInput);
-    setOffset(0);
+    update({ search: searchInput.trim() });
   }
 
   const [exporting, setExporting] = useState(false);
@@ -53,7 +58,9 @@ export default function TestsPage() {
     }
   }
 
-  const rows = query.data ?? [];
+  const fetched = query.data ?? [];
+  const rows = fetched.slice(0, PAGE);
+  const hasMore = fetched.length > PAGE;
 
   return (
     <section>
@@ -62,7 +69,7 @@ export default function TestsPage() {
         <FilterBar>
           <label>
             Days
-            <select value={days} onChange={(e) => { setDays(Number(e.target.value)); setOffset(0); }}>
+            <select value={String(days)} onChange={(e) => update({ days: e.target.value })}>
               <option value={7}>7</option>
               <option value={30}>30</option>
               <option value={90}>90</option>
@@ -70,7 +77,7 @@ export default function TestsPage() {
           </label>
           <label>
             Sort
-            <select value={sort} onChange={(e) => { setSort(e.target.value as typeof sort); setOffset(0); }}>
+            <select value={sort} onChange={(e) => update({ sort: e.target.value })}>
               <option value="failures">Failures</option>
               <option value="duration">Duration</option>
               <option value="name">Name</option>
@@ -90,7 +97,11 @@ export default function TestsPage() {
       {exportError != null && <ErrorBanner error={exportError} onRetry={onExport} />}
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading tests…</p>}
-      {query.data && rows.length === 0 && <p className="muted">No tests in the last {days} days.</p>}
+      {query.data && rows.length === 0 && (
+        <p className="muted">
+          {offset > 0 ? "No tests on this page." : search ? `No tests match "${search}" in the last ${days} days.` : `No tests in the last ${days} days.`}
+        </p>
+      )}
       {query.data && rows.length === 0 && offset > 0 && (
         <div className="filters">
           <button onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
@@ -131,7 +142,7 @@ export default function TestsPage() {
               Previous
             </button>
             <span className="muted">Rows {offset + 1}–{offset + rows.length}</span>
-            <button disabled={rows.length < PAGE} onClick={() => setOffset(offset + PAGE)}>
+            <button disabled={!hasMore} onClick={() => setOffset(offset + PAGE)}>
               Next
             </button>
           </div>

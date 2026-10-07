@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useParams } from "react-router-dom";
+import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 import { useQuery } from "@tanstack/react-query";
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
@@ -26,24 +27,27 @@ const STATUS = [
   { key: "skipped", label: "Skipped", color: "var(--status-skipped)" },
 ] as const;
 
+const DEFAULTS = { days: "30", bucket: "day", branch: "", environment: "" } as const;
+const DAYS = ["7", "30", "90"] as const;
+const BUCKETS = ["day", "week", "month"] as const;
+
 export default function TrendsPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const [days, setDays] = useState(30);
-  const [bucket, setBucket] = useState<TrendBucket>("day");
+  const { values, update } = useUrlState(DEFAULTS, 1);
+  const days = Number(oneOf(values.days, DAYS, "30"));
+  const bucket = oneOf(values.bucket, BUCKETS, "day") as TrendBucket;
+  const { branch, environment } = values;
   // Text filters are drafts until Apply: per-keystroke refetching is chatty
   // against the shared gateway rate limit.
-  const [branchInput, setBranchInput] = useState("");
-  const [environmentInput, setEnvironmentInput] = useState("");
-  const [branch, setBranch] = useState("");
-  const [environment, setEnvironment] = useState("");
+  const [branchInput, setBranchInput] = useDraft(branch);
+  const [environmentInput, setEnvironmentInput] = useDraft(environment);
   const [showTable, setShowTable] = useState(false);
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    setBranch(branchInput.trim());
-    setEnvironment(environmentInput.trim());
+    update({ branch: branchInput.trim(), environment: environmentInput.trim() });
   }
 
   const query = useQuery({
@@ -74,7 +78,7 @@ export default function TrendsPage() {
         <FilterBar>
           <label>
             Days
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            <select value={String(days)} onChange={(e) => update({ days: e.target.value })}>
               <option value={7}>7</option>
               <option value={30}>30</option>
               <option value={90}>90</option>
@@ -82,7 +86,7 @@ export default function TrendsPage() {
           </label>
           <label>
             View
-            <select value={bucket} onChange={(e) => setBucket(e.target.value as TrendBucket)}>
+            <select value={bucket} onChange={(e) => update({ bucket: e.target.value })}>
               <option value="day">Daily</option>
               <option value="week">Weekly</option>
               <option value="month">Monthly</option>

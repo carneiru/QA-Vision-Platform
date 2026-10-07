@@ -30,10 +30,12 @@ function renderPage(token = "tok-abc123") {
         <Routes>
           <Route path="/invitations/:token" element={<InvitationAcceptPage />} />
           <Route path="/" element={<div>PICKER</div>} />
+          <Route path="/organizations/:orgId" element={<div>ORG PAGE</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return qc;
 }
 
 test("the preview names the organization and role before accepting", async () => {
@@ -43,7 +45,7 @@ test("the preview names the organization and role before accepting", async () =>
   expect(screen.getByText(/member/)).toBeInTheDocument();
 });
 
-test("accepting joins the organization and links home", async () => {
+test("accepting refreshes the organization and project lists, then opens the new organization", async () => {
   mockPreview();
   server.use(
     http.post("/api/v1/invitations/tok-abc123/accept", () =>
@@ -53,12 +55,13 @@ test("accepting joins the organization and links home", async () => {
         { status: 201 },
       )),
   );
-  renderPage();
+  const qc = renderPage();
+  const invalidate = vi.spyOn(qc, "invalidateQueries");
   await screen.findByText(/Acme QA/);
   await userEvent.click(screen.getByRole("button", { name: /accept/i }));
-  expect(await screen.findByText(/you joined/i)).toBeInTheDocument();
-  await userEvent.click(screen.getByRole("link", { name: /choose a project/i }));
-  expect(await screen.findByText("PICKER")).toBeInTheDocument();
+  expect(await screen.findByText("ORG PAGE")).toBeInTheDocument();
+  const keys = invalidate.mock.calls.map(([filters]) => (filters as { queryKey: unknown[] }).queryKey[0]);
+  expect(keys).toEqual(expect.arrayContaining(["orgs", "projects"]));
 });
 
 test("a dead token explains itself without an accept button", async () => {

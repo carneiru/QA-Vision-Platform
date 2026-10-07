@@ -1,5 +1,4 @@
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { listRunRequests } from "../api/runRequests";
@@ -8,6 +7,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import { MATCH_SLACK_MS, describeRun, matchRun } from "../lib/runStatus";
 import { RUN_POLL_MS } from "../lib/useRunGate";
 import { useUserNames } from "../lib/useUserNames";
+import { pageOffset, withOffset } from "../lib/useUrlState";
 
 const PAGE = 50;
 
@@ -15,7 +15,9 @@ const PAGE = 50;
 export default function RequestedRunsPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
-  const [offset, setOffset] = useState(0);
+  const [params, setParams] = useSearchParams();
+  const offset = pageOffset(params, PAGE);
+  const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
   const nameOf = useUserNames(id);
   const list = useQuery({
     queryKey: ["run-requests", id, "page", offset],

@@ -21,12 +21,14 @@ beforeEach(() => {
   vi.mocked(initGoogleButton).mockResolvedValue(undefined);
 });
 
-function renderLogin() {
+function renderLogin(url = "/login") {
   render(
-    <MemoryRouter initialEntries={["/login"]}>
+    <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<div>PICKER</div>} />
+        <Route path="/invitations/:token" element={<div>INVITATION</div>} />
+        <Route path="/projects/:id/runs" element={<div>RUNS</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -154,4 +156,59 @@ test("the sign-in screen shows the product name and what it stands for", () => {
   renderLogin();
   expect(screen.getByRole("heading", { level: 1, name: "QEOS" })).toBeInTheDocument();
   expect(screen.getByText("Quality Engineering OS")).toBeInTheDocument();
+});
+
+const tokens = { access_token: "acc", refresh_token: "ref", token_type: "bearer" };
+
+async function signIn() {
+  await userEvent.type(screen.getByLabelText(/email/i), "a@b.co");
+  await userEvent.type(screen.getByLabelText(/password/i), "pw");
+  await userEvent.click(screen.getByRole("button", { name: /^sign in$/i }));
+}
+
+test("sign-in returns to the page the user asked for", async () => {
+  server.use(http.post("/api/v1/auth/login", () => HttpResponse.json(tokens)));
+  renderLogin("/login?next=%2Finvitations%2Ftok-1");
+  await signIn();
+  expect(await screen.findByText("INVITATION")).toBeInTheDocument();
+});
+
+test("MFA completion returns to the page the user asked for", async () => {
+  server.use(
+    http.post("/api/v1/auth/login", () => HttpResponse.json({ mfa_required: true, mfa_token: "c" })),
+    http.post("/api/v1/auth/mfa/verify", () => HttpResponse.json(tokens)),
+  );
+  renderLogin("/login?next=%2Fprojects%2F42%2Fruns");
+  await signIn();
+  await userEvent.type(await screen.findByLabelText(/authentication code/i), "123456");
+  await userEvent.click(screen.getByRole("button", { name: /verify/i }));
+  expect(await screen.findByText("RUNS")).toBeInTheDocument();
+});
+
+test("SSO completion returns to the page the user asked for", async () => {
+  vi.mocked(microsoftEnabled).mockReturnValue(true);
+  server.use(http.post("/api/v1/sso/microsoft", () => HttpResponse.json(tokens)));
+  renderLogin("/login?next=%2Finvitations%2Ftok-1");
+  await userEvent.click(screen.getByRole("button", { name: /microsoft/i }));
+  expect(await screen.findByText("INVITATION")).toBeInTheDocument();
+});
+
+test.each(["//evil.example", "https://evil.example", "/\\evil.example"])(
+  "an unsafe next (%s) is ignored: sign-in goes home",
+  async (next) => {
+    server.use(http.post("/api/v1/auth/login", () => HttpResponse.json(tokens)));
+    renderLogin(`/login?next=${encodeURIComponent(next)}`);
+    await signIn();
+    expect(await screen.findByText("PICKER")).toBeInTheDocument();
+  },
+);
+
+test("an expired session says so", () => {
+  renderLogin("/login?reason=expired");
+  expect(screen.getByRole("status")).toHaveTextContent("Your session expired, sign in again");
+});
+
+test("no expiry notice on a plain visit", () => {
+  renderLogin();
+  expect(screen.queryByText(/session expired/i)).not.toBeInTheDocument();
 });

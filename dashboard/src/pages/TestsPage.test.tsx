@@ -50,8 +50,8 @@ test("search and sort map to params; next page advances offset", async () => {
   server.use(
     http.get("/api/v1/projects/42/analytics/tests", ({ request }) => {
       calls.push(new URL(request.url).searchParams);
-      // A full page signals that "Next" should be enabled.
-      return HttpResponse.json(Array.from({ length: 50 }, (_, i) => row(`k${i}`, `t${i}`)));
+      // One row more than the page size signals that "Next" should be enabled.
+      return HttpResponse.json(Array.from({ length: 51 }, (_, i) => row(`k${i}`, `t${i}`)));
     }),
   );
   renderTests();
@@ -70,9 +70,9 @@ test("empty page past the first keeps Previous reachable", async () => {
   server.use(
     http.get("/api/v1/projects/42/analytics/tests", ({ request }) => {
       const offset = Number(new URL(request.url).searchParams.get("offset"));
-      // Exactly 50 rows total: page 2 is empty.
+      // The first page claims another one follows, but it comes back empty (rows deleted meanwhile).
       return HttpResponse.json(
-        offset === 0 ? Array.from({ length: 50 }, (_, i) => row(`k${i}`, `t${i}`)) : [],
+        offset === 0 ? Array.from({ length: 51 }, (_, i) => row(`k${i}`, `t${i}`)) : [],
       );
     }),
   );

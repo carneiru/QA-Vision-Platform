@@ -1,7 +1,8 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Outlet, Route, RouterProvider, Routes, createBrowserRouter, useLocation, useNavigate } from "react-router-dom";
 import { focusContent, pageTitle, useFocusOnNavigate } from "./routeFocus";
 import { bootstrapSession, setOnAuthFailure } from "./api/http";
+import { loginPath } from "./auth/redirect";
 import AppShell from "./components/AppShell";
 import RequireAuth from "./components/RequireAuth";
 import LoginPage from "./pages/LoginPage";
@@ -64,9 +65,17 @@ const outsideProjects = (pathname: string) => !pathname.startsWith("/projects/")
 
 export function AppRoutes() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  // The handler reads the page the user is on when the session ends, not the one it was registered on
+  const here = useRef(location);
+  here.current = location;
   useEffect(() => {
-    setOnAuthFailure(() => navigate("/login", { replace: true }));
+    setOnAuthFailure(() => {
+      // Already signing in: nothing to return to, and no "expired" note on the sign-in page itself
+      if (here.current.pathname === "/login") return navigate("/login", { replace: true });
+      navigate(loginPath(here.current, "expired"), { replace: true });
+    });
   }, [navigate]);
   useEffect(() => {
     if (outsideProjects(pathname)) document.title = titleFor(pathname);

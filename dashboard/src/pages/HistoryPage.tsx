@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -7,12 +6,17 @@ import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
 import Message from "../components/Message";
+import { oneOf, useUrlState } from "../lib/useUrlState";
+
+const DEFAULTS = { days: "30", branch: "" } as const;
+const DAYS = ["7", "30", "90"] as const;
 
 export default function HistoryPage() {
   const { projectId, testKey } = useParams();
   const id = Number(projectId);
-  const [days, setDays] = useState(30);
-  const [branch, setBranch] = useState("");
+  const { values, update } = useUrlState(DEFAULTS, 1);
+  const days = Number(oneOf(values.days, DAYS, "30"));
+  const branch = values.branch;
 
   const query = useQuery({
     queryKey: ["history", id, testKey, days, branch],
@@ -29,7 +33,7 @@ export default function HistoryPage() {
       <FilterBar>
         <label>
           Days
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <select value={String(days)} onChange={(e) => update({ days: e.target.value })}>
             <option value={7}>7</option>
             <option value={30}>30</option>
             <option value={90}>90</option>
@@ -37,7 +41,8 @@ export default function HistoryPage() {
         </label>
         <label>
           Branch
-          <input value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="all" />
+          {/* replace: every keystroke queries, so Back must not step through each letter */}
+          <input value={branch} onChange={(e) => update({ branch: e.target.value }, { replace: true })} placeholder="all" />
         </label>
       </FilterBar>
 
@@ -76,7 +81,7 @@ export default function HistoryPage() {
                 <tbody>
                   {data.executions.map((x) => (
                     <tr key={`${x.run_id}-${x.started_at}`}>
-                      <td>{x.run_id}</td>
+                      <td><Link to={`/projects/${projectId}/runs/${x.run_id}`}>#{x.run_id}</Link></td>
                       <td>{new Date(x.started_at).toLocaleString()}</td>
                       <td>{x.branch ?? "—"}</td>
                       <td className="hide-narrow">{x.commit_sha ? x.commit_sha.slice(0, 7) : "—"}</td>

@@ -7,34 +7,38 @@ import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
+import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 
 const UNDO_MS = 8000;
+const DEFAULTS = { window: "14", min_runs: "5", min_flip: "0.3", branch: "", muted: "" } as const;
+const WINDOWS = ["7", "14", "30", "90"] as const;
+const clampRuns = (raw: string) => Math.min(1000, Math.max(2, Math.round(Number(raw) || 0)));
+const clampRate = (raw: string) => Math.min(1, Math.max(0, Number(raw) || 0));
 
 export default function FlakyPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
-  const [windowDays, setWindowDays] = useState(14);
-  // Drafts apply on submit, clamped to the API's bounds (min_runs ge=2,
-  // min_flip_rate 0..1) so a cleared field never sends an invalid value.
-  const [minRunsInput, setMinRunsInput] = useState("5");
-  const [minFlipRateInput, setMinFlipRateInput] = useState("0.3");
-  const [branchInput, setBranchInput] = useState("");
-  const [minRuns, setMinRuns] = useState(5);
-  const [minFlipRate, setMinFlipRate] = useState(0.3);
-  const [branch, setBranch] = useState("");
+  const { values, update } = useUrlState(DEFAULTS, 1);
+  const windowDays = Number(oneOf(values.window, WINDOWS, "14"));
+  // Clamped to the API's bounds (min_runs ge=2, min_flip_rate 0..1) so a hand-edited URL never sends an invalid value.
+  const minRuns = clampRuns(values.min_runs);
+  const minFlipRate = clampRate(values.min_flip);
+  const branch = values.branch;
+  const showMuted = values.muted === "1";
+  // Drafts apply on submit
+  const [minRunsInput, setMinRunsInput] = useDraft(String(minRuns));
+  const [minFlipRateInput, setMinFlipRateInput] = useDraft(String(minFlipRate));
+  const [branchInput, setBranchInput] = useDraft(branch);
 
   function applyFilters(event: FormEvent) {
     event.preventDefault();
-    const runs = Math.min(1000, Math.max(2, Math.round(Number(minRunsInput) || 0)));
-    const rate = Math.min(1, Math.max(0, Number(minFlipRateInput) || 0));
-    setMinRuns(runs);
-    setMinFlipRate(rate);
-    setBranch(branchInput.trim());
+    const runs = clampRuns(minRunsInput);
+    const rate = clampRate(minFlipRateInput);
+    update({ min_runs: String(runs), min_flip: String(rate), branch: branchInput.trim() });
     setMinRunsInput(String(runs));
     setMinFlipRateInput(String(rate));
   }
 
-  const [showMuted, setShowMuted] = useState(false);
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -103,7 +107,7 @@ export default function FlakyPage() {
         <FilterBar>
           <label>
             Window (days)
-            <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}>
+            <select value={String(windowDays)} onChange={(e) => update({ window: e.target.value })}>
               <option value={7}>7</option>
               <option value={14}>14</option>
               <option value={30}>30</option>
@@ -136,7 +140,7 @@ export default function FlakyPage() {
             <input
               type="checkbox"
               checked={showMuted}
-              onChange={(e) => setShowMuted(e.target.checked)}
+              onChange={(e) => update({ muted: e.target.checked ? "1" : "" })}
             />
             Show quarantined
           </label>

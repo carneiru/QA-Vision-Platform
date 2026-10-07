@@ -28,11 +28,15 @@ function testLabel(r: { suite: string; class_name: string; name: string }): stri
   return [r.suite, r.class_name, r.name].filter(Boolean).join(" › ");
 }
 
-function Section({ title, children, loading, empty }: { title: string; children: ReactNode; loading: boolean; empty: boolean }) {
+function Section({ title, children, loading, empty, query }: {
+  title: string; children: ReactNode; loading: boolean; empty: boolean;
+  /** The query behind the section: a failure is shown here, never as an empty period. */
+  query: { error: unknown; refetch: () => unknown };
+}) {
   return (
     <section className="card report-section" tabIndex={0} aria-label={title}>
       <h3>{title}</h3>
-      {loading ? <p className="muted">Loading…</p> : empty ? <p className="muted">Nothing in this period.</p> : children}
+      {query.error != null ? <ErrorBanner error={query.error} onRetry={() => void query.refetch()} /> : loading ? <p className="muted">Loading…</p> : empty ? <p className="muted">Nothing in this period.</p> : children}
     </section>
   );
 }
@@ -96,7 +100,6 @@ export default function ReportPage() {
   const considered = totals.total - totals.skipped;
   const passRate = considered > 0 ? totals.passed / considered : null;
   const failingRows = (failing.data ?? []).filter((r) => r.failed + r.errored > 0);
-  const errors = [trends, failing, slowest, flaky, branches].map((q) => q.error).filter((e) => e != null);
 
   async function onCsv() {
     setCsvBusy(true);
@@ -145,12 +148,13 @@ export default function ReportPage() {
           </button>
         </div>
       </div>
-      {errors.length > 0 && <ErrorBanner error={errors[0]} />}
       {csvError != null && <ErrorBanner error={csvError} />}
 
       <section className="card report-section" aria-label="Summary">
         <h3>Summary</h3>
-        {trends.isPending ? (
+        {trends.error != null ? (
+          <ErrorBanner error={trends.error} onRetry={() => void trends.refetch()} />
+        ) : trends.isPending ? (
           <p className="muted">Loading…</p>
         ) : (
           <dl className="report-figures">
@@ -163,7 +167,7 @@ export default function ReportPage() {
         <p className="muted report-note">Pass rate leaves skipped tests out: passed ÷ (executions − skipped).</p>
       </section>
 
-      <Section title="Pass rate by week" loading={trends.isPending} empty={weeks.length === 0}>
+      <Section title="Pass rate by week" query={trends} loading={trends.isPending} empty={weeks.length === 0}>
         <table className="data">
           <caption className="sr-only">Pass rate by week</caption>
           <thead>
@@ -184,15 +188,15 @@ export default function ReportPage() {
         </table>
       </Section>
 
-      <Section title={`Most failing tests (top ${TOP})`} loading={failing.isPending} empty={failingRows.length === 0}>
+      <Section title={`Most failing tests (top ${TOP})`} query={failing} loading={failing.isPending} empty={failingRows.length === 0}>
         <TestTable caption="Most failing tests" rows={failingRows} value={(r) => number.format(r.failed + r.errored)} />
       </Section>
 
-      <Section title={`Slowest tests (top ${TOP})`} loading={slowest.isPending} empty={(slowest.data ?? []).length === 0}>
+      <Section title={`Slowest tests (top ${TOP})`} query={slowest} loading={slowest.isPending} empty={(slowest.data ?? []).length === 0}>
         <TestTable caption="Slowest tests" rows={slowest.data ?? []} value={(r) => formatDuration(r.avg_duration_ms)} />
       </Section>
 
-      <Section title="Flaky tests" loading={flaky.isPending} empty={(flaky.data ?? []).length === 0}>
+      <Section title="Flaky tests" query={flaky} loading={flaky.isPending} empty={(flaky.data ?? []).length === 0}>
         <table className="data">
           <caption className="sr-only">Flaky tests</caption>
           <thead><tr><th>Test</th><th>Runs</th><th>Why flaky</th></tr></thead>
@@ -212,7 +216,7 @@ export default function ReportPage() {
         </table>
       </Section>
 
-      <Section title={`Branches (top ${TOP})`} loading={branches.isPending} empty={(branches.data ?? []).length === 0}>
+      <Section title={`Branches (top ${TOP})`} query={branches} loading={branches.isPending} empty={(branches.data ?? []).length === 0}>
         <table className="data">
           <caption className="sr-only">Branches</caption>
           <thead><tr><th>Branch</th><th>Runs</th><th>Failures</th><th>Pass rate</th></tr></thead>

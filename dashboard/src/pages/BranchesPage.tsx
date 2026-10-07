@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -7,6 +6,7 @@ import {
 import { formatPassRate, getBranches, getTrends } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
+import { oneOf, useUrlState } from "../lib/useUrlState";
 
 const inkLegend = (value: string) => (
   <span className="muted">{value}</span>
@@ -25,13 +25,17 @@ function useBranchTrend(projectId: number, days: number, tz: string, branch: str
   });
 }
 
+const DEFAULTS = { days: "30", a: "", b: "" } as const;
+const DAYS = ["7", "30", "90"] as const;
+
 export default function BranchesPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const [days, setDays] = useState(30);
-  const [branchA, setBranchA] = useState("");
-  const [branchB, setBranchB] = useState("");
+  const { values, update } = useUrlState(DEFAULTS, 1);
+  const days = Number(oneOf(values.days, DAYS, "30"));
+  const branchA = values.a;
+  const branchB = values.b;
 
   const branchesQuery = useQuery({
     queryKey: ["branches", id, days],
@@ -65,7 +69,7 @@ export default function BranchesPage() {
       <FilterBar>
         <label>
           Days
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <select value={String(days)} onChange={(e) => update({ days: e.target.value })}>
             <option value={7}>7</option>
             <option value={30}>30</option>
             <option value={90}>90</option>
@@ -73,7 +77,7 @@ export default function BranchesPage() {
         </label>
         <label>
           Compare A
-          <select value={branchA} onChange={(e) => setBranchA(e.target.value)}>
+          <select value={branchA} onChange={(e) => update({ a: e.target.value })}>
             <option value="">—</option>
             {named.map((r) => (
               <option key={r.branch} value={r.branch!}>{r.branch}</option>
@@ -82,7 +86,7 @@ export default function BranchesPage() {
         </label>
         <label>
           Compare B
-          <select value={branchB} onChange={(e) => setBranchB(e.target.value)}>
+          <select value={branchB} onChange={(e) => update({ b: e.target.value })}>
             <option value="">—</option>
             {named.map((r) => (
               <option key={r.branch} value={r.branch!}>{r.branch}</option>

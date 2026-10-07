@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
@@ -26,14 +26,19 @@ const result = {
   file: "tests/a.py", owner: null,
 };
 
-function renderDetail() {
+function Where() {
+  const { pathname, search } = useLocation();
+  return <output data-testid="where">{pathname + search}</output>;
+}
+
+function renderDetail(url = "/projects/42/runs/61") {
   setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={["/projects/42/runs/61"]}>
+      <MemoryRouter initialEntries={[url]}>
         <Routes>
-          <Route path="/projects/:projectId/runs/:runId" element={<RunDetailPage />} />
+          <Route path="/projects/:projectId/runs/:runId" element={<><RunDetailPage /><Where /></>} />
           <Route path="/projects/:projectId/tests/:testKey" element={<div>HISTORY</div>} />
         </Routes>
       </MemoryRouter>
@@ -201,4 +206,39 @@ test("quarantined failures are marked and kept out of the failing count", async 
   const row = screen.getByRole("link", { name: "test_ok" }).closest("tr")!;
   expect(row).toHaveTextContent(/quarantined/i);
   expect(screen.getByRole("link", { name: "test_real" }).closest("tr")).not.toHaveTextContent(/quarantined/i);
+});
+
+test("the status filter lives in the URL", async () => {
+  const statuses: (string | null)[] = [];
+  server.use(http.get("/api/v1/runs/61", ({ request }) => {
+    statuses.push(new URL(request.url).searchParams.get("status"));
+    return HttpResponse.json(detail([]));
+  }));
+  renderDetail("/projects/42/runs/61?status=errored");
+  await screen.findByText(/no errored results/i);
+  expect(statuses[0]).toBe("errored");
+  expect(screen.getByLabelText(/status/i)).toHaveValue("errored");
+  await userEvent.selectOptions(screen.getByLabelText(/status/i), "");
+  expect(screen.getByTestId("where").textContent).toBe("/projects/42/runs/61");
+});
+
+test("changing the filter keeps the page and the focused select mounted", async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => { release = r; });
+  server.use(http.get("/api/v1/runs/61", async ({ request }) => {
+    if (new URL(request.url).searchParams.get("status") === "failed") await gate;
+    return HttpResponse.json(detail([result]));
+  }));
+  renderDetail();
+  await screen.findByText("test_ok");
+  const select = screen.getByLabelText(/status/i);
+  await userEvent.selectOptions(select, "failed");
+  // still the same element, still focused, previous rows still shown, with a hint that it is refreshing
+  expect(screen.getByLabelText(/status/i)).toBe(select);
+  expect(select).toHaveFocus();
+  expect(screen.getByText("test_ok")).toBeInTheDocument();
+  expect(screen.getByText(/updating results/i)).toBeInTheDocument();
+  release();
+  await waitFor(() => expect(screen.queryByText(/updating results/i)).not.toBeInTheDocument());
+  expect(select).toHaveFocus();
 });

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login, mfaVerify, ssoLogin } from "../api/auth";
 import {
   getMicrosoftCredential,
@@ -7,6 +7,7 @@ import {
   initGoogleButton,
   microsoftEnabled,
 } from "../auth/ssoProviders";
+import { safeNext } from "../auth/redirect";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function LoginPage() {
@@ -15,13 +16,17 @@ export default function LoginPage() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Back to the page the user asked for (validated: same-origin paths only), else the front page
+  const next = safeNext(params.get("next")) ?? "/";
+  const expired = params.get("reason") === "expired";
   const googleRef = useRef<HTMLDivElement>(null);
 
   async function finishSso(provider: "google" | "microsoft", credential: string) {
     setError(null);
     try {
       await ssoLogin(provider, credential);
-      navigate("/", { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err);
     }
@@ -59,7 +64,7 @@ export default function LoginPage() {
         setMfaToken(challenge.mfaToken);
         return;
       }
-      navigate("/", { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err);
     } finally {
@@ -73,7 +78,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await mfaVerify(mfaToken!, mfaCode.trim());
-      navigate("/", { replace: true });
+      navigate(next, { replace: true });
     } catch (err) {
       setError(err);
     } finally {
@@ -116,6 +121,7 @@ export default function LoginPage() {
       <h1>QEOS</h1>
       <p className="brand-subtitle">Quality Engineering OS</p>
       <form className="card" onSubmit={onSubmit}>
+        {expired && <p role="status" className="muted">Your session expired, sign in again.</p>}
         <p>
           <label>
             Email

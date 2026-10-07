@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -9,15 +8,22 @@ import FailureGroups from "../components/FailureGroups";
 import FilterBar from "../components/FilterBar";
 import Message from "../components/Message";
 import StatusDot from "../components/StatusDot";
+import { oneOf, useUrlState } from "../lib/useUrlState";
+
+const DEFAULTS = { status: "" } as const;
+const STATUSES = ["passed", "failed", "errored", "skipped"] as const;
 
 export default function RunDetailPage() {
   const { projectId, runId } = useParams();
   const id = Number(runId);
-  const [status, setStatus] = useState<RunStatusFilter | "">("");
+  const { values, update } = useUrlState(DEFAULTS, 1);
+  const status: RunStatusFilter | "" = oneOf(values.status, STATUSES, "" as never);
 
   const query = useQuery({
     queryKey: ["run", id, status],
     queryFn: () => getRun(id, status || undefined),
+    // Keep the page (and the focused select) mounted while a new filter loads, but never show another run's data
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === id ? previous : undefined),
   });
 
   const run = query.data;
@@ -135,7 +141,7 @@ export default function RunDetailPage() {
           <FilterBar>
             <label>
               Status
-              <select value={status} onChange={(e) => setStatus(e.target.value as RunStatusFilter | "")}>
+              <select value={status} onChange={(e) => update({ status: e.target.value })}>
                 <option value="">all</option>
                 <option value="passed">passed</option>
                 <option value="failed">failed</option>
@@ -144,6 +150,7 @@ export default function RunDetailPage() {
               </select>
             </label>
           </FilterBar>
+          <p role="status" className="muted">{query.isPlaceholderData && "Updating results…"}</p>
 
           {run.results.length === 0 ? (
             <p className="muted">No {status || ""} results in this run.</p>

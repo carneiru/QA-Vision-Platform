@@ -15,6 +15,7 @@ import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
 import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
 import { useCanEdit } from "../lib/useCanEdit";
+import { pageOffset, withOffset } from "../lib/useUrlState";
 
 const PAGE = 50;
 const MAX_KEYS = 20000;
@@ -43,7 +44,8 @@ export default function CasesPage() {
   const [params, setParams] = useSearchParams();
   const applied = read(params);
   const [form, setForm] = useState<Values>(applied);
-  const [offset, setOffset] = useState(0);
+  const offset = pageOffset(params, PAGE);
+  const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
   const tableRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
@@ -69,7 +71,6 @@ export default function CasesPage() {
   const search = params.toString();
   useEffect(() => {
     setForm(read(new URLSearchParams(search)));
-    setOffset(0);
   }, [search]);
 
   const archived = applied.status === "archived";
