@@ -59,7 +59,7 @@ jobs:
           python dist/qeos-collector.pyz --version
           # The same file under the name before the QEOS rename, so .../latest/download/qav-collector.pyz keeps working
           cp dist/qeos-collector.pyz dist/qav-collector.pyz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: collector-dist
           path: collector/dist/
@@ -71,7 +71,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: collector-dist
           path: dist/
@@ -93,7 +93,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Log in to ghcr.io
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -120,7 +120,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: collector-dist
           path: dist/
