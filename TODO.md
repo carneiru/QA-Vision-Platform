@@ -356,6 +356,28 @@ requested ones. Each group needs its own design spec before implementation.
 - [ ] Ask questions about test data in plain language ("which tests failed most this week?") — roadmap Phase 6 *(suggested)*
 - Note: the roadmap defers "natural language test generation" past year one because predictive ML needs months of collected data. An assistant built on a hosted LLM does not depend on that data, so this group can be scheduled independently of Phase 6.
 
+### D2. AI skills: reusable Markdown playbooks for the AI engine
+Requested 2026-10-07. Users create or import `*.md` files as **skills**: reusable instructions the AI follows for one job, such as a custom report, generating test cases in the team's style, analysing a failure or a release-readiness check. Depends on group D, because a skill needs an AI assistant to run it.
+- [ ] **Skill format.** Markdown with YAML frontmatter: `name`, `description` (when to use it), `inputs` (for example a run, a suite or a date range), `output` (report, test cases or analysis) and `version`. Keep it compatible with the Agent Skills `SKILL.md` layout so existing skills import as they are. v1 is Markdown only: no bundled scripts and no executable content.
+- [ ] **Create, import, edit and export** (`.md`, or a `.zip` with reference files), with a preview and a dry run against sample data before saving.
+- [ ] **Scopes:** user (private), team, organization, and built-in skills shipped by QEOS.
+  - Resolution order: user, then team, then organization, then built-in. A name clash shows which one wins.
+  - **Teams don't exist yet**: sub-teams are not built (TODO 31). Until they are, team scope maps to project.
+- [ ] **Governance:**
+  - Only owners and admins publish organization skills.
+  - Every change is versioned (who, when, a diff), and a skill can be rolled back.
+  - Usage is counted, and unused skills are flagged.
+- [ ] **Security** (a skill is a prompt, so it is untrusted input):
+  - A skill never widens access. The AI sees only the data and tools the *calling user's* role allows, and PII masking still applies.
+  - A skill cannot carry secrets or URLs the AI would call.
+  - Size limit, and a scan on import for instructions to exfiltrate data.
+  - Outputs that change state, such as new test cases or fixes, arrive as drafts or PRs for a human to approve (group D rule).
+- [ ] **Run a skill** from the AI chat ("/release-readiness for run 433"), from a run, case or suite page ("Analyse with…"), or on a schedule. A scheduled custom report goes through the existing notification channels.
+- [ ] **Starter skills:** failure triage for a run, flaky-test report, Gherkin test cases from a requirement, weekly quality summary and release readiness.
+- [ ] **Later:**
+  - share skills across organizations through the marketplace (the `marketplace/` prototype);
+  - skill evaluations, where a skill's output is checked against expected examples before publishing.
+
 ### E. Repository configuration and secrets
 - [ ] Edit configuration files (`*.json`) — restricted to a configured config path only
 - [ ] Validate edits against a JSON schema and show a diff before saving; save as a PR *(suggested)*
