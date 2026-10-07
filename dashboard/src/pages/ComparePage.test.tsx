@@ -95,3 +95,17 @@ test("the failure message is under the test name for phones", async () => {
   const meta = within(broke).getByRole("link", { name: "pays with card" }).closest("td")!.querySelector(".narrow-meta")!;
   expect(meta).toHaveTextContent("Message TimeoutError: waiting for #pay");
 });
+
+test("section headers sort by name or outcome, and the order is kept in the link", async () => {
+  const data = comparison();
+  data.new_failures = [item("zeta", { message: "b" }), item("alpha", { message: "a" })];
+  data.counts.new_failures = 2;
+  server.use(http.get("/api/v1/runs/61/compare/60", () => HttpResponse.json(data)));
+  renderPage();
+  const region = await screen.findByRole("region", { name: /new failures/i });
+  const names = () => within(region).getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent);
+  expect(names()).toEqual(["alpha", "zeta"]);
+  expect(within(region).getByRole("columnheader", { name: /^test/i })).toHaveAttribute("aria-sort", "ascending");
+  await userEvent.click(within(region).getByRole("button", { name: /^test/i }));
+  expect(names()).toEqual(["zeta", "alpha"]);
+});

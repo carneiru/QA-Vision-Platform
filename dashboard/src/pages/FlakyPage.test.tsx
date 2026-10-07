@@ -269,3 +269,21 @@ test("reason, flips, runs and commits are in the Test cell for phones", async ()
   expect(meta).toHaveTextContent("Runs 12");
   expect(meta).toHaveTextContent("Commits abcdef1");
 });
+
+test("flip rate and last seen sort the rows; the order is announced with aria-sort", async () => {
+  server.use(http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json(flaky)));
+  renderFlaky();
+  await screen.findByText("test_add");
+  const names = () => screen.getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent);
+  expect(names()).toEqual(["test_ok", "test_add"]); // the server's order until a header is used
+  expect(screen.getByRole("columnheader", { name: /flip rate/i })).toHaveAttribute("aria-sort", "none");
+  await userEvent.click(screen.getByRole("button", { name: /flip rate/i }));
+  expect(names()).toEqual(["test_add", "test_ok"]); // highest first; no rate sorts last
+  expect(screen.getByRole("columnheader", { name: /flip rate/i })).toHaveAttribute("aria-sort", "descending");
+  await userEvent.click(screen.getByRole("button", { name: /last seen/i }));
+  expect(names()).toEqual(["test_add", "test_ok"]); // 11:00 before 10:00
+  await userEvent.click(screen.getByRole("button", { name: /last seen/i }));
+  expect(names()).toEqual(["test_ok", "test_add"]);
+  expect(screen.getByRole("columnheader", { name: /last seen/i })).toHaveAttribute("aria-sort", "ascending");
+  expect(screen.getByRole("columnheader", { name: /flip rate/i })).toHaveAttribute("aria-sort", "none");
+});

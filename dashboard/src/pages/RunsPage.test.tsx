@@ -191,3 +191,72 @@ test("columns hidden on phones come back as a second line in the Run cell", asyn
   expect(meta).toHaveTextContent("Skipped 0");
   expect(meta).toHaveTextContent("Duration");
 });
+
+test("a Status column names each run's verdict with an icon and a word", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/runs", () =>
+      HttpResponse.json([
+        { ...run(3), failed: 0, errored: 0 },
+        { ...run(2), failed: 0, errored: 2 },
+        { ...run(1), failed: 4 },
+      ]),
+    ),
+  );
+  renderRuns();
+  await screen.findByRole("link", { name: "#3" });
+  expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
+  // Wide cells and the narrow-meta line each carry it; the table body has one badge per run per place
+  expect(screen.getAllByText("Passed", { selector: ".badge" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Errored", { selector: ".badge" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Failed", { selector: ".badge" }).length).toBeGreaterThan(0);
+  const cells = screen.getAllByRole("row").slice(1).map((r) => r.querySelector("td.hide-narrow")?.textContent?.trim());
+  expect(cells).toEqual(["Passed", "Errored", "Failed"]);
+  // Narrow screens: the same verdict leads the muted line under the run link
+  const firstRow = screen.getAllByRole("row")[1];
+  expect(firstRow.querySelector(".narrow-meta")).toHaveTextContent("Status Passed");
+});
+
+test("column headers sort the loaded page and keep the order in the URL", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/runs", () =>
+      HttpResponse.json([
+        { ...run(1), failed: 2, duration_ms: 5000, started_at: "2026-10-01T10:00:00Z" },
+        { ...run(2), failed: 9, duration_ms: 1000, started_at: "2026-10-02T10:00:00Z" },
+        { ...run(3), failed: 0, duration_ms: 9000, started_at: "2026-10-03T10:00:00Z" },
+      ]),
+    ),
+  );
+  renderRuns();
+  const ids = () => screen.getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent);
+  await screen.findByRole("link", { name: "#3" });
+  // Default: newest first
+  expect(ids()).toEqual(["#3", "#2", "#1"]);
+  expect(screen.getByRole("columnheader", { name: /started/i })).toHaveAttribute("aria-sort", "descending");
+  expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "none");
+
+  await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
+  expect(ids()).toEqual(["#2", "#1", "#3"]);
+  expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "descending");
+  expect(screen.getByRole("columnheader", { name: /started/i })).toHaveAttribute("aria-sort", "none");
+  expect(screen.getByTestId("location")).toHaveTextContent("sort=failed");
+
+  await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
+  expect(ids()).toEqual(["#3", "#1", "#2"]);
+  expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "ascending");
+  expect(screen.getByTestId("location")).toHaveTextContent("dir=asc");
+
+  await userEvent.click(screen.getByRole("button", { name: /duration/i }));
+  expect(ids()).toEqual(["#3", "#1", "#2"]);
+});
+
+test("a shared sorted link opens sorted", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/runs", () =>
+      HttpResponse.json([{ ...run(1), duration_ms: 100 }, { ...run(2), duration_ms: 900 }]),
+    ),
+  );
+  renderRuns("/projects/42/runs?sort=duration&dir=asc");
+  await screen.findByRole("link", { name: "#1" });
+  expect(screen.getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent)).toEqual(["#1", "#2"]);
+  expect(screen.getByRole("columnheader", { name: /duration/i })).toHaveAttribute("aria-sort", "ascending");
+});

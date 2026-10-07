@@ -33,7 +33,7 @@ test("lists per-branch aggregates", async () => {
     http.get("/api/v1/projects/42/analytics/branches", () => HttpResponse.json(branches)),
   );
   renderBranches();
-  expect(await screen.findByRole("cell", { name: "main" })).toBeInTheDocument();
+  expect(await screen.findByRole("cell", { name: /^main/ })).toBeInTheDocument();
   expect(screen.getByText("90.0%")).toBeInTheDocument();
   expect(screen.getByText("75.0%")).toBeInTheDocument();
 });
@@ -48,7 +48,7 @@ test("picking two branches fetches both pass-rate trends", async () => {
     }),
   );
   renderBranches();
-  await screen.findByRole("cell", { name: "main" });
+  await screen.findByRole("cell", { name: /^main/ });
   await userEvent.selectOptions(screen.getByLabelText(/compare a/i), "main");
   await userEvent.selectOptions(screen.getByLabelText(/compare b/i), "dev");
   await vi.waitFor(() => expect(trendBranches.sort()).toEqual(["dev", "main"]));
@@ -60,4 +60,23 @@ test("empty window shows an empty state", async () => {
   );
   renderBranches();
   expect(await screen.findByText(/no branches/i)).toBeInTheDocument();
+});
+
+test("branch table headers sort, and the narrow line carries the hidden columns", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/branches", () => HttpResponse.json(branches)),
+  );
+  renderBranches();
+  await screen.findByRole("cell", { name: /main/ });
+  const first = () => screen.getAllByRole("row")[1].querySelector("td")?.firstChild?.textContent;
+  expect(first()).toBe("main"); // last run, newest first
+  expect(screen.getByRole("columnheader", { name: /last run/i })).toHaveAttribute("aria-sort", "descending");
+  await userEvent.click(screen.getByRole("button", { name: /pass rate/i }));
+  expect(first()).toBe("main"); // 90% before 75%
+  await userEvent.click(screen.getByRole("button", { name: /pass rate/i }));
+  expect(first()).toBe("dev");
+  await userEvent.click(screen.getByRole("button", { name: /^branch/i }));
+  expect(first()).toBe("dev"); // a-z
+  expect(screen.getByRole("columnheader", { name: /^branch/i })).toHaveAttribute("aria-sort", "ascending");
+  expect(screen.getAllByRole("row")[1].querySelector(".narrow-meta")).toHaveTextContent("Passed 60");
 });

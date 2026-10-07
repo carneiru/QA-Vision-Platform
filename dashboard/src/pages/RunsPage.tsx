@@ -8,10 +8,17 @@ import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterSelect from "../components/FilterSelect";
 import NarrowMeta from "../components/NarrowMeta";
+import RunStatusBadge, { runVerdict } from "../components/RunStatusBadge";
+import SortableTh from "../components/SortableTh";
+import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { LIVE_REFRESH_MS } from "../lib/live";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 
 const PAGE = 50;
+// The API has no sort parameter for runs: the columns sort the page that is loaded
+const SORT_KEYS = ["started", "duration", "failed"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const DEFAULT_SORT: SortState<SortKey> = { key: "started", dir: "desc" };
 
 const CI_LABELS: Record<string, string> = {
   github_actions: "GitHub Actions",
@@ -64,6 +71,21 @@ export default function RunsPage() {
   const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
   const applied = readValues(params);
   const filters = toFilters(applied);
+  const sort = parseSort(params.get("sort"), params.get("dir"), SORT_KEYS, DEFAULT_SORT);
+  function onSort(key: SortKey) {
+    const next = nextSort(sort, key, "desc");
+    setParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (next.key === DEFAULT_SORT.key && next.dir === DEFAULT_SORT.dir) {
+        p.delete("sort");
+        p.delete("dir");
+      } else {
+        p.set("sort", next.key);
+        p.set("dir", next.dir);
+      }
+      return p;
+    });
+  }
   const active = KEYS.filter((k) => applied[k] !== "").length;
   const advancedActive = ADVANCED.filter((k) => applied[k] !== "").length;
   const [form, setForm] = useState<Values>(applied);
@@ -109,14 +131,26 @@ export default function RunsPage() {
       const value = form[k].trim();
       if (value) next.set(k, value);
     }
+    keepSort(next);
     setParams(next);
   }
 
-  function clearFilters() {
-    setParams(new URLSearchParams());
+  /** Filters change which runs load; the chosen order stays */
+  function keepSort(next: URLSearchParams) {
+    for (const k of ["sort", "dir"]) {
+      const v = params.get(k);
+      if (v) next.set(k, v);
+    }
   }
 
-  const rows = query.data ?? [];
+  function clearFilters() {
+    const next = new URLSearchParams();
+    keepSort(next);
+    setParams(next);
+  }
+
+  const rows = sortRows(query.data ?? [], sort, (r, key) =>
+    key === "started" ? Date.parse(r.started_at) : key === "duration" ? r.duration_ms : r.failed);
 
   return (
     <section>
@@ -205,8 +239,10 @@ export default function RunsPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Run</th><th>Started</th><th>Branch</th><th className="hide-narrow">Commit</th><th className="hide-narrow">Environment</th>
-                <th className="hide-narrow">CI</th><th>Passed</th><th>Failed</th><th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th><th className="hide-narrow">Duration</th>
+                <th>Run</th><th className="hide-narrow">Status</th>
+                <SortableTh label="Started" sortKey="started" sort={sort} onSort={onSort} />
+                <th>Branch</th><th className="hide-narrow">Commit</th><th className="hide-narrow">Environment</th>
+                <th className="hide-narrow">CI</th><th>Passed</th><SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} /><th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th><SortableTh label="Duration" sortKey="duration" sort={sort} onSort={onSort} className="hide-narrow" />
               </tr>
             </thead>
             <tbody>
@@ -215,6 +251,7 @@ export default function RunsPage() {
                   <td>
                     <Link to={`${r.id}`}>#{r.id}</Link>
                     <NarrowMeta items={[
+                      { label: "Status", value: <RunStatusBadge verdict={runVerdict(r)} /> },
                       { label: "Commit", value: r.commit_sha ? r.commit_sha.slice(0, 7) : "—" },
                       { label: "Environment", value: r.environment ?? "—" },
                       { label: "CI", value: CI_LABELS[r.ci_provider] ?? r.ci_provider },
@@ -223,6 +260,7 @@ export default function RunsPage() {
                       { label: "Duration", value: formatDuration(r.duration_ms) },
                     ]} />
                   </td>
+                  <td className="hide-narrow"><RunStatusBadge verdict={runVerdict(r)} /></td>
                   <td>{new Date(r.started_at).toLocaleString()}</td>
                   <td>{r.branch ?? "—"}</td>
                   <td className="hide-narrow">{r.commit_sha ? r.commit_sha.slice(0, 7) : "—"}</td>

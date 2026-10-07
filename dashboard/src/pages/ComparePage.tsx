@@ -1,14 +1,20 @@
 import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CompareItem, RunOverview, compareRuns } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import NarrowMeta from "../components/NarrowMeta";
+import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
+import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 
 const MAX_LISTED = 200;
+// One order for every section, kept in the URL; the API returns at most 200 per section, so this sorts what is shown
+const SORT_KEYS = ["name", "before", "now", "change"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const DEFAULT_SORT: SortState<SortKey> = { key: "name", dir: "asc" };
 
 const SECTIONS = [
   { key: "new_failures", title: "New failures", hint: "Passed in the base run, fail now." },
@@ -38,13 +44,21 @@ function Status({ value }: { value: string | null }) {
   return value ? <StatusDot status={value} /> : <span className="muted">—</span>;
 }
 
-function Section({ projectId, kind, items, total }: {
+function Section({ projectId, kind, items, total, sort, onSort }: {
   projectId: string | undefined;
+  sort: SortState<SortKey>;
+  onSort: (key: SortKey) => void;
   kind: (typeof SECTIONS)[number];
   items: CompareItem[];
   total: number;
 }) {
   const slower = kind.key === "slower";
+  const rows = sortRows(items, sort, (t, key) => {
+    if (key === "name") return t.name;
+    if (key === "before") return slower ? t.base_duration_ms : t.base_status;
+    if (key === "now") return slower ? t.head_duration_ms : t.head_status;
+    return slower ? (t.head_duration_ms ?? 0) - (t.base_duration_ms ?? 0) : t.message;
+  });
   return (
     <section className="card" aria-labelledby={`cmp-${kind.key}`} role="region">
       <h3 id={`cmp-${kind.key}`}>{kind.title} <span className="muted">({total})</span></h3>
@@ -52,14 +66,14 @@ function Section({ projectId, kind, items, total }: {
       <table className="data">
         <thead>
           <tr>
-            <th>Test</th>
-            <th>Before</th>
-            <th>Now</th>
-            <th className={slower ? undefined : "hide-narrow"}>{slower ? "Change" : "Message"}</th>
+            <SortableTh label="Test" sortKey="name" sort={sort} onSort={onSort} />
+            <SortableTh label="Before" sortKey="before" sort={sort} onSort={onSort} />
+            <SortableTh label="Now" sortKey="now" sort={sort} onSort={onSort} />
+            <SortableTh label={slower ? "Change" : "Message"} sortKey="change" sort={sort} onSort={onSort} className={slower ? undefined : "hide-narrow"} />
           </tr>
         </thead>
         <tbody>
-          {items.map((t) => (
+          {rows.map((t) => (
             <tr key={t.test_key}>
               <td className="wrap-anywhere">
                 <Link to={`/projects/${projectId}/tests/${encodeURIComponent(t.test_key)}`}>{t.name}</Link>
@@ -93,6 +107,22 @@ export default function ComparePage() {
   const head = Number(runId);
   const base = Number(baseId);
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const sort = parseSort(params.get("sort"), params.get("dir"), SORT_KEYS, DEFAULT_SORT);
+  const onSort = (key: SortKey) => {
+    const next = nextSort(sort, key, "asc");
+    setParams((prev) => {
+      const p = new URLSearchParams(prev);
+      if (next.key === DEFAULT_SORT.key && next.dir === DEFAULT_SORT.dir) {
+        p.delete("sort");
+        p.delete("dir");
+      } else {
+        p.set("sort", next.key);
+        p.set("dir", next.dir);
+      }
+      return p;
+    }, { replace: true });
+  };
   const [other, setOther] = useState(String(base));
   useEffect(() => setOther(String(base)), [base]);
 
@@ -132,7 +162,7 @@ export default function ComparePage() {
             {c.slower} slower · {c.added} added · {c.removed} removed · {c.unchanged} unchanged
           </p>
           {SECTIONS.filter((s) => c[s.key as SectionKey] > 0).map((s) => (
-            <Section key={s.key} projectId={projectId} kind={s} items={data[s.key as SectionKey]} total={c[s.key as SectionKey]} />
+            <Section key={s.key} projectId={projectId} kind={s} items={data[s.key as SectionKey]} total={c[s.key as SectionKey]} sort={sort} onSort={onSort} />
           ))}
           {SECTIONS.every((s) => c[s.key as SectionKey] === 0) && (
             <p className="muted">No test changed outcome or got notably slower.</p>

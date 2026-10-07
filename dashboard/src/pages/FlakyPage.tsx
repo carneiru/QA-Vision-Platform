@@ -7,11 +7,18 @@ import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
+import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
+import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 
 const UNDO_MS = 8000;
-const DEFAULTS = { window: "14", min_runs: "5", min_flip: "0.3", branch: "", muted: "" } as const;
+const DEFAULTS = { window: "14", min_runs: "5", min_flip: "0.3", branch: "", muted: "", sort: "", dir: "" } as const;
+// The flaky endpoint returns every match (confirmed first, then by flip rate), so sorting the loaded rows sorts them all
+const SORT_KEYS = ["rate", "seen"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const DEFAULT_SORT: SortState<SortKey> = { key: "rate", dir: "desc" };
+const isSortKey = (v: string): v is SortKey => (SORT_KEYS as readonly string[]).includes(v);
 const WINDOWS = ["7", "14", "30", "90"] as const;
 const clampRuns = (raw: string) => Math.min(1000, Math.max(2, Math.round(Number(raw) || 0)));
 const clampRate = (raw: string) => Math.min(1, Math.max(0, Number(raw) || 0));
@@ -25,6 +32,12 @@ export default function FlakyPage() {
   const minRuns = clampRuns(values.min_runs);
   const minFlipRate = clampRate(values.min_flip);
   const branch = values.branch;
+  // Until a header is clicked the rows keep the server's order
+  const sort = isSortKey(values.sort) ? parseSort(values.sort, values.dir, SORT_KEYS, DEFAULT_SORT) : null;
+  const onSort = (key: SortKey) => {
+    const next = sort ? nextSort(sort, key, "desc") : { key, dir: "desc" as const };
+    update({ sort: next.key, dir: next.dir });
+  };
   const showMuted = values.muted === "1";
   // Drafts apply on submit
   const [minRunsInput, setMinRunsInput, commitRuns] = useDraft(String(minRuns));
@@ -84,7 +97,8 @@ export default function FlakyPage() {
     return () => clearTimeout(timer);
   }, [undo]);
 
-  const rows = query.data ?? [];
+  const loaded = query.data ?? [];
+  const rows = sort ? sortRows(loaded, sort, (r, key) => (key === "rate" ? r.flip_rate : Date.parse(r.last_seen))) : loaded;
   const toggle = async (testKey: string, name: string, muted: boolean) => {
     if (await change(testKey, muted)) setUndo({ testKey, name, muted: !muted });
   };
@@ -179,8 +193,10 @@ export default function FlakyPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Test</th><th className="hide-narrow">Reason</th><th className="hide-narrow">Flips</th><th>Flip rate</th>
-                <th className="hide-narrow">Runs</th><th>Last status</th><th className="hide-narrow">Commits</th>
+                <th>Test</th><th className="hide-narrow">Reason</th><th className="hide-narrow">Flips</th><SortableTh label="Flip rate" sortKey="rate" sort={sort} onSort={onSort} />
+                <th className="hide-narrow">Runs</th><th>Last status</th>
+                <SortableTh label="Last seen" sortKey="seen" sort={sort} onSort={onSort} className="hide-narrow" />
+                <th className="hide-narrow">Commits</th>
                 <th><span className="sr-only">Quarantine</span></th>
               </tr>
             </thead>
@@ -196,6 +212,7 @@ export default function FlakyPage() {
                       { label: "Reason", value: r.reason === "same_commit" ? "Confirmed" : "Suspected" },
                       { label: "Flips", value: r.flips ?? "—" },
                       { label: "Runs", value: r.runs },
+                      { label: "Last seen", value: new Date(r.last_seen).toLocaleString() },
                       { label: "Commits", value: r.commits.length === 0 ? "—" : r.commits.map((c) => c.commit_sha.slice(0, 7)).join(", ") },
                     ]} />
                   </td>
@@ -204,6 +221,7 @@ export default function FlakyPage() {
                   <td>{formatPassRate(r.flip_rate)}</td>
                   <td className="hide-narrow">{r.runs}</td>
                   <td><StatusDot status={r.last_status} /></td>
+                  <td className="hide-narrow">{new Date(r.last_seen).toLocaleString()}</td>
                   <td className="hide-narrow">
                     {r.commits.length === 0 ? (
                       <span className="muted">—</span>

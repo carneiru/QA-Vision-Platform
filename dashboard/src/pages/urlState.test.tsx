@@ -74,10 +74,12 @@ describe("Tests", () => {
     spy(`${A}/tests`, Array.from({ length: 51 }, (_, i) => testRow(i)));
     renderAt("/projects/42/tests?offset=50");
     await screen.findByText("t0");
-    await userEvent.selectOptions(screen.getByLabelText("Sort"), "duration");
-    expect(where()).toBe("/projects/42/tests?sort=duration");
-    await userEvent.selectOptions(screen.getByLabelText("Sort"), "failures");
+    await userEvent.click(screen.getByRole("button", { name: /avg duration/i }));
+    expect(where()).toBe("/projects/42/tests?sort=duration&dir=desc");
+    await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
     expect(where()).toBe("/projects/42/tests");
+    await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
+    expect(where()).toBe("/projects/42/tests?dir=asc");
   });
 
   test("Next is disabled on an exact multiple of the page size", async () => {

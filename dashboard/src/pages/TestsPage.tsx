@@ -7,28 +7,40 @@ import { fetchAllTests } from "../lib/exportData";
 import ErrorBanner from "../components/ErrorBanner";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
+import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
+import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 
 const PAGE = 50;
-const DEFAULTS = { days: "30", sort: "failures", search: "" } as const;
+const DEFAULTS = { days: "30", sort: "failed", dir: "", search: "" } as const;
 const DAYS = ["7", "30", "90"] as const;
-const SORTS = ["failures", "duration", "name"] as const;
+// The API orders pages by failures, duration or name (its own direction); the other columns, and the
+// opposite direction, reorder the rows that are loaded.
+const SORT_KEYS = ["name", "failed", "rate", "duration", "seen"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const SERVER_SORT = { name: "name", failed: "failures", duration: "duration" } as const;
+const DEFAULT_SORT: SortState<SortKey> = { key: "failed", dir: "desc" };
 
 export default function TestsPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const { values, offset, update, setOffset } = useUrlState(DEFAULTS, PAGE);
   const days = Number(oneOf(values.days, DAYS, "30"));
-  const sort = oneOf(values.sort, SORTS, "failures");
+  const sort = parseSort(values.sort === "failures" ? "failed" : values.sort, values.dir || (values.sort === "name" ? "asc" : "desc"), SORT_KEYS, DEFAULT_SORT);
+  const serverSort = sort.key in SERVER_SORT ? SERVER_SORT[sort.key as keyof typeof SERVER_SORT] : "failures";
+  const onSort = (key: SortKey) => {
+    const next = nextSort(sort, key, key === "name" ? "asc" : "desc");
+    update(sortPatch(next, DEFAULT_SORT));
+  };
   const search = values.search;
   // The text box is a draft until Apply (per-keystroke requests hit the shared rate limit)
   const [searchInput, setSearchInput, commitSearch] = useDraft(search);
 
   // One extra row tells whether another page exists, so an exact multiple of the page size ends cleanly
   const query = useQuery({
-    queryKey: ["tests", id, days, sort, search, offset],
-    queryFn: () => getTests(id, { days, sort, search: search || undefined, limit: PAGE + 1, offset }),
+    queryKey: ["tests", id, days, serverSort, search, offset],
+    queryFn: () => getTests(id, { days, sort: serverSort, search: search || undefined, limit: PAGE + 1, offset }),
     placeholderData: keepPreviousData,
   });
 
@@ -44,7 +56,7 @@ export default function TestsPage() {
     setExporting(true);
     setExportError(null);
     try {
-      const all = await fetchAllTests(id, { days, sort, search: search || undefined });
+      const all = await fetchAllTests(id, { days, sort: serverSort, search: search || undefined });
       const csv = toCsv(
         ["test_key", "suite", "class_name", "name", "runs", "passed", "failed", "errored",
          "skipped", "pass_rate", "avg_duration_ms", "last_status", "last_seen"],
@@ -60,7 +72,8 @@ export default function TestsPage() {
   }
 
   const fetched = query.data ?? [];
-  const rows = fetched.slice(0, PAGE);
+  const rows = sortRows(fetched.slice(0, PAGE), sort, (r, key) =>
+    key === "name" ? r.name : key === "failed" ? r.failed : key === "rate" ? r.pass_rate : key === "duration" ? r.avg_duration_ms : Date.parse(r.last_seen));
   const hasMore = fetched.length > PAGE;
 
   return (
@@ -74,14 +87,6 @@ export default function TestsPage() {
               <option value={7}>7</option>
               <option value={30}>30</option>
               <option value={90}>90</option>
-            </select>
-          </label>
-          <label>
-            Sort
-            <select value={sort} onChange={(e) => update({ sort: e.target.value })}>
-              <option value="failures">Failures</option>
-              <option value="duration">Duration</option>
-              <option value="name">Name</option>
             </select>
           </label>
           <label>
@@ -114,8 +119,14 @@ export default function TestsPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Test</th><th className="hide-narrow">Runs</th><th>Pass rate</th><th>Failed</th>
-                <th className="hide-narrow">Errored</th><th className="hide-narrow">Avg duration</th><th>Last status</th><th className="hide-narrow">Last seen</th>
+                <SortableTh label="Test" sortKey="name" sort={sort} onSort={onSort} />
+                <th className="hide-narrow">Runs</th>
+                <SortableTh label="Pass rate" sortKey="rate" sort={sort} onSort={onSort} />
+                <SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} />
+                <th className="hide-narrow">Errored</th>
+                <SortableTh label="Avg duration" sortKey="duration" sort={sort} onSort={onSort} className="hide-narrow" />
+                <th>Last status</th>
+                <SortableTh label="Last seen" sortKey="seen" sort={sort} onSort={onSort} className="hide-narrow" />
               </tr>
             </thead>
             <tbody>
@@ -144,6 +155,9 @@ export default function TestsPage() {
               ))}
             </tbody>
           </table>
+          {!(sort.key in SERVER_SORT) && (
+            <p className="muted live-note">Sorted within these {rows.length} rows; the pages follow failures.</p>
+          )}
           <div className="filters">
             <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
               Previous

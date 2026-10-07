@@ -2,10 +2,11 @@ import { Link, useParams } from "react-router-dom";
 import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LIVE_REFRESH_MS } from "../lib/live";
-import { ArrowRight, CheckCircle2, Clock, GitBranch, GitCommitHorizontal, Server, XCircle } from "lucide-react";
+import { ArrowRight, Clock, GitBranch, GitCommitHorizontal, Server } from "lucide-react";
 import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/analytics";
 import { getFailureGroups, listRuns, Run } from "../api/runs";
 import { isNewCause } from "../components/FailureGroups";
+import RunStatusBadge from "../components/RunStatusBadge";
 import ErrorBanner from "../components/ErrorBanner";
 import { SkeletonCard, SkeletonStatus } from "../components/Skeleton";
 import StatusDot from "../components/StatusDot";
@@ -107,13 +108,7 @@ export default function OverviewPage() {
       <section className="card wide" aria-labelledby="latest-run">
         <div className="card-head">
           <h2 id="latest-run">Latest run</h2>
-          {blocking > 0 ? (
-            <span className="badge badge-failed"><XCircle size={14} aria-hidden="true" /> Failed</span>
-          ) : held > 0 ? (
-            <span className="badge badge-passed"><CheckCircle2 size={14} aria-hidden="true" /> Passed · {held} quarantined</span>
-          ) : (
-            <span className="badge badge-passed"><CheckCircle2 size={14} aria-hidden="true" /> Passed</span>
-          )}
+          <RunStatusBadge verdict={blocking > 0 ? "failed" : "passed"} note={blocking === 0 && held > 0 ? `${held} quarantined` : undefined} />
         </div>
         {latest.commit_message && <p>{latest.commit_message}</p>}
         <div className="meta">

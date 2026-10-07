@@ -5,7 +5,10 @@ import {
 } from "recharts";
 import { formatPassRate, getBranches, getTrends } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
+import SortableTh from "../components/SortableTh";
+import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useUrlState } from "../lib/useUrlState";
 
 const inkLegend = (value: string) => (
@@ -25,7 +28,10 @@ function useBranchTrend(projectId: number, days: number, tz: string, branch: str
   });
 }
 
-const DEFAULTS = { days: "30", a: "", b: "" } as const;
+const DEFAULTS = { days: "30", a: "", b: "", sort: "last", dir: "" } as const;
+const SORT_KEYS = ["branch", "runs", "rate", "failed", "last"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+const DEFAULT_SORT: SortState<SortKey> = { key: "last", dir: "desc" };
 const DAYS = ["7", "30", "90"] as const;
 
 export default function BranchesPage() {
@@ -36,6 +42,11 @@ export default function BranchesPage() {
   const days = Number(oneOf(values.days, DAYS, "30"));
   const branchA = values.a;
   const branchB = values.b;
+  const sort = parseSort(values.sort, values.dir, SORT_KEYS, DEFAULT_SORT);
+  const onSort = (key: SortKey) => {
+    const next = nextSort(sort, key, key === "branch" ? "asc" : "desc");
+    update(sortPatch(next, DEFAULT_SORT));
+  };
 
   const branchesQuery = useQuery({
     queryKey: ["branches", id, days],
@@ -45,7 +56,8 @@ export default function BranchesPage() {
   const trendA = useBranchTrend(id, days, tz, branchA);
   const trendB = useBranchTrend(id, days, tz, branchB);
 
-  const rows = branchesQuery.data ?? [];
+  const rows = sortRows(branchesQuery.data ?? [], sort, (r, key) =>
+    key === "branch" ? r.branch : key === "runs" ? r.runs : key === "rate" ? r.pass_rate : key === "failed" ? r.failed : Date.parse(r.last_seen));
   const named = rows.filter((r) => r.branch !== null);
 
   // One row per date, each series in its own key; nulls leave gaps.
@@ -137,14 +149,27 @@ export default function BranchesPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Branch</th><th>Runs</th><th>Pass rate</th><th className="hide-narrow">Passed</th>
-                <th>Failed</th><th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th><th className="hide-narrow">Last run</th>
+                <SortableTh label="Branch" sortKey="branch" sort={sort} onSort={onSort} />
+                <SortableTh label="Runs" sortKey="runs" sort={sort} onSort={onSort} />
+                <SortableTh label="Pass rate" sortKey="rate" sort={sort} onSort={onSort} />
+                <th className="hide-narrow">Passed</th>
+                <SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} />
+                <th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th>
+                <SortableTh label="Last run" sortKey="last" sort={sort} onSort={onSort} className="hide-narrow" />
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.branch ?? "(none)"}>
-                  <td>{r.branch ?? <span className="muted">no branch</span>}</td>
+                  <td>
+                    {r.branch ?? <span className="muted">no branch</span>}
+                    <NarrowMeta items={[
+                      { label: "Passed", value: r.passed },
+                      { label: "Errored", value: r.errored },
+                      { label: "Skipped", value: r.skipped },
+                      { label: "Last run", value: new Date(r.last_seen).toLocaleString() },
+                    ]} />
+                  </td>
                   <td>{r.runs}</td>
                   <td>{formatPassRate(r.pass_rate)}</td>
                   <td className="hide-narrow">{r.passed}</td>

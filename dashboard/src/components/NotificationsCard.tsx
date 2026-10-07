@@ -125,27 +125,27 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
       {channels.isPending && <p className="muted">Loading channels…</p>}
       {channels.data?.length === 0 && <p className="muted">No channels yet.</p>}
       {channels.data != null && channels.data.length > 0 && (
-        <table className="data notify-table stacked">
-          <thead>
-            <tr>
-              <th>Channel</th>
-              <th className="hide-narrow">Sends to</th>
-              <th>Branch</th>
-              <th>Sends</th>
-              <th>Last delivery</th>
-              {canEdit && <th><span className="sr-only">Actions</span></th>}
+        <table className="data notify-table stacked" role="table">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th role="columnheader">Channel</th>
+              <th role="columnheader" className="hide-narrow">Sends to</th>
+              <th role="columnheader">Branch</th>
+              <th role="columnheader">Sends</th>
+              <th role="columnheader">Last delivery</th>
+              {canEdit && <th role="columnheader"><span className="sr-only">Actions</span></th>}
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {channels.data.map((c) => (
-              <tr key={c.id}>
-                <td className="channel-cell">
+              <tr key={c.id} role="row">
+                <td role="cell" className="channel-cell">
                   <strong>{c.name}</strong>
                   <div className="muted">{KINDS[c.kind]?.label ?? c.kind}</div>
                 </td>
-                <td className="hide-narrow wrap-anywhere" data-label="Sends to"><code>{c.target}</code></td>
-                <td data-label="Branch">{c.branch ? <code>{c.branch}</code> : <span className="muted">All branches</span>}</td>
-                <td className="sends-cell" data-label="Sends">
+                <td role="cell" className="hide-narrow wrap-anywhere" data-label="Sends to"><code>{c.target}</code></td>
+                <td role="cell" data-label="Branch">{c.branch ? <code>{c.branch}</code> : <span className="muted">All branches</span>}</td>
+                <td role="cell" className="sends-cell" data-label="Sends">
                   <label className="check">
                     <input
                       type="checkbox"
@@ -167,9 +167,9 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
                     <span aria-hidden="true">Weekly summary</span>
                   </label>
                 </td>
-                <td data-label="Last delivery"><LastDelivery c={c} /></td>
+                <td role="cell" data-label="Last delivery"><LastDelivery c={c} /></td>
                 {canEdit && (
-                  <td className="row-actions">
+                  <td role="cell" className="row-actions">
                     <div>
                     <button
                       aria-label={`Send a test message to ${c.name}`}

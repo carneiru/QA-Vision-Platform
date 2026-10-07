@@ -228,3 +228,16 @@ test("on phones the table becomes stacked rows: every cell carries its column na
   // The Actions cell stays reachable
   expect(within(row).getByRole("button", { name: "Send a test message to Web" })).toBeInTheDocument();
 });
+
+test("the stacked table keeps its table semantics when CSS turns it into blocks", async () => {
+  server.use(http.get(BASE, () => HttpResponse.json([channel()])));
+  renderCard();
+  const row = (await screen.findByText("hooks.slack.com/…abcd")).closest("tr")!;
+  const table = row.closest("table")!;
+  expect(table).toHaveAttribute("role", "table");
+  expect(table.querySelector("thead")).toHaveAttribute("role", "rowgroup");
+  expect(table.querySelector("tbody")).toHaveAttribute("role", "rowgroup");
+  expect(row).toHaveAttribute("role", "row");
+  expect(row.querySelectorAll("td:not([role='cell'])")).toHaveLength(0);
+  expect(table.querySelectorAll("th:not([role='columnheader'])")).toHaveLength(0);
+});

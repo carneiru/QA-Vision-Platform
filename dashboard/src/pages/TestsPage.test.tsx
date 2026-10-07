@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -56,7 +56,7 @@ test("search and sort map to params; next page advances offset", async () => {
   );
   renderTests();
   await screen.findByText("t0");
-  await userEvent.selectOptions(screen.getByLabelText(/sort/i), "duration");
+  await userEvent.click(screen.getByRole("button", { name: /avg duration/i }));
   await userEvent.type(screen.getByLabelText(/search/i), "login");
   await userEvent.click(screen.getByRole("button", { name: /apply/i }));
   await userEvent.click(await screen.findByRole("button", { name: /next/i }));
@@ -122,4 +122,36 @@ test("runs, errored, average duration and last seen are in the Test cell for pho
   expect(meta).toHaveTextContent("Errored 0");
   expect(meta).toHaveTextContent("Avg duration");
   expect(meta).toHaveTextContent("Last seen");
+});
+
+test("headers sort: failures, duration and name go to the server; the rest order the loaded rows", async () => {
+  const sorts: (string | null)[] = [];
+  server.use(
+    http.get("/api/v1/projects/42/analytics/tests", ({ request }) => {
+      sorts.push(new URL(request.url).searchParams.get("sort"));
+      return HttpResponse.json([
+        { ...row("a", "alpha"), pass_rate: 0.5, last_seen: "2026-09-01T10:00:00Z" },
+        { ...row("b", "bravo"), pass_rate: 0.9, last_seen: "2026-09-03T10:00:00Z" },
+        { ...row("c", "charlie"), pass_rate: 0.1, last_seen: "2026-09-02T10:00:00Z" },
+      ]);
+    }),
+  );
+  renderTests();
+  await screen.findByText("alpha");
+  const names = () => screen.getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent);
+  expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "descending");
+  expect(sorts[sorts.length - 1]).toBe("failures");
+
+  await userEvent.click(screen.getByRole("button", { name: /^test/i }));
+  await waitFor(() => expect(sorts[sorts.length - 1]).toBe("name"));
+  expect(screen.getByRole("columnheader", { name: /^test/i })).toHaveAttribute("aria-sort", "ascending");
+
+  // Pass rate is not a server sort: the request keeps ordering by failures, the page reorders itself
+  await userEvent.click(screen.getByRole("button", { name: /pass rate/i }));
+  await waitFor(() => expect(names()).toEqual(["bravo", "alpha", "charlie"]));
+  expect(sorts[sorts.length - 1]).toBe("failures");
+  expect(screen.getByText(/sorted within these 3 rows/i)).toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: /last seen/i }));
+  expect(names()).toEqual(["bravo", "charlie", "alpha"]);
 });
