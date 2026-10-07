@@ -280,7 +280,7 @@ request.
   - Until that run arrives, it shows "Waiting for results…".
   - The 5-minute clock starts at `checked_at`, when the end was seen. After 5 minutes with no
     results, it shows "Results not received: check the QA Vision upload step".
-  - The test run is matched by its `ci_run_url`, compared case-insensitively.
+  - The test run is matched by its `ci_run_url`, compared case-insensitively, among the project's runs with `ci_provider=github_actions` (the value the collector stores).
 - **Accessibility:** the panel is a `role="status"` region. The ticking elapsed time is
   `aria-hidden`, and a visually hidden text changes only when the status changes. Every control has
   a label and works by keyboard. Icons are SVG and colours come from tokens.
