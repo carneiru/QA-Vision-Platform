@@ -59,7 +59,7 @@ jobs:
           python dist/qeos-collector.pyz --version
           # The same file under the name before the QEOS rename, so .../latest/download/qav-collector.pyz keeps working
           cp dist/qeos-collector.pyz dist/qav-collector.pyz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: collector-dist
           path: collector/dist/
