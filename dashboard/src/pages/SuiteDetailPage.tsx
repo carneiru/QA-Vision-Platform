@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, X } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -60,9 +60,16 @@ export default function SuiteDetailPage() {
     mutationFn: () => deleteSuite(id, sid),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["suites", id] });
-      navigate(`/projects/${id}/suites`);
+      // The suite is gone: drop its edits, then leave after the render that lifts the guard
+      setCasesEdit(null);
+      setDetailsEdit(null);
+      setDeleted(true);
     },
   });
+  const [deleted, setDeleted] = useState(false);
+  useEffect(() => {
+    if (deleted && casesEdit === null && detailsEdit === null) navigate(`/projects/${id}/suites`);
+  }, [deleted, casesEdit, detailsEdit, navigate, id]);
 
   function move(i: number, by: number) {
     const next = [...cases];

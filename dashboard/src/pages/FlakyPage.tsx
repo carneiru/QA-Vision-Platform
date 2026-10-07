@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatPassRate, getFlaky, muteFlaky, unmuteFlaky } from "../api/analytics";
 import { downloadCsv, toCsv } from "../lib/csv";
 import ConfirmButton from "../components/ConfirmButton";
@@ -47,11 +47,29 @@ export default function FlakyPage() {
       }),
   });
 
-  const muteToggle = useMutation({
-    mutationFn: ({ testKey, muted }: { testKey: string; muted: boolean }) =>
-      muted ? unmuteFlaky(id, testKey) : muteFlaky(id, testKey),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ["flaky", id] }),
-  });
+  // Pending and failed are tracked per test key, so quick changes on different rows do not clobber each other
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  const [failed, setFailed] = useState<ReadonlySet<string>>(new Set());
+  const withKey = (set: ReadonlySet<string>, key: string, on: boolean) => {
+    const next = new Set(set);
+    if (on) next.add(key);
+    else next.delete(key);
+    return next;
+  };
+  async function change(testKey: string, muted: boolean): Promise<boolean> {
+    setPending((p) => withKey(p, testKey, true));
+    setFailed((f) => withKey(f, testKey, false));
+    try {
+      await (muted ? unmuteFlaky(id, testKey) : muteFlaky(id, testKey));
+      return true;
+    } catch {
+      setFailed((f) => withKey(f, testKey, true));
+      return false;
+    } finally {
+      setPending((p) => withKey(p, testKey, false));
+      void queryClient.invalidateQueries({ queryKey: ["flaky", id] });
+    }
+  }
 
   // Undo is offered for a few seconds after a change, in the status line
   const [undo, setUndo] = useState<{ testKey: string; name: string; muted: boolean } | null>(null);
@@ -62,10 +80,9 @@ export default function FlakyPage() {
   }, [undo]);
 
   const rows = query.data ?? [];
-  const toggle = (testKey: string, name: string, muted: boolean) =>
-    muteToggle.mutate({ testKey, muted }, { onSuccess: () => setUndo({ testKey, name, muted: !muted }) });
-  const pendingKey = muteToggle.isPending ? muteToggle.variables?.testKey : undefined;
-  const failedKey = muteToggle.isError ? muteToggle.variables?.testKey : undefined;
+  const toggle = async (testKey: string, name: string, muted: boolean) => {
+    if (await change(testKey, muted)) setUndo({ testKey, name, muted: !muted });
+  };
 
   function onExport() {
     // The flaky endpoint returns the full result set, so the loaded rows are everything.
@@ -138,7 +155,7 @@ export default function FlakyPage() {
             <button
               type="button"
               onClick={() => {
-                muteToggle.mutate({ testKey: undo.testKey, muted: undo.muted });
+                void change(undo.testKey, undo.muted);
                 setUndo(null);
               }}
             >
@@ -205,9 +222,9 @@ export default function FlakyPage() {
                       }
                       confirmLabel={r.muted ? "Release" : "Quarantine"}
                       onConfirm={() => toggle(r.test_key, r.name, r.muted === true)}
-                      disabled={pendingKey === r.test_key}
+                      disabled={pending.has(r.test_key)}
                     />
-                    {failedKey === r.test_key && (
+                    {failed.has(r.test_key) && (
                       <span role="alert" className="field-error">
                         Could not change {r.name}. Try again.
                       </span>

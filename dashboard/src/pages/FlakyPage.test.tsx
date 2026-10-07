@@ -231,3 +231,31 @@ test("the Undo offer goes away by itself", async () => {
     vi.useRealTimers();
   }
 });
+
+test("two quick changes on different rows each keep their own pending state and error", async () => {
+  const releases: Record<string, () => void> = {};
+  server.use(
+    http.get(FLAKY, () => HttpResponse.json(flaky)),
+    http.put(`${FLAKY}/mute`, async ({ request }) => {
+      const key = ((await request.json()) as { test_key: string }).test_key;
+      return new Promise<Response>((resolve) => {
+        releases[key] = () => resolve(key === "k1" ? HttpResponse.json({ detail: "boom" }, { status: 500 }) : new HttpResponse(null, { status: 204 }));
+      });
+    }),
+  );
+  renderFlaky();
+  await screen.findByText("test_ok");
+  await userEvent.click(screen.getByRole("button", { name: /quarantine test_ok/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
+  await userEvent.click(screen.getByRole("button", { name: /quarantine test_add/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
+  await vi.waitFor(() => expect(Object.keys(releases)).toHaveLength(2));
+  expect(screen.getByRole("button", { name: /quarantine test_ok/i })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /quarantine test_add/i })).toBeDisabled();
+  releases.k2();
+  await vi.waitFor(() => expect(screen.getByRole("button", { name: /quarantine test_add/i })).toBeEnabled());
+  expect(screen.getByRole("button", { name: /quarantine test_ok/i })).toBeDisabled();
+  releases.k1();
+  const alert = await screen.findByRole("alert");
+  expect(alert.closest("tr")).toHaveTextContent("test_ok");
+});

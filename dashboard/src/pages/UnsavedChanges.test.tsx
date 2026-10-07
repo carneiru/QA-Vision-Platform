@@ -174,3 +174,44 @@ test("saving a suite's case order does not discard half-typed details", async ()
   await screen.findByRole("button", { name: "Saved" });
   expect(screen.getByLabelText(/^name/i)).toHaveValue("Smoke!");
 });
+
+test("deleting a suite with unsaved case edits leaves without the leave dialog", async () => {
+  server.use(
+    http.delete(`${P}/suites/5`, () => new HttpResponse(null, { status: 204 })),
+    http.get(`${P}/suites`, () => HttpResponse.json([])),
+  );
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(
+    [
+      { path: "/projects/:projectId/suites/:suiteId", element: <SuiteDetailPage /> },
+      { path: "/projects/42/suites", element: <p>Suites list</p> },
+    ],
+    { initialEntries: ["/projects/42/suites/5"] },
+  );
+  render(<QueryClientProvider client={qc}><RouterProvider router={router} /></QueryClientProvider>);
+  await userEvent.click(await screen.findByRole("button", { name: /remove tc-1 from the suite/i }));
+  await userEvent.click(screen.getByRole("button", { name: /delete the suite smoke/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+  expect(await screen.findByText("Suites list")).toBeInTheDocument();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+test("opening another case drops the edits of the previous one", async () => {
+  server.use(http.get(`${P}/cases/4`, () => HttpResponse.json(kase(4))));
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/projects/:projectId/cases/:caseNumber",
+        element: <><CaseEditorPage /><Link to="/projects/42/cases/4">Other case</Link></>,
+      },
+    ],
+    { initialEntries: ["/projects/42/cases/3"] },
+  );
+  render(<QueryClientProvider client={qc}><RouterProvider router={router} /></QueryClientProvider>);
+  await userEvent.type(await screen.findByLabelText(/^title/i), " edited");
+  await userEvent.click(screen.getByRole("link", { name: "Other case" }));
+  await userEvent.click(await screen.findByRole("button", { name: /leave without saving/i }));
+  expect(await screen.findByDisplayValue("Case 4")).toBeInTheDocument();
+  expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+});

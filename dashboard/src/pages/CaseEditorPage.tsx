@@ -129,6 +129,12 @@ function Automation({ projectId, c, canEdit, onLink }: {
 
 /** Write a new case, or read and edit one. People who may not edit see it read-only. */
 export default function CaseEditorPage() {
+  const { caseNumber } = useParams();
+  // Keyed by case, so edits never carry over from one case to another
+  return <CaseEditor key={caseNumber ?? "new"} />;
+}
+
+function CaseEditor() {
   const { projectId, caseNumber } = useParams();
   const id = Number(projectId);
   const number = caseNumber ? Number(caseNumber) : null;
