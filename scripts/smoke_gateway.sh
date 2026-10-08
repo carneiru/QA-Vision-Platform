@@ -280,6 +280,13 @@ check "a report over 90 days is refused" 422 POST "$BASE/api/v1/projects/$PROJEC
 check "trends over 90 days (a large response outside the two gzip locations)" 200 GET \
   "$BASE/api/v1/projects/$PROJECT_ID/analytics/trends?days=90" "${AUTH[@]}" -H "Accept-Encoding: gzip"
 if grep -qi '^content-encoding: gzip' "$TMP/headers"; then fail "trends is gzip-encoded: gzip leaked out of its two locations"; else pass "trends is not compressed"; fi
+# a response provably larger than gzip_min_length, outside the two gzip locations: it must stay plain
+# (without this, the checks above pass vacuously on small bodies)
+check "cases list (a large response on the general test-management location)" 200 GET \
+  "$BASE/api/v1/projects/$PROJECT_ID/cases?limit=50" "${AUTH[@]}" -H "Accept-Encoding: gzip"
+CASES_BYTES="$(wc -c < "$TMP/body" | tr -d ' ')"
+if [ "$CASES_BYTES" -gt 1100 ]; then pass "... the body is $CASES_BYTES bytes, above gzip_min_length"; else fail "... the body is only $CASES_BYTES bytes, so the check proves nothing"; fi
+if grep -qi '^content-encoding: gzip' "$TMP/headers"; then fail "cases list is gzip-encoded: gzip leaked out of its two locations"; else pass "cases list is not compressed"; fi
 check "login is never compressed" 401 POST "$BASE/api/v1/auth/login" -H "Accept-Encoding: gzip" \
   -H "Content-Type: application/json" -d '{"email":"nobody@example.com","password":"wrong-password-1"}'
 if grep -qi '^content-encoding: gzip' "$TMP/headers"; then fail "login is gzip-encoded"; else pass "login is not compressed"; fi
