@@ -131,8 +131,10 @@ export interface SuiteDetail extends Suite {
   cases: SuiteCase[];
 }
 
-export function listSuites(projectId: number): Promise<Suite[]> {
-  return apiFetch(`${base(projectId)}/suites`);
+/** `search` is a case-insensitive contains match on the name; the server refuses an empty one, so it is left out then. */
+export function listSuites(projectId: number, opts: { search?: string } = {}, init: { signal?: AbortSignal } = {}): Promise<Suite[]> {
+  const q = buildQuery({ search: opts.search || undefined });
+  return apiFetch(`${base(projectId)}/suites${q}`, init);
 }
 
 export function getSuite(projectId: number, suiteId: number): Promise<SuiteDetail> {

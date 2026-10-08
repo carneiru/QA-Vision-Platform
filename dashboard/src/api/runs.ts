@@ -76,6 +76,8 @@ export type RunStatusFilter = "passed" | "failed" | "skipped" | "errored";
 /** Server-side filters for the runs list; every field is optional. */
 export interface RunFilters {
   branch?: string;
+  /** Case-insensitive contains match on the branch (at most 255 characters); ANDed with `branch`. */
+  branch_contains?: string;
   status?: "failing" | "passing";
   environment?: string;
   ci_provider?: string;
@@ -170,4 +172,24 @@ export function getFailureGroups(
 export function getRun(runId: number, status?: RunStatusFilter, init: { signal?: AbortSignal } = {}): Promise<RunDetail> {
   const q = buildQuery({ status });
   return apiFetch(`/api/v1/runs/${runId}${q}`, init);
+}
+
+/** A run's header and counts, without its results (GET .../runs/{id}/summary). */
+export interface RunSummary {
+  id: number;
+  project_id: number;
+  started_at: string;
+  finished_at: string;
+  branch: string | null;
+  commit_sha: string | null;
+  environment: string | null;
+  status: "passing" | "failing";
+  counts: { passed: number; failed: number; errored: number; skipped: number };
+  ci_provider: string;
+  ci_run_url: string | null;
+}
+
+/** 404 for an unknown run or one of another project. */
+export function getRunSummary(projectId: number, runId: number, init: { signal?: AbortSignal } = {}): Promise<RunSummary> {
+  return apiFetch(`/api/v1/projects/${projectId}/runs/${runId}/summary`, init);
 }

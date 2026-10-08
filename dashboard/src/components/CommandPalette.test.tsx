@@ -43,6 +43,15 @@ function shell() {
   );
 }
 
+const suite = (id: number, name: string) => ({
+  id, name, description: null, case_count: 3, created_at: "2026-01-01T00:00:00Z", updated_at: null,
+});
+const summary = (id: number, branch: string, failed = 0) => ({
+  id, project_id: 42, started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:01:00Z", branch, commit_sha: null,
+  environment: null, status: failed > 0 ? "failing" : "passing", counts: { passed: 3, failed, errored: 0, skipped: 0 },
+  ci_provider: "github_actions", ci_run_url: null,
+});
+
 /** Every remote source answers for "lo"/"log"; tests override what they are about. */
 function sources() {
   server.use(
@@ -55,6 +64,7 @@ function sources() {
       return HttpResponse.json("test_login_redirects".includes(q.toLowerCase()) ? [testRow("k1", "test_login_redirects")] : []);
     }),
     http.get(`${P}/runs`, () => HttpResponse.json([])),
+    http.get(`${P}/suites`, () => HttpResponse.json([])),
   );
 }
 
@@ -271,8 +281,9 @@ describe("sources", () => {
       http.get(`${P}/analytics/tests`, ({ request }) => { asked.push(request.url); return HttpResponse.json([]); }),
       http.get(`${P}/runs`, ({ request }) => {
         asked.push(request.url);
-        return HttpResponse.json(new URL(request.url).searchParams.get("branch") === "main" ? [run(9, "main")] : []);
+        return HttpResponse.json(new URL(request.url).searchParams.get("branch_contains") === "main" ? [run(9, "feature/main-fix")] : []);
       }),
+      http.get(`${P}/suites`, ({ request }) => { asked.push(request.url); return HttpResponse.json([]); }),
     );
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
@@ -284,9 +295,39 @@ describe("sources", () => {
     const runs = await screen.findByRole("group", { name: "Runs" });
     expect(within(runs).getByRole("option", { name: /Run #9/ })).toBeInTheDocument();
     const params = asked.map((u) => new URL(u).searchParams);
-    expect(params.every((p) => p.get("limit") === "5")).toBe(true);
+    expect(params.filter((p) => p.has("limit")).every((p) => p.get("limit") === "5")).toBe(true);
     expect(params.some((p) => p.get("search") === "main")).toBe(true);
-    expect(params.some((p) => p.get("branch") === "main")).toBe(true);
+    expect(params.some((p) => p.get("branch_contains") === "main")).toBe(true);
+    expect(params.some((p) => p.has("branch"))).toBe(false);
+    // The suites list takes no limit; the palette keeps 5
+    expect(params.some((p) => p.get("search") === "main" && !p.has("limit"))).toBe(true);
+  });
+
+  test("a Suites group lists matching suites (5 at most) and opens the suite", async () => {
+    sources();
+    server.use(http.get(`${P}/suites`, ({ request }) => {
+      const q = new URL(request.url).searchParams.get("search");
+      return HttpResponse.json(q === "smoke" ? [1, 2, 3, 4, 5, 6, 7].map((i) => suite(i, `Smoke ${i}`)) : []);
+    }));
+    const user = userEvent.setup();
+    renderAt("/projects/42/overview");
+    await user.click(trigger());
+    await user.keyboard("smoke");
+    const group = await screen.findByRole("group", { name: "Suites" });
+    expect(within(group).getAllByRole("option")).toHaveLength(5);
+    await user.click(within(group).getByRole("option", { name: /Smoke 3/ }));
+    expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/suites/3");
+  });
+
+  test("a failing suites source is a notice in its own group", async () => {
+    sources();
+    server.use(http.get(`${P}/suites`, () => HttpResponse.json({ detail: "down" }, { status: 503 })));
+    const user = userEvent.setup();
+    renderAt("/projects/42/overview");
+    await user.click(trigger());
+    await user.keyboard("login");
+    expect(await screen.findByText("Couldn't search suites right now")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Login works/ })).toBeInTheDocument();
   });
 
   test("a stale request is cancelled and its answer never shows", async () => {
@@ -305,6 +346,7 @@ describe("sources", () => {
       }),
       http.get(`${P}/analytics/tests`, () => HttpResponse.json([])),
       http.get(`${P}/runs`, () => HttpResponse.json([])),
+      http.get(`${P}/suites`, () => HttpResponse.json([])),
     );
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
@@ -321,13 +363,14 @@ describe("sources", () => {
   test("#433 opens run 433 directly once it exists", async () => {
     sources();
     let asked = 0;
-    server.use(http.get("/api/v1/runs/433", () => { asked += 1; return HttpResponse.json({ ...run(433, "main"), results: [], changes: [], components: [] }); }));
+    server.use(http.get(`${P}/runs/433/summary`, () => { asked += 1; return HttpResponse.json(summary(433, "main", 3)); }));
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
     await user.click(trigger());
     await user.keyboard("#433");
     const option = await within(await screen.findByRole("group", { name: "Runs" })).findByRole("option", { name: /Run #433/ });
     expect(asked).toBe(1);
+    expect(option).toHaveTextContent(/main.+3 failed/);
     expect(input()).toHaveAttribute("aria-activedescendant", option.id);
     await user.keyboard("{Enter}");
     expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/runs/433");
@@ -335,7 +378,7 @@ describe("sources", () => {
 
   test("a run number that does not exist offers no run", async () => {
     sources();
-    server.use(http.get("/api/v1/runs/9999", () => HttpResponse.json({ detail: "Run not found" }, { status: 404 })));
+    server.use(http.get(`${P}/runs/9999/summary`, () => HttpResponse.json({ detail: "Run not found" }, { status: 404 })));
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
     await user.click(trigger());
@@ -346,7 +389,7 @@ describe("sources", () => {
 
   test("a run number the reader may not see (403) offers no run, not an error", async () => {
     sources();
-    server.use(http.get("/api/v1/runs/77", () => HttpResponse.json({ detail: "Run not found" }, { status: 403 })));
+    server.use(http.get(`${P}/runs/77/summary`, () => HttpResponse.json({ detail: "Run not found" }, { status: 403 })));
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
     await user.click(trigger());
@@ -375,6 +418,7 @@ describe("sources", () => {
       http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })),
       http.get(`${P}/analytics/tests`, () => HttpResponse.json([])),
       http.get(`${P}/runs`, () => HttpResponse.json([])),
+      http.get(`${P}/suites`, () => HttpResponse.json([])),
     );
     const user = userEvent.setup();
     renderAt("/projects/42/overview");

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { server } from "../test/server";
 import { setAccessToken } from "../auth/tokens";
-import { getRun, listRuns } from "./runs";
+import { getRun, getRunSummary, listRuns } from "./runs";
 
 beforeEach(() => setAccessToken("acc"));
 
@@ -38,4 +38,21 @@ test("getRun passes the status filter only when set", async () => {
   expect(new URL(urls[0]).searchParams.has("status")).toBe(false);
   await getRun(9, "failed");
   expect(new URL(urls[1]).searchParams.get("status")).toBe("failed");
+});
+
+test("listRuns sends branch_contains for a partial branch search", async () => {
+  let url = "";
+  server.use(http.get("/api/v1/projects/42/runs", ({ request }) => { url = request.url; return HttpResponse.json([]); }));
+  await listRuns(42, { limit: 5, offset: 0, branch_contains: "feat" });
+  expect(new URL(url).searchParams.get("branch_contains")).toBe("feat");
+});
+
+test("getRunSummary reads the run header without its results", async () => {
+  const body = {
+    id: 9, project_id: 42, started_at: "2026-01-01T00:00:00Z", finished_at: "2026-01-01T00:01:00Z", branch: "main",
+    commit_sha: null, environment: null, status: "failing", counts: { passed: 1, failed: 2, errored: 0, skipped: 0 },
+    ci_provider: "github_actions", ci_run_url: null,
+  };
+  server.use(http.get("/api/v1/projects/42/runs/9/summary", () => HttpResponse.json(body)));
+  expect(await getRunSummary(42, 9)).toEqual(body);
 });

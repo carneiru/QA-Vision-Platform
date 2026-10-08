@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getTests } from "../api/analytics";
-import { listCases } from "../api/cases";
+import { listCases, listSuites } from "../api/cases";
 import { getMe } from "../api/auth";
 import { ApiError } from "../api/http";
 import { listMyOrganizations, listProjects } from "../api/orgs";
-import { getRun, listRuns } from "../api/runs";
+import { getRunSummary, listRuns } from "../api/runs";
 import { PROJECT_VIEWS } from "../lib/projectViews";
 import { readRecent, type RecentItem } from "../lib/recentItems";
 
@@ -71,14 +71,18 @@ export function usePaletteGroups(
     enabled: remote,
     ...opts,
   });
+  const suites = useQuery({
+    queryKey: ["palette", "suites", projectId, debounced],
+    queryFn: ({ signal }) => listSuites(projectId!, { search: debounced }, { signal }),
+    enabled: remote,
+    ...opts,
+  });
   const runs = useQuery({
     queryKey: ["palette", "runs", projectId, debounced],
     queryFn: async ({ signal }) => {
-      if (runNumber === undefined) return listRuns(projectId!, { branch: debounced, limit: SOURCE_LIMIT, offset: 0 }, { signal });
+      if (runNumber === undefined) return listRuns(projectId!, { branch_contains: debounced, limit: SOURCE_LIMIT, offset: 0 }, { signal });
       try {
-        // The lightest read of one run there is (the runs list has no id filter, and there is no summary read):
-        // the detail with only its errored results
-        return [await getRun(Number(runNumber), "errored", { signal })];
+        return [await getRunSummary(projectId!, Number(runNumber), { signal })];
       } catch (e) {
         // Not there, or not the reader's to see: either way there is no run to offer
         if (e instanceof ApiError && (e.status === 404 || e.status === 403)) return [];
@@ -136,14 +140,23 @@ export function usePaletteGroups(
           href: `/projects/${projectId}/tests/${encodeURIComponent(t.test_key)}`, projectId,
         })),
       });
+      source("suites", "Suites", "suites", {
+        error: suites.error,
+        data: suites.data?.slice(0, SOURCE_LIMIT).map((s) => ({
+          id: `suite:${projectId}:${s.id}`, kind: "suite" as const, label: s.name,
+          detail: `${s.case_count} ${s.case_count === 1 ? "case" : "cases"}`,
+          href: `/projects/${projectId}/suites/${s.id}`, projectId,
+        })),
+      });
       source("runs", "Runs", "runs", {
         error: runs.error,
         data: runs.data?.map((r) => {
-          const broken = r.failed + r.errored;
+          const { id, branch } = r;
+          const broken = "counts" in r ? r.counts.failed + r.counts.errored : r.failed + r.errored;
           return {
-            id: `run:${r.project_id}:${r.id}`, kind: "run" as const, label: `Run #${r.id}`,
-            detail: [r.branch, broken > 0 ? `${broken} failed` : "passed"].filter(Boolean).join(" · "),
-            href: `/projects/${r.project_id}/runs/${r.id}`, projectId: r.project_id,
+            id: `run:${r.project_id}:${id}`, kind: "run" as const, label: `Run #${id}`,
+            detail: [branch, broken > 0 ? `${broken} failed` : "passed"].filter(Boolean).join(" · "),
+            href: `/projects/${r.project_id}/runs/${id}`, projectId: r.project_id,
           };
         }),
       });
@@ -157,10 +170,10 @@ export function usePaletteGroups(
       if (projects.length > 0) out.push({ key: "projects", label: "Projects", items: projects });
     }
     return out;
-  }, [recent, projectId, q, orgs.data, projectLists, remote, runNumber, cases.data, cases.error, tests.data, tests.error, runs.data, runs.error]);
+  }, [recent, projectId, q, orgs.data, projectLists, remote, runNumber, cases.data, cases.error, tests.data, tests.error, suites.data, suites.error, runs.data, runs.error]);
 
   // Typed but not yet asked (the debounce) counts as pending, so "no matches" never flashes before the answer
   const waiting = projectId !== null && q.length >= MIN_REMOTE && debounced !== q;
-  const pending = waiting || (remote && (cases.isPending || tests.isPending || runs.isPending));
+  const pending = waiting || (remote && (cases.isPending || tests.isPending || suites.isPending || runs.isPending));
   return { groups, pending, userId };
 }

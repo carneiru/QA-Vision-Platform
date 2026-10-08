@@ -1,7 +1,7 @@
 /** What the command palette remembers of an opened result: enough to show it again and open it. */
 export interface RecentItem {
   id: string;
-  kind: "page" | "case" | "test" | "run" | "project";
+  kind: "page" | "case" | "test" | "run" | "suite" | "project";
   label: string;
   detail?: string;
   href: string;
