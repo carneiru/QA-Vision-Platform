@@ -282,7 +282,7 @@ Grids are auto-fitting rather than column-counted:
 Breakpoints:
 - **1280px and up:** a new visitor gets the rail pinned open; below, it starts collapsed. The reader's choice (pin toggle) is remembered in localStorage.
 - **640px and below:** the rail becomes an off-canvas drawer (min(85vw, 300px)) behind the top bar's menu button; a 40% black backdrop closes it. The breadcrumb moves to a second line of the top bar. Body text goes to 16px and page and card padding tighten.
-- **1024px and up:** data table headers stick under the top bar (see Data Tables).
+- **641px and up:** a list's table header sticks under the top bar while its table fits its card (see Data Tables).
 - **`pointer: coarse`:** inputs, selects, buttons, filter chips, rail links and menu items grow to a 44px minimum height, and table cells to 12px padding, without changing density on mouse devices.
 
 ### Named Rules
@@ -359,7 +359,7 @@ Starting a GitHub Actions run from the cases, and watching it end.
 - **Border:** 1px Hairline.
 - **Internal Padding:** 24px, or 16px under 640px and inside tile grids.
 - **Anatomy:** an optional head row (title left, badge or action right), body, and a foot pinned to the bottom (`margin-top: auto`) that holds the one-click "go deeper" link.
-- A card that holds a data table scrolls horizontally inside itself below 1024px. From 1024px it stays open so its table header can stick to the page, and cell text wraps anywhere instead so the table fits.
+- A card that holds a data table scrolls horizontally inside itself. A list's table card (`sticky-head`) is measured (`useIsWide`: a ResizeObserver on the card and its table, `scrollWidth > clientWidth`); while its table fits, the card opens up so the header can stick to the page, and a table wider than its card keeps its scroll (`is-wide`) with a plain header. No clipping, no nested scroll box.
 
 ### Sortable Headers
 `SortableTh` puts a button inside the `th`. The `th` carries `aria-sort` (`ascending`, `descending`, or `none`; absent state is `none`), and the button shows an arrow: a double chevron when idle, an up or down arrow on the sorted column. Clicking the sorted column flips it; another column starts descending for figures and dates, ascending for names. The sort lives in the URL as `sort` and `dir` (`lib/sort.ts`, defaults left out), so reload, share and Back keep it. Sorting happens on the server when the API has a sort parameter for that column (Tests: failures, duration, name), otherwise on the rows already loaded, and the page says so ("Sorted within these 50 rows"). Missing values always sort last.
@@ -378,19 +378,23 @@ A value the server shows once (API key, invitation link, recovery codes) sits in
 ### Data Tables
 Dense by default. Rows are separated by Rule hairlines, with no zebra striping and no vertical lines; hovering a row applies the Hover wash.
 
-- **Header:** the Table Header style (11px/600 uppercase, 0.05em tracking, Graphite) on the Header Band, never wrapping. From 1024px it is sticky at `top: 48px`, just under the top bar, inside the page scroll; the page's `scroll-padding-top` then covers the top bar plus the header band (48 + 32 + 8px), so a row reached by keyboard never lands under either (WCAG 2.4.11). A sorted column keeps its `SortableTh` arrow.
+- **Header:** the Table Header style (11px/600 uppercase, 0.05em tracking, Graphite) on the Header Band, never wrapping. Above 640px, on a list whose table fits its card, it is sticky at `top: 48px`, just under the top bar, inside the page scroll (a wide table keeps its sideways scroll and a plain header instead). The page's `scroll-padding-top` covers the top bar plus a sortable header row (`--thead-height`, 41px: 48 + 41 + 8 = 97px), so a row reached by keyboard never lands under either (WCAG 2.4.11). A sorted column keeps its `SortableTh` arrow.
 - **Rows:** cells use 8px 12px padding and are top-aligned; every body row is at least 40px tall, room for a 24px control (row checkbox, run strip, row link) with 8px around it. Checkboxes, sort buttons and row links keep 24px targets.
-- **Numbers** (`.num`, on the `th` and its `td`s): counts, durations, rates and Priority are right-aligned with tabular figures. A sortable number header puts its arrow on the left, so the label lines up with the figures.
+- **Numbers** (`.num`, on the `th` and its `td`s): counts, durations and rates are right-aligned with tabular figures. Words (Priority: low, medium, high) stay left-aligned. A sortable number header puts its arrow on the left, so the label lines up with the figures.
 - **Status:** a Status Pill, never bare text.
 - Phones keep the existing behaviour: the run strip column and `NarrowMeta` are unchanged.
 
 ### Filter Chips
 A row (`FilterChips`, a `group` named "Quick filters") between a list's filter form and its table. The full form stays as it was; the chips are a shortcut onto the same URL state, never a new server filter.
 
-- **Quick chips:** toggle buttons (`aria-pressed`) in a 999px pill, 28px tall, 12.5px/500: Graphite on Paper with a Hairline Strong edge. Pressed, a chip takes a Signal Cyan edge, Link Cyan text on the Cyan Wash layered over Paper (4.76:1 light, 9.43:1 dark) and a 12px tick, so the state does not rest on colour. Chips that set the same URL key are one choice: pressing Ready while Draft is on switches the value, and pressing the pressed chip clears it. Cases: Failing (`result=failed`), Never ran (`result=never`), Linked (`linked=true`), Manual (`linked=false`), Draft, Ready (`status`). Runs: Failed (`status=failing`), Passed (`status=passing`), main (`branch=main`). Flaky: Quarantined (`muted=1`, the "Show quarantined" filter); there is no "Suspected" chip, as the API has no reason filter. Tests has no outcome filter, so it has no quick chips.
-- **Applied chips:** every other filter in force, including thresholds away from their default, is a chip reading "Name: value" ("Label: flights", "Folder: features / hotels", "Search: legroom") with a 24px remove button named "Remove filter Label: flights". A value a pressed quick chip already shows is not repeated. A page with no quick chips shows the row only while something is applied.
+- **Quick chips:** toggle buttons (`aria-pressed`) in a 999px pill, 28px tall, 12.5px/500: Graphite on Paper with a Hairline Strong edge. Pressed, a chip takes a Signal Cyan edge, Link Cyan text on the Cyan Wash layered over Paper (4.76:1 light, 9.43:1 dark) and a 12px tick, so the state does not rest on colour. Chips that set the same URL key are one choice: pressing Ready while Draft is on switches the value, and pressing the pressed chip clears it. Cases: Failing (`result=failed`), Never ran (`result=never`), Linked (`linked=true`), Manual (`linked=false`), Draft, Ready (`status`). Runs: Failed (`status=failing`), Passed (`status=passing`), main (`branch=main`). Flaky has no quick chips: "Show quarantined" stays the one control for including quarantined tests, and the API has no reason filter for "Suspected". Tests has no outcome filter, so it has no quick chips either.
+- **Applied chips:** every other filter in force, including thresholds away from their default, is a chip reading "Name: value" ("Label: flights", "Folder: features / hotels", "Search: legroom") with a 24px remove button named "Remove filter Label: flights". A value a pressed quick chip already shows is not repeated. The row is always mounted (empty, taking no room, when there is nothing to show).
 - **+ Filter:** a dashed chip, on pages whose secondary filters sit in a disclosure (Cases, Runs). It opens the disclosure and moves focus to its first control.
-- **Clear all:** a ghost button in Link Cyan at the end of the row, shown while any filter is applied; it keeps the sort.
+- **Clear all:** a ghost button in Link Cyan at the end of the row, shown while any filter is applied; it keeps the sort. It is the list's only clear control (the forms have no "Clear filters" of their own).
+- **Focus:** removing a chip moves focus to the chip that takes its place, else the one before it, else the row (`tabIndex=-1`); Clear all moves it to the row. Focus never drops to the page body.
+- **Disclosure:** a filter a pressed quick chip shows does not open the Filters disclosure (it would show twice); a filter only the form shows still opens it, even on phones. The summary still counts every filter inside. Runs' "More filters" is controlled: removing its last chip leaves it open.
+- **Drafts:** the form follows the URL only in the fields the URL changed, so pressing a chip keeps Search text typed but not yet applied.
+- **Announcing:** on Runs a filter change is announced in the existing status line once its runs arrive ("12 runs", "50+ runs"); new runs arriving take precedence. The other lists have no results-count region, so none is added.
 - **Behaviour:** chips write the URL (a history entry each, so Back and Forward step through them) and reset paging. The row wraps on narrow screens; Tab moves through the chips and Space or Enter toggles one. Under `pointer: coarse` chips are 44px tall.
 
 ### Inputs / Fields
@@ -429,7 +433,7 @@ Mist Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizo
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
 - **Route focus:** on each user navigation (not the first render, not redirects), focus moves to the new page's `h1`. Lazily loaded views (Trends, Branches) render their PageHeader outside the Suspense boundary, so the h1 exists at once and keeps focus while the view loads. The skip link still targets the content region. Headings and regions take focus without a visible ring; the ring belongs to controls.
 - **Titles:** each view sets `document.title` as "View · Project · QEOS".
-- **Focus not obscured (top):** from 1024px the page's `scroll-padding-top` covers the sticky top bar and the sticky table header band.
+- **Focus not obscured (top):** above 640px the page's `scroll-padding-top` covers the sticky top bar and a sticky sortable table header row.
 - **Focus not obscured:** a bar stuck to the bottom of the viewport (the Cases selection bar) writes its height to the page's `scroll-padding-bottom` while it exists and pads the table, so a row reached by keyboard scrolls above it.
 - **Landmarks:** the top bar is the `banner`, the rail is `nav` "Main", the breadcrumb is `nav` "Breadcrumb", and the page is `main`.
 - **Drawer:** on phones the open rail is a modal dialog (focus trapped, Escape from anywhere closes it). Following a link in it hands focus to the new page's heading, not back to the menu button. Widening the window past the breakpoint closes it and removes the dialog role.
