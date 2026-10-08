@@ -7,14 +7,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Dict, List, Optional, Sequence
 
-from sqlalchemy import String, any_, bindparam, select, text
+from sqlalchemy import Integer, String, and_, any_, bindparam, false, func, not_, select, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from src.ingestion.analytics.report_period import Period, bucket_starts, iso
 from src.ingestion.analytics.trends import as_utc
-from src.ingestion.models import Run
+from src.ingestion.models import Run, RunResult
 
 STATEMENT_TIMEOUT = "20s"  # below the gateway's 30 s proxy_read_timeout
 REPORT_TIMEOUT_MESSAGE = "This report took too long. Narrow the period or the filters."
@@ -66,9 +66,37 @@ def in_list(db: Session, column, values: Sequence, item_type=String):
 
 
 def run_filters(db: Session, scope: Scope) -> list:
-    """Project and window. Task 3 adds branch, environment, CI provider and origin."""
-    return [Run.project_id == scope.project_id, Run.started_at >= scope.previous.start,
-            Run.started_at < scope.period.end]
+    """Project and window, then branch, environment, CI provider and origin. These are checked on the
+    window's few thousand runs, so they need no index."""
+    filters = [Run.project_id == scope.project_id, Run.started_at >= scope.previous.start,
+               Run.started_at < scope.period.end]
+    if scope.branch:
+        filters.append(Run.branch == scope.branch)
+    if scope.environment:
+        filters.append(Run.environment == scope.environment)
+    if scope.ci_provider:
+        filters.append(Run.ci_provider == scope.ci_provider)
+    if scope.origin == "qeos":
+        filters.append(requested_from_qeos(db, scope))
+    elif scope.origin == "ci":
+        if scope.urls:  # no Play URLs: every run is CI
+            filters.append(not_(requested_from_qeos(db, scope)))
+    return filters
+
+
+def requested_from_qeos(db: Session, scope: Scope):
+    """A GitHub Actions run whose URL is one of a Play's github_run_url (ADR-026). The match is on the
+    lower-cased URL; a trailing slash makes it another URL. Never sends an empty list to in_list."""
+    if not scope.urls:
+        return false()
+    # A NULL URL makes the AND false, never NULL, so not_() of it keeps the run.
+    return and_(Run.ci_provider == "github_actions", Run.ci_run_url.is_not(None),
+                in_list(db, func.lower(Run.ci_run_url), scope.urls))
+
+
+def key_filter(db: Session, scope: Scope) -> list:
+    """The test_keys restriction for any query over test_results ([] without keys)."""
+    return [] if scope.keys is None else [in_list(db, RunResult.test_key, scope.keys)]
 
 
 def scoped_runs(db: Session, scope: Scope) -> List[ScopedRun]:
@@ -84,9 +112,15 @@ def scoped_runs(db: Session, scope: Scope) -> List[ScopedRun]:
 
 
 def runs_with_results(db: Session, scope: Scope, runs: List[ScopedRun]) -> set:
-    """Ids of the runs that count: every scoped run, or with test_keys only those with a result for them.
-    Task 3 implements the key case."""
-    return {r.id for r in runs}
+    """Ids of the runs that count: every scoped run, or with test_keys the runs that have at least one
+    result for those keys."""
+    if scope.keys is None or not runs:
+        return {r.id for r in runs}
+    rows = db.execute(
+        select(RunResult.run_id).distinct()
+        .where(in_list(db, RunResult.run_id, [r.id for r in runs], Integer), *key_filter(db, scope))
+    ).all()
+    return {run_id for (run_id,) in rows}
 
 
 # Section name -> builder(db, scope, runs, context) -> dict. Tasks 4, 17, 19, 24, 25 register theirs.

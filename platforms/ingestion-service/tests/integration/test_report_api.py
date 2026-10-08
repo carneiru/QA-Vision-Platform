@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.exc import OperationalError
 
 from src.ingestion.service import report_service
-from conftest import REPORT_URL, post_report
+from conftest import REPORT_URL, post_report, report_key
 
 ALL_ROLES = ("owner", "admin", "member", "viewer", "billing_manager")
 KEY = "a" * 64
@@ -129,3 +129,53 @@ def test_the_handler_ends_its_transaction(client, auth, project_role, report_now
     project_role()
     assert post_report(client, auth).status_code == 200
     assert not db.in_transaction()
+
+
+GH = "https://github.com/acme/obt/actions/runs/"
+
+
+def runs_of(client, auth, **body):
+    response = post_report(client, auth, **body)
+    assert response.status_code == 200, response.text
+    return response.json()["scope"]["runs"]
+
+
+def test_each_run_filter_alone_and_combined(client, auth, project_role, report_now, seed_run):
+    project_role()
+    day = datetime(2026, 10, 3, 10, tzinfo=timezone.utc)
+    seed_run(day, branch="main", environment="staging", ci_provider="github_actions")
+    seed_run(day, branch="main", environment="prod", ci_provider="jenkins")
+    seed_run(day, branch="dev", environment="staging", ci_provider="jenkins")
+    assert runs_of(client, auth) == 3
+    assert runs_of(client, auth, branch="main") == 2
+    assert runs_of(client, auth, branch="") == 3                  # empty means no filter
+    assert runs_of(client, auth, environment="staging") == 2
+    assert runs_of(client, auth, ci_provider="jenkins") == 2
+    assert runs_of(client, auth, branch="main", environment="staging", ci_provider="jenkins") == 0
+
+
+def test_origin_matches_the_play_url_without_regard_to_case_on_github_only(client, auth, project_role, report_now, seed_run):
+    project_role()
+    day = datetime(2026, 10, 3, 10, tzinfo=timezone.utc)
+    seed_run(day, ci_provider="github_actions", ci_run_url=GH + "7")                   # requested from QEOS
+    seed_run(day, ci_provider="github_actions", ci_run_url=GH + "7")                   # a shard of the same Play
+    seed_run(day, ci_provider="github_actions", ci_run_url=GH + "8")                   # CI
+    seed_run(day, ci_provider="local", ci_run_url=GH + "7")                            # not GitHub: CI
+    seed_run(day, ci_provider="github_actions", ci_run_url=None)                       # CI
+    seed_run(day, ci_provider="github_actions", ci_run_url=GH + "7/")                  # trailing slash: another URL
+    urls = [(GH + "7").upper()]
+    assert runs_of(client, auth, origin="qeos", requested_run_urls=urls) == 2
+    assert runs_of(client, auth, origin="ci", requested_run_urls=urls) == 4
+    assert runs_of(client, auth, origin="any", requested_run_urls=urls) == 6        # ignored with any
+    assert runs_of(client, auth, origin="qeos", requested_run_urls=[]) == 0
+    assert runs_of(client, auth, origin="ci", requested_run_urls=[]) == 6
+
+
+def test_test_keys_count_only_runs_with_a_result_for_them(client, auth, project_role, report_now, seed_run):
+    project_role()
+    day = datetime(2026, 10, 3, 10, tzinfo=timezone.utc)
+    seed_run(day, results=(("t1", "passed", 1), ("t2", "failed", 1)))
+    seed_run(day, results=(("t1", "passed", 1),))
+    seed_run(datetime(2026, 9, 26, tzinfo=timezone.utc), results=(("t2", "passed", 1),))
+    scope = post_report(client, auth, test_keys=[report_key("t2").upper()]).json()["scope"]
+    assert scope == {"runs": 1, "previous_runs": 1, "test_keys": 1}
