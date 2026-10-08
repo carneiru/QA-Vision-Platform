@@ -326,3 +326,52 @@ describe("fix round 1", () => {
     expect(await screen.findByText("2 runs")).toHaveAttribute("role", "status");
   });
 });
+
+// --- Clear all means a blank form ------------------------------------------------------------
+
+describe("Clear all blanks the form drafts", () => {
+  test("Cases: Search text typed but not applied is cleared too", async () => {
+    mockCases();
+    renderCases("/projects/42/cases?status=ready");
+    await screen.findByText("Case 1");
+    await userEvent.type(screen.getByLabelText("Search"), "legroom");
+    await userEvent.click(within(chips()).getByRole("button", { name: "Clear all" }));
+    expect(where().toString()).toBe("");
+    expect(screen.getByLabelText("Search")).toHaveValue("");
+  });
+
+  test("Runs: unapplied text in the form is cleared too", async () => {
+    server.use(http.get(`${P}/runs`, () => HttpResponse.json([run(61)])));
+    renderAt("/projects/:projectId/runs", "/projects/42/runs?status=failing", <RunsPage />);
+    await screen.findByRole("link", { name: "#61" });
+    await userEvent.type(screen.getByLabelText(/^branch/i), "release");
+    await userEvent.type(screen.getByLabelText(/^author/i), "ana");
+    await userEvent.click(within(chips()).getByRole("button", { name: "Clear all" }));
+    expect(where().has("status")).toBe(false);
+    expect(screen.getByLabelText(/^branch/i)).toHaveValue("");
+    expect(screen.getByLabelText(/^author/i)).toHaveValue("");
+  });
+
+  test("Tests: an unapplied Search draft is cleared too", async () => {
+    server.use(http.get(`${P}/analytics/tests`, () => HttpResponse.json([])));
+    renderAt("/projects/:projectId/tests", "/projects/42/tests?days=7", <TestsPage />);
+    await within(chips()).findByRole("button", { name: "Clear all" });
+    await userEvent.type(screen.getByLabelText("Search"), "login");
+    await userEvent.click(within(chips()).getByRole("button", { name: "Clear all" }));
+    expect(where().has("days")).toBe(false);
+    expect(screen.getByLabelText("Search")).toHaveValue("");
+  });
+
+  test("Flaky: unapplied thresholds and branch go back to their defaults", async () => {
+    server.use(http.get(`${P}/analytics/flaky`, () => HttpResponse.json([])));
+    renderAt("/projects/:projectId/flaky", "/projects/42/flaky?window=30", <FlakyPage />);
+    await within(chips()).findByRole("button", { name: "Clear all" });
+    await userEvent.type(screen.getByLabelText("Branch"), "dev");
+    await userEvent.clear(screen.getByLabelText("Min runs"));
+    await userEvent.type(screen.getByLabelText("Min runs"), "9");
+    await userEvent.click(within(chips()).getByRole("button", { name: "Clear all" }));
+    expect(where().has("window")).toBe(false);
+    expect(screen.getByLabelText("Branch")).toHaveValue("");
+    expect(screen.getByLabelText("Min runs")).toHaveValue(5);
+  });
+});

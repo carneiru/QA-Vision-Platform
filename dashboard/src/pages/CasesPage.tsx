@@ -201,6 +201,11 @@ export default function CasesPage() {
     });
   }
   const disclosureRef = useRef<HTMLDetailsElement>(null);
+  // Clear all means a blank form: drafts in fields whose URL value did not change go too
+  function clearAll() {
+    setForm(read(new URLSearchParams()));
+    setParams(new URLSearchParams());
+  }
 
   function apply(e: FormEvent) {
     e.preventDefault();
@@ -293,7 +298,7 @@ export default function CasesPage() {
         </FiltersDisclosure>
       </form>
       <FilterChips quick={QUICK} values={applied} applied={appliedFilters(applied)} onChange={patchFilters}
-        onClearAll={() => setParams(new URLSearchParams())} onAddFilter={() => revealFilters(disclosureRef.current)} />
+        onClearAll={clearAll} onAddFilter={() => revealFilters(disclosureRef.current)} />
 
       {query.data?.notice === "unavailable" && (
         <p className="error-banner" role="status">Latest result filter unavailable right now; showing the other filters.</p>

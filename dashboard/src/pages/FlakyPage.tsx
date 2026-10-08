@@ -176,7 +176,13 @@ export default function FlakyPage() {
       </form>
       {/* No quick chips: "Show quarantined" stays the one control for it, and the API has no reason filter */}
       <FilterChips values={values} applied={applied} onChange={update}
-        onClearAll={() => update({ window: "", min_runs: "", min_flip: "", branch: "", muted: "" })} />
+        onClearAll={() => {
+          // Clear all means the default form, unapplied drafts included
+          setMinRunsInput(DEFAULTS.min_runs);
+          setMinFlipRateInput(DEFAULTS.min_flip);
+          setBranchInput("");
+          update({ window: "", min_runs: "", min_flip: "", branch: "", muted: "" });
+        }} />
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       <p className="muted">

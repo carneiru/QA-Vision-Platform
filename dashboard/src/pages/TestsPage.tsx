@@ -110,7 +110,11 @@ export default function TestsPage() {
           ...(values.days !== DEFAULTS.days ? [{ key: "days", name: "Days", value: String(days) }] : []),
           ...(search ? [{ key: "search", name: "Search", value: search }] : []),
         ]}
-        onChange={update} onClearAll={() => update({ days: "", search: "" })} />
+        onChange={update} onClearAll={() => {
+          // Clear all means a blank form, the unapplied Search draft included
+          setSearchInput("");
+          update({ days: "", search: "" });
+        }} />
 
       {exportError != null && <ErrorBanner error={exportError} onRetry={onExport} />}
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}

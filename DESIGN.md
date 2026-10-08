@@ -393,7 +393,7 @@ A row (`FilterChips`, a `group` named "Quick filters") between a list's filter f
 - **Clear all:** a ghost button in Link Cyan at the end of the row, shown while any filter is applied; it keeps the sort. It is the list's only clear control (the forms have no "Clear filters" of their own).
 - **Focus:** removing a chip moves focus to the chip that takes its place, else the one before it, else the row (`tabIndex=-1`); Clear all moves it to the row. Focus never drops to the page body.
 - **Disclosure:** a filter a pressed quick chip shows does not open the Filters disclosure (it would show twice); a filter only the form shows still opens it, even on phones. The summary still counts every filter inside. Runs' "More filters" is controlled: removing its last chip leaves it open.
-- **Drafts:** the form follows the URL only in the fields the URL changed, so pressing a chip keeps Search text typed but not yet applied.
+- **Drafts:** the form follows the URL only in the fields the URL changed, so pressing a chip keeps Search text typed but not yet applied. Clear all is the exception: it blanks the whole form (defaults for thresholds), unapplied drafts included.
 - **Announcing:** on Runs a filter change is announced in the existing status line once its runs arrive ("12 runs", "50+ runs"); new runs arriving take precedence. The other lists have no results-count region, so none is added.
 - **Behaviour:** chips write the URL (a history entry each, so Back and Forward step through them) and reset paging. The row wraps on narrow screens; Tab moves through the chips and Space or Enter toggles one. Under `pointer: coarse` chips are 44px tall.
 

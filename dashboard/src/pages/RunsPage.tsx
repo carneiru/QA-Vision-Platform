@@ -202,7 +202,9 @@ export default function RunsPage() {
     hadAdvanced.current = advancedActive > 0;
   }, [advancedActive]);
 
+  // Clear all means a blank form, unapplied drafts included
   function clearFilters() {
+    setForm(readValues(new URLSearchParams()));
     const next = new URLSearchParams();
     keepSort(next);
     setParams(next);
