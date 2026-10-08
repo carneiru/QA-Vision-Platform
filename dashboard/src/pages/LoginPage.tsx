@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useEffectEvent, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login, mfaVerify, ssoLogin } from "../api/auth";
 import {
@@ -37,11 +37,14 @@ export default function LoginPage() {
     }
   }
 
+  // The Google button's callback fires long after mount: it must run the current finishSso, not the mount-time one
+  const onGoogleCredential = useEffectEvent((credential: string) => {
+    void finishSso("google", credential);
+  });
+
   useEffect(() => {
     if (googleEnabled() && googleRef.current) {
-      initGoogleButton(googleRef.current, (credential) => {
-        void finishSso("google", credential);
-      }).catch((err) => setError(err));
+      initGoogleButton(googleRef.current, (credential) => onGoogleCredential(credential)).catch((err) => setError(err));
     }
     // Mount-only: the google button renders once into the ref.
   }, []);

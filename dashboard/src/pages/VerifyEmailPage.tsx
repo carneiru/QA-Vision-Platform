@@ -8,6 +8,7 @@ import ErrorBanner from "../components/ErrorBanner";
 export default function VerifyEmailPage() {
   const [params] = useSearchParams();
   const token = params.get("token");
+  const nextParam = params.get("next");
   const [state, setState] = useState<"working" | "done" | "failed">("working");
   const [error, setError] = useState<unknown>(null);
   // The token is single-use: StrictMode's mount-unmount-mount must reuse the
@@ -27,7 +28,7 @@ export default function VerifyEmailPage() {
       .then(() => {
         if (cancelled) return;
         // Taking the remembered page empties it, so it is read here, once, when the token is accepted: never during render
-        landing.current ??= safeNext(params.get("next")) ?? takeAfterVerify() ?? "/";
+        landing.current ??= safeNext(nextParam) ?? takeAfterVerify() ?? "/";
         setState("done");
       })
       .catch((err) => {
@@ -39,7 +40,7 @@ export default function VerifyEmailPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, nextParam]);
 
   if (!token) {
     return (
