@@ -39,11 +39,10 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     ignore:
-      # Dashboard majors move in coordinated sets (react + react-dom + @types; eslint + @eslint/js;
-      # Vite + vitest + msw; TypeScript + typescript-eslint). Single-package major PRs produced
-      # uninstallable combinations twice on 2026-10-07, so majors are planned work (TODO.md).
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
+      # typescript-eslint 8.71 accepts TypeScript below 6.1 only (peerDependencies), so a newer
+      # TypeScript makes npm ci fail. Lift this once typescript-eslint widens its range.
+      - dependency-name: "typescript"
+        versions: [">= 6.1.0"]
     groups:
       npm-minor-patch:
         update-types: ["minor", "patch"]
