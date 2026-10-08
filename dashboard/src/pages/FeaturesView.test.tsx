@@ -107,6 +107,19 @@ test("long names are cut to one line with an ellipsis; the full text stays in th
   expect(title).toHaveAttribute("title", "Case 2");
 });
 
+test("both views use one fixed column layout, so columns keep their place across pages and views", async () => {
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const fixed = (table: HTMLElement) =>
+    within(table).getAllByRole("columnheader").map((th) => [...th.classList].find((c) => c.startsWith("col-")) ?? "");
+  expect(screen.getByRole("table")).toHaveClass("cases-table");
+  expect(fixed(screen.getByRole("table"))).toEqual(["col-select", "col-title", "col-scenarios", "col-runs", "col-priority", "col-status", "col-automated"]);
+  await userEvent.click(within(screen.getByRole("group", { name: "Group by" })).getByRole("button", { name: "Scenario" }));
+  await screen.findByRole("link", { name: "Case 1" });
+  expect(screen.getByRole("table")).toHaveClass("cases-table");
+  expect(fixed(screen.getByRole("table"))).toEqual(["col-select", "col-title", "col-runs", "col-priority", "col-status", "col-automated"]);
+});
+
 test("Group by is a pressed-button group stored in the URL; Scenario shows today's list", async () => {
   renderCases();
   await screen.findByRole("link", { name: "Login" });

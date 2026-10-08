@@ -129,11 +129,11 @@ export default function CaseTable({ projectId, cases, selectable, picked, onTogg
   const { lastRuns, lastRunsSummary } = useRunStrips(projectId, useMemo(() => cases.map((c) => c.automated_test_key), [cases]));
   const runnable = cases.filter(isRunnable);
   return (
-    <table className="data" aria-label={label}>
+    <table className="data cases-table" aria-label={label}>
       <thead>
         <tr>
           {selectable && (
-            <th className="select-col">
+            <th className="select-col col-select">
               {onToggleAll ? (
                 <input type="checkbox" aria-label="Select all imported cases on this page" disabled={runnable.length === 0}
                   checked={runnable.length > 0 && runnable.every((c) => picked.has(c.number))}
@@ -142,8 +142,8 @@ export default function CaseTable({ projectId, cases, selectable, picked, onTogg
               ) : <span className="sr-only">Select</span>}
             </th>
           )}
-          <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow">Priority</th><th>Status</th>
-          <th className="hide-narrow">Automated</th>
+          <th className="col-title">Title</th><th className="hide-narrow col-runs">Last runs</th><th className="hide-narrow col-priority">Priority</th><th className="col-status">Status</th>
+          <th className="hide-narrow col-automated">Automated</th>
         </tr>
       </thead>
       <tbody>

@@ -359,6 +359,16 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 /* One line, cut with an ellipsis so long names never stretch a table; the full text is in title and the accessible name */
 .truncate { display: inline-block; max-width: min(60ch, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 .feature-text .truncate { display: block; }
+/* The Cases list's columns: fixed widths, so neither paging nor switching views moves them; Title takes the rest and its text adapts (ellipsis) */
+table.data.cases-table { table-layout: fixed; }
+.cases-table th.col-select { width: 36px; }
+.cases-table th.col-scenarios { width: 88px; }
+.cases-table th.col-runs { width: 112px; }
+.cases-table th.col-priority { width: 80px; }
+.cases-table th.col-status { width: 112px; }
+.cases-table th.col-automated { width: 120px; }
+.cases-table .truncate { max-width: 100%; }
+.cases-table .case-title.truncate { max-width: calc(100% - 20px); }
 .row-actions { white-space: nowrap; text-align: right; }
 /* A name cell beside a block of actions: wide enough that short names stay on one line */
 .channel-cell { min-width: 9rem; }

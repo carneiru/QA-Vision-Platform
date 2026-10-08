@@ -74,12 +74,12 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
   }
 
   return (
-    <table className="data feature-list">
+    <table className="data cases-table feature-list">
       <thead>
         <tr>
-          {selectable && <th className="select-col"><span className="sr-only">Select</span></th>}
-          <th>Title</th><th className="num">Scenarios</th><th className="hide-narrow">Last runs</th>
-          <th className="hide-narrow">Priority</th><th>Status</th><th className="hide-narrow">Automated</th>
+          {selectable && <th className="select-col col-select"><span className="sr-only">Select</span></th>}
+          <th className="col-title">Title</th><th className="num col-scenarios">Scenarios</th><th className="hide-narrow col-runs">Last runs</th>
+          <th className="hide-narrow col-priority">Priority</th><th className="col-status">Status</th><th className="hide-narrow col-automated">Automated</th>
         </tr>
       </thead>
       {rows.map((row) => {
