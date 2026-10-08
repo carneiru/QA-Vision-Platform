@@ -375,8 +375,21 @@ a.brand:hover { text-decoration: none; background: var(--hover); }
 .breadcrumb li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; white-space: nowrap; }
 /* The slash is decoration: the empty alt keeps it out of screen readers where supported */
 .breadcrumb li + li::before { content: "/"; content: "/" / ""; color: var(--text-secondary); }
-.breadcrumb a { color: var(--text-secondary); }
-.breadcrumb a:hover { color: var(--text-primary); }
+.breadcrumb li > a { color: var(--text-secondary); padding: 2px 4px; margin: 0 -4px; border-radius: var(--radius-sm); }
+/* Menus are not prose: the rail (and the drawer it becomes), the breadcrumb, the user menu and the view tabs
+   never underline, at rest or on hover. These selectors outrank `li a` and `a:hover`; the hover/active
+   background is the affordance. Underlines stay for inline links in body text only. */
+.rail a.rail-link, .rail a.rail-link:hover,
+.breadcrumb li > a, .breadcrumb li > a:hover,
+.user-menu-list a.menu-item, .user-menu-list a.menu-item:hover,
+.view-tabs > a:not(.button), .view-tabs > a:not(.button):hover { text-decoration: none; }
+.breadcrumb li > a:hover { color: var(--text-primary); background: var(--hover); }
+.crumb-skeleton { display: inline-block; width: 72px; height: 12px; margin: 0; }
+/* Tablets: the org crumb gives way so the bar never overflows (the org stays in the rail and the user menu) */
+@media (min-width: 641px) and (max-width: 900px) {
+  .breadcrumb .crumb-org { display: none; }
+  .crumb-select { max-width: 160px; }
+}
 .breadcrumb [aria-current="page"] { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .crumb-select { min-height: 30px; max-width: 220px; padding: 2px 6px; font-size: 13.5px; font-weight: 500; }
 
@@ -389,7 +402,9 @@ a.brand:hover { text-decoration: none; background: var(--hover); }
 .menu-item { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: 36px; padding: 6px var(--space-3); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text-primary); font-weight: 500; text-decoration: none; }
 .menu-item svg { color: var(--text-secondary); flex-shrink: 0; }
 .menu-item:hover, .menu-item:focus { background: var(--hover-strong); text-decoration: none; }
-.menu-separator { height: 1px; margin: var(--space-1) 0; background: var(--border); }
+.user-menu-list { list-style: none; margin: 0; padding: 0; }
+/* Sign out sits apart from the rest */
+.user-menu-list .menu-signout { margin-top: var(--space-1); padding-top: var(--space-1); border-top: 1px solid var(--border); }
 
 /* Icon rail: 56px of icons; hover or keyboard focus expands it over the content (no layout shift).
    Its box switches width at once (it overflows its 56px grid track, so nothing moves); what the eye sees
@@ -439,6 +454,18 @@ a.brand:hover { text-decoration: none; background: var(--hover); }
     width: auto; height: auto; margin: 0; padding: 4px 8px; clip: auto; overflow: visible; opacity: 1;
     background: var(--text-primary); color: var(--surface-1); font-size: 12.5px; font-weight: 500;
     border-radius: var(--radius-sm); box-shadow: var(--shadow-2); pointer-events: none;
+  }
+  /* Escape dismissed them (WCAG 1.4.13) */
+  .rail.tips-off:not(.expanded) .rail-label { opacity: 0 !important; clip: rect(0 0 0 0) !important; }
+}
+/* Short viewports: the collapsed rail scrolls, with 32px items. Its tooltips are then fixed-positioned at their
+   static spot (centred on the item) pushed past the rail, so the scroll box does not clip them. */
+@media (min-width: 641px) and (max-height: 600px) {
+  .rail-nav { min-height: 0; overflow-x: hidden; overflow-y: auto; }
+  .rail-link, .rail-pin { min-height: 32px; }
+  .rail:not(.expanded) :is(.rail-link, .rail-pin):is(:hover, :focus-visible) .rail-label {
+    position: fixed; left: auto; top: auto; transform: none;
+    margin-inline-start: calc(var(--rail-width) - var(--space-2) - 11px + 10px);
   }
 }
 
@@ -500,7 +527,8 @@ label.button:hover { background: var(--hover-strong); }
 /* Cases and suites share one view with two tabs */
 .view-tabs { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-4); flex-wrap: wrap; }
 .view-tabs > span[aria-current] { font-weight: 600; border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
-.view-tabs > a:not(.button) { color: var(--text-secondary); padding-bottom: 4px; }
+.view-tabs > a:not(.button) { color: var(--text-secondary); padding: 2px 6px 4px; margin: 0 -6px; border-radius: var(--radius-sm); }
+.view-tabs > a:not(.button):hover { color: var(--text-primary); background: var(--hover-strong); }
 .chip-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 /* Compact tags: the box hugs the text (16px tall), so labels support the title instead of competing with it */
 .chip { display: inline-flex; align-items: center; font-size: 11.5px; line-height: 16px; padding: 0 6px; border-radius: 4px;
