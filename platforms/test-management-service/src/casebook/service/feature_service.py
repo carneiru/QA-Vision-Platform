@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 from typing import Optional
 
+from gherkin.dialect import DIALECTS
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
@@ -49,18 +50,33 @@ def list_features(db: Session, project_id: int, *, limit: int, offset: int, **fi
     return {"total": len(groups), "items": items}
 
 
-def scenario_lines(content: str, feature_name: Optional[str], names: list) -> dict:
-    """name -> 1-based line of the scenario's heading in the raw file. Any keyword and language: a line
-    that is `<words>: <name>`. The first such line is the Feature's own when the names are equal."""
-    lines = content.lstrip("﻿").splitlines()
-    found = {}
-    for name in set(names):
-        pattern = re.compile(r"^\s*[^:#@|\s][^:#@|]*:\s*" + re.escape(name) + r"\s*$")
-        hits = [i + 1 for i, text in enumerate(lines) if pattern.match(text)]
-        if name == feature_name:
-            hits = hits[1:]
-        if hits:
-            found[name] = hits[0]
+def _heading_keywords() -> str:
+    """Every language's Scenario / Scenario Outline / Example keyword, as a regex alternation."""
+    words = {w.strip() for spec in DIALECTS.values() for key in ("scenario", "scenarioOutline") for w in spec[key]}
+    return "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True) if w)
+
+
+HEADING = re.compile(r"^[ \t]*(?:" + _heading_keywords() + r")[ \t]*:[ \t]*(.*?)[ \t]*$")
+LINE_BREAK = re.compile(r"\r\n|\r|\n")
+
+
+def scenario_lines(content: str) -> dict:
+    """Fallback for cases imported before scenario_line: scenario name -> 1-based line of its heading in the
+    raw text. Only a real heading counts (a scenario keyword after the indentation, any language), so
+    step lines and doc string contents that repeat the name do not. The first heading of a name wins."""
+    found: dict = {}
+    fence = None  # the doc string delimiter we are inside, if any
+    for number, text in enumerate(LINE_BREAK.split(content.lstrip("\ufeff")), start=1):
+        stripped = text.strip()
+        if fence is None and stripped.startswith(('"""', "```")):
+            fence = stripped[:3]
+            continue
+        if fence is not None:
+            fence = None if stripped.startswith(fence) else fence
+            continue
+        match = HEADING.match(text)
+        if match:
+            found.setdefault(match.group(1), number)
     return found
 
 
@@ -73,14 +89,16 @@ def feature_detail(db: Session, project_id: int, path: str) -> Optional[dict]:
     file: Optional[FeatureFile] = db.query(FeatureFile).filter(
         FeatureFile.project_id == project_id, FeatureFile.path == path).one_or_none()
     feature_name = cases[0].feature_name or (file.feature_name if file else None)
-    lines = scenario_lines(file.content, feature_name, [c.scenario_name for c in cases if c.scenario_name]) if file else {}
-    # File order when the raw text is stored and the heading is found, else by number (creation order)
-    cases.sort(key=lambda c: (c.scenario_name not in lines, lines.get(c.scenario_name, 0), c.number))
+    fallback = scenario_lines(file.content) if file and any(c.scenario_line is None for c in cases) else {}
+    lines = {c.number: c.scenario_line if c.scenario_line is not None else fallback.get(c.scenario_name)
+             for c in cases}
+    # File order by line; a case with no line goes last, by number
+    cases.sort(key=lambda c: (lines[c.number] is None, lines[c.number] or 0, c.number))
     return {
         "feature_name": feature_name, "path": path,
         "folder": folder_of(path), "content": file.content if file else None,
         "imported_at": file.imported_at if file else None,
         "cases": [{"number": c.number, "key": case_key(c.number), "title": c.title,
                    "scenario_name": c.scenario_name, "status": c.status, "priority": c.priority,
-                   "automated_test_key": c.automated_test_key, "line": lines.get(c.scenario_name)} for c in cases],
+                   "automated_test_key": c.automated_test_key, "line": lines[c.number]} for c in cases],
     }

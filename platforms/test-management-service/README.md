@@ -39,7 +39,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 | `GET` | `/case-labels` | labels in use (archived cases left out), with counts |
 | `GET` | `/case-folders` | `[{path, count}]` folders of imported cases; a count includes subfolders and leaves out archived cases |
 | `GET` | `/features?search=&search_in=&folder=&label=&status=&priority=&linked=&limit=&offset=` | `{total, items:[{feature_name, path, folder, case_count, case_numbers, has_source}]}`: the active cases the filters keep (those of `GET /cases`), grouped by `(feature_name, path)`, ordered by folder then feature name; all manual cases are one last group `{feature_name: null, path: null, folder: null}`. `case_numbers` are the first 200, by number; `has_source` is true when the raw file text is stored. `search_in` is `feature` (the Feature name or the path contains the term), `scenario` (title, Gherkin, TC key) or `both` (default); case-insensitive, `%` and `_` literal. `limit` defaults to 50, at most 200. Every project role |
-| `GET` | `/features/detail?path=` | `{feature_name, path, folder, content, imported_at, cases:[{number, key, title, scenario_name, status, priority, automated_test_key, line}]}`; `content` and `imported_at` are null until the file is imported again after this was added; `cases` are active only, in file order (`line` is the scenario's heading in the stored text) or by number when `line` is null; 404 when no active case has that path |
+| `GET` | `/features/detail?path=` | `{feature_name, path, folder, content, imported_at, cases:[{number, key, title, scenario_name, status, priority, automated_test_key, line}]}`; `content` and `imported_at` are null until the file is imported again after this was added; `cases` are active only, in file order by `line` (the scenario heading's line, stored at import; derived from the stored text for older imports); cases with no `line` come last, by number; 404 when no active case has that path |
 | `GET` | `/case-features` | `[{feature, count}]` Gherkin Feature names of active imported cases, sorted by feature |
 | `GET` | `/suites?search=` | `search` (1-200 characters, no NUL, else 422): case-insensitive contains match on the suite name, `%` and `_` literal; every project role |
 | `POST` | `/suites` | name unique per project (409) |
@@ -141,6 +141,11 @@ plan that was previewed, or answers 409 `plan_changed`. See ADR-023.
   (256 KiB by default) is refused with 413 as before, so stored text is never truncated. A `full`
   import deletes the stored files that are no longer in the folder; a partial one keeps them.
   `GET /features/detail` serves the text.
+- Each case also keeps the line of its scenario heading (`cases.scenario_line`, Scenario, Scenario
+  Outline or Example, inside a Rule too), and a scenario that only moved within its file is an update.
+  Files imported before migrations 006 and 007 have no stored text (`has_source` false) and no line
+  until their next import; until then `/features/detail` finds each line by scanning the stored text
+  for a real scenario heading, and orders by case number when there is no text.
 - The automated link the import sets follows a move; a link picked by hand is never changed.
 
 ```

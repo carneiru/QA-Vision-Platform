@@ -231,7 +231,7 @@ def test_detail_without_stored_content_has_null_content(seeded, auth, db):
     db.commit()
     d = seeded.get(f"{P}/features/detail?path=tests/features/auth/login.feature", headers=auth()).json()
     assert d["feature_name"] == "Login" and d["content"] is None and d["imported_at"] is None
-    assert [(c["title"], c["line"]) for c in d["cases"]] == [("l1", None)]
+    assert [(c["title"], c["line"]) for c in d["cases"]] == [("l1", 2)]  # the line was stored at import
     item = next(i for i in rows(seeded, auth)["items"] if i["feature_name"] == "Login")
     assert item["has_source"] is False
 
@@ -255,3 +255,98 @@ def test_strangers_and_anonymous_are_refused(client, auth, project_role):
     assert client.get(f"{P}/features", headers=auth()).status_code == 404
     assert client.get(f"{P}/features/detail?path=a", headers=auth()).status_code == 404
     assert client.get(f"{P}/features").status_code in (401, 403)
+
+
+# --- scenario_line (migration 007) ---------------------------------------------------------------------
+
+from src.casebook.models import Case  # noqa: E402
+
+RULES = """# language: en
+Feature: Rules
+
+  Background:
+    Given a base
+
+  Rule: first
+    Scenario Outline: outlined <n>
+      Given the number <n>
+      Examples:
+        | n |
+        | 1 |
+
+    Scenario: plain
+      Given outlined 1
+      When "Scenario: plain" is quoted
+      \"\"\"
+      Scenario: plain
+      \"\"\"
+
+  Rule: second
+    Example: last
+      Given z
+"""
+
+
+def lines_of(client, auth, path):
+    d = client.get(f"{P}/features/detail?path={path}", headers=auth()).json()
+    return [(c["scenario_name"], c["line"]) for c in d["cases"]]
+
+
+def test_import_stores_the_heading_line_of_outlines_and_rule_scenarios(client, auth, member, db):
+    do_import(client, auth, [("r.feature", RULES)])
+    stored = {c.scenario_name: c.scenario_line for c in db.query(Case).all()}
+    assert stored == {"outlined <n>": 8, "plain": 14, "last": 22}
+    assert lines_of(client, auth, "r.feature") == [("outlined <n>", 8), ("plain", 14), ("last", 22)]
+
+
+def test_a_non_english_file_stores_its_lines(client, auth, member, db):
+    text = open("tests/fixtures/portugues.feature", encoding="utf-8").read()
+    do_import(client, auth, [("pt.feature", text)])
+    assert [c.scenario_line for c in db.query(Case).all()] == [3]
+
+
+def test_a_moved_scenario_is_an_update_that_changes_its_line_only(client, auth, member, db):
+    do_import(client, auth, [("a.feature", feature("A", "s"))])
+    r = do_import(client, auth, [("a.feature", "# comment\n" + feature("A", "s"))])
+    assert [i["action"] for i in r.json()["items"]] == ["update"]
+    db.expire_all()
+    assert db.query(Case).one().scenario_line == 3
+    r = do_import(client, auth, [("a.feature", "# comment\n" + feature("A", "s"))])
+    assert [i["action"] for i in r.json()["items"]] == ["unchanged"]
+
+
+def test_detail_is_in_file_order_by_stored_line(client, auth, member):
+    text = feature("Z", "zed", "alpha")
+    do_import(client, auth, [("z.feature", text)])
+    assert lines_of(client, auth, "z.feature") == [("zed", 2), ("alpha", 4)]
+
+
+@pytest.fixture
+def legacy(client, auth, member, db):
+    """A file imported before 007: stored text, no scenario_line on its cases."""
+    text = RULES.replace("\n", "\r\n")
+    do_import(client, auth, [("r.feature", text)])
+    db.query(Case).update({Case.scenario_line: None})
+    db.commit()
+    return client
+
+
+def test_fallback_derives_lines_from_the_text_for_cases_without_one(legacy, auth):
+    # CRLF text; a quoted step and a doc string repeat "Scenario: plain"
+    assert lines_of(legacy, auth, "r.feature") == [("outlined <n>", 8), ("plain", 14), ("last", 22)]
+
+
+def test_fallback_ignores_lines_that_are_not_headings(client, auth, member, db):
+    text = 'Feature: F\n  Scenario: a\n    Given x\n    """\n    Scenario: b\n    """\n  Scenario: b\n    Given y\n'
+    do_import(client, auth, [("f.feature", text)])
+    db.query(Case).update({Case.scenario_line: None})
+    db.commit()
+    assert lines_of(client, auth, "f.feature") == [("a", 2), ("b", 7)]
+
+
+def test_fallback_handles_bare_cr_line_breaks(client, auth, member, db):
+    do_import(client, auth, [("a.feature", feature("A", "s", "t"))])
+    db.query(Case).update({Case.scenario_line: None})
+    db.query(FeatureFile).update({FeatureFile.content: feature("A", "s", "t").replace("\n", "\r")})
+    db.commit()
+    assert lines_of(client, auth, "a.feature") == [("s", 2), ("t", 4)]

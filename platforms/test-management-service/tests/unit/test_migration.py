@@ -161,3 +161,25 @@ def test_downgrade_to_005_drops_feature_files_and_upgrades_again(tmp_path):
     finally:
         engine.dispose()
     command.upgrade(cfg, "head")
+
+
+def test_migration_007_adds_a_nullable_scenario_line_and_downgrades(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'down7.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    engine = create_engine(url)
+    try:
+        column = next(c for c in inspect(engine).get_columns("cases") if c["name"] == "scenario_line")
+        assert column["nullable"] is True
+    finally:
+        engine.dispose()
+    command.downgrade(cfg, "006")
+    engine = create_engine(url)
+    try:
+        assert "scenario_line" not in {c["name"] for c in inspect(engine).get_columns("cases")}
+        assert "feature_files" in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+    command.upgrade(cfg, "head")
