@@ -10,6 +10,7 @@ import PageHeader from "./PageHeader";
 import ProjectLayout from "../pages/ProjectLayout";
 
 let loggedOut = false;
+let qc: QueryClient;
 
 function renderAt(path: string) {
   setAccessToken("acc");
@@ -24,7 +25,7 @@ function renderAt(path: string) {
       return new HttpResponse(null, { status: 200 });
     }),
   );
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[path]}>
@@ -46,10 +47,16 @@ function renderAt(path: string) {
   );
 }
 
-/** Answers each media query by kind: max-width ones say whether the screen is narrow, min-width ones whether it is wide. */
-function mockScreen({ narrow = false, wide = false }: { narrow?: boolean; wide?: boolean }) {
+/** Answers min-width / max-width queries for a viewport of the given width (phone 400, desktop 1100, wide 1440). */
+function mockScreen({ narrow = false, wide = false, width }: { narrow?: boolean; wide?: boolean; width?: number }) {
+  const w = width ?? (narrow ? 400 : wide ? 1440 : 1100);
+  const answer = (query: string) => {
+    const max = /max-width:\s*(\d+)px/.exec(query);
+    const min = /min-width:\s*(\d+)px/.exec(query);
+    return (max ? w <= Number(max[1]) : true) && (min ? w >= Number(min[1]) : true);
+  };
   window.matchMedia = ((query: string) => ({
-    matches: query.includes("max-width") ? narrow : wide, media: query, onchange: null,
+    matches: answer(query), media: query, onchange: null,
     addEventListener: () => {}, removeEventListener: () => {},
     addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
   })) as unknown as typeof window.matchMedia;
@@ -102,6 +109,22 @@ describe("breadcrumb", () => {
     expect(within(document.getElementById("sidebar")!).queryByLabelText("Project")).not.toBeInTheDocument();
   });
 
+  test("the switcher shows the current project even when the loaded lists do not include it", async () => {
+    renderAt("/projects/42/runs");
+    server.use(http.get("/api/v1/organizations/1/projects", () => HttpResponse.json([{ id: 43, name: "API" }])));
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    await within(crumbs).findByRole("option", { name: "API" });
+    await within(crumbs).findByRole("option", { name: "Shop E2E" });
+    expect(within(crumbs).getByLabelText("Project")).toHaveValue("42");
+  });
+
+  test("the org crumb keeps its place while the project loads, so the trail does not shift", () => {
+    renderAt("/projects/42/runs");
+    const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
+    const first = within(crumbs).getAllByRole("listitem")[0];
+    expect(first).toHaveClass("crumb-org");
+  });
+
   test("the brand links to the project picker", () => {
     renderAt("/projects/42/runs");
     expect(within(screen.getByRole("banner")).getByRole("link", { name: "QEOS, all projects" })).toHaveAttribute("href", "/");
@@ -109,67 +132,67 @@ describe("breadcrumb", () => {
 });
 
 describe("user menu", () => {
-  test("the avatar shows the user's initials and opens a menu with the email, Security, Organization and Sign out last", async () => {
+  test("the avatar is a disclosure: initials, aria-expanded, then the email, Security, Organization and Sign out last", async () => {
     renderAt("/projects/42/runs");
     const button = await screen.findByRole("button", { name: "Account menu for pedro.carneiro@example.com" });
     expect(button).toHaveTextContent("PC");
-    expect(button).toHaveAttribute("aria-haspopup", "menu");
+    expect(button).not.toHaveAttribute("aria-haspopup");
     expect(button).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(button);
     expect(button).toHaveAttribute("aria-expanded", "true");
-    const menu = screen.getByRole("menu");
-    expect(screen.getByText("pedro.carneiro@example.com")).toBeInTheDocument();
-    const items = await within(menu).findAllByRole("menuitem");
-    await waitFor(() => expect(within(menu).getAllByRole("menuitem")).toHaveLength(3));
-    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual(["Security", "Organization", "Sign out"]);
-    expect(items[0]).toHaveFocus();
-    expect(within(menu).getByRole("separator")).toBeInTheDocument();
+    const popup = document.getElementById(button.getAttribute("aria-controls")!)!;
+    expect(within(popup).getByText("pedro.carneiro@example.com")).toBeInTheDocument();
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    await within(popup).findByRole("link", { name: "Organization" });
+    const items = within(within(popup).getByRole("list")).getAllByRole("listitem").map((li) => li.textContent?.trim());
+    expect(items).toEqual(["Security", "Organization", "Sign out"]);
+    expect(within(popup).getAllByRole("listitem")[2]).toHaveClass("menu-signout");
   });
 
-  test("arrow keys move between items, wrapping; Escape closes and returns focus to the avatar", async () => {
+  test("Tab moves through the items in order; Escape closes and returns focus to the avatar", async () => {
     renderAt("/projects/42/runs");
     const button = await screen.findByRole("button", { name: /account menu/i });
     await userEvent.click(button);
-    const menu = screen.getByRole("menu");
-    await waitFor(() => expect(within(menu).getAllByRole("menuitem")).toHaveLength(3));
-    const items = within(menu).getAllByRole("menuitem");
-    act(() => items[0].focus());
-    await userEvent.keyboard("{ArrowDown}");
-    expect(items[1]).toHaveFocus();
-    await userEvent.keyboard("{ArrowUp}{ArrowUp}");
-    expect(items[2]).toHaveFocus();
-    await userEvent.keyboard("{ArrowDown}");
-    expect(items[0]).toHaveFocus();
-    await userEvent.keyboard("{End}");
-    expect(items[2]).toHaveFocus();
+    const popup = document.getElementById(button.getAttribute("aria-controls")!)!;
+    await within(popup).findByRole("link", { name: "Organization" });
+    await userEvent.tab();
+    expect(within(popup).getByRole("link", { name: "Security" })).toHaveFocus();
+    await userEvent.tab();
+    expect(within(popup).getByRole("link", { name: "Organization" })).toHaveFocus();
     await userEvent.keyboard("{Escape}");
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(document.getElementById("user-menu-popup")).toBeNull();
     expect(button).toHaveFocus();
   });
 
-  test("a click outside closes the menu", async () => {
+  test("a click outside closes it, and so does focus moving out", async () => {
     renderAt("/");
-    await userEvent.click(await screen.findByRole("button", { name: /account menu/i }));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
+    const button = await screen.findByRole("button", { name: /account menu/i });
+    await userEvent.click(button);
     await userEvent.click(screen.getByRole("heading", { name: "Projects" }));
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(button);
+    act(() => screen.getByRole("link", { name: "QEOS, all projects" }).focus());
+    expect(button).toHaveAttribute("aria-expanded", "false");
   });
 
-  test("Sign out calls logout and returns to login", async () => {
+  test("Sign out calls logout, forgets the cached account data and returns to login", async () => {
     renderAt("/");
     await userEvent.click(await screen.findByRole("button", { name: /account menu/i }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    expect(qc.getQueryData(["me"])).toBeDefined();
+    await userEvent.click(screen.getByRole("button", { name: "Sign out" }));
     expect(await screen.findByText("LOGIN")).toBeInTheDocument();
     expect(loggedOut).toBe(true);
+    expect(qc.getQueryData(["me"])).toBeUndefined();
+    expect(qc.getQueryCache().getAll()).toHaveLength(0);
   });
 
-  test("Security in the menu opens the security page and closes the menu", async () => {
-    renderAt("/");
-    await userEvent.click(await screen.findByRole("button", { name: /account menu/i }));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Security" }));
-    expect(await screen.findByRole("heading", { level: 1, name: "Security" })).toBeInTheDocument();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  test("following an item closes the menu, even a link to the page already open", async () => {
+    renderAt("/account/security");
+    const button = await screen.findByRole("button", { name: /account menu/i });
+    await userEvent.click(button);
+    await userEvent.click(screen.getByRole("link", { name: "Security" }));
+    expect(button).toHaveAttribute("aria-expanded", "false");
   });
 
   test("there is no sidebar footer any more: Security and Sign out live only in the user menu", () => {
@@ -216,6 +239,25 @@ describe("icon rail", () => {
     await waitFor(() => expect(sidebar).not.toHaveClass("expanded"));
   });
 
+  test("a mouse click inside the rail does not hold it open: after unpinning it collapses when the pointer leaves", async () => {
+    renderAt("/");
+    const sidebar = document.getElementById("sidebar")!;
+    await userEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    await userEvent.unhover(sidebar);
+    await waitFor(() => expect(sidebar).not.toHaveClass("expanded"));
+  });
+
+  test("Escape hides the collapsed rail's tooltips until the pointer or focus moves again", async () => {
+    renderAt("/");
+    const sidebar = document.getElementById("sidebar")!;
+    await userEvent.hover(within(sidebar).getByRole("link", { name: "All projects" }));
+    await userEvent.keyboard("{Escape}");
+    expect(sidebar).toHaveClass("tips-off");
+    await userEvent.unhover(sidebar);
+    expect(sidebar).not.toHaveClass("tips-off");
+  });
+
   test("the pin toggle keeps the rail expanded and is remembered", async () => {
     const view = renderAt("/");
     const pin = screen.getByRole("button", { name: "Expand sidebar" });
@@ -239,6 +281,15 @@ describe("icon rail", () => {
     mockScreen({ wide: false });
     renderAt("/");
     expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a stored pin is ignored below 1024px (it stays stored for wider screens)", () => {
+    localStorage.setItem("qeos.rail.pinned", "1");
+    mockScreen({ width: 900 });
+    renderAt("/");
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute("aria-pressed", "false");
+    expect(document.querySelector(".shell")).not.toHaveClass("rail-pinned");
+    expect(localStorage.getItem("qeos.rail.pinned")).toBe("1");
   });
 
   test("a stored choice beats the screen-width default", () => {

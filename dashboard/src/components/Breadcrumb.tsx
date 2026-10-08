@@ -44,14 +44,20 @@ export default function Breadcrumb() {
     page = PAGES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? "Projects";
   }
 
+  const listed = projectLists.some((q) => q.data?.some((p) => p.id === projectId));
   const org = projectId !== null ? orgs.data?.find((o) => o.id === project.data?.organization_id) : undefined;
 
   return (
     <nav className="breadcrumb" aria-label="Breadcrumb">
       <ol>
-        {org && (
-          <li>
-            <Link to={`/organizations/${org.id}`}>{org.name}</Link>
+        {projectId !== null && (org || orgs.isPending || project.isPending) && (
+          // Rendered from the start, holding a placeholder until the org is known, so the trail does not shift
+          <li className="crumb-org">
+            {org ? (
+              <Link to={`/organizations/${org.id}`}>{org.name}</Link>
+            ) : (
+              <span className="skeleton crumb-skeleton" aria-hidden="true" />
+            )}
           </li>
         )}
         {projectId !== null && (
@@ -67,8 +73,9 @@ export default function Breadcrumb() {
                     if (e.target.value) navigate(`/projects/${e.target.value}/overview`);
                   }}
                 >
-                  {/* The current project before the lists answer, so the select never shows a blank */}
-                  {projectLists.every((q) => !q.data) && (
+                  {/* The current project whenever no loaded list has it (lists still loading, or it is not listed),
+                      so the select never shows another project */}
+                  {!listed && (
                     <option value={projectId}>{project.data?.name ?? `Project ${projectId}`}</option>
                   )}
                   {orgs.data.map((o, i) => (

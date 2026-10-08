@@ -27,6 +27,8 @@ const PROJECT_VIEWS: { to: string; label: string; icon: LucideIcon }[] = [
 const DRAWER_QUERY = "(max-width: 640px)";
 /** A new visitor gets the rail pinned open from this width up. */
 const WIDE_QUERY = "(min-width: 1280px)";
+/** Below this width a pinned rail would squeeze the page: a stored pin is ignored (but kept for wider screens). */
+const PIN_IGNORED_QUERY = "(max-width: 1023px)";
 const PIN_KEY = "qeos.rail.pinned";
 /** The pointer must rest this long before the rail expands, so crossing it on the way elsewhere does not flash it open
  *  (until then, each item shows its label as a tooltip). */
@@ -80,10 +82,15 @@ export default function AppShell() {
   });
 
   const [open, setOpen] = useState(false);
-  const [pinned, setPinned] = useState(readPinned);
+  const pinIgnored = useMediaQuery(PIN_IGNORED_QUERY);
+  const [pinned, setPinned] = useState(() => !pinIgnored && readPinned());
   const [hovered, setHovered] = useState(false);
   const [focusInside, setFocusInside] = useState(false);
+  // Escape dismisses the collapsed rail's tooltips (WCAG 1.4.13) until the pointer or focus moves again
+  const [tipsOff, setTipsOff] = useState(false);
   const hoverTimer = useRef<ReturnType<typeof setTimeout>>();
+  // Focus that follows a pointer press must not hold the overlay open: only keyboard focus expands it
+  const pointerDown = useRef(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
@@ -91,6 +98,21 @@ export default function AppShell() {
   const expanded = !drawerLayout && (pinned || hovered || focusInside);
 
   useEffect(() => () => clearTimeout(hoverTimer.current), []);
+
+  // Narrowing below the pin width unpins for now; widening again restores the stored choice
+  const wasPinIgnored = useRef(pinIgnored);
+  useEffect(() => {
+    if (wasPinIgnored.current !== pinIgnored) setPinned(!pinIgnored && readPinned());
+    wasPinIgnored.current = pinIgnored;
+  }, [pinIgnored]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setTipsOff(true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   function togglePin() {
     const next = !pinned;
@@ -170,7 +192,8 @@ export default function AppShell() {
     return under(base) || (to === "cases" && under(`/projects/${projectId}/suites`));
   };
 
-  const railClass = ["rail", expanded && "expanded", expanded && !pinned && "overlay", open && "open"].filter(Boolean).join(" ");
+  const railClass = ["rail", expanded && "expanded", expanded && !pinned && "overlay", open && "open", tipsOff && "tips-off"]
+    .filter(Boolean).join(" ");
 
   return (
     <div className={pinned && !drawerLayout ? "shell rail-pinned" : "shell"}>
@@ -204,14 +227,26 @@ export default function AppShell() {
           if (open && drawerLayout && e.key === "Tab") trapTab(e);
         }}
         onMouseEnter={() => {
+          setTipsOff(false);
           clearTimeout(hoverTimer.current);
           hoverTimer.current = setTimeout(() => setHovered(true), HOVER_INTENT_MS);
         }}
         onMouseLeave={() => {
           clearTimeout(hoverTimer.current);
           setHovered(false);
+          setTipsOff(false);
         }}
-        onFocus={() => setFocusInside(true)}
+        onPointerDown={() => {
+          // The press's focus event follows in the same turn; later keyboard focus counts again
+          pointerDown.current = true;
+          setTimeout(() => {
+            pointerDown.current = false;
+          }, 0);
+        }}
+        onFocus={() => {
+          setTipsOff(false);
+          if (!pointerDown.current) setFocusInside(true);
+        }}
         onBlur={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusInside(false);
         }}
