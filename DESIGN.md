@@ -27,6 +27,9 @@ colors:
   placeholder: "#56687a"
   status-skipped: "#74879a"
   danger-text: "#c23434"
+  passed-text: "#15803d"
+  errored-text: "#b2461a"
+  thead: "#eaf0f4"
   danger-fill-hover: "#b83131"
   on-fill: "#ffffff"
   page-dark: "#0b1117"
@@ -45,6 +48,9 @@ colors:
   series-1-dark: "#22d3ee"
   series-2-dark: "#d95926"
   danger-text-dark: "#f08080"
+  passed-text-dark: "#4ade80"
+  errored-text-dark: "#ec835a"
+  thead-dark: "#0f1820"
   status-errored-dark: "#ec835a"
   control-border-dark: "#5f7488"
   placeholder-dark: "#93a3b5"
@@ -209,6 +215,7 @@ The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected fo
 ### Status (reserved)
 - **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it, and never stands alone as a shape: dots, badges and chart bars also differ by shape or texture (see Status Dot and Badges, Chart Textures). Errored Orange is `#c4501f` in light (4.65:1 on Paper, 4.32:1 on Mist Page) and `#ec835a` in dark (6.59:1 on Paper). Every status colour reaches 3:1 on Paper in both themes; `lib/contrast.test.ts` checks it.
 - **Danger Text** (`danger-text`): error copy, the error banner border and text, and the failed badge label. It exists because the dot red is a chart/dot hue, not a text colour. It measures 4.6:1 on the banner's red tint in light and 6.0:1 in dark.
+- **Passed Text** (`passed-text`) and **Errored Text** (`errored-text`): the readable text of the passed/ready and errored status pills, beside Danger Text for failed. Light `#15803d` is 5.02:1 on Paper (4.54 on a hovered row) and `#b2461a` 5.55:1 (5.02 hovered); dark `#4ade80` is 9.98:1 and `#ec835a` 6.59:1 on Paper. They exist for the same reason as Danger Text: the status hues are for marks, not words.
 - **Danger Fill** (`status-failed`, hover `danger-fill-hover`): the confirm button of a destructive action. White on it measures 4.8:1 in both themes, while red *text* on the dark surface would fail AA.
 
 ### Chart Series
@@ -223,6 +230,7 @@ The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected fo
 - **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (6.8:1 light, 6.7:1 dark).
 - **Tick Grey** (`text-muted`): chart axis ticks only. It is below AA for text (about 3.7:1) and must never carry readable copy.
 - **Rule** (`grid`): table row dividers and list separators.
+- **Header Band** (`thead`): the background of a data table's header row. An alias of Sidebar Mist in light; in dark `#0f1820`, a step lighter than Sidebar Mist and just under Paper. Graphite on it is 5.91:1 (light) and 6.95:1 (dark).
 - **Hairline** (`border`) and **Hairline Strong** (`border-strong`): translucent borders for containers and for buttons.
 - **Control Edge** (`control-border`): the border of inputs, selects, textareas and checkboxes, at least 3:1 against every surface they sit on (WCAG 1.4.11). Light `#71879a`: 3.73 on Paper, 3.46 on Mist Page, 3.24 on Sidebar Mist. Dark `#5f7488`: 3.59 on Paper, 3.79 on Sidebar Mist, 3.92 on Mist Page. Used for form controls only, so the rest of the interface stays light.
 - **Placeholder** (`placeholder`): placeholder text at full opacity, at least 4.5:1 (light `#56687a`: 5.74 on Paper, 5.00 on Sidebar Mist; dark `#93a3b5`: 6.74 on Paper).
@@ -250,7 +258,9 @@ The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected fo
 - **Stat** (650, 28px, tabular figures, -0.01em): the single headline number in an overview card. The tile value is a 26px sibling.
 - **Body** (400, 14px, 1.5): everything else. It rises to 16px under 640px, because iOS zooms into inputs below 16px and phones read better at that size.
 - **Label** (500, 13px): form labels, metadata rows and tile labels, in Graphite.
-- **Label Small** (600, 12.5px): table headers and badges.
+- **Label Small** (600, 12.5px): badges and filter chips.
+- **Table Header** (600, 11px, uppercase, 0.05em tracking): data table headers, in Graphite on the Header Band.
+- **Pill** (600, 11px): status pill words.
 - **Mono** (12.5px, or 0.92em inline): failure messages, SHAs and code blocks.
 
 ### Named Rules
@@ -272,7 +282,8 @@ Grids are auto-fitting rather than column-counted:
 Breakpoints:
 - **1280px and up:** a new visitor gets the rail pinned open; below, it starts collapsed. The reader's choice (pin toggle) is remembered in localStorage.
 - **640px and below:** the rail becomes an off-canvas drawer (min(85vw, 300px)) behind the top bar's menu button; a 40% black backdrop closes it. The breadcrumb moves to a second line of the top bar. Body text goes to 16px and page and card padding tighten.
-- **`pointer: coarse`:** inputs, selects, buttons, rail links and menu items grow to a 44px minimum height, and table cells to 12px padding, without changing density on mouse devices.
+- **1024px and up:** data table headers stick under the top bar (see Data Tables).
+- **`pointer: coarse`:** inputs, selects, buttons, filter chips, rail links and menu items grow to a 44px minimum height, and table cells to 12px padding, without changing density on mouse devices.
 
 ### Named Rules
 **The Grid Gap Owns It Rule.** Inside a grid, children carry no margins. Outside one, a card's own block margin sets the rhythm.
@@ -311,8 +322,9 @@ A destructive action never runs on the first click. The trigger is a default but
 
 ### Status Dot and Badges
 - **Status dot:** a 10px mark in the status hue with a shape of its own: circle for passed, triangle for failed, square for errored, ring for skipped. It is `aria-hidden` and always followed by its word or count label ("3 failed").
-- **Run verdict badge** (`RunStatusBadge`): icon and word, *Passed*, *Failed* or *Errored* (failures first, then errors). Overview, the runs list and any run summary use this one component; `note` appends text ("Passed · 2 quarantined").
-- **Badge:** a Paper pill with a Hairline border, 12.5px/600, holding a 14px lucide icon and a word. *Passed* has Ink text with a green icon. *Failed* has Danger Text and a border at 40% of the failed red.
+- **Run verdict badge** (`RunStatusBadge`): icon and word, *Passed*, *Failed* or *Errored* (failures first, then errors). Overview and any run summary use this component; `note` appends text ("Passed · 2 quarantined"). The runs list shows the same verdict (`runVerdict`) as a Status Pill (`RunVerdictPill`).
+- **Badge:** a Paper pill with a Hairline border, 12.5px/600, holding a 14px lucide icon and a word. *Passed* has Ink text with a green icon. *Failed* has Danger Text and a border at 40% of the failed red. Badges are for summaries (the Overview verdict, notification delivery); table rows use the Status Pill.
+- **Status pill** (`StatusPill`): the status inside a table row. A small pill (11px/600, 1px 7px padding, 999px radius) with no fill, its word in the tone's readable text token and a Hairline at 45% of the status hue, plus a 12px lucide icon whose shape differs per tone, so the word and the shape carry it without the colour (Never Alone). Tones: *passed* (circled check, Passed Text), *ready* (plain check, Passed Text: a ready case is not a test result), *failed* (circled cross, Danger Text), *errored* (triangle, Errored Text), *running* (loader, not spinning, Link Cyan), *queued* (clock) and *cancelled* (slash) in Graphite, and *neutral* (Graphite, Hairline Strong, no icon) for a draft or archived case. Used for case status (`CaseStatusPill`), run verdicts in the runs list (`RunVerdictPill`) and requested-run status. A requested run's pill holds only the status word ("Running", "Cancelled", "Didn't start"); the rest of its line ("1 test · started by ana", the error) follows it in the cell.
 
 ### Run Strip
 A compact visual history of a test across recent runs, as a minimum 24px-tall link to the newest run. The strip holds one 6×18px bar per run with a 2px gap, oldest on the left.
@@ -347,7 +359,7 @@ Starting a GitHub Actions run from the cases, and watching it end.
 - **Border:** 1px Hairline.
 - **Internal Padding:** 24px, or 16px under 640px and inside tile grids.
 - **Anatomy:** an optional head row (title left, badge or action right), body, and a foot pinned to the bottom (`margin-top: auto`) that holds the one-click "go deeper" link.
-- A card that holds a data table scrolls horizontally inside itself.
+- A card that holds a data table scrolls horizontally inside itself below 1024px. From 1024px it stays open so its table header can stick to the page, and cell text wraps anywhere instead so the table fits.
 
 ### Sortable Headers
 `SortableTh` puts a button inside the `th`. The `th` carries `aria-sort` (`ascending`, `descending`, or `none`; absent state is `none`), and the button shows an arrow: a double chevron when idle, an up or down arrow on the sorted column. Clicking the sorted column flips it; another column starts descending for figures and dates, ascending for names. The sort lives in the URL as `sort` and `dir` (`lib/sort.ts`, defaults left out), so reload, share and Back keep it. Sorting happens on the server when the API has a sort parameter for that column (Tests: failures, duration, name), otherwise on the rows already loaded, and the page says so ("Sorted within these 50 rows"). Missing values always sort last.
@@ -364,7 +376,22 @@ Each chart is a `figure` with an off-screen caption that states the totals and t
 A value the server shows once (API key, invitation link, recovery codes) sits in a `SecretBlock`: Sidebar Mist fill, Hairline Strong border, a bold one-line note saying it cannot be shown again, the value in mono (wraps anywhere), and a Copy button whose result ("Copied") is announced politely. Recovery codes add Download and an "I saved these codes" button that dismisses them; the codes are not hidden until the reader says so.
 
 ### Data Tables
-Rows are separated by Rule lines, with no zebra striping and no vertical lines. Headers are Graphite at 12.5px/600 and never wrap. Cells use 10px 12px padding and are top-aligned. Hovering a row applies the Hover wash. Numbers are tabular.
+Dense by default. Rows are separated by Rule hairlines, with no zebra striping and no vertical lines; hovering a row applies the Hover wash.
+
+- **Header:** the Table Header style (11px/600 uppercase, 0.05em tracking, Graphite) on the Header Band, never wrapping. From 1024px it is sticky at `top: 48px`, just under the top bar, inside the page scroll; the page's `scroll-padding-top` then covers the top bar plus the header band (48 + 32 + 8px), so a row reached by keyboard never lands under either (WCAG 2.4.11). A sorted column keeps its `SortableTh` arrow.
+- **Rows:** cells use 8px 12px padding and are top-aligned; every body row is at least 40px tall, room for a 24px control (row checkbox, run strip, row link) with 8px around it. Checkboxes, sort buttons and row links keep 24px targets.
+- **Numbers** (`.num`, on the `th` and its `td`s): counts, durations, rates and Priority are right-aligned with tabular figures. A sortable number header puts its arrow on the left, so the label lines up with the figures.
+- **Status:** a Status Pill, never bare text.
+- Phones keep the existing behaviour: the run strip column and `NarrowMeta` are unchanged.
+
+### Filter Chips
+A row (`FilterChips`, a `group` named "Quick filters") between a list's filter form and its table. The full form stays as it was; the chips are a shortcut onto the same URL state, never a new server filter.
+
+- **Quick chips:** toggle buttons (`aria-pressed`) in a 999px pill, 28px tall, 12.5px/500: Graphite on Paper with a Hairline Strong edge. Pressed, a chip takes a Signal Cyan edge, Link Cyan text on the Cyan Wash layered over Paper (4.76:1 light, 9.43:1 dark) and a 12px tick, so the state does not rest on colour. Chips that set the same URL key are one choice: pressing Ready while Draft is on switches the value, and pressing the pressed chip clears it. Cases: Failing (`result=failed`), Never ran (`result=never`), Linked (`linked=true`), Manual (`linked=false`), Draft, Ready (`status`). Runs: Failed (`status=failing`), Passed (`status=passing`), main (`branch=main`). Flaky: Quarantined (`muted=1`, the "Show quarantined" filter); there is no "Suspected" chip, as the API has no reason filter. Tests has no outcome filter, so it has no quick chips.
+- **Applied chips:** every other filter in force, including thresholds away from their default, is a chip reading "Name: value" ("Label: flights", "Folder: features / hotels", "Search: legroom") with a 24px remove button named "Remove filter Label: flights". A value a pressed quick chip already shows is not repeated. A page with no quick chips shows the row only while something is applied.
+- **+ Filter:** a dashed chip, on pages whose secondary filters sit in a disclosure (Cases, Runs). It opens the disclosure and moves focus to its first control.
+- **Clear all:** a ghost button in Link Cyan at the end of the row, shown while any filter is applied; it keeps the sort.
+- **Behaviour:** chips write the URL (a history entry each, so Back and Forward step through them) and reset paging. The row wraps on narrow screens; Tab moves through the chips and Space or Enter toggles one. Under `pointer: coarse` chips are 44px tall.
 
 ### Inputs / Fields
 - **Style:** Paper fill, Hairline Strong border, 6px radius, 34px height (44px on coarse pointers). Labels stack above the field at 13px/500 in Graphite.
@@ -402,6 +429,7 @@ Mist Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizo
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
 - **Route focus:** on each user navigation (not the first render, not redirects), focus moves to the new page's `h1`. Lazily loaded views (Trends, Branches) render their PageHeader outside the Suspense boundary, so the h1 exists at once and keeps focus while the view loads. The skip link still targets the content region. Headings and regions take focus without a visible ring; the ring belongs to controls.
 - **Titles:** each view sets `document.title` as "View · Project · QEOS".
+- **Focus not obscured (top):** from 1024px the page's `scroll-padding-top` covers the sticky top bar and the sticky table header band.
 - **Focus not obscured:** a bar stuck to the bottom of the viewport (the Cases selection bar) writes its height to the page's `scroll-padding-bottom` while it exists and pads the table, so a row reached by keyboard scrolls above it.
 - **Landmarks:** the top bar is the `banner`, the rail is `nav` "Main", the breadcrumb is `nav` "Breadcrumb", and the page is `main`.
 - **Drawer:** on phones the open rail is a modal dialog (focus trapped, Escape from anywhere closes it). Following a link in it hands focus to the new page's heading, not back to the menu button. Widening the window past the breakpoint closes it and removes the dialog role.
