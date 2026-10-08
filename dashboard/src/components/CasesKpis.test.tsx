@@ -90,7 +90,7 @@ test("four tiles: totals, pass rate trend, failing and flaky counts, each with a
 
   const failing = await within(tiles()).findByRole("link", { name: "Failing 17 linked cases whose latest result failed" });
   expect(failing).toHaveClass("kpi-bad");
-  expect(failing).toHaveAttribute("href", "/projects/42/cases?result=failed");
+  expect(failing).toHaveAttribute("href", "/projects/42/cases?group=scenario&result=failed");
   expect(failingSearch).toMatchObject({ test_keys: ["f".repeat(64)], keys_mode: "include" });
 
   const flaky = await within(tiles()).findByRole("link", { name: "Flaky 3 tests in the last 14 days, 2 quarantined" });
@@ -160,7 +160,7 @@ test("the Failing tile applies the Failing quick chip", async () => {
   apis();
   renderCases("/projects/42/cases?group=scenario&status=ready");
   await userEvent.setup().click(await screen.findByRole("link", { name: /^Failing 17/ }));
-  expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?result=failed");
+  expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?group=scenario&result=failed");
   expect(await screen.findByRole("button", { name: "Failing", pressed: true })).toBeInTheDocument();
 });
 

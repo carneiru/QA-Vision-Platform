@@ -160,7 +160,7 @@ export default function CasesKpis({ projectId }: { projectId: number }) {
           title="Failing" query={failing} tone={failingCount ? "bad" : "neutral"} label={failingLabel}
           value={failingCount === null || failingCount === undefined ? "—" : count(failingCount)}
           sub={<span className="kpi-sub">{failingCount === null ? "too many to count" : "latest result failed"}</span>}
-          to={`/projects/${projectId}/cases?result=failed`}
+          to={`/projects/${projectId}/cases?group=scenario&result=failed`}
         />
       </li>
       <li>
