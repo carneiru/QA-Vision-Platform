@@ -129,8 +129,10 @@ curl -k https://localhost:8443/health          # {"status":"healthy"}
 
 Each service's own `docker-compose.yml` under `platforms/` still works for developing it alone.
 
-**Complete setup guide** — local stack, first account, sending results, a CI pilot through a
-tunnel, troubleshooting: [`docs/SETUP.md`](docs/SETUP.md).
+**Complete setup guide** — from zero to a running platform (every `.env` variable, first account,
+roles, MFA, SSO, email), then each feature with exactly what to configure (CI uploads, test cases
+and Gherkin sync, Run from QEOS, analytics, notifications, masking, retention), wiring a real test
+repository end to end, upgrades and troubleshooting: [`docs/SETUP.md`](docs/SETUP.md).
 
 **Production on a VM:** see [`deploy/README.md`](deploy/README.md) — the same stack behind a
 Caddy TLS edge with a Let's Encrypt certificate, strong generated secrets and daily backups.
