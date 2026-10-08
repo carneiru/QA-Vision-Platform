@@ -10,7 +10,7 @@ requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
-    "sqlalchemy>=2.0,<2.1",
+    "sqlalchemy>=2.1,<2.2",
 ]
 
 # Declared explicitly rather than left to auto-discovery: with tests/ sitting beside

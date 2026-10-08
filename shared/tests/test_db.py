@@ -24,6 +24,14 @@ def test_make_session_factory_does_not_connect_eagerly():
     assert factory is not None
 
 
+def test_plain_postgresql_url_uses_psycopg3():
+    """SQLAlchemy 2.1 maps a plain postgresql:// URL to psycopg 3, and that is the driver
+    the services install (psycopg2 is gone). A regression here means the URL or the pins
+    drifted apart and every service would fail to start against Postgres."""
+    factory = make_session_factory("postgresql://nobody:nothing@127.0.0.1:1/nowhere")
+    assert factory.kw["bind"].dialect.driver == "psycopg"
+
+
 def test_get_db_yields_a_session_and_closes_it():
     factory = make_session_factory(SQLITE_URL)
     get_db = make_get_db(factory)

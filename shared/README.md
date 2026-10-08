@@ -54,7 +54,7 @@ must be the repository root.
 
 ## Tests
 
-The suite needs `pytest` and `psycopg2` in addition to the package's own dependencies.
+The suite needs `pytest` and `psycopg` (psycopg 3, the driver SQLAlchemy 2.1 picks for a plain `postgresql://` URL) in addition to the package's own dependencies.
 The simplest way to run it is with a service venv that already has both, e.g. on Windows:
 
 ```bash
