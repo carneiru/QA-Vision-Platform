@@ -1,53 +1,26 @@
 import { useEffect } from "react";
 import { Outlet, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getProject, listMyOrganizations } from "../api/orgs";
+import { getProject } from "../api/orgs";
 import { pageTitle, useFocusOnNavigate } from "../routeFocus";
+import { projectRest, viewTitle } from "../lib/viewTitle";
 
-const VIEW_TITLES: Record<string, string> = {
-  overview: "Overview", trends: "Trends", tests: "Tests", flaky: "Flaky", branches: "Branches",
-  runs: "Runs", report: "Report", settings: "Settings", cases: "Test cases", suites: "Suites",
-};
-
-/** "runs/7" -> "Run #7", "tests/<key>" -> "Test history", "flaky" -> "Flaky" */
-function viewTitle(rest: string): string {
-  const [view, detail, sub, other] = rest.split("/");
-  if (view === "runs" && detail && sub === "compare" && other) return `Run #${detail} vs #${other}`;
-  if (view === "runs" && detail) return `Run #${detail}`;
-  if (view === "tests" && detail) return "Test history";
-  if (view === "cases" && detail === "new") return "New test case";
-  if (view === "cases" && detail === "import") return "Import from Gherkin";
-  if (view === "cases" && detail) return `TC-${detail}`;
-  if (view === "suites" && detail) return "Suite";
-  return VIEW_TITLES[view] ?? "Project";
-}
-
-/** Project frame inside the app shell: the project's name over its current view.
- *  Navigation between views lives in the sidebar. */
+/** Project frame inside the app shell: sets the document title (view + project) around the current view.
+ *  The org and project live in the top bar's breadcrumb; each view renders its own PageHeader. */
 export default function ProjectLayout() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
-  const orgs = useQuery({ queryKey: ["orgs"], queryFn: listMyOrganizations });
   const location = useLocation();
 
   const projectName = project.data?.name;
   useEffect(() => {
-    const rest = location.pathname.split("/").slice(3).join("/");
-    document.title = pageTitle(viewTitle(rest), projectName ?? `Project ${projectId}`);
+    document.title = pageTitle(viewTitle(projectRest(location.pathname)), projectName ?? `Project ${projectId}`);
   }, [location.pathname, projectName, projectId]);
   useFocusOnNavigate();
 
-  const orgName = orgs.data?.find((o) => o.id === project.data?.organization_id)?.name;
-
   return (
     <div className="page">
-      <header className="view-head">
-        <div>
-          {orgName && <div className="crumb">{orgName}</div>}
-          <h1>{projectName ?? `Project ${projectId}`}</h1>
-        </div>
-      </header>
       <div id="content" tabIndex={-1}>
         <Outlet />
       </div>

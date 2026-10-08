@@ -14,6 +14,8 @@ export const server = setupServer(
     HttpResponse.json({ available: true, configured: false, provider: null, repo: null, workflow: null, ref: null,
       token_last4: null, token_expires_at: null, updated_at: null, last_change: null })),
   http.get("/api/v1/projects/:projectId/run-requests", () => HttpResponse.json({ total: 0, items: [] })),
+  // The shell's user menu asks who is signed in; tests about the account override
+  http.get("/api/v1/users/me", () => HttpResponse.json({ id: 1, email: "tester@example.com", mfa_enabled: false })),
   // Names of the people who ran or stopped something
   http.get("/api/v1/organizations/:orgId/members", () => HttpResponse.json([])),
 );

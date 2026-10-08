@@ -12,8 +12,19 @@ export function focusContent(): void {
   (document.getElementById("content") ?? document.getElementById("main"))?.focus();
 }
 
+/** The page's h1 when it has rendered one (PageHeader gives it tabIndex -1), else the content region.
+ *  Screen readers then start on the page name, and Tab continues from the top of the page. */
+export function focusPageHeading(): void {
+  const region = document.getElementById("content") ?? document.getElementById("main");
+  const h1 = region?.querySelector<HTMLElement>("h1");
+  if (h1) {
+    if (!h1.hasAttribute("tabindex")) h1.tabIndex = -1;
+    h1.focus();
+  } else region?.focus();
+}
+
 /** On every user navigation (not the first render, not redirects), move focus
- *  to the new view's content so screen readers start there and keyboard users
+ *  to the new view's heading so screen readers start there and keyboard users
  *  do not have to tab back through the header. */
 export function useFocusOnNavigate(): void {
   const { pathname } = useLocation();
@@ -24,6 +35,6 @@ export function useFocusOnNavigate(): void {
     if (previous.current === pathname) return;
     previous.current = pathname;
     if (navigationType === "REPLACE") return;
-    focusContent();
+    focusPageHeading();
   }, [pathname, navigationType]);
 }

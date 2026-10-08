@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { Link, Outlet, useLocation, useMatch } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
-  Building2, ClipboardList, FileText, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, LogOut, Menu,
-  ScanSearch, Settings, ShieldCheck, Shuffle, TrendingUp, X,
+  Building2, ClipboardList, FileText, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, Menu,
+  PanelLeftClose, PanelLeftOpen, ScanSearch, Settings, Shuffle, TrendingUp, X,
 } from "lucide-react";
-import { logout } from "../api/auth";
-import { getProject, listMyOrganizations, listProjects } from "../api/orgs";
+import type { LucideIcon } from "lucide-react";
+import { getProject, listMyOrganizations } from "../api/orgs";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import Breadcrumb from "./Breadcrumb";
+import UserMenu from "./UserMenu";
 
-const PROJECT_VIEWS = [
+const PROJECT_VIEWS: { to: string; label: string; icon: LucideIcon }[] = [
   { to: "overview", label: "Overview", icon: LayoutDashboard },
   { to: "runs", label: "Runs", icon: ListChecks },
   { to: "tests", label: "Tests", icon: FlaskConical },
@@ -20,41 +23,56 @@ const PROJECT_VIEWS = [
   { to: "settings", label: "Settings", icon: Settings },
 ];
 
-const NARROW_QUERY = "(max-width: 900px)";
-
-/** True while the sidebar is a drawer (the CSS breakpoint); false where matchMedia is unavailable. */
-function useDrawerLayout(): boolean {
-  const [narrow, setNarrow] = useState(() => typeof window.matchMedia === "function" && window.matchMedia(NARROW_QUERY).matches);
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia(NARROW_QUERY);
-    const onChange = () => setNarrow(mq.matches);
-    onChange();
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-  return narrow;
-}
+/** Phones: the rail becomes a drawer behind the menu button (matches the CSS breakpoint). */
+const DRAWER_QUERY = "(max-width: 640px)";
+/** A new visitor gets the rail pinned open from this width up. */
+const WIDE_QUERY = "(min-width: 1280px)";
+const PIN_KEY = "qeos.rail.pinned";
+/** The pointer must rest this long before the rail expands, so crossing it on the way elsewhere does not flash it open
+ *  (until then, each item shows its label as a tooltip). */
+const HOVER_INTENT_MS = 200;
 
 const FOCUSABLE = "a[href], button:not(:disabled), select:not(:disabled), input:not(:disabled)";
 
-const navClass = ({ isActive }: { isActive: boolean }) => (isActive ? "nav-link active" : "nav-link");
+function readPinned(): boolean {
+  try {
+    const stored = localStorage.getItem(PIN_KEY);
+    if (stored === "1" || stored === "0") return stored === "1";
+  } catch {
+    // Storage blocked: fall back to the width default
+  }
+  return typeof window.matchMedia === "function" && window.matchMedia(WIDE_QUERY).matches;
+}
 
-/** Authenticated frame: a sidebar with the project switcher and every view,
- *  which becomes a drawer behind a menu button on narrow screens. */
+function storePinned(pinned: boolean) {
+  try {
+    localStorage.setItem(PIN_KEY, pinned ? "1" : "0");
+  } catch {
+    // Storage blocked: the choice lasts until reload
+  }
+}
+
+function RailLink({ to, label, icon: Icon, active }: { to: string; label: string; icon: LucideIcon; active: boolean }) {
+  return (
+    <li>
+      <Link to={to} className={active ? "rail-link active" : "rail-link"} aria-current={active ? "page" : undefined}>
+        <Icon size={18} aria-hidden="true" />
+        <span className="rail-label">{label}</span>
+      </Link>
+    </li>
+  );
+}
+
+/** Authenticated frame: a top bar (brand, breadcrumb with the project switcher, user menu), a left icon rail
+ *  that expands over the content on hover or focus and can be pinned open, and the page. On phones the rail
+ *  becomes a focus-managed drawer behind a menu button. */
 export default function AppShell() {
-  const navigate = useNavigate();
   const { pathname } = useLocation();
   const projectMatch = useMatch("/projects/:projectId/*");
+  const orgMatch = useMatch("/organizations/:orgId");
   const projectId = projectMatch ? Number(projectMatch.params.projectId) : null;
 
   const orgs = useQuery({ queryKey: ["orgs"], queryFn: listMyOrganizations });
-  const projectLists = useQueries({
-    queries: (orgs.data ?? []).map((org) => ({
-      queryKey: ["projects", org.id],
-      queryFn: () => listProjects(org.id),
-    })),
-  });
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => getProject(projectId!),
@@ -62,20 +80,33 @@ export default function AppShell() {
   });
 
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(readPinned);
+  const [hovered, setHovered] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout>>();
   const menuButton = useRef<HTMLButtonElement>(null);
-  const sidebar = useRef<HTMLElement>(null);
+  const sidebar = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
-  const drawerLayout = useDrawerLayout();
+  const drawerLayout = useMediaQuery(DRAWER_QUERY);
+  const expanded = !drawerLayout && (pinned || hovered || focusInside);
+
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+
+  function togglePin() {
+    const next = !pinned;
+    setPinned(next);
+    storePinned(next);
+  }
 
   // Focus goes back to the menu button only when the reader closes the drawer. A followed link closes it too,
-  // but then the new page's content takes focus (routeFocus): the button must not take it back.
+  // but then the new page's heading takes focus (routeFocus): the button must not take it back.
   const focusMenuOnClose = useRef(true);
   const closeForNavigation = () => {
     focusMenuOnClose.current = false;
     setOpen(false);
   };
   useEffect(() => closeForNavigation(), [pathname]);
-  // The layout widened past the drawer breakpoint while it was open: it is a plain sidebar again
+  // The layout widened past the drawer breakpoint while it was open: it is a plain rail again
   const wasDrawer = useRef(drawerLayout);
   useEffect(() => {
     if (wasDrawer.current && !drawerLayout && open) closeForNavigation();
@@ -130,19 +161,23 @@ export default function AppShell() {
     }
   }
 
-  async function onSignOut() {
-    await logout();
-    navigate("/login", { replace: true });
-  }
+  // The organization the rail and the user menu open: the current project's, the one on screen, else the first
+  const orgId = project.data?.organization_id ?? (orgMatch ? Number(orgMatch.params.orgId) : orgs.data?.[0]?.id);
+  const inView = (to: string) => {
+    const base = `/projects/${projectId}/${to}`;
+    const under = (p: string) => pathname === p || pathname.startsWith(`${p}/`);
+    // Suites live under Test cases: the item stays lit there too
+    return under(base) || (to === "cases" && under(`/projects/${projectId}/suites`));
+  };
 
-  const orgId = project.data?.organization_id;
+  const railClass = ["rail", expanded && "expanded", expanded && !pinned && "overlay", open && "open"].filter(Boolean).join(" ");
 
   return (
-    <div className="shell">
+    <div className={pinned && !drawerLayout ? "shell rail-pinned" : "shell"}>
       <header className="topbar">
         <button
           ref={menuButton}
-          className="ghost"
+          className="ghost menu-button"
           aria-label="Open navigation"
           aria-expanded={open}
           aria-controls="sidebar"
@@ -150,91 +185,77 @@ export default function AppShell() {
         >
           <Menu size={20} aria-hidden="true" />
         </button>
-        <span className="brand">
+        <Link to="/" className="brand" aria-label="QEOS, all projects">
           <ScanSearch size={18} aria-hidden="true" /> QEOS
-        </span>
+        </Link>
+        <Breadcrumb />
+        <span className="topbar-spacer" />
+        <UserMenu orgId={orgId} />
       </header>
 
-      <aside
+      <div
         id="sidebar"
         ref={sidebar}
-        className={open ? "sidebar open" : "sidebar"}
-        aria-label="Navigation"
+        className={railClass}
+        aria-label={open && drawerLayout ? "Navigation" : undefined}
         role={open && drawerLayout ? "dialog" : undefined}
         aria-modal={open && drawerLayout ? true : undefined}
         onKeyDown={(e) => {
           if (open && drawerLayout && e.key === "Tab") trapTab(e);
         }}
+        onMouseEnter={() => {
+          clearTimeout(hoverTimer.current);
+          hoverTimer.current = setTimeout(() => setHovered(true), HOVER_INTENT_MS);
+        }}
+        onMouseLeave={() => {
+          clearTimeout(hoverTimer.current);
+          setHovered(false);
+        }}
+        onFocus={() => setFocusInside(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusInside(false);
+        }}
       >
-        <div className="brand brand-row">
-          <span className="brand-mark">
-            <ScanSearch size={18} aria-hidden="true" /> QEOS
-          </span>
-          {open && (
+        {open && (
+          <div className="drawer-head">
+            <span className="brand">
+              <ScanSearch size={18} aria-hidden="true" /> QEOS
+            </span>
             <button className="ghost" aria-label="Close navigation" onClick={() => setOpen(false)}>
               <X size={18} aria-hidden="true" />
             </button>
-          )}
-        </div>
-
-        {orgs.data && orgs.data.length > 0 && (
-          <div className="switcher">
-            <label htmlFor="project-switcher">Project</label>
-            <select
-              id="project-switcher"
-              value={projectId ?? ""}
-              onChange={(e) => {
-                if (e.target.value) navigate(`/projects/${e.target.value}/overview`);
-              }}
-            >
-              {projectId === null && <option value="">Choose a project…</option>}
-              {orgs.data.map((org, i) => (
-                <optgroup key={org.id} label={org.name}>
-                  {(projectLists[i]?.data ?? []).map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
           </div>
         )}
 
-        {projectId !== null && (
-          <nav className="nav-section" aria-label="Project views">
-            {PROJECT_VIEWS.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={`/projects/${projectId}/${to}`}
-                // Suites live under Test cases: the tab stays lit there too
-                className={({ isActive }) => navClass({ isActive: isActive || (to === "cases" && /\/suites(\/|$)/.test(pathname)) })}
-              >
-                <Icon size={17} aria-hidden="true" /> {label}
-              </NavLink>
-            ))}
-          </nav>
-        )}
-
-        <nav className="nav-section" aria-label="Workspace">
-          <span className="nav-title">Workspace</span>
-          <NavLink to="/" end className={navClass}>
-            <FolderKanban size={17} aria-hidden="true" /> All projects
-          </NavLink>
-          {orgId !== undefined && (
-            <NavLink to={`/organizations/${orgId}`} className={navClass}>
-              <Building2 size={17} aria-hidden="true" /> Organization
-            </NavLink>
+        <nav className="rail-nav" aria-label="Main">
+          {projectId !== null && (
+            <ul className="rail-list">
+              {PROJECT_VIEWS.map(({ to, label, icon }) => (
+                <RailLink key={to} to={`/projects/${projectId}/${to}`} label={label} icon={icon} active={inView(to)} />
+              ))}
+            </ul>
           )}
+          <ul className="rail-list rail-workspace">
+            <RailLink to="/" label="All projects" icon={FolderKanban} active={pathname === "/"} />
+            {orgId !== undefined && (
+              <RailLink to={`/organizations/${orgId}`} label="Organization" icon={Building2} active={pathname.startsWith("/organizations/")} />
+            )}
+          </ul>
         </nav>
 
-        <div className="sidebar-footer">
-          <NavLink to="/account/security" className={navClass}>
-            <ShieldCheck size={17} aria-hidden="true" /> Security
-          </NavLink>
-          <button className="ghost" onClick={onSignOut}>
-            <LogOut size={17} aria-hidden="true" /> Sign out
+        {!drawerLayout && (
+          <button
+            type="button"
+            className="ghost rail-pin"
+            aria-pressed={pinned}
+            aria-label={pinned ? "Collapse sidebar" : "Expand sidebar"}
+            onClick={togglePin}
+          >
+            {pinned ? <PanelLeftClose size={18} aria-hidden="true" /> : <PanelLeftOpen size={18} aria-hidden="true" />}
+            <span className="rail-label" aria-hidden="true">{pinned ? "Collapse sidebar" : "Expand sidebar"}</span>
           </button>
-        </div>
-      </aside>
+        )}
+      </div>
       <div className={open ? "backdrop open" : "backdrop"} onClick={() => setOpen(false)} aria-hidden="true" />
 
       <div className="shell-main">

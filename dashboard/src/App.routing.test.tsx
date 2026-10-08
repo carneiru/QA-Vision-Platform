@@ -69,9 +69,11 @@ test("under the data router, following a link moves focus to the new view", asyn
     </QueryClientProvider>,
   );
   await (await import("@testing-library/user-event")).default.click(screen.getByRole("link", { name: /create account/i }));
-  expect(await screen.findByRole("heading", { name: "Create account" })).toBeInTheDocument();
+  const heading = await screen.findByRole("heading", { level: 1, name: "Create account" });
   expect(router.state.location.pathname).toBe("/register");
-  expect(screen.getByRole("main")).toHaveFocus();
+  // The new page's h1, inside main
+  expect(heading).toHaveFocus();
+  expect(screen.getByRole("main")).toContainElement(heading);
 });
 
 test("a session that fails to refresh returns to login, remembering the page and saying why", async () => {
