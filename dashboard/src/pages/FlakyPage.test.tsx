@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -227,7 +227,8 @@ test("the Undo offer goes away by itself", async () => {
     await userEvent.click(screen.getAllByRole("button", { name: /^quarantine\b/i })[0]);
     await userEvent.click(screen.getByRole("button", { name: "Quarantine" }));
     await screen.findByRole("button", { name: "Undo" });
-    await vi.advanceTimersByTimeAsync(10_000);
+    // React 19 flushes a timer-driven update only inside act
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
     expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
   } finally {
     vi.useRealTimers();

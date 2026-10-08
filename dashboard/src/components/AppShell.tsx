@@ -75,7 +75,7 @@ export default function AppShell() {
   const [focusInside, setFocusInside] = useState(false);
   // Escape dismisses the collapsed rail's tooltips (WCAG 1.4.13) until the pointer or focus moves again
   const [tipsOff, setTipsOff] = useState(false);
-  const hoverTimer = useRef<ReturnType<typeof setTimeout>>();
+  const hoverTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Focus that follows a pointer press must not hold the overlay open: only keyboard focus expands it
   const pointerDown = useRef(false);
   const menuButton = useRef<HTMLButtonElement>(null);
