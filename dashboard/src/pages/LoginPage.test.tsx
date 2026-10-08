@@ -152,9 +152,10 @@ test("bad credentials show the API detail", async () => {
   expect(await screen.findByText("Incorrect email or password")).toBeInTheDocument();
 });
 
-test("the sign-in screen shows the product name and what it stands for", () => {
+test("the sign-in screen shows the product name and what it stands for, under its own h1", () => {
   renderLogin();
-  expect(screen.getByRole("heading", { level: 1, name: "QEOS" })).toBeInTheDocument();
+  expect(screen.getByText("QEOS")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1, name: "Sign in" })).toBeInTheDocument();
   expect(screen.getByText("Quality Engineering OS")).toBeInTheDocument();
 });
 

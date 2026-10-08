@@ -69,6 +69,6 @@ test("an expired or used link explains and points to a new one", async () => {
 
 test("a link without a token says so instead of showing a form", () => {
   renderPage("/reset-password");
-  expect(screen.getByText(/incomplete/i)).toBeInTheDocument();
+  expect(screen.getByText(/link is incomplete/i)).toBeInTheDocument();
   expect(screen.queryByLabelText(/^new password/i)).not.toBeInTheDocument();
 });

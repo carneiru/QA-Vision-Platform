@@ -81,8 +81,9 @@ export default function RunPanel({ projectId, caseNumber }: Props) {
   return (
     <>
       {warning}
-      <section className={`card run-panel run-tone-${described.tone}`} role="status" aria-label="Run from QEOS">
-        <p className="run-panel-state">
+      <section className={`card run-panel run-tone-${described.tone}`} aria-label="Run from QEOS">
+        {/* Only this line is a live region: the status text. The links, Stop and the results line change without being read out */}
+        <p className="run-panel-state" role="status">
           <Icon size={18} aria-hidden="true" />
           {stopping || described.liveText === described.text ? <span>{text}</span> : (
             <>

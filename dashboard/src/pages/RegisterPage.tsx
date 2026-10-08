@@ -2,7 +2,9 @@ import { FormEvent, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { register } from "../api/auth";
 import { rememberAfterVerify, safeNext, withNext } from "../auth/redirect";
+import AuthShell from "../components/AuthShell";
 import ErrorBanner from "../components/ErrorBanner";
+import TextField from "../components/TextField";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
@@ -33,9 +35,7 @@ export default function RegisterPage() {
 
   if (done) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
-        <p className="brand-subtitle">Quality Engineering OS</p>
+      <AuthShell title="Check your email">
         <div className="card">
           <p role="status">Check your email to complete registration.</p>
           <p className="muted">
@@ -44,42 +44,27 @@ export default function RegisterPage() {
           </p>
           <Link to={loginLink}>Back to sign in</Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="page page-narrow">
-      <h1>QEOS</h1>
-      <p className="brand-subtitle">Quality Engineering OS</p>
+    <AuthShell title="Create account">
       <form className="card" onSubmit={onSubmit}>
-        <h2>Create account</h2>
         {error != null && <ErrorBanner error={error} />}
-        <label>
-          Full name
-          <input autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-        </label>
-        <label>
-          Email
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        <TextField label="Full name" autoComplete="name" value={fullName} onChange={setFullName} />
+        <TextField label="Email" type="email" required autoComplete="email" value={email} onChange={setEmail} />
+        <TextField
+          label="Password"
+          type="password"
+          required
+          minLength={8}
+          autoComplete="new-password"
+          hint="At least 8 characters."
+          value={password}
+          onChange={setPassword}
+          validate={(v) => (v.length > 0 && v.length < 8 ? "Use at least 8 characters." : null)}
+        />
         <button className="primary" type="submit" disabled={busy}>
           Create account
         </button>
@@ -87,6 +72,6 @@ export default function RegisterPage() {
           Already have an account? <Link to={loginLink}>Sign in</Link>
         </p>
       </form>
-    </div>
+    </AuthShell>
   );
 }

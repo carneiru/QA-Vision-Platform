@@ -55,9 +55,15 @@ test("message is truncated and expandable", async () => {
   );
   renderHistory();
   await screen.findByText("test_ok");
-  expect(screen.queryByText(/very long trace/)).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole("button", { name: /show full message/i }));
-  expect(screen.getByText(/very long trace/)).toBeInTheDocument();
+  expect(screen.getByText(/very long trace/)).not.toBeVisible();
+  const toggle = screen.getByRole("button", { name: /show full message/i });
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await userEvent.click(toggle);
+  expect(screen.getByText(/very long trace/)).toBeVisible();
+  // The control stays and keeps focus, now offering to hide it
+  expect(toggle).toHaveFocus();
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(toggle).toHaveTextContent(/hide full message/i);
 });
 
 test("commit, environment, duration and the message's first line are in the Run cell for phones", async () => {

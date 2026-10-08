@@ -43,7 +43,7 @@ test("a dead token explains itself and offers registration again", async () => {
 
 test("a missing token never calls the API", async () => {
   renderPage("");
-  expect(await screen.findByText(/link is incomplete/i)).toBeInTheDocument();
+  expect(await screen.findByText(/carries no token/i)).toBeInTheDocument();
 });
 
 test("StrictMode's double effect never burns the single-use token twice", async () => {

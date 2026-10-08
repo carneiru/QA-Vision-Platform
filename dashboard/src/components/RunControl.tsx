@@ -19,10 +19,12 @@ interface Props {
   onStarted?: () => void;
   /** Why Play is off when there is nothing to run, e.g. "This suite has no cases". */
   emptyReason?: string;
+  /** The view's one primary button, unless another action on it is (a dirty form's Save). Default true. */
+  emphasis?: boolean;
 }
 
 /** Play: a trigger, the reason it is disabled, and an inline confirmation (no modal, DESIGN.md). */
-export default function RunControl({ projectId, cases, selection, label, onStarted, emptyReason }: Props) {
+export default function RunControl({ projectId, cases, selection, label, onStarted, emptyReason, emphasis = true }: Props) {
   const gate = useRunGate(projectId);
   const qc = useQueryClient();
   const ids = useId();
@@ -98,7 +100,7 @@ export default function RunControl({ projectId, cases, selection, label, onStart
   const blocked = gate === undefined || !gate.ok || n === 0;
   return (
     <div ref={boxRef} tabIndex={-1} className="run-control">
-      <button ref={triggerRef} type="button" className="primary" disabled={blocked} onClick={() => { setNotice(null); setOpen(true); }}
+      <button ref={triggerRef} type="button" className={emphasis && !open ? "primary" : undefined} disabled={blocked} onClick={() => { setNotice(null); setOpen(true); }}
         aria-describedby={gate && !gate.ok ? `${ids}-why` : undefined}>
         <Play size={16} aria-hidden="true" /> {label}
       </button>

@@ -638,3 +638,18 @@ button.legend-toggle[aria-pressed="false"] svg { opacity: 0.45; }
 .chart-data > summary { cursor: pointer; width: fit-content; min-height: 28px; display: flex; align-items: center; color: var(--accent-text); font-size: 13px; font-weight: 500; }
 .chart-data > summary:hover { text-decoration: underline; }
 .chart-data-body { margin-top: var(--space-2); max-height: 320px; overflow: auto; }
+
+/* Public pages: the product lockup is a paragraph, each page's own title is the h1 */
+.brand-name { margin: 0; font-size: 22px; line-height: 1.25; font-weight: 650; letter-spacing: -0.01em; color: var(--text-primary); }
+.page-narrow h1.auth-title { font-size: 18px; margin: var(--space-4) 0 var(--space-3); }
+/* A label, its field and what belongs under it (hint, error) as one block; the toggle sits beside a password input */
+.field { display: flex; flex-direction: column; gap: var(--space-1); margin-bottom: var(--space-3); }
+.card .field > label, .page-narrow .card .field > label { margin-bottom: 0; }
+.field .field-hint { font-size: 12.5px; font-weight: 400; }
+.field > input { width: 100%; }
+.form-stack .field > input, .form-stack .field .password-row { max-width: 360px; }
+.password-row { display: flex; gap: var(--space-1); align-items: stretch; }
+.password-row input { flex: 1 1 auto; min-width: 0; width: 100%; }
+button.password-toggle { flex: none; justify-content: center; min-width: 34px; padding: 6px 8px; border-color: transparent; color: var(--text-secondary); }
+.mfa-status { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin-bottom: var(--space-3); }
+.mfa-status svg { flex: none; color: var(--text-secondary); }

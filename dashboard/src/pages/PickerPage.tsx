@@ -1,3 +1,4 @@
+import { useFocusReturn } from "../lib/useFocusReturn";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ const MANAGER_ROLES = ["owner", "admin"];
 function OrgProjects({ org }: { org: MyOrganization }) {
   const qc = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
+  const newProjectRef = useFocusReturn<HTMLButtonElement>(formOpen);
   const [name, setName] = useState("");
   const projects = useQuery({ queryKey: ["projects", org.id], queryFn: () => listProjects(org.id) });
   const create = useMutation({
@@ -35,7 +37,7 @@ function OrgProjects({ org }: { org: MyOrganization }) {
           </span>
         </div>
         {canCreate && !formOpen && (
-          <button onClick={() => setFormOpen(true)}>
+          <button ref={newProjectRef} onClick={() => setFormOpen(true)}>
             <Plus size={16} aria-hidden="true" /> New project
           </button>
         )}
@@ -80,6 +82,7 @@ function OrgProjects({ org }: { org: MyOrganization }) {
 export default function PickerPage() {
   const qc = useQueryClient();
   const [orgFormOpen, setOrgFormOpen] = useState(false);
+  const newOrgRef = useFocusReturn<HTMLButtonElement>(orgFormOpen);
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [slugEdited, setSlugEdited] = useState(false);
@@ -101,7 +104,7 @@ export default function PickerPage() {
       <header className="view-head">
         <h1>Projects</h1>
         {!orgFormOpen && (
-          <button onClick={() => setOrgFormOpen(true)}>
+          <button ref={newOrgRef} onClick={() => setOrgFormOpen(true)}>
             <Plus size={16} aria-hidden="true" /> New organization
           </button>
         )}

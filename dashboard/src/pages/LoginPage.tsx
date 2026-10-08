@@ -8,7 +8,9 @@ import {
   microsoftEnabled,
 } from "../auth/ssoProviders";
 import { safeNext, withNext } from "../auth/redirect";
+import AuthShell from "../components/AuthShell";
 import ErrorBanner from "../components/ErrorBanner";
+import TextField from "../components/TextField";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -91,64 +93,34 @@ export default function LoginPage() {
 
   if (mfaToken !== null) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
-        <p className="brand-subtitle">Quality Engineering OS</p>
+      <AuthShell title="Two-step verification">
         <form className="card" onSubmit={onMfaSubmit}>
           <p>Enter the code from your authenticator app, or a recovery code.</p>
-          <p>
-            <label>
-              Authentication code
-              <input
-                value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value)}
-                autoComplete="one-time-code"
-                autoFocus
-                required
-              />
-            </label>
-          </p>
+          <TextField
+            label="Authentication code"
+            value={mfaCode}
+            onChange={setMfaCode}
+            autoComplete="one-time-code"
+            autoFocus
+            required
+          />
           {error != null && <ErrorBanner error={error} />}
           <button className="primary" type="submit" disabled={busy}>
             {busy ? "Verifying…" : "Verify"}
           </button>
         </form>
-      </div>
+      </AuthShell>
     );
   }
 
   const anySso = googleEnabled() || microsoftEnabled();
 
   return (
-    <div className="page page-narrow">
-      <h1>QEOS</h1>
-      <p className="brand-subtitle">Quality Engineering OS</p>
+    <AuthShell title="Sign in">
       <form className="card" onSubmit={onSubmit}>
         {expired && <p role="status" className="muted">Your session expired, sign in again.</p>}
-        <p>
-          <label>
-            Email
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </label>
-        </p>
-        <p>
-          <label>
-            Password
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
-        </p>
+        <TextField label="Email" type="email" autoComplete="email" value={email} onChange={setEmail} required />
+        <TextField label="Password" type="password" autoComplete="current-password" value={password} onChange={setPassword} required />
         {/* Router state, not a query string: an address in the URL ends up in history and access logs */}
         <Link className="field-link" to="/forgot-password" state={{ email }}>
           Forgot password?
@@ -174,6 +146,6 @@ export default function LoginPage() {
           New here? <Link to={withNext("/register", next)}>Create account</Link>
         </p>
       </form>
-    </div>
+    </AuthShell>
   );
 }

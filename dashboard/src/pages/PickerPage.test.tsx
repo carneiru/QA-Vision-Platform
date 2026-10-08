@@ -82,3 +82,15 @@ test("creating a project in an organization", async () => {
   await userEvent.click(screen.getByRole("button", { name: /^create project$/i }));
   expect(await screen.findByText("Web Tests")).toBeInTheDocument();
 });
+
+test("cancelling the new-project form returns focus to the button that opened it", async () => {
+  server.use(
+    http.get("/api/v1/organizations", () => HttpResponse.json([org])),
+    http.get("/api/v1/organizations/1/projects", () => HttpResponse.json([])),
+  );
+  renderPicker();
+  await screen.findByText(/no projects/i);
+  await userEvent.click(screen.getByRole("button", { name: /new project/i }));
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("button", { name: /new project/i })).toHaveFocus();
+});

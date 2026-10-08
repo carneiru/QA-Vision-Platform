@@ -69,7 +69,7 @@ test("under the data router, following a link moves focus to the new view", asyn
     </QueryClientProvider>,
   );
   await (await import("@testing-library/user-event")).default.click(screen.getByRole("link", { name: /create account/i }));
-  expect(await screen.findByRole("heading", { name: "QEOS" })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Create account" })).toBeInTheDocument();
   expect(router.state.location.pathname).toBe("/register");
   expect(screen.getByRole("main")).toHaveFocus();
 });

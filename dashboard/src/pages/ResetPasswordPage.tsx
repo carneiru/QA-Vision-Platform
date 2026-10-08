@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ArrowRight, CircleCheck } from "lucide-react";
 import { resetPassword } from "../api/auth";
 import { ApiError } from "../api/http";
+import AuthShell from "../components/AuthShell";
 import ErrorBanner from "../components/ErrorBanner";
 import NewPasswordFields from "../components/NewPasswordFields";
 
@@ -42,22 +43,19 @@ export default function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
+      <AuthShell title="Reset link incomplete" subtitle={false}>
         <div className="card">
           <p>This reset link is incomplete — it carries no token. Use the full link from the email.</p>
           <Link to="/forgot-password">Request a new link</Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   if (done) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
+      <AuthShell title="Password changed" subtitle={false}>
         <div className="card">
-          <h2>Password changed</h2>
           <p className="success-note" role="status">
             <CircleCheck size={18} aria-hidden="true" />
             <span>Your password has been changed. Every device that was signed in has been signed out.</span>
@@ -66,32 +64,28 @@ export default function ResetPasswordPage() {
             Sign in with the new password <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   // Retrying cannot revive a used or expired link: offer only the way out
   if (error instanceof ApiError && error.status === 400) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
+      <AuthShell title="This link no longer works" subtitle={false}>
         <div className="card">
-          <h2>This link no longer works</h2>
           <ErrorBanner error={error} />
           <p className="muted">Reset links work once and expire after 30 minutes. Your password has not changed.</p>
           <Link className="link-arrow" to="/forgot-password">
             Request a new link <ArrowRight size={14} aria-hidden="true" />
           </Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="page page-narrow">
-      <h1>QEOS</h1>
+    <AuthShell title="Choose a new password" subtitle={false}>
       <form className="card" onSubmit={onSubmit}>
-        <h2>Choose a new password</h2>
         {error != null && <ErrorBanner error={error} />}
         <NewPasswordFields
           password={password}
@@ -107,6 +101,6 @@ export default function ResetPasswordPage() {
           {busy ? "Saving…" : "Set new password"}
         </button>
       </form>
-    </div>
+    </AuthShell>
   );
 }

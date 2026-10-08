@@ -44,7 +44,7 @@ const loaded = (qc: QueryClient) => waitFor(() => {
   expect(qc.getQueryState(["run-requests", 42, "latest"])?.status).toBe("success");
 });
 
-const panel = () => screen.findByRole("status", { name: "Run from QEOS" });
+const panel = () => screen.findByRole("region", { name: "Run from QEOS" });
 
 test.each([
   ["queued", req({ status: "queued" }), /^Queued$/],
@@ -194,10 +194,10 @@ test.each([
 test("on a case detail the panel does not show a case outside the active request", async () => {
   // The sibling panel (whole project) proves the request and the names have loaded
   const qc = show(() => [req()], "member", 3, true);
-  const panels = await screen.findAllByRole("status", { name: "Run from QEOS" });
+  const panels = await screen.findAllByRole("region", { name: "Run from QEOS" });
   await loaded(qc);
   expect(panels).toHaveLength(1);
-  expect(screen.getAllByRole("status", { name: "Run from QEOS" })).toHaveLength(1);
+  expect(screen.getAllByRole("region", { name: "Run from QEOS" })).toHaveLength(1);
 });
 
 test("on a case detail of a selected case the panel shows", async () => {
@@ -209,7 +209,7 @@ test("on a case detail the panel hides once the run has ended", async () => {
   const qc = show(() => [req({ status: "completed", conclusion: "success", refreshing: false })], "member", 2, true);
   await screen.findByText("Passed");
   await loaded(qc);
-  expect(screen.getAllByRole("status", { name: "Run from QEOS" })).toHaveLength(1);
+  expect(screen.getAllByRole("region", { name: "Run from QEOS" })).toHaveLength(1);
 });
 
 const soon = () => new Date(Date.now() + 3 * 86_400_000).toISOString();
@@ -260,7 +260,7 @@ test("an ended run disappears 60 minutes after the end", async () => {
   const qc = show(() => [req({ requested_at: ago(200), status: "completed", conclusion: "success", refreshing: false, checked_at: ago(61) })], "member", undefined, true);
   await loaded(qc);
   await waitFor(() => expect(qc.getQueryState(["project", 42])?.status).toBe("success"));
-  expect(screen.queryByRole("status", { name: "Run from QEOS" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Run from QEOS" })).not.toBeInTheDocument();
 });
 
 test("a stopped run is measured from the later of stopped_at and checked_at", async () => {
@@ -311,4 +311,15 @@ test("the results lookup asks only for GitHub Actions runs", async () => {
   server.use(http.get(`${P}/runs`, ({ request }) => { query = new URL(request.url).search; return HttpResponse.json([]); }));
   show(() => [req({ status: "completed", conclusion: "success", refreshing: false })]);
   await waitFor(() => expect(query).toContain("ci_provider=github_actions"));
+});
+
+test("only the status line is a live region: links and Stop are not announced when they change", async () => {
+  show(() => [req()]);
+  const region = await panel();
+  expect(region).not.toHaveAttribute("role", "status");
+  const live = within(region).getAllByRole("status");
+  expect(live).toHaveLength(1);
+  expect(live[0]).toHaveTextContent(/Running/);
+  expect(within(live[0]).queryByRole("link")).toBeNull();
+  expect(within(live[0]).queryByRole("button")).toBeNull();
 });

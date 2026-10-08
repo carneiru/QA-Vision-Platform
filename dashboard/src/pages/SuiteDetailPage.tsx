@@ -90,7 +90,7 @@ export default function SuiteDetailPage() {
       <h2>{suite.data.name}</h2>
       {suite.data.description && <p className="muted">{suite.data.description}</p>}
       <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title, manual: c.source_path === null }))}
-        selection={{ suite_id: sid }} label="Run suite"
+        selection={{ suite_id: sid }} label="Run suite" emphasis={!dirty && !detailsDirty}
         emptyReason={suite.data.cases.length === 0 ? "This suite has no cases" : "This suite has no automated cases"} />
 
       <section className="card" aria-labelledby="suite-cases">
@@ -125,7 +125,7 @@ export default function SuiteDetailPage() {
         {saveCases.error != null && <ErrorBanner error={saveCases.error} />}
         {canEdit && (
           <div className="button-row" style={{ marginTop: "var(--space-3)" }}>
-            <button type="button" className="primary" disabled={!dirty || saveCases.isPending} onClick={() => saveCases.mutate()}>
+            <button type="button" className={dirty || detailsDirty ? "primary" : undefined} disabled={!dirty || saveCases.isPending} onClick={() => saveCases.mutate()}>
               {saveCases.isPending ? "Saving…" : dirty ? "Save order and cases" : "Saved"}
             </button>
             <span role="status" className="muted">{dirty || detailsDirty ? "Unsaved changes" : ""}</span>

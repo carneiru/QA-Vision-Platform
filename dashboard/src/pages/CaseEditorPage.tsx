@@ -219,7 +219,7 @@ function CaseEditor() {
       </p>
       <h2>{c ? `${c.key} · ${c.title}` : "New test case"}</h2>
       {c?.source_path && c.status !== "archived" && (
-        <RunControl projectId={id} cases={[{ number: c.number, title: c.title }]} selection={{ case_numbers: [c.number] }} label="Run" />
+        <RunControl projectId={id} cases={[{ number: c.number, title: c.title }]} selection={{ case_numbers: [c.number] }} label="Run" emphasis={!dirty} />
       )}
       {c && <RunPanel projectId={id} caseNumber={c.number} />}
       {c && c.suites.length > 0 && (
@@ -326,7 +326,7 @@ function CaseEditor() {
         {saved && !save.isPending && <p className="success-note" role="status">Saved.</p>}
         {!readOnly && (
           <div className="button-row">
-            <button className="primary" type="submit" disabled={save.isPending || (number !== null && !dirty)}>
+            <button className={dirty || number === null ? "primary" : undefined} type="submit" disabled={save.isPending || (number !== null && !dirty)}>
               {save.isPending ? "Saving…" : number === null ? "Create case" : "Save changes"}
             </button>
             <span role="status" className="muted">{dirty ? "Unsaved changes" : ""}</span>

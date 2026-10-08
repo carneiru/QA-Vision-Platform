@@ -193,7 +193,7 @@ export default function RunDetailPage() {
                         {r.quarantined && <div className="muted">quarantined</div>}
                       </td>
                       <td>{formatDuration(r.duration_ms)}</td>
-                      <td><Message text={r.message} /></td>
+                      <td><Message text={r.message} name={r.name} /></td>
                     </tr>
                   ))}
                 </tbody>

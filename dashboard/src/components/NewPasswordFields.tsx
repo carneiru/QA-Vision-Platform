@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useState } from "react";
+import TextField from "./TextField";
 
 interface Props {
   password: string;
@@ -11,44 +12,36 @@ interface Props {
 
 export const MIN_PASSWORD_LENGTH = 8;
 
-/** A new password typed twice. The server enforces the minimum length too. */
+/** A new password typed twice. The server enforces the minimum length too. Problems show under the field
+ *  once it is left, and the mismatch is also checked when the confirmation is left. */
 export default function NewPasswordFields({ password, confirm, onPassword, onConfirm, mismatch }: Props) {
-  const hintId = useId();
-  const errorId = useId();
+  const [confirmTouched, setConfirmTouched] = useState(false);
+  const differs = confirm !== "" && confirm !== password;
   return (
     <>
-      <label>
-        New password
-        <input
-          type="password"
-          required
-          minLength={MIN_PASSWORD_LENGTH}
-          autoComplete="new-password"
-          aria-describedby={hintId}
-          value={password}
-          onChange={(e) => onPassword(e.target.value)}
-        />
-        <span id={hintId} className="muted" style={{ fontWeight: 400 }}>
-          At least {MIN_PASSWORD_LENGTH} characters.
-        </span>
-      </label>
-      <label>
-        Confirm new password
-        <input
-          type="password"
-          required
-          autoComplete="new-password"
-          aria-invalid={mismatch || undefined}
-          aria-describedby={mismatch ? errorId : undefined}
-          value={confirm}
-          onChange={(e) => onConfirm(e.target.value)}
-        />
-        {mismatch && (
-          <span id={errorId} className="field-error" role="alert">
-            Passwords do not match.
-          </span>
-        )}
-      </label>
+      <TextField
+        label="New password"
+        type="password"
+        required
+        minLength={MIN_PASSWORD_LENGTH}
+        autoComplete="new-password"
+        hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
+        value={password}
+        onChange={onPassword}
+        validate={(v) => (v.length > 0 && v.length < MIN_PASSWORD_LENGTH ? `Use at least ${MIN_PASSWORD_LENGTH} characters.` : null)}
+      />
+      <TextField
+        label="Confirm new password"
+        type="password"
+        required
+        autoComplete="new-password"
+        value={confirm}
+        onChange={(v) => {
+          onConfirm(v);
+        }}
+        onBlur={() => setConfirmTouched(true)}
+        error={mismatch || (confirmTouched && differs) ? "Passwords do not match." : null}
+      />
     </>
   );
 }

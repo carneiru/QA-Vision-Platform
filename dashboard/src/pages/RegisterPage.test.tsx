@@ -30,7 +30,7 @@ test("registering asks the person to check their email", async () => {
   await userEvent.type(screen.getByLabelText(/password/i), "UmaPasswordForte123");
   await userEvent.click(screen.getByRole("button", { name: /create account/i }));
 
-  expect(await screen.findByText(/check your email/i)).toBeInTheDocument();
+  expect(await screen.findByText(/check your email to complete/i)).toBeInTheDocument();
   expect(sent).toEqual({ email: "pedro@example.com", password: "UmaPasswordForte123", full_name: "Pedro" });
   // self-hosted deployments often have no SMTP: say where the link ends up
   expect(screen.getByText(/no email arrives/i)).toBeInTheDocument();
@@ -54,9 +54,10 @@ test("links back to sign in", async () => {
   expect(await screen.findByText("LOGIN")).toBeInTheDocument();
 });
 
-test("the register screen shows the product name and what it stands for", () => {
+test("the register screen shows the product name and what it stands for, under its own h1", () => {
   renderPage();
-  expect(screen.getByRole("heading", { level: 1, name: "QEOS" })).toBeInTheDocument();
+  expect(screen.getByText("QEOS")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1, name: "Create account" })).toBeInTheDocument();
   expect(screen.getByText("Quality Engineering OS")).toBeInTheDocument();
 });
 
@@ -74,7 +75,7 @@ test("the page the person was heading to survives registration and verification"
   await userEvent.type(screen.getByLabelText(/email/i), "pedro@example.com");
   await userEvent.type(screen.getByLabelText(/password/i), "UmaPasswordForte123");
   await userEvent.click(screen.getByRole("button", { name: /create account/i }));
-  await screen.findByText(/check your email/i);
+  await screen.findByText(/check your email to complete/i);
   expect(JSON.parse(localStorage.getItem("qeos.afterVerify")!).next).toBe("/invitations/tok-1");
   expect(screen.getByRole("link", { name: /back to sign in/i })).toHaveAttribute("href", "/login?next=%2Finvitations%2Ftok-1");
 });
@@ -93,6 +94,6 @@ test("an unsafe next is ignored", async () => {
   await userEvent.type(screen.getByLabelText(/email/i), "pedro@example.com");
   await userEvent.type(screen.getByLabelText(/password/i), "UmaPasswordForte123");
   await userEvent.click(screen.getByRole("button", { name: /create account/i }));
-  await screen.findByText(/check your email/i);
+  await screen.findByText(/check your email to complete/i);
   expect(localStorage.getItem("qeos.afterVerify")).toBeNull();
 });

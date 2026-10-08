@@ -160,6 +160,9 @@ export default function CasesPage() {
   const pageRunnable = (data?.items ?? []).filter(runnable);
   const advancedActive = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== "").length;
   const filtered = KEYS.some((k) => applied[k] !== "");
+  // One primary per view: the empty state's "Write the first case", or Run on a selection, take it from the header button
+  const emptyList = data?.total === 0 && !filtered;
+  const newIsPrimary = !emptyList && picked.size === 0;
 
   return (
     <section>
@@ -172,7 +175,7 @@ export default function CasesPage() {
             <Link className="button" to="import">
               <Upload size={16} aria-hidden="true" /> Import from Gherkin
             </Link>
-            <Link className="button primary" to="new">
+            <Link className={newIsPrimary ? "button primary" : "button"} to="new">
               <Plus size={16} aria-hidden="true" /> New case
             </Link>
           </div>

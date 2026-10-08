@@ -417,9 +417,47 @@ test("selecting a row inserts nothing above the table: the bar follows it and ca
   listing([kase(1), kase(2)]);
   renderAt("/projects/42/cases");
   const table = await screen.findByRole("region", { name: "Test cases" });
-  const before = (table.parentElement as HTMLElement).innerHTML.split(table.outerHTML)[0];
+  // The header's New case link steps back from primary once a selection exists; that is a class, not layout
+  const above = () => (table.parentElement as HTMLElement).innerHTML.split(table.outerHTML)[0].replace(/class="button( primary)?"/g, "");
+  const before = above();
   await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-1 Case 1" }));
   const bar = screen.getByRole("region", { name: "Selected cases" });
   expect(table.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect((table.parentElement as HTMLElement).innerHTML.split(table.outerHTML)[0]).toBe(before);
+  expect(above()).toBe(before);
+});
+
+const primaries = () =>
+  Array.from(document.querySelectorAll("button.primary, a.button.primary")).map((el) => (el.textContent ?? "").trim());
+
+test("Cases: New case is the one primary until cases are selected; then Run selected is", async () => {
+  listing([kase(1), kase(2)]);
+  renderAt("/projects/42/cases");
+  await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" });
+  expect(primaries()).toEqual(["New case"]);
+  await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  expect(primaries()).toEqual(["Run selected (1)"]);
+});
+
+test("Cases: an empty list keeps one primary, the empty state's", async () => {
+  renderAt("/projects/42/cases");
+  await screen.findByText("No test cases yet");
+  expect(primaries()).toEqual(["Write the first case"]);
+});
+
+test("Case detail: Run is primary while the form is clean, Save takes over once it is dirty", async () => {
+  server.use(http.get(`${P}/cases/1`, () => HttpResponse.json(kase(1))));
+  renderAt("/projects/42/cases/1");
+  await screen.findByRole("button", { name: "Run" });
+  expect(primaries()).toEqual(["Run"]);
+  await userEvent.selectOptions(screen.getByLabelText("Priority"), "high");
+  expect(primaries()).toEqual(["Save changes"]);
+});
+
+test("Suite detail: Run suite is the one primary while nothing is unsaved", async () => {
+  server.use(suiteWith(["tests/a.feature"]));
+  renderAt("/projects/42/suites/5");
+  await screen.findByRole("button", { name: "Run suite" });
+  expect(primaries()).toEqual(["Run suite"]);
+  await userEvent.click(screen.getByRole("button", { name: "Run suite" }));
+  expect(primaries().sort()).toEqual(["Run"]); // the open question's Run; the trigger steps back
 });

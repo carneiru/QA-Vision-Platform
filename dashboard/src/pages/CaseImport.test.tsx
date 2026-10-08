@@ -267,3 +267,17 @@ test("a finished import refreshes the label, folder, feature and total counts to
   const keys = spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey[0]);
   expect(keys).toEqual(expect.arrayContaining(["cases", "case-labels", "case-folders", "case-features", "cases-total"]));
 });
+
+test("Preview is the one primary button until there is a plan; then Import takes over", async () => {
+  asRole("member");
+  server.use(http.post(`${P}/cases/import`, () => HttpResponse.json(preview)));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  const primaries = () => Array.from(document.querySelectorAll("button.primary")).map((b) => (b.textContent ?? "").trim());
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "features/a.feature")]);
+  await screen.findByText(/1 \.feature file/i);
+  expect(primaries()).toEqual(["Preview"]);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  await screen.findByText("Pay");
+  expect(primaries()).toEqual(["Import 2 changes (archives 1)"]);
+});

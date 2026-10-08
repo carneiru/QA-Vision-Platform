@@ -33,7 +33,7 @@ test("enroll shows the secret and confirm reveals recovery codes", async () => {
   await userEvent.click(await screen.findByRole("button", { name: /set up/i }));
   expect(await screen.findByText("BASE32SECRET")).toBeInTheDocument();
   await userEvent.type(screen.getByLabelText(/code/i), "123456");
-  await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
+  await userEvent.click(screen.getByRole("button", { name: /confirm code/i }));
   expect(await screen.findByText("aaaa-1111")).toBeInTheDocument();
   expect(screen.getByText(/shown only once/i)).toBeInTheDocument();
   expect(screen.getByRole("group", { name: "Recovery codes" })).toHaveTextContent("bbbb-2222");
@@ -53,7 +53,7 @@ test("a wrong confirm code surfaces the error", async () => {
   await userEvent.click(await screen.findByRole("button", { name: /set up/i }));
   await screen.findByText("S");
   await userEvent.type(screen.getByLabelText(/code/i), "000000");
-  await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
+  await userEvent.click(screen.getByRole("button", { name: /confirm code/i }));
   expect(await screen.findByText("Invalid code")).toBeInTheDocument();
 });
 
@@ -104,4 +104,61 @@ test("a mismatched confirmation never reaches the server", async () => {
   await fillChange("old-password-1", "new-password-22", "new-password-23");
   expect(await screen.findByText(/passwords do not match/i)).toBeInTheDocument();
   expect(called).toBe(false);
+});
+
+const enrollHandlers = () => [
+  http.post("/api/v1/auth/mfa/enroll", () => HttpResponse.json({ secret: "S3CRET", otpauth_uri: "otpauth://totp/x" })),
+  http.post("/api/v1/auth/mfa/confirm", () => HttpResponse.json({ recovery_codes: ["aaaa-1111", "bbbb-2222"] })),
+  http.post("/api/v1/auth/mfa/disable", () => new HttpResponse(null, { status: 204 })),
+];
+
+test("two-factor status is stated, and follows what this page does", async () => {
+  server.use(...enrollHandlers());
+  renderSecurity();
+  expect(await screen.findByText(/status: not shown here/i)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /set up/i }));
+  await userEvent.type(await screen.findByLabelText(/code from the app/i), "123456");
+  await userEvent.click(screen.getByRole("button", { name: /confirm code/i }));
+  expect(await screen.findByText(/status: on/i)).toBeInTheDocument();
+});
+
+test("enrolling can be cancelled, and focus returns to the button that started it", async () => {
+  server.use(...enrollHandlers());
+  renderSecurity();
+  const setup = await screen.findByRole("button", { name: /set up/i });
+  await userEvent.click(setup);
+  await screen.findByText("S3CRET");
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.queryByText("S3CRET")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /set up/i })).toHaveFocus();
+});
+
+test("disabling is a danger action that can be cancelled", async () => {
+  server.use(...enrollHandlers());
+  renderSecurity();
+  await userEvent.click(await screen.findByRole("button", { name: /^disable two-factor/i }));
+  const submit = screen.getByRole("button", { name: /^disable two-factor/i });
+  expect(submit).toHaveClass("danger");
+  expect(submit).not.toHaveClass("primary");
+  await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("button", { name: /^disable two-factor/i })).toHaveFocus();
+  expect(screen.getByRole("button", { name: /^disable two-factor/i })).not.toHaveClass("danger");
+  // And completing it turns the status off
+  await userEvent.click(screen.getByRole("button", { name: /^disable two-factor/i }));
+  await userEvent.type(screen.getByLabelText(/current code/i), "123456");
+  await userEvent.click(screen.getByRole("button", { name: /^disable two-factor/i }));
+  expect(await screen.findByText(/status: off/i)).toBeInTheDocument();
+});
+
+test("recovery codes can be copied and must be acknowledged before they go away", async () => {
+  server.use(...enrollHandlers());
+  renderSecurity();
+  await userEvent.click(await screen.findByRole("button", { name: /set up/i }));
+  await userEvent.type(await screen.findByLabelText(/code from the app/i), "123456");
+  await userEvent.click(screen.getByRole("button", { name: /confirm code/i }));
+  expect(await screen.findByRole("button", { name: "Copy recovery codes" })).toBeInTheDocument();
+  expect(screen.getByText("aaaa-1111")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /i saved these codes/i }));
+  expect(screen.queryByText("aaaa-1111")).not.toBeInTheDocument();
+  expect(screen.getByText(/status: on/i)).toBeInTheDocument();
 });

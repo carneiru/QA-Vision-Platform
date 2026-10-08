@@ -1,14 +1,17 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import QRCode from "qrcode";
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, CircleSlash, HelpCircle } from "lucide-react";
 import { changePassword, mfaConfirm, mfaDisable, mfaEnroll } from "../api/auth";
 import { downloadCsv } from "../lib/csv";
 import ErrorBanner from "../components/ErrorBanner";
 import NewPasswordFields from "../components/NewPasswordFields";
 import SecretBlock from "../components/SecretBlock";
+import TextField from "../components/TextField";
 
 type Step = "idle" | "enrolling" | "enrolled" | "disabling";
+/** The server has no read endpoint for this yet: until this page turns it on or off, the state is unknown */
+type Known = "unknown" | "on" | "off";
 
 function ChangePasswordCard() {
   const [current, setCurrent] = useState("");
@@ -55,16 +58,14 @@ function ChangePasswordCard() {
           <span>Password changed. Other devices have been signed out.</span>
         </p>
       )}
-      <label>
-        Current password
-        <input
-          type="password"
-          required
-          autoComplete="current-password"
-          value={current}
-          onChange={(e) => setCurrent(e.target.value)}
-        />
-      </label>
+      <TextField
+        label="Current password"
+        type="password"
+        required
+        autoComplete="current-password"
+        value={current}
+        onChange={setCurrent}
+      />
       <NewPasswordFields
         password={next}
         confirm={confirm}
@@ -92,7 +93,26 @@ export default function SecurityPage() {
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [known, setKnown] = useState<Known>("unknown");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Leaving a step by Cancel puts focus back on the button that opened it
+  const setupRef = useRef<HTMLButtonElement>(null);
+  const disableRef = useRef<HTMLButtonElement>(null);
+  const returnTo = useRef<"setup" | "disable" | null>(null);
+  useEffect(() => {
+    if (step !== "idle" || !returnTo.current) return;
+    (returnTo.current === "setup" ? setupRef : disableRef).current?.focus();
+    returnTo.current = null;
+  }, [step]);
+
+  function cancel() {
+    returnTo.current = step === "disabling" ? "disable" : "setup";
+    setError(null);
+    setCode("");
+    setSecret("");
+    setUri("");
+    setStep("idle");
+  }
 
   useEffect(() => {
     if (uri && canvasRef.current) {
@@ -124,6 +144,7 @@ export default function SecurityPage() {
     try {
       const result = await mfaConfirm(code.trim());
       setRecovery(result.recovery_codes);
+      setKnown("on");
       setStep("enrolled");
       setCode("");
     } catch (err) {
@@ -139,6 +160,7 @@ export default function SecurityPage() {
     setBusy(true);
     try {
       await mfaDisable(code.trim());
+      setKnown("off");
       setStep("idle");
       setSecret("");
       setUri("");
@@ -163,43 +185,55 @@ export default function SecurityPage() {
         <h3>Two-factor authentication (TOTP)</h3>
         {error != null && <ErrorBanner error={error} />}
 
+        <p className="mfa-status" role="status">
+          {known === "on" && <><CircleCheck size={16} aria-hidden="true" /> <strong>Status: on.</strong></>}
+          {known === "off" && <><CircleSlash size={16} aria-hidden="true" /> <strong>Status: off.</strong></>}
+          {known === "unknown" && (
+            <>
+              <HelpCircle size={16} aria-hidden="true" /> <strong>Status: not shown here.</strong>{" "}
+              <span className="muted">This page cannot read the current setting yet; it updates when you turn it on or off.</span>
+            </>
+          )}
+        </p>
+
         {step === "idle" && (
           <>
             <p className="muted">
               Adds an authenticator-app code to your password sign-in. SSO
               sign-ins keep their provider's own MFA.
             </p>
-            <button className="primary" onClick={onStart} disabled={busy}>
-              Set up two-factor authentication
-            </button>
-            <p style={{ marginTop: 16 }}>
-              Already enabled on this account?{" "}
-              <button onClick={() => setStep("disabling")}>Disable it</button>
-            </p>
+            <div className="button-row">
+              <button className="primary" ref={setupRef} onClick={onStart} disabled={busy}>
+                Set up two-factor authentication
+              </button>
+              <button ref={disableRef} onClick={() => setStep("disabling")}>
+                Disable two-factor authentication
+              </button>
+            </div>
           </>
         )}
 
         {step === "enrolling" && (
-          <form onSubmit={onConfirm}>
+          <form onSubmit={onConfirm} className="form-stack">
             <p>Scan the QR code with your authenticator app, or enter the secret manually:</p>
             <canvas ref={canvasRef} />
             <p>
               <code>{secret}</code>
             </p>
-            <p>
-              <label>
-                Code from the app
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  autoComplete="one-time-code"
-                  required
-                />
-              </label>
-            </p>
-            <button className="primary" type="submit" disabled={busy}>
-              Confirm
-            </button>
+            <TextField
+              label="Code from the app"
+              value={code}
+              onChange={setCode}
+              autoComplete="one-time-code"
+              inputMode="numeric"
+              required
+            />
+            <div className="button-row">
+              <button className="primary" type="submit" disabled={busy}>
+                Confirm code
+              </button>
+              <button type="button" onClick={cancel} disabled={busy}>Cancel</button>
+            </div>
           </form>
         )}
 
@@ -221,28 +255,35 @@ export default function SecurityPage() {
                   ))}
                 </ul>
               )} />
-            <button onClick={() => downloadCsv("qeos-recovery-codes.txt", recovery.join("\n"))}>
-              Download codes
-            </button>
+            <div className="button-row">
+              <button onClick={() => downloadCsv("qeos-recovery-codes.txt", recovery.join("\n"))}>
+                Download codes
+              </button>
+              <button className="primary" onClick={() => { setRecovery(null); returnTo.current = "setup"; setStep("idle"); }}>
+                I saved these codes
+              </button>
+            </div>
           </>
         )}
 
         {step === "disabling" && (
-          <form onSubmit={onDisable}>
+          <form onSubmit={onDisable} className="form-stack">
             <p>
-              <label>
-                Current code (or a recovery code)
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  autoComplete="one-time-code"
-                  required
-                />
-              </label>
+              Disabling removes the authenticator-app code from your sign-in. Enter a current code, or a recovery code, to confirm.
             </p>
-            <button className="primary" type="submit" disabled={busy}>
-              Disable two-factor authentication
-            </button>
+            <TextField
+              label="Current code (or a recovery code)"
+              value={code}
+              onChange={setCode}
+              autoComplete="one-time-code"
+              required
+            />
+            <div className="button-row">
+              <button className="danger" type="submit" disabled={busy}>
+                Disable two-factor authentication
+              </button>
+              <button type="button" onClick={cancel} disabled={busy}>Cancel</button>
+            </div>
           </form>
         )}
       </div>

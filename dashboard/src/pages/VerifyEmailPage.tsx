@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { verifyEmail } from "../api/auth";
 import { safeNext, takeAfterVerify } from "../auth/redirect";
+import AuthShell from "../components/AuthShell";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function VerifyEmailPage() {
@@ -12,7 +13,7 @@ export default function VerifyEmailPage() {
   // The token is single-use: StrictMode's mount-unmount-mount must reuse the
   // one in-flight request, or the second call burns the token and reports a
   // verified person as failed
-  // Read once: taking the remembered page empties it, and a re-render must not lose the destination
+  // Where to land after verifying: set once in the effect below, kept across re-renders
   const landing = useRef<string | null>(null);
   const inFlight = useRef<{ token: string; promise: Promise<void> } | null>(null);
 
@@ -23,7 +24,12 @@ export default function VerifyEmailPage() {
       inFlight.current = { token, promise: verifyEmail(token) };
     }
     inFlight.current.promise
-      .then(() => !cancelled && setState("done"))
+      .then(() => {
+        if (cancelled) return;
+        // Taking the remembered page empties it, so it is read here, once, when the token is accepted: never during render
+        landing.current ??= safeNext(params.get("next")) ?? takeAfterVerify() ?? "/";
+        setState("done");
+      })
       .catch((err) => {
         if (!cancelled) {
           setError(err);
@@ -37,20 +43,18 @@ export default function VerifyEmailPage() {
 
   if (!token) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
+      <AuthShell title="Verification link incomplete" subtitle={false}>
         <div className="card">
           <p>This verification link is incomplete — it carries no token. Use the full link from the email.</p>
           <Link to="/register">Register</Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
-  if (state === "done") return <Navigate to={landing.current ??= safeNext(params.get("next")) ?? takeAfterVerify() ?? "/"} replace />;
+  if (state === "done") return <Navigate to={landing.current ?? "/"} replace />;
 
   return (
-    <div className="page page-narrow">
-      <h1>QEOS</h1>
+    <AuthShell title={state === "failed" ? "Verification failed" : "Verifying your email"} subtitle={false}>
       <div className="card">
         {state === "working" && <p className="muted">Verifying your email…</p>}
         {state === "failed" && (
@@ -63,6 +67,6 @@ export default function VerifyEmailPage() {
           </>
         )}
       </div>
-    </div>
+    </AuthShell>
   );
 }

@@ -243,7 +243,7 @@ export default function CaseImportPage() {
         <div className="filters">
           <button
             type="button"
-            className="primary"
+            className={preview ? undefined : "primary"}
             disabled={files.length === 0 || previewIt.isPending}
             onClick={() => {
               setResult(null);

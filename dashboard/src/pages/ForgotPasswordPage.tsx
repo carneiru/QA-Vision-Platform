@@ -2,6 +2,8 @@ import { FormEvent, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { MailCheck } from "lucide-react";
 import { requestPasswordReset } from "../api/auth";
+import AuthShell from "../components/AuthShell";
+import TextField from "../components/TextField";
 import ErrorBanner from "../components/ErrorBanner";
 
 export default function ForgotPasswordPage() {
@@ -27,10 +29,8 @@ export default function ForgotPasswordPage() {
 
   if (sentTo !== null) {
     return (
-      <div className="page page-narrow">
-        <h1>QEOS</h1>
+      <AuthShell title="Check your email" subtitle={false}>
         <div className="card">
-          <h2>Check your email</h2>
           <p className="success-note" role="status">
             <MailCheck size={18} aria-hidden="true" />
             <span>
@@ -45,28 +45,16 @@ export default function ForgotPasswordPage() {
           </p>
           <Link to="/login">Back to sign in</Link>
         </div>
-      </div>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="page page-narrow">
-      <h1>QEOS</h1>
+    <AuthShell title="Reset your password" subtitle={false}>
       <form className="card" onSubmit={onSubmit}>
-        <h2>Reset your password</h2>
         <p className="muted">Enter the email you sign in with and we'll send you a link to choose a new password.</p>
         {error != null && <ErrorBanner error={error} />}
-        <label>
-          Email
-          <input
-            type="email"
-            required
-            autoComplete="email"
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
+        <TextField label="Email" type="email" required autoComplete="email" autoFocus value={email} onChange={setEmail} />
         <button className="primary" type="submit" disabled={busy}>
           {busy ? "Sending…" : "Send reset link"}
         </button>
@@ -74,6 +62,6 @@ export default function ForgotPasswordPage() {
           <Link to="/login">Back to sign in</Link>
         </p>
       </form>
-    </div>
+    </AuthShell>
   );
 }
