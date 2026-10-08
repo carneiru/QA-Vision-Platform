@@ -24,9 +24,18 @@ const flakyRow = (key: string, muted: boolean) => ({
 });
 
 let failingSearch: Record<string, unknown> | null;
+let searches = 0;
+let failedKeyAsks = 0;
+const kase = (n: number) => ({
+  number: n, key: `TC-${n}`, title: `Case ${n}`, description: null, steps: [], labels: [], priority: "medium", status: "ready",
+  automated_test_key: "f".repeat(64), automated_name: null, created_by: 1, created_at: "2026-01-01T00:00:00Z", updated_by: null,
+  updated_at: null, source_path: null, gherkin: null, feature_name: null, suites: [],
+});
 
 function apis({ thisWeek = 0.924 as number | null, lastWeek = 0.893 as number | null, failing = 17 } = {}) {
   failingSearch = null;
+  searches = 0;
+  failedKeyAsks = 0;
   server.use(
     http.get(P, () => HttpResponse.json({ id: 42, organization_id: 1, name: "Web", my_role: "member" })),
     http.get(`${P}/case-features`, () => HttpResponse.json([])),
@@ -36,12 +45,17 @@ function apis({ thisWeek = 0.924 as number | null, lastWeek = 0.893 as number | 
       HttpResponse.json({ total: new URL(request.url).searchParams.get("origin") === "imported" ? 991 : 1083, items: [] })),
     http.get(`${P}/analytics/trends`, () =>
       HttpResponse.json({ tz: "UTC", bucket: "week", days: [week(lastWeek), week(thisWeek)] })),
-    http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ keys: failing > 0 ? ["f".repeat(64)] : [] })),
+    http.get(`${P}/analytics/latest-keys`, ({ request }) => {
+      if (new URL(request.url).searchParams.get("status") === "failed") failedKeyAsks += 1;
+      return HttpResponse.json({ keys: failing > 0 ? ["f".repeat(64)] : [] });
+    }),
     http.post(`${P}/cases/search`, async ({ request }) => {
       const body = (await request.json()) as Record<string, unknown>;
-      if (body.limit === 1) failingSearch = body;
-      return HttpResponse.json({ total: body.limit === 1 ? failing : 0, items: [] });
+      searches += 1;
+      failingSearch = body;
+      return HttpResponse.json({ total: failing, items: failing > 0 ? [kase(1)] : [] });
     }),
+    http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({ runs: [], statuses: {} })),
     http.get(`${P}/analytics/flaky`, () =>
       HttpResponse.json([flakyRow("a", false), flakyRow("b", false), flakyRow("c", false), flakyRow("d", true), flakyRow("e", true)])),
   );
@@ -77,11 +91,30 @@ test("four tiles: totals, pass rate trend, failing and flaky counts, each with a
   const failing = await within(tiles()).findByRole("link", { name: "Failing 17 linked cases whose latest result failed" });
   expect(failing).toHaveClass("kpi-bad");
   expect(failing).toHaveAttribute("href", "/projects/42/cases?result=failed");
-  expect(failingSearch).toMatchObject({ test_keys: ["f".repeat(64)], keys_mode: "include", limit: 1 });
+  expect(failingSearch).toMatchObject({ test_keys: ["f".repeat(64)], keys_mode: "include" });
 
   const flaky = await within(tiles()).findByRole("link", { name: "Flaky 3 tests in the last 14 days, 2 quarantined" });
   expect(flaky).toHaveAttribute("href", "/projects/42/flaky");
   expect(flaky).toHaveTextContent("2 quarantined");
+});
+
+test("the Failing count is the Failing filter's total, from the same requests", async () => {
+  apis();
+  renderCases("/projects/42/cases?result=failed");
+  expect(await within(tiles()).findByRole("link", { name: /^Failing 17 / })).toBeInTheDocument();
+  expect(await screen.findByText("1–1 of 17")).toBeInTheDocument();
+  // The list and the tile share their keys: one ask for failed keys, one search
+  expect(failedKeyAsks).toBe(1);
+  expect(searches).toBe(1);
+});
+
+test("each tile names its tone with an icon beside the title, never colour alone", async () => {
+  apis();
+  renderCases();
+  const failing = await within(tiles()).findByRole("link", { name: /^Failing 17/ });
+  expect(failing.querySelector(".kpi-tone svg")).not.toBeNull();
+  const rate = await within(tiles()).findByRole("group", { name: /^Pass rate 92.4%/ });
+  expect(rate.querySelector(".kpi-tone svg")).not.toBeNull();
 });
 
 test("the tiles sit under the page header, above the quick filters", async () => {

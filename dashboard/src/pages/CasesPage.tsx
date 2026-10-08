@@ -1,11 +1,12 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, FileCode, Plus, Upload } from "lucide-react";
 import {
-  Case, CaseStatus, MAX_SEARCH_KEYS, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
+  Case, CaseStatus, MAX_SEARCH_KEYS, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels,
 } from "../api/cases";
-import { getLatestKeys, getRunStrip } from "../api/analytics";
+import { getRunStrip } from "../api/analytics";
+import { CASES_PAGE, caseSearchQuery, latestKeysQuery } from "../lib/caseQueries";
 import { MAX_RUN_CASES } from "../api/runRequests";
 import CasesKpis from "../components/CasesKpis";
 import ErrorBanner from "../components/ErrorBanner";
@@ -25,7 +26,6 @@ import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
 import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
-const PAGE = 50;
 const RESULTS = ["passed", "failed", "skipped", "never"];
 const LEGEND = [["passed", "Passed"], ["failed", "Failed"], ["rerun", "Re-run"], ["skipped", "Skipped"], ["none", "Didn't run"]] as const;
 const KEYS = ["q", "label", "status", "priority", "origin", "folder", "linked", "result", "feature", "ado"] as const;
@@ -76,10 +76,11 @@ export default function CasesPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const canEdit = useCanEdit(id);
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const applied = read(params);
   const [form, setForm] = useState<Values>(applied);
-  const offset = pageOffset(params, PAGE);
+  const offset = pageOffset(params, CASES_PAGE);
   const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
   const tableRef = useRef<HTMLDivElement | null>(null);
   // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
@@ -132,7 +133,7 @@ export default function CasesPage() {
         priority: (PRIORITIES as string[]).includes(applied.priority) ? (applied.priority as Priority) : undefined,
         origin: (applied.origin === "manual" || applied.origin === "imported" ? applied.origin : undefined) as "manual" | "imported" | undefined,
         folder: applied.folder || undefined, feature: applied.feature || undefined, ado: applied.ado || undefined,
-        limit: PAGE, offset,
+        limit: CASES_PAGE, offset,
       };
       const linked = applied.linked === "true" || applied.linked === "false" ? applied.linked : undefined;
       const plain = { ...base, label: applied.label || undefined, linked: linked as "true" | "false" | undefined };
@@ -140,17 +141,21 @@ export default function CasesPage() {
       if (!result) return { page: await listCases(id, plain), notice: null };
       let keys: string[];
       try {
-        keys = (await getLatestKeys(id, result === "never" ? "any" : (result as "passed" | "failed" | "skipped"))).keys;
+        // Shared with the Failing tile (one request, re-asked at most once a minute)
+        keys = (await queryClient.fetchQuery(
+          latestKeysQuery(id, result === "never" ? "any" : (result as "passed" | "failed" | "skipped")),
+        )).keys;
       } catch {
         return { page: await listCases(id, plain), notice: "unavailable" as const };
       }
       if (keys.length > MAX_SEARCH_KEYS) return { page: await listCases(id, plain), notice: "too-many" as const };
       try {
         return {
-          page: await searchCases(id, {
+          // Keyed by its body: with only Failing applied this is the Failing tile's own search
+          page: await queryClient.fetchQuery(caseSearchQuery(id, {
             ...base, labels: applied.label ? [applied.label] : [], linked: linked ? linked === "true" : undefined,
             test_keys: keys, keys_mode: result === "never" ? "exclude" : "include",
-          }),
+          })),
           notice: null,
         };
       } catch {
@@ -384,9 +389,9 @@ export default function CasesPage() {
             </tbody>
           </table>
           <div className="filters">
-            <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
+            <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - CASES_PAGE))}>Previous</button>
             <span className="muted">{offset + 1}–{offset + data.items.length} of {data.total}</span>
-            <button disabled={offset + PAGE >= data.total} onClick={() => setOffset(offset + PAGE)}>Next</button>
+            <button disabled={offset + CASES_PAGE >= data.total} onClick={() => setOffset(offset + CASES_PAGE)}>Next</button>
           </div>
         </div>
         </>

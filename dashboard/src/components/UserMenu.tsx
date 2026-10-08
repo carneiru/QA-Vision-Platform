@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, LogOut, ShieldCheck } from "lucide-react";
 import { getMe, logout } from "../api/auth";
+import { clearRecent } from "../lib/recentItems";
 
 /** "pedro.carneiro@x.com" -> "PC", "ana@x.com" -> "AN" */
 export function initials(email: string): string {
@@ -52,8 +53,9 @@ export default function UserMenu({ orgId }: Props) {
   async function onSignOut() {
     setOpen(false);
     await logout();
-    // The next account in this tab must not see this one's email, orgs or projects
+    // The next account in this tab must not see this one's email, orgs or projects, nor its recent searches
     queryClient.clear();
+    clearRecent();
     navigate("/login", { replace: true });
   }
 

@@ -455,7 +455,8 @@ button.palette-trigger.compact { flex: none; width: 32px; padding: 0; justify-co
 .palette-trigger-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-trigger kbd, .palette-field kbd { margin-left: auto; flex-shrink: 0; padding: 0 5px; font: 500 11px/18px var(--font-sans); color: var(--text-secondary); border: 1px solid var(--border-strong); border-radius: 4px; }
 @media (pointer: coarse) { button.palette-trigger, button.palette-trigger.compact { min-height: 44px; } button.palette-trigger.compact { width: 44px; } }
-.palette-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.4); }
+/* The scrim: the page tone, mostly opaque, so the dialog reads as the one thing on screen in either theme */
+.palette-backdrop { position: fixed; inset: 0; z-index: 60; background: color-mix(in srgb, var(--page) 78%, transparent); }
 .palette {
   position: fixed; z-index: 61; top: 12vh; left: 0; right: 0; margin: 0 auto; width: min(640px, calc(100vw - 2 * var(--space-4)));
   max-height: min(70vh, 560px); display: flex; flex-direction: column; overflow: hidden;
@@ -579,23 +580,23 @@ button.palette-trigger.compact { flex: none; width: 32px; padding: 0; justify-co
   button { transition: none; }
 }
 
-/* ---- KPI tiles (Cases): a coloured inline-start edge (accent neutral, passed good, failed bad), words always beside it ---- */
+/* ---- KPI tiles (Cases): a tone icon beside the title (accent neutral, passed good, failed bad), words always beside it ---- */
 .kpi-tiles { list-style: none; margin: 0 0 var(--space-4); padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
 .kpi-tiles > li { min-width: 0; }
 @media (max-width: 1023px) { .kpi-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 359px) { .kpi-tiles { grid-template-columns: minmax(0, 1fr); } }
 .kpi, .kpi-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .kpi {
-  position: relative; height: 100%; padding: var(--space-3) var(--space-4); overflow: hidden;
+  height: 100%; padding: var(--space-3) var(--space-4); overflow: hidden;
   background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); color: var(--text-primary);
 }
-.kpi::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
-.kpi-good::before { background: var(--status-passed); }
-.kpi-bad::before { background: var(--status-failed); }
 a.kpi, a.kpi:hover { text-decoration: none; }
 a.kpi { transition: border-color 120ms ease-out; }
 a.kpi:hover { border-color: var(--accent); }
-.kpi-title { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); }
+.kpi-title { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); }
+.kpi-tone { display: inline-flex; color: var(--accent); }
+.kpi-good .kpi-tone { color: var(--status-passed); }
+.kpi-bad .kpi-tone { color: var(--status-failed); }
 .kpi-value { font-size: 24px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .kpi-sub { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-secondary); }
 .kpi-sub.up { color: var(--passed-text); }

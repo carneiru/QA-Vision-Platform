@@ -355,10 +355,10 @@ test("a latest-result filter asks ingestion for keys, then searches with them", 
   let body: Record<string, unknown> | null = null;
   server.use(
     http.get(`${P}/analytics/latest-keys`, ({ request }) => HttpResponse.json({ keys: [new URL(request.url).searchParams.get("status") === "failed" ? "f".repeat(64) : "a".repeat(64)] })),
-    // The list's search; the Failing KPI tile counts with limit 1
+    // The list's search carries the folder; the Failing KPI tile's does not
     http.post(`${P}/cases/search`, async ({ request }) => {
       const sent = (await request.json()) as Record<string, unknown>;
-      if (sent.limit !== 1) body = sent;
+      if (sent.folder) body = sent;
       return HttpResponse.json({ total: 1, items: [kase(1)] });
     }),
   );

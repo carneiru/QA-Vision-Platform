@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import { pushRecent } from "../lib/recentItems";
@@ -47,9 +48,12 @@ export default function CommandPalette({ projectId, compact }: Props) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      const combo = k === "k" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
-      const slash = e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !typingIn(e.target);
+      // Another handler took it, or an IME is mid-composition: not ours
+      if (e.defaultPrevented || e.isComposing) return;
+      // AltGr arrives as Ctrl+Alt on Windows: layouts that type "/" with it must still reach the palette
+      const altGr = e.getModifierState?.("AltGraph") || (e.ctrlKey && e.altKey);
+      const combo = e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey;
+      const slash = e.key === "/" && (altGr || (!e.ctrlKey && !e.metaKey)) && !typingIn(e.target);
       if (!combo && !slash) return;
       e.preventDefault();
       if (!open) {
@@ -103,7 +107,7 @@ function Palette({ projectId, onClose }: { projectId: number | null; onClose: (r
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const { groups, pending } = usePaletteGroups(query, projectId);
+  const { groups, pending, userId } = usePaletteGroups(query, projectId);
   const options = useMemo(() => groups.flatMap((g) => g.items.map((item) => ({ item, domId: optionId(g.key, item.id) }))), [groups]);
 
   // The first result is active until the reader moves; a new query starts over
@@ -112,13 +116,39 @@ function Palette({ projectId, onClose }: { projectId: number | null; onClose: (r
   const activeIndex = Math.max(0, chosen === null ? 0 : options.findIndex((o) => o.domId === chosen));
   const active = options[activeIndex];
 
+  // A real modal: the palette lives in its own node on <body>; everything else there is inert and the page does not
+  // scroll under it. Both are undone on close (before focus goes back, which an inert element would refuse).
+  const host = useMemo(() => document.createElement("div"), []);
+  useLayoutEffect(() => {
+    document.body.appendChild(host);
+    const others = Array.from(document.body.children).filter((el) => el !== host && !el.hasAttribute("inert"));
+    others.forEach((el) => el.setAttribute("inert", ""));
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      others.forEach((el) => el.removeAttribute("inert"));
+      document.body.style.overflow = overflow;
+      host.remove();
+    };
+  }, [host]);
+
   useEffect(() => inputRef.current?.focus(), []);
+  // Esc closes it wherever focus is, not only from the field
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      onClose(true);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
   useEffect(() => {
     if (active) document.getElementById(active.domId)?.scrollIntoView?.({ block: "nearest" });
   }, [active]);
 
   function openItem(item: PaletteItem) {
-    pushRecent(item);
+    pushRecent(userId, item);
     onClose(false);
     navigate(item.href);
   }
@@ -139,7 +169,6 @@ function Palette({ projectId, onClose }: { projectId: number | null; onClose: (r
         e.preventDefault();
         if (active) openItem(active.item);
         break;
-      case "Escape": e.preventDefault(); onClose(true); break;
     }
   }
 
@@ -153,7 +182,7 @@ function Palette({ projectId, onClose }: { projectId: number | null; onClose: (r
     if (announcement !== null) setSpoken(announcement);
   }, [announcement]);
 
-  return (
+  return createPortal(
     <>
       <div className="palette-backdrop" aria-hidden="true" onMouseDown={() => onClose(true)} />
       <div
@@ -223,7 +252,8 @@ function Palette({ projectId, onClose }: { projectId: number | null; onClose: (r
         {pending && q.length >= MIN_REMOTE && <p className="palette-searching">Searching…</p>}
         <div role="status" className="sr-only">{spoken}</div>
       </div>
-    </>
+    </>,
+    host,
   );
 }
 

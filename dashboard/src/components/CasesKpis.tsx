@@ -1,13 +1,18 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
-import { formatPassRate, getFlaky, getLatestKeys, getTrends } from "../api/analytics";
-import { MAX_SEARCH_KEYS, listCases, searchCases } from "../api/cases";
-import { FLAKY_DEFAULTS } from "../lib/flaky";
+import { ArrowDown, ArrowUp, CircleAlert, CircleCheck, CircleDot, Minus } from "lucide-react";
+import { formatPassRate } from "../api/analytics";
+import { MAX_SEARCH_KEYS, listCases } from "../api/cases";
+import { caseSearchQuery, failingSearchBody, latestKeysQuery } from "../lib/caseQueries";
+import { FLAKY_DEFAULTS, flakyHealthQuery, passRateWeeksQuery } from "../lib/healthQueries";
 import { SkeletonStatus } from "./Skeleton";
 
 type Tone = "neutral" | "good" | "bad";
+/** The tone's mark beside the title, in the tone's colour: a shape as well as a hue */
+const TONE_ICON = { neutral: CircleDot, good: CircleCheck, bad: CircleAlert } as const;
+/** Tile figures are re-asked at most once a minute */
+const STALE_MS = 60_000;
 
 interface TileProps {
   title: string;
@@ -41,9 +46,10 @@ function Tile({ title, label, value, sub, tone, to, query }: TileProps) {
       </div>
     );
   }
+  const ToneIcon = TONE_ICON[tone];
   const body = (
     <>
-      <span className="kpi-title">{title}</span>
+      <span className="kpi-title"><span className="kpi-tone"><ToneIcon size={14} aria-hidden="true" /></span>{title}</span>
       <span className="kpi-value">{value}</span>
       {sub}
     </>
@@ -81,30 +87,31 @@ export default function CasesKpis({ projectId }: { projectId: number }) {
   const total = useQuery({
     queryKey: ["cases-total", projectId],
     queryFn: async () => (await listCases(projectId, { limit: 1, offset: 0 })).total,
+    staleTime: STALE_MS,
   });
   const imported = useQuery({
     queryKey: ["cases-total", projectId, "imported"],
     queryFn: async () => (await listCases(projectId, { origin: "imported", limit: 1, offset: 0 })).total,
+    staleTime: STALE_MS,
   });
-  // Overview's "Pass rate this week" query: the same key, so a visit to either fills both
-  const weeks = useQuery({
-    queryKey: ["trends", projectId, "overview-weeks", tz],
-    queryFn: () => getTrends(projectId, { days: 14, tz, bucket: "week" }),
-  });
-  // The "Failing" chip's join, counted: tests whose latest result failed, then the cases linked to them
-  const failing = useQuery({
-    queryKey: ["cases-kpi", projectId, "failing"],
-    queryFn: async () => {
-      const { keys } = await getLatestKeys(projectId, "failed");
-      if (keys.length === 0) return 0;
-      if (keys.length > MAX_SEARCH_KEYS) return null;
-      return (await searchCases(projectId, { test_keys: keys, keys_mode: "include", limit: 1, offset: 0 })).total;
-    },
-  });
-  const flaky = useQuery({
-    queryKey: ["flaky", projectId, "cases-kpi"],
-    queryFn: () => getFlaky(projectId, { ...FLAKY_DEFAULTS, includeMuted: true }),
-  });
+  // Overview's queries, so a visit to either fills both
+  const weeks = useQuery(passRateWeeksQuery(projectId, tz));
+  const flaky = useQuery(flakyHealthQuery(projectId));
+  // The "Failing" filter's join, under the list's own keys: the tile's search is the list's first page with only
+  // Failing applied, so its total is that list's and opening the tile is already answered
+  const failedKeys = useQuery(latestKeysQuery(projectId, "failed"));
+  const keys = failedKeys.data?.keys;
+  const searchable = keys !== undefined && keys.length > 0 && keys.length <= MAX_SEARCH_KEYS;
+  const failingSearch = useQuery({ ...caseSearchQuery(projectId, failingSearchBody(keys ?? [])), enabled: searchable });
+  const failingCount = keys === undefined ? undefined
+    : keys.length === 0 ? 0
+    : keys.length > MAX_SEARCH_KEYS ? null
+    : failingSearch.data?.total;
+  const failing = {
+    isPending: failedKeys.isPending || (searchable && failingSearch.isPending),
+    isError: failedKeys.isError || (searchable && failingSearch.isError),
+    refetch: () => (failedKeys.isError ? failedKeys.refetch() : failingSearch.refetch()),
+  };
 
   // Cases
   const casesValue = total.data !== undefined ? count(total.data) : "";
@@ -128,7 +135,6 @@ export default function CasesKpis({ projectId }: { projectId: number }) {
   );
 
   // Failing
-  const failingCount = failing.data;
   const failingLabel = failingCount === null || failingCount === undefined
     ? "Failing: too many failing tests to count"
     : `Failing ${count(failingCount)} linked ${failingCount === 1 ? "case" : "cases"} whose latest result failed`;

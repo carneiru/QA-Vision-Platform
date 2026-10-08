@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LIVE_REFRESH_MS } from "../lib/live";
 import { ArrowRight, Clock, GitBranch, GitCommitHorizontal, Server } from "lucide-react";
-import { formatDuration, formatPassRate, getFlaky, getTrends } from "../api/analytics";
+import { formatDuration, formatPassRate } from "../api/analytics";
 import { getFailureGroups, listRuns, Run } from "../api/runs";
 import { isNewCause } from "../components/FailureGroups";
 import RunStatusBadge from "../components/RunStatusBadge";
@@ -11,7 +11,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import { SkeletonCard, SkeletonStatus } from "../components/Skeleton";
 import StatusDot from "../components/StatusDot";
 import PageHeader from "../components/PageHeader";
-import { FLAKY_DEFAULTS } from "../lib/flaky";
+import { flakyHealthQuery, passRateWeeksQuery } from "../lib/healthQueries";
 
 const MAX_CAUSES = 5;
 
@@ -65,14 +65,13 @@ function OverviewBody() {
     queryFn: () => getFailureGroups(latest!.id),
     enabled: latest !== undefined && latest.failed + latest.errored > 0,
   });
+  // Shared with the Cases KPI tiles
   const weeks = useQuery({
-    queryKey: ["trends", id, "overview-weeks", tz],
-    queryFn: () => getTrends(id, { days: 14, tz, bucket: "week" }),
+    ...passRateWeeksQuery(id, tz),
     enabled: latest !== undefined,
   });
   const flaky = useQuery({
-    queryKey: ["flaky", id, "overview"],
-    queryFn: () => getFlaky(id, FLAKY_DEFAULTS),
+    ...flakyHealthQuery(id),
     enabled: latest !== undefined,
   });
 
@@ -109,8 +108,10 @@ function OverviewBody() {
   const buckets = weeks.data?.days ?? [];
   const thisWeek = buckets[buckets.length - 1];
   const lastWeek = buckets.length > 1 ? buckets[buckets.length - 2] : undefined;
-  const confirmed = flaky.data?.filter((r) => r.reason === "same_commit").length ?? 0;
-  const suspected = flaky.data?.filter((r) => r.reason === "flips").length ?? 0;
+  // The shared query includes quarantined tests; this card counts the others, as the Flaky view does by default
+  const unmuted = flaky.data?.filter((r) => !r.muted) ?? [];
+  const confirmed = unmuted.filter((r) => r.reason === "same_commit").length;
+  const suspected = unmuted.filter((r) => r.reason === "flips").length;
 
   return (
     <div className="overview-grid">

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -9,6 +9,8 @@ import AppShell from "./AppShell";
 import PageHeader from "./PageHeader";
 
 const P = "/api/v1/projects/42";
+/** Recent items of the signed-in user (the default /users/me is id 1) */
+const RECENT_1 = "qeos.palette.recent.1";
 
 function Where() {
   const { pathname, search } = useLocation();
@@ -68,6 +70,7 @@ function renderAt(path: string) {
             <Route path="/" element={<PageHeader title="Projects" />} />
             <Route path="/projects/:projectId/*" element={<><PageHeader title="Project page" /><Where /></>} />
           </Route>
+          <Route path="/login" element={<p>LOGIN</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -92,7 +95,7 @@ describe("opening and closing", () => {
     expect(input()).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Search" })).not.toBeInTheDocument();
-    expect(trigger()).toHaveFocus();
+    await waitFor(() => expect(trigger()).toHaveFocus());
   });
 
   test("Ctrl K opens it from anywhere and Esc gives focus back", async () => {
@@ -102,7 +105,7 @@ describe("opening and closing", () => {
     expect(input()).toHaveFocus();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(trigger()).toHaveFocus();
+    await waitFor(() => expect(trigger()).toHaveFocus());
   });
 
   test("Cmd K opens it too, and the button shows the platform's hint", async () => {
@@ -126,6 +129,49 @@ describe("opening and closing", () => {
     await user.keyboard("/");
     expect(input()).toHaveFocus();
     expect(input()).toHaveValue("");
+  });
+
+  test("while open it is a real modal: portalled to the body, the app inert and not scrolling; both restored on close", async () => {
+    const user = userEvent.setup();
+    const { container } = renderAt("/projects/42/runs");
+    await user.click(trigger());
+    expect(container).not.toContainElement(dialog());
+    expect(document.body).toContainElement(dialog());
+    expect(container).toHaveAttribute("inert");
+    expect(document.body.style.overflow).toBe("hidden");
+    await user.keyboard("{Escape}");
+    expect(container).not.toHaveAttribute("inert");
+    expect(document.body.style.overflow).toBe("");
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  test("Esc closes it even when focus has left the field", async () => {
+    const user = userEvent.setup();
+    renderAt("/projects/42/runs");
+    await user.click(trigger());
+    input().blur();
+    expect(input()).not.toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("a shortcut another handler already took, or typed mid-composition, is left alone", async () => {
+    renderAt("/projects/42/runs");
+    const takeIt = (e: KeyboardEvent) => e.preventDefault();
+    document.addEventListener("keydown", takeIt, { capture: true });
+    try {
+      fireEvent.keyDown(document.body, { key: "k", ctrlKey: true });
+    } finally {
+      document.removeEventListener("keydown", takeIt, { capture: true });
+    }
+    fireEvent.keyDown(document.body, { key: "/", isComposing: true });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("a slash typed with AltGr (Ctrl+Alt) opens it", async () => {
+    renderAt("/projects/42/runs");
+    fireEvent.keyDown(document.body, { key: "/", ctrlKey: true, altKey: true });
+    expect(await screen.findByRole("dialog", { name: "Search" })).toBeInTheDocument();
   });
 
   test("Tab stays inside the dialog", async () => {
@@ -298,6 +344,17 @@ describe("sources", () => {
     expect(screen.queryByRole("group", { name: "Runs" })).not.toBeInTheDocument();
   });
 
+  test("a run number the reader may not see (403) offers no run, not an error", async () => {
+    sources();
+    server.use(http.get("/api/v1/runs/77", () => HttpResponse.json({ detail: "Run not found" }, { status: 403 })));
+    const user = userEvent.setup();
+    renderAt("/projects/42/overview");
+    await user.click(trigger());
+    await user.keyboard("77");
+    expect(await screen.findByText('No matches for "77"', { selector: ".palette-empty" })).toBeInTheDocument();
+    expect(screen.queryByText(/Couldn't search runs/)).not.toBeInTheDocument();
+  });
+
   test("an error in one source is a notice in its group; the others still work", async () => {
     sources();
     server.use(http.get(`${P}/analytics/tests`, () => HttpResponse.json({ detail: "down" }, { status: 503 })));
@@ -347,10 +404,11 @@ describe("recent", () => {
     sources();
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
+    await screen.findByRole("button", { name: /Account menu for/ });
     await user.click(trigger());
     await user.keyboard("lo");
     await user.click(await screen.findByRole("option", { name: /Login works/ }));
-    expect(JSON.parse(localStorage.getItem("qeos.palette.recent") ?? "[]")[0]).toMatchObject({ href: "/projects/42/cases/1" });
+    expect(JSON.parse(localStorage.getItem(RECENT_1) ?? "[]")[0]).toMatchObject({ href: "/projects/42/cases/1" });
     await user.keyboard("{Control>}k{/Control}");
     const recent = group("Recent");
     expect(within(recent).getByRole("option", { name: /Login works/ })).toBeInTheDocument();
@@ -360,23 +418,55 @@ describe("recent", () => {
   test("keeps the last 5, newest first, without repeats", async () => {
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
+    await screen.findByRole("button", { name: /Account menu for/ });
     for (const page of ["Runs", "Tests", "Flaky", "Branches", "Trends", "Report", "Runs"]) {
       await user.keyboard("{Control>}k{/Control}");
       await user.click(within(group("Pages")).getByRole("option", { name: new RegExp(`^${page}`) }));
     }
-    const stored = JSON.parse(localStorage.getItem("qeos.palette.recent") ?? "[]").map((r: { label: string }) => r.label);
+    const stored = JSON.parse(localStorage.getItem(RECENT_1) ?? "[]").map((r: { label: string }) => r.label);
     expect(stored).toEqual(["Runs", "Report", "Trends", "Branches", "Flaky"]);
   });
 
   test("recent items of another project are not offered here", async () => {
-    localStorage.setItem("qeos.palette.recent", JSON.stringify([
+    localStorage.setItem(RECENT_1, JSON.stringify([
       { id: "case:43:5", kind: "case", label: "Elsewhere", detail: "TC-5", href: "/projects/43/cases/5", projectId: 43 },
       { id: "case:42:6", kind: "case", label: "Here", detail: "TC-6", href: "/projects/42/cases/6", projectId: 42 },
     ]));
     const user = userEvent.setup();
     renderAt("/projects/42/overview");
+    await screen.findByRole("button", { name: /Account menu for/ });
     await user.click(trigger());
     expect(within(group("Recent")).getAllByRole("option").map((o) => o.textContent)).toEqual([expect.stringContaining("Here")]);
+  });
+
+  test("recent items belong to the signed-in user", async () => {
+    localStorage.setItem("qeos.palette.recent.2", JSON.stringify([
+      { id: "page:42:flaky", kind: "page", label: "Not mine", href: "/projects/42/flaky", projectId: 42 },
+    ]));
+    const user = userEvent.setup();
+    renderAt("/projects/42/overview");
+    await screen.findByRole("button", { name: /Account menu for/ });
+    await user.click(trigger());
+    expect(screen.queryByRole("group", { name: "Recent" })).not.toBeInTheDocument();
+    await user.click(within(group("Pages")).getByRole("option", { name: /^Runs/ }));
+    expect(JSON.parse(localStorage.getItem(RECENT_1) ?? "[]").map((r: { label: string }) => r.label)).toEqual(["Runs"]);
+    expect(localStorage.getItem("qeos.palette.recent.2")).toContain("Not mine");
+  });
+
+  test("signing out forgets every recent list", async () => {
+    server.use(http.post("/api/v1/auth/logout", () => new HttpResponse(null, { status: 200 })));
+    localStorage.setItem("qeos.palette.recent", "[]");
+    const user = userEvent.setup();
+    renderAt("/projects/42/overview");
+    await screen.findByRole("button", { name: /Account menu for/ });
+    await user.click(trigger());
+    await user.click(within(group("Pages")).getByRole("option", { name: /^Runs/ }));
+    expect(localStorage.getItem(RECENT_1)).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: /Account menu for/ }));
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    expect(await screen.findByText("LOGIN")).toBeInTheDocument();
+    expect(localStorage.getItem(RECENT_1)).toBeNull();
+    expect(localStorage.getItem("qeos.palette.recent")).toBeNull();
   });
 
   test("storage that throws leaves the palette working", async () => {

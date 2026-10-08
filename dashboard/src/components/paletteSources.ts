@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { getTests } from "../api/analytics";
 import { listCases } from "../api/cases";
+import { getMe } from "../api/auth";
 import { ApiError } from "../api/http";
 import { listMyOrganizations, listProjects } from "../api/orgs";
 import { getRun, listRuns } from "../api/runs";
@@ -40,13 +41,18 @@ const contains = (text: string, q: string) => text.toLowerCase().includes(q.toLo
 /** The palette's results for `query`, grouped by source. Pages and projects are matched here; cases, tests and runs
  *  are asked of their services in parallel (debounced; a superseded request is aborted through its signal).
  *  Outside a project only pages and projects are offered. */
-export function usePaletteGroups(query: string, projectId: number | null): { groups: PaletteGroup[]; pending: boolean } {
+export function usePaletteGroups(
+  query: string,
+  projectId: number | null,
+): { groups: PaletteGroup[]; pending: boolean; userId: number | undefined } {
   const q = query.trim();
   const debounced = useDebounced(q, DEBOUNCE_MS);
   const remote = projectId !== null && debounced.length >= MIN_REMOTE;
   const runNumber = RUN_NUMBER.exec(debounced)?.[1];
 
   const orgs = useQuery({ queryKey: ["orgs"], queryFn: listMyOrganizations });
+  // The user menu's query: recent items are kept per user
+  const userId = useQuery({ queryKey: ["me"], queryFn: getMe, staleTime: 5 * 60_000 }).data?.id;
   const projectLists = useQueries({
     queries: (orgs.data ?? []).map((org) => ({ queryKey: ["projects", org.id], queryFn: () => listProjects(org.id) })),
   });
@@ -70,10 +76,12 @@ export function usePaletteGroups(query: string, projectId: number | null): { gro
     queryFn: async ({ signal }) => {
       if (runNumber === undefined) return listRuns(projectId!, { branch: debounced, limit: SOURCE_LIMIT, offset: 0 }, { signal });
       try {
-        // The lightest read of one run: the detail with only its errored results
+        // The lightest read of one run there is (the runs list has no id filter, and there is no summary read):
+        // the detail with only its errored results
         return [await getRun(Number(runNumber), "errored", { signal })];
       } catch (e) {
-        if (e instanceof ApiError && e.status === 404) return [];
+        // Not there, or not the reader's to see: either way there is no run to offer
+        if (e instanceof ApiError && (e.status === 404 || e.status === 403)) return [];
         throw e;
       }
     },
@@ -81,7 +89,7 @@ export function usePaletteGroups(query: string, projectId: number | null): { gro
     ...opts,
   });
 
-  const recent = useMemo(() => (q === "" ? readRecent() : []), [q]);
+  const recent = useMemo(() => (q === "" ? readRecent(userId) : []), [q, userId]);
 
   const groups = useMemo(() => {
     const out: PaletteGroup[] = [];
@@ -154,5 +162,5 @@ export function usePaletteGroups(query: string, projectId: number | null): { gro
   // Typed but not yet asked (the debounce) counts as pending, so "no matches" never flashes before the answer
   const waiting = projectId !== null && q.length >= MIN_REMOTE && debounced !== q;
   const pending = waiting || (remote && (cases.isPending || tests.isPending || runs.isPending));
-  return { groups, pending };
+  return { groups, pending, userId };
 }
