@@ -286,3 +286,96 @@ test("the client-side grouping computes the same aggregates from the cases", asy
   expect(within(pay).getByText("Ready")).toBeInTheDocument();
   expect(within(pay).getAllByText("All linked").length).toBeGreaterThan(0);
 });
+
+
+// --- Last runs strip on feature rows, the legend, file names ---------------------------------------------------
+
+const KEY_A = "a".repeat(64);
+const KEY_B = "b".repeat(64);
+const RUNS = [{ id: 1, started_at: "2026-10-06T10:00:00Z", branch: "main" }, { id: 2, started_at: "2026-10-07T10:00:00Z", branch: "main" }];
+
+test("a feature row shows one strip: the worst status per run over its scenarios", async () => {
+  withFeatures({ ...LOGIN, test_keys: [KEY_A, KEY_B] });
+  server.use(http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({
+    runs: RUNS, statuses: { [KEY_A]: ["passed", "passed"], [KEY_B]: ["failed", "passed"] },
+  })));
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const strip = await within(featureRow("Login")).findByRole("link", { name: /^Last 2 runs/ });
+  expect(strip).toHaveAttribute("aria-label", "Last 2 runs: 1 passed, 1 failed, opens run #2");
+  expect(strip).toHaveAttribute("href", "/projects/42/runs/2");
+  expect(strip.querySelectorAll(".bar-failed")).toHaveLength(1);
+  expect(strip.querySelectorAll(".bar-passed")).toHaveLength(1);
+});
+
+test("a feature row keeps its failing count beside the strip, and the narrow line summarises the runs", async () => {
+  withFeatures({ ...LOGIN, test_keys: [KEY_A] });
+  server.use(
+    http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ keys: [KEY_A] })),
+    http.post(`${P}/cases/search`, () => HttpResponse.json({ total: 1, items: [kase(2, { automated_test_key: KEY_A })] })),
+    http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({ runs: RUNS, statuses: { [KEY_A]: ["passed", "failed"] } })),
+  );
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const row = featureRow("Login");
+  expect(await within(row).findByRole("link", { name: /^Last 2 runs/ })).toBeInTheDocument();
+  expect(await within(row).findByText("1 failing", { selector: ".failing-count" })).toBeInTheDocument();
+  expect(within(row).getByText("1 failed, 1 passed of the last 2")).toBeInTheDocument();
+});
+
+test("more than 200 keys go out in chunks of 200, merged into one strip", async () => {
+  const keys = Array.from({ length: 201 }, (_, i) => i.toString(16).padStart(64, "0")).sort();
+  const bodies: { test_keys: string[] }[] = [];
+  withFeatures({ ...LOGIN, test_keys: keys.slice(0, 200) }, { ...MANUAL, path: "m.feature", feature_name: "M", test_keys: keys.slice(200) });
+  server.use(http.post(`${P}/analytics/run-strip`, async ({ request }) => {
+    const body = (await request.json()) as { test_keys: string[] };
+    bodies.push(body);
+    const statuses = Object.fromEntries(body.test_keys.map((k) => [k, [k === keys[200] ? "failed" : "passed"]]));
+    return HttpResponse.json({ runs: [RUNS[0]], statuses });
+  }));
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  expect(await within(featureRow("M")).findByRole("link", { name: /^Last 1 run: 1 failed/ })).toBeInTheDocument();
+  expect(within(featureRow("Login")).getByRole("link", { name: /^Last 1 run: 1 passed/ })).toBeInTheDocument();
+  expect(bodies.map((b) => b.test_keys.length).sort()).toEqual([1, 200]);
+});
+
+test("a feature row shows a skeleton while loading and a dash when the strips fail", async () => {
+  withFeatures({ ...LOGIN, test_keys: [KEY_A] });
+  server.use(http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({ detail: "no" }, { status: 500 })));
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  expect(await within(featureRow("Login")).findByLabelText("Last runs unavailable")).toHaveTextContent("—");
+});
+
+test("a manual row with no keys says not linked; an older server's row leaves the cell empty", async () => {
+  withFeatures({ ...MANUAL, test_keys: [] });
+  renderCases();
+  await screen.findByText("No feature (manual)");
+  expect(within(featureRow("No feature (manual)")).getByText("not linked")).toHaveClass("muted");
+});
+
+test("the legend shows in Feature view without expanding a row, and hides when no row has keys", async () => {
+  withFeatures({ ...LOGIN, test_keys: [KEY_A] });
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  expect(screen.getByRole("list", { name: "Last runs legend" })).toBeInTheDocument();
+});
+
+test("the legend is hidden in Feature view when no row has keys", async () => {
+  withFeatures({ ...LOGIN, test_keys: [] });
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  expect(screen.queryByRole("list", { name: "Last runs legend" })).not.toBeInTheDocument();
+});
+
+test("a file with no Feature name shows its file name without .feature; a real Feature title is unchanged", async () => {
+  withFeatures(
+    { ...LOGIN, feature_name: null, path: "features/foo_bar.feature", folder: "features" },
+    { ...LOGIN, feature_name: "Pay.feature", path: "features/pay.feature", folder: "features" },
+  );
+  renderCases();
+  const link = await screen.findByRole("link", { name: "foo_bar" });
+  expect(link).toHaveAttribute("href", "/projects/42/cases/feature?path=features%2Ffoo_bar.feature");
+  expect(screen.getByRole("link", { name: "Pay.feature" })).toBeInTheDocument();
+});

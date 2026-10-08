@@ -95,7 +95,6 @@ export default function CasesPage() {
   }, [setCard]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
-  const [expanded, setExpanded] = useState(0);
   const barRef = useRef<HTMLDivElement>(null);
   // The bar sticks to the viewport bottom: rows reached by keyboard must stay above it
   const barHeight = useStickyBottomOffset(barRef, picked.size > 0);
@@ -244,7 +243,6 @@ export default function CasesPage() {
   // A view switch keeps the filters and goes back to page 1
   function setGroup(to: Group) {
     if (to === group) return;
-    setExpanded(0);
     patchFilters({ group: to === "scenario" ? "scenario" : "" });
   }
   const disclosureRef = useRef<HTMLDetailsElement>(null);
@@ -269,7 +267,7 @@ export default function CasesPage() {
     () => [...new Set((data?.items ?? []).flatMap((c) => (c.automated_test_key ? [c.automated_test_key] : [])))],
     [data],
   );
-  const showLegend = group === "scenario" ? stripKeys.length > 0 : expanded > 0;
+  const showLegend = group === "scenario" ? stripKeys.length > 0 : (featureRows ?? []).some((r) => (r.test_keys?.length ?? 0) > 0);
   const advancedActive = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== "").length;
   const advancedHidden = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== ""
     && !QUICK.some((c) => c.key === k && c.value === applied[k])).length;
@@ -382,7 +380,7 @@ export default function CasesPage() {
           aria-label={group === "feature" ? "Features" : "Test cases"} style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
           {group === "feature" ? (
             <FeatureList projectId={id} rows={featureRows ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle}
-              onToggleAll={toggleAll} filters={featureFilters} failing={failing} onExpandedChange={setExpanded} />
+              onToggleAll={toggleAll} filters={featureFilters} failing={failing} />
           ) : (
             <CaseTable projectId={id} cases={data?.items ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle} onToggleAll={toggleAll} />
           )}

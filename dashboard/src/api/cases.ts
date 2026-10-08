@@ -104,6 +104,8 @@ export interface FeatureGroup {
   case_count: number;
   /** The first 200 matching cases, by number. */
   case_numbers: number[];
+  /** Distinct automated test keys of the matching cases, sorted, at most 200; absent from older servers. */
+  test_keys?: string[];
   /** True when the raw file is stored (imported since raw storage). */
   has_source: boolean;
   /** Aggregates over the matching cases; absent from servers that predate them. */

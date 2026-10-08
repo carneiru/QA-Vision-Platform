@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, ChevronRight, CircleX } from "lucide-react";
 import type { CaseQuery } from "../api/cases";
-import { type FeatureRow, STATUS_ORDER, groupCasesQuery } from "../lib/featureQueries";
-import { CaseRow, type CaseRowData, isRunnable, useRunStrips } from "./CaseTable";
+import { type FeatureRow, STATUS_ORDER, fileLabel, groupCasesQuery } from "../lib/featureQueries";
+import { CaseRow, type CaseRowData, isRunnable, useFeatureStrips, useRunStrips } from "./CaseTable";
 import ErrorBanner from "./ErrorBanner";
 import NarrowMeta from "./NarrowMeta";
 import { CaseStatusPill } from "./StatusPill";
@@ -13,7 +13,7 @@ export const MANUAL_GROUP = "No feature (manual)";
 
 /** A feature row's name: its Feature, else its file name; the manual group has its own label. */
 export const featureLabel = (row: { feature_name: string | null; path: string | null }) =>
-  row.path == null ? MANUAL_GROUP : row.feature_name || row.path.slice(row.path.lastIndexOf("/") + 1);
+  row.path == null ? MANUAL_GROUP : row.feature_name || fileLabel(row.path);
 
 /** The Automated cell as plain text, for the narrow meta line. */
 function automatedText(row: FeatureRow) {
@@ -52,14 +52,13 @@ interface Props {
   filters: Omit<CaseQuery, "limit" | "offset">;
   /** Case numbers whose latest result failed, or null when unknown (the row then shows no count). */
   failing: Set<number> | null;
-  /** Called with the number of expanded rows, so the page can show the run legend. */
-  onExpandedChange?: (count: number) => void;
 }
 
 /** The Feature view of the Cases list: one row per .feature file, expanding in place to its scenarios. */
-export default function FeatureList({ projectId, rows, selectable, picked, onToggle, onToggleAll, filters, failing, onExpandedChange }: Props) {
+export default function FeatureList({ projectId, rows, selectable, picked, onToggle, onToggleAll, filters, failing }: Props) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const qc = useQueryClient();
+  const { lastRuns, lastRunsSummary } = useFeatureStrips(projectId, rows);
   const idOf = (row: FeatureRow) => row.path ?? "\0manual";
   // The Scenario view's columns plus Scenarios: Title, Scenarios, Last runs, Priority, Status, Automated
   const columns = (selectable ? 1 : 0) + 6;
@@ -68,7 +67,6 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
     const next = new Set(open);
     if (!next.delete(idOf(row))) next.add(idOf(row));
     setOpen(next);
-    onExpandedChange?.(next.size);
   }
 
   // Checking a feature selects every runnable scenario it holds; the titles come with its cases
@@ -119,7 +117,7 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                       )}
                       {row.folder ? <span className="feature-folder">{row.folder}</span> : null}
                       <NarrowMeta items={[
-                        { label: "Last runs", value: failed > 0 ? `${failed} failing` : null },
+                        { label: "Last runs", value: lastRunsSummary(row) ?? (failed > 0 ? `${failed} failing` : null) },
                         { label: "Priority", value: row.top_priority },
                         { label: "Automated", value: automatedText(row) },
                       ]} />
@@ -128,7 +126,10 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                 </td>
                 <td className="num">{row.case_count}</td>
                 <td className="hide-narrow">
-                  {failed > 0 && <span className="failing-count"><CircleX size={14} aria-hidden="true" /> {failed} failing</span>}
+                  <div className="feature-runs">
+                    {lastRuns(row)}
+                    {failed > 0 && <span className="failing-count"><CircleX size={14} aria-hidden="true" /> {failed} failing</span>}
+                  </div>
                 </td>
                 {/* Aggregates of the group's matching scenarios: its highest priority, its statuses, how many are linked */}
                 <td className="hide-narrow">

@@ -1,4 +1,5 @@
 import { type Case, type CaseQuery, type CaseStatus, type Priority, type FeatureGroup, getFeatureDetail, listCases } from "../api/cases";
+import type { StripStatus } from "../api/analytics";
 import type { CaseRowData } from "../components/CaseTable";
 
 /** A page of the Feature view. */
@@ -9,6 +10,17 @@ export const GROUP_CASES_MAX = 200;
 const PRIORITY_ORDER: Priority[] = ["low", "medium", "high", "critical"];
 /** The order a feature row lists its statuses in. */
 export const STATUS_ORDER: CaseStatus[] = ["ready", "draft", "archived"];
+
+/** A feature file's name for display: its file name without a trailing ".feature" (any case). */
+export const fileLabel = (path: string) => path.slice(path.lastIndexOf("/") + 1).replace(/\.feature$/i, "");
+
+/** Worst first: what a feature's run shows when its scenarios disagree. */
+const WORST: StripStatus[] = ["failed", "rerun", "passed", "skipped"];
+
+/** One status per run over several tests, taking the worst present (failed > rerun > passed > skipped > null). */
+export function worstPerRun(runCount: number, perTest: StripStatus[][]): StripStatus[] {
+  return Array.from({ length: runCount }, (_, i) => WORST.find((w) => perTest.some((s) => s[i] === w)) ?? null);
+}
 
 /** A feature group, with its cases when the page grouped them itself (filters the feature list cannot apply). */
 export interface FeatureRow extends FeatureGroup {
@@ -48,17 +60,21 @@ export function groupByFeature(cases: Case[]): FeatureRow[] {
     let g = groups.get(id);
     if (!g) {
       g = { feature_name: c.source_path == null ? null : c.feature_name, path: c.source_path, folder: folderOf(c.source_path),
-        case_count: 0, case_numbers: [], has_source: false, linked_count: 0, top_priority: null,
+        case_count: 0, case_numbers: [], test_keys: [], has_source: false, linked_count: 0, top_priority: null,
         status_counts: { draft: 0, ready: 0, archived: 0 }, cases: [] };
       groups.set(id, g);
     }
     g.case_count += 1;
     g.case_numbers.push(c.number);
-    if (c.automated_test_key) g.linked_count = (g.linked_count ?? 0) + 1;
+    if (c.automated_test_key) {
+      g.linked_count = (g.linked_count ?? 0) + 1;
+      if (!g.test_keys!.includes(c.automated_test_key)) g.test_keys!.push(c.automated_test_key);
+    }
     if (g.top_priority == null || PRIORITY_ORDER.indexOf(c.priority) > PRIORITY_ORDER.indexOf(g.top_priority)) g.top_priority = c.priority;
     g.status_counts![c.status] = (g.status_counts![c.status] ?? 0) + 1;
     g.cases!.push(c);
   }
+  for (const g of groups.values()) g.test_keys!.sort().splice(GROUP_CASES_MAX);
   const key = (g: FeatureRow) => [g.path == null ? 1 : 0, g.folder ?? "", (g.feature_name ?? "").toLowerCase(), g.path ?? ""] as const;
   return [...groups.values()].sort((a, b) => {
     const [ka, kb] = [key(a), key(b)];

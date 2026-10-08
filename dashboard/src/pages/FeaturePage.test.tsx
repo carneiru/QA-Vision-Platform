@@ -129,6 +129,6 @@ test("without the stored file the scenarios are rebuilt from the cases, with a n
 
 test("an unknown or archived file says it is not found", async () => {
   renderAt("/projects/42/cases/feature?path=features%2Fgone.feature");
-  expect(screen.getByRole("heading", { level: 1, name: "gone.feature" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1, name: "gone" })).toBeInTheDocument();
   expect(await screen.findByText(/Feature not found/)).toBeInTheDocument();
 });

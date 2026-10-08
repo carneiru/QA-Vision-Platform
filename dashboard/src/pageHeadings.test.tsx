@@ -39,7 +39,7 @@ const ROUTES: [string, string][] = [
   ["/projects/42/cases/new", "New test case"],
   ["/projects/42/cases/import", "Import from Gherkin"],
   ["/projects/42/cases/12", "TC-12"],
-  ["/projects/42/cases/feature?path=features%2Flogin.feature", "login.feature"],
+  ["/projects/42/cases/feature?path=features%2Flogin.feature", "login"],
   ["/projects/42/suites", "Suites"],
   ["/projects/42/suites/3", "Suite"],
   ["/projects/42/settings", "Settings"],

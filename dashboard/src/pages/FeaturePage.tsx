@@ -10,7 +10,7 @@ import { featureLabel } from "../components/FeatureList";
 import GherkinBlock from "../components/GherkinBlock";
 import PageHeader from "../components/PageHeader";
 import RunControl from "../components/RunControl";
-import { GROUP_CASES_MAX, featureDetailQuery } from "../lib/featureQueries";
+import { GROUP_CASES_MAX, featureDetailQuery, fileLabel } from "../lib/featureQueries";
 import { useCanEdit } from "../lib/useCanEdit";
 
 const HEADING = /^\s*[^\s:#@|][^:#@|]*:/;
@@ -78,7 +78,7 @@ export default function FeaturePage() {
     }
   }
   const unplaced = source ? cases.filter((c) => !placed.has(c.number)) : [];
-  const title = data ? featureLabel(data) : path.slice(path.lastIndexOf("/") + 1) || "Feature";
+  const title = data ? featureLabel(data) : fileLabel(path) || "Feature";
 
   return (
     <section>
