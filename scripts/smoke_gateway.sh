@@ -124,6 +124,23 @@ check "ci target -> test-management-service" 200 GET "$BASE/api/v1/projects/$PRO
 body_has "... says whether running from QEOS is available" '"available"'
 check "run requests -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/run-requests" "${AUTH[@]}"
 body_has "... an empty list" '"total":0'
+# ---- report (spec 2026-10-08): case-areas and run-urls -> test-management; gzip on case-areas ----
+# 40 scenarios make the case-areas body larger than gzip_min_length (1024 bytes)
+AREAS_FEATURE="Feature: Report areas\n"
+for i in $(seq 1 40); do AREAS_FEATURE="${AREAS_FEATURE}  Scenario: report area scenario number $i with a long title\n    Given step $i\n"; done
+check "import 40 scenarios for case-areas" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/import" "${AUTH[@]}" \
+  -H "Content-Type: application/json" -d "{\"files\":[{\"path\":\"tests/features/report/areas.feature\",\"content\":\"$AREAS_FEATURE\"}]}"
+check "case-areas -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-areas" "${AUTH[@]}" \
+  -H "Accept-Encoding: gzip" --compressed
+body_has "... lists the imported folder" '"tests/features/report"'
+if grep -qi '^content-encoding: gzip' "$TMP/headers"; then pass "case-areas is gzip-encoded"; else fail "case-areas is not gzip-encoded"; fi
+# timing of one case-areas call (logged, not a hard limit)
+AREAS_MS="$(curl -ks -o /dev/null -w '%{time_total}' "${AUTH[@]}" -H 'Accept-Encoding: gzip' "$BASE/api/v1/projects/$PROJECT_ID/case-areas")"
+printf 'info  case-areas call took %ss\n' "$AREAS_MS"
+SINCE="$(date -u -d '-30 days' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-30d +%Y-%m-%dT%H:%M:%SZ)"
+check "run-urls -> test-management-service (not taken as a request id)" 200 GET \
+  "$BASE/api/v1/projects/$PROJECT_ID/run-requests/run-urls?since=$SINCE" "${AUTH[@]}"
+body_has "... an empty list" '"urls":[]'
 check "search cases by test keys -> test-management-service" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/cases/search" \
   "${AUTH[@]}" -H "Content-Type: application/json" -d '{"test_keys":[],"keys_mode":"exclude"}'
 check "latest-keys -> ingestion-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/latest-keys?status=any" "${AUTH[@]}"
@@ -244,6 +261,28 @@ check "analytics history of that test" 200 GET \
   "$BASE/api/v1/projects/$PROJECT_ID/analytics/tests/${FAILS_KEY:-0}/history" "${AUTH[@]}"
 body_has "... with its executions" '"executions":[{'
 check "analytics flaky" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/flaky" "${AUTH[@]}"
+# ---- report on PostgreSQL: one array parameter for keys and URLs, SET LOCAL statement_timeout, gzip ----
+TODAY="$(date -u +%Y-%m-%d)"
+FROM="$(date -u -d '-29 days' +%Y-%m-%d 2>/dev/null || date -u -v-29d +%Y-%m-%d)"
+REPORT_BODY="{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"summary\"],\"origin\":\"ci\",\"requested_run_urls\":[\"https://github.com/a/b/actions/runs/1\"],\"test_keys\":[\"${FAILS_KEY:-$(printf 'a%.0s' $(seq 64))}\"]}"
+check "analytics report -> ingestion-service" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
+  -H "Content-Type: application/json" -H "Accept-Encoding: gzip" --compressed -d "$REPORT_BODY"
+body_has "... counts the uploaded runs" '"scope":{"runs":'
+if grep -qi '^content-encoding: gzip' "$TMP/headers"; then pass "analytics report is gzip-encoded"; else fail "analytics report is not gzip-encoded"; fi
+# origin=qeos with a non-empty URL list: lower(ci_run_url) = ANY(array) on PostgreSQL
+QEOS_BODY="{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"summary\"],\"origin\":\"qeos\",\"requested_run_urls\":[\"HTTPS://GitHub.com/A/B/actions/runs/1\",\"https://github.com/a/b/actions/runs/2\"]}"
+check "analytics report origin=qeos with run URLs (lower(ci_run_url) = ANY)" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
+  -H "Content-Type: application/json" -d "$QEOS_BODY"
+body_has "... answers with a scope" '"scope":{"runs":'
+check "a report over 90 days is refused" 422 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
+  -H "Content-Type: application/json" -d '{"from":"2026-01-01","to":"2026-06-01","sections":["summary"]}'
+# gzip is not server-wide (BREACH): a large JSON response elsewhere and the login response stay plain
+check "trends over 90 days (a large response outside the two gzip locations)" 200 GET \
+  "$BASE/api/v1/projects/$PROJECT_ID/analytics/trends?days=90" "${AUTH[@]}" -H "Accept-Encoding: gzip"
+if grep -qi '^content-encoding: gzip' "$TMP/headers"; then fail "trends is gzip-encoded: gzip leaked out of its two locations"; else pass "trends is not compressed"; fi
+check "login is never compressed" 401 POST "$BASE/api/v1/auth/login" -H "Accept-Encoding: gzip" \
+  -H "Content-Type: application/json" -d '{"email":"nobody@example.com","password":"wrong-password-1"}'
+if grep -qi '^content-encoding: gzip' "$TMP/headers"; then fail "login is gzip-encoded"; else pass "login is not compressed"; fi
 
 
 check "revoke the key" 204 DELETE "$BASE/api/v1/projects/$PROJECT_ID/api-keys/$KEY_ID" "${AUTH[@]}"

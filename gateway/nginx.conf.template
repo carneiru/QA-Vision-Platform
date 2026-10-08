@@ -150,14 +150,40 @@ http {
             proxy_pass $upstream;
         }
 
+        # Report joins (ADR-026): every active case in one response; gzip only here and on
+        # analytics/report, never server-wide (compressing responses that carry secrets or echo input
+        # opens BREACH)
+        location ~ ^/api/v1/projects/[0-9]+/case-areas$ {
+            limit_req zone=api burst=40 nodelay;
+            gzip on;
+            gzip_proxied any;
+            gzip_types application/json;
+            gzip_min_length 1024;
+            set $upstream http://test-management-service:8000;
+            proxy_pass $upstream;
+        }
+
+
         # Regex, so it wins over project-service's /api/v1/projects prefix below
-        location ~ ^/api/v1/projects/[0-9]+/(cases|case-labels|case-folders|case-features|features|suites|ci-target|run-requests)(/|$) {
+        location ~ ^/api/v1/projects/[0-9]+/(cases|case-labels|case-folders|case-features|case-areas|features|suites|ci-target|run-requests)(/|$) {
             limit_req zone=api burst=40 nodelay;
             set $upstream http://test-management-service:8000;
             proxy_pass $upstream;
         }
 
         # ---- ingestion-service ----
+        # The report (spec 2026-10-08): a POST with up to 20,000 test keys (about 1.4 MB, under the
+        # 10m body cap); the response is gzipped here only
+        location ~ ^/api/v1/projects/[0-9]+/analytics/report$ {
+            limit_req zone=api burst=40 nodelay;
+            gzip on;
+            gzip_proxied any;
+            gzip_types application/json;
+            gzip_min_length 1024;
+            set $upstream http://ingestion-service:8000;
+            proxy_pass $upstream;
+        }
+
         # A regex location wins over prefix locations, so this takes /api/v1/projects/{id}/api-keys,
         # /runs, /analytics, /masking-patterns, /export and /notification-channels away from project-service's /api/v1/projects prefix below.
         location ~ ^/api/v1/projects/[0-9]+/(api-keys|runs|analytics|masking-patterns|export|notification-channels)(/|$) {
