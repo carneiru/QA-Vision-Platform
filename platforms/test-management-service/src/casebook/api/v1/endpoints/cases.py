@@ -27,6 +27,7 @@ def _case_or_404(db: Session, access: ProjectAccess, number: int):
 @router.get("", response_model=CaseList)
 def list_cases(
     search: Optional[str] = Query(None, max_length=200, pattern=NO_NUL),
+    search_in: Literal["scenario", "feature", "both"] = Query("scenario"),
     label: List[str] = Query([], max_length=20),
     status_filter: Optional[Status] = Query(None, alias="status"),
     priority: Optional[Priority] = Query(None),
@@ -42,7 +43,7 @@ def list_cases(
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
     total, rows = case_service.list_cases(
-        db, access.project_id, search=search, labels=label, status=status_filter, priority=priority,
+        db, access.project_id, search=search, search_in=search_in, labels=label, status=status_filter, priority=priority,
         include_archived=include_archived, origin=origin, limit=limit, offset=offset,
         folder=folder, linked=linked, feature=feature, ado=ado,
     )

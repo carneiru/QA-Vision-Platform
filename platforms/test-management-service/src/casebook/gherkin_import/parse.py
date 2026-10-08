@@ -47,6 +47,7 @@ class ParsedScenario:
 @dataclass
 class ParsedFile:
     path: str
+    feature_name: str = ""
     scenarios: List[ParsedScenario] = field(default_factory=list)
     errors: List[Issue] = field(default_factory=list)
     warnings: List[Issue] = field(default_factory=list)
@@ -73,6 +74,7 @@ def parse_feature(path: str, content: str) -> ParsedFile:
     if not feature:
         return result
     feature_name = (feature.get("name") or "").strip()
+    result.feature_name = feature_name
     seen: set = set()
     for child in feature.get("children", []):
         if "background" in child:

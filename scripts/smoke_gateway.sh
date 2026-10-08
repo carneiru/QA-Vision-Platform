@@ -116,6 +116,10 @@ body_has "... one case created" '"created":1'
 check "case folders -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-folders" "${AUTH[@]}"
 body_has "... the imported folder is listed" '"path":"tests/features"'
 check "case features -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/case-features" "${AUTH[@]}"
+check "features -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/features?search=smoke&search_in=feature" "${AUTH[@]}"
+body_has "... the imported file is grouped" '"path":"tests/features/smoke.feature"'
+check "feature detail -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/features/detail?path=tests/features/smoke.feature" "${AUTH[@]}"
+body_has "... carries the raw file" 'Feature: Smoke'
 check "ci target -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/ci-target" "${AUTH[@]}"
 body_has "... says whether running from QEOS is available" '"available"'
 check "run requests -> test-management-service" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/run-requests" "${AUTH[@]}"

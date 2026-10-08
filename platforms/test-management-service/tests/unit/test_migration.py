@@ -133,3 +133,31 @@ def test_downgrade_to_003_drops_the_run_tables_and_scenario_name(tmp_path):
     finally:
         engine.dispose()
     command.upgrade(cfg, "head")  # and up again
+
+
+FILE = ("INSERT INTO feature_files (project_id, path, feature_name, content, content_sha256, imported_at)"
+        " VALUES (:project, :path, 'F', 'x', :sha, '2026-10-08 10:00:00')")
+
+
+def test_feature_files_are_unique_per_project_and_path(migrated_engine):
+    sha = "a" * 64
+    with migrated_engine.begin() as conn:
+        conn.execute(text(FILE), {"project": 1, "path": "a.feature", "sha": sha})
+        conn.execute(text(FILE), {"project": 2, "path": "a.feature", "sha": sha})
+    with pytest.raises(IntegrityError), migrated_engine.begin() as conn:
+        conn.execute(text(FILE), {"project": 1, "path": "a.feature", "sha": sha})
+
+
+def test_downgrade_to_005_drops_feature_files_and_upgrades_again(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'down6.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "005")
+    engine = create_engine(url)
+    try:
+        assert "feature_files" not in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+    command.upgrade(cfg, "head")

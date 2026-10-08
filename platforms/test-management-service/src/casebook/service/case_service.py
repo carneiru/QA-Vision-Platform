@@ -112,11 +112,29 @@ def update_case(db: Session, row: Case, user_id: int, changes: dict) -> Case:
     return row
 
 
-def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: List[str], status: Optional[str],
-               priority: Optional[str], include_archived: bool, limit: int, offset: int,
-               origin: Optional[str] = None, folder: Optional[str] = None, linked: Optional[bool] = None,
-               feature: Optional[str] = None, ado: Optional[str] = None,
-               test_keys: Optional[List[str]] = None, keys_mode: str = "include"):
+def _search_clause(search: str, search_in: str):
+    """(filter, key_first ordering or None). scenario: title, Gherkin and TC key; feature: the Feature name
+    or the file path; both: either."""
+    pattern = f"%{_escape_like(search)}%"
+    feature_match = or_(Case.feature_name.ilike(pattern, escape="\\"), Case.source_path.ilike(pattern, escape="\\"))
+    if search_in == "feature":
+        return feature_match, None
+    text_match = or_(Case.title.ilike(pattern, escape="\\"), Case.gherkin.ilike(pattern, escape="\\"))
+    key_first = None
+    key = CASE_KEY.match(search)
+    if key:  # "TC-12", "tc12" and "12" also find case 12, which then sorts first
+        key_match = Case.number == int(key.group(1))
+        text_match = or_(text_match, key_match)
+        key_first = sql_case((key_match, 0), else_=1)
+    return (or_(text_match, feature_match) if search_in == "both" else text_match), key_first
+
+
+def filtered_cases(db: Session, project_id: int, *, search: Optional[str], labels: List[str],
+                   status: Optional[str], priority: Optional[str], include_archived: bool,
+                   origin: Optional[str] = None, folder: Optional[str] = None, linked: Optional[bool] = None,
+                   feature: Optional[str] = None, ado: Optional[str] = None,
+                   test_keys: Optional[List[str]] = None, keys_mode: str = "include", search_in: str = "scenario"):
+    """The query behind GET /cases and GET /features, and the ordering a TC-key search wants (or None)."""
     query = db.query(Case).filter(Case.project_id == project_id)
     if status is not None:
         query = query.filter(Case.status == status)
@@ -130,15 +148,8 @@ def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: L
         query = query.filter(Case.source_key.is_(None))
     key_first = None
     if search:
-        pattern = f"%{_escape_like(search)}%"
-        text_match = or_(Case.title.ilike(pattern, escape="\\"), Case.gherkin.ilike(pattern, escape="\\"))
-        key = CASE_KEY.match(search)
-        if key:  # "TC-12", "tc12" and "12" also find case 12, which then sorts first
-            key_match = Case.number == int(key.group(1))
-            query = query.filter(or_(text_match, key_match))
-            key_first = sql_case((key_match, 0), else_=1)
-        else:
-            query = query.filter(text_match)
+        clause, key_first = _search_clause(search, search_in)
+        query = query.filter(clause)
     for label in {label.lower() for label in labels}:
         query = query.filter(exists().where(CaseLabel.case_id == Case.id, CaseLabel.label == label))
     if folder:
@@ -157,6 +168,11 @@ def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: L
             query = query.filter(Case.automated_test_key.in_(keys)) if keys else query.filter(false())
         elif keys:
             query = query.filter(or_(Case.automated_test_key.is_(None), Case.automated_test_key.notin_(keys)))
+    return query, key_first
+
+
+def list_cases(db: Session, project_id: int, *, limit: int, offset: int, **filters):
+    query, key_first = filtered_cases(db, project_id, **filters)
     total = query.count()
     order = [key_first, Case.number] if key_first is not None else [Case.number]
     rows = query.order_by(*order).offset(offset).limit(limit).all()

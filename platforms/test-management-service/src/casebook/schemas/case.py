@@ -109,6 +109,7 @@ class CaseSearch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     search: Optional[Annotated[str, StringConstraints(max_length=200, pattern=r"^[^\x00]*$")]] = None
+    search_in: Literal["scenario", "feature", "both"] = "scenario"
     labels: List[Label] = Field(default_factory=list, max_length=20)
     status: Optional[Status] = None
     priority: Optional[Priority] = None

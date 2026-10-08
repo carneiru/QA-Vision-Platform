@@ -10,7 +10,7 @@ that implements it.
 
 In the platform stack: `docker compose up -d test-management-service`. That also runs
 `test-management-migrate` (`alembic upgrade head`) against `testmgmt_db`. The gateway routes
-`/api/v1/projects/{id}/(cases|case-labels|case-folders|case-features|suites|ci-target|run-requests)` here.
+`/api/v1/projects/{id}/(cases|case-labels|case-folders|case-features|features|suites|ci-target|run-requests)` here.
 
 On its own, for the container smoke test: `SECRET_KEY=… docker compose up --build`. It answers on
 port 8004, and its database is on 5437.
@@ -31,13 +31,15 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 
 | Method | Path | |
 |---|---|---|
-| `GET` | `/cases?search=&label=&label=&status=&priority=&origin=&folder=&linked=&feature=&ado=&include_archived=&limit=&offset=` | `{total, items}`; archived hidden unless asked; `origin=manual` or `imported`; search also matches the Gherkin text. A search of the form `TC-12`, `tc12` or `12` (1-9 digits, optional `TC`/`TC-`) also matches the case with that number, which sorts first (this applies to `POST /cases/search` too); `total` counts every match, the numbered case plus any whose title or Gherkin contains the digits. Filters are ANDed: `folder` (an imported case's `source_path` under that folder, subfolders included), `linked` (true: has an automated test), `feature` (the Gherkin Feature name), `ado` (digits only, else 422; matches the label `ado-<n>`) |
+| `GET` | `/cases?search=&label=&label=&status=&priority=&origin=&folder=&linked=&feature=&ado=&include_archived=&limit=&offset=` | `{total, items}`; archived hidden unless asked; `origin=manual` or `imported`; search also matches the Gherkin text. `search_in` (`scenario`, the default; `feature`; `both`) chooses what the search term is matched against: `scenario` is the title, Gherkin and TC key, `feature` the case's Feature name or file path, `both` either (also on `POST /cases/search`). A search of the form `TC-12`, `tc12` or `12` (1-9 digits, optional `TC`/`TC-`) also matches the case with that number, which sorts first (this applies to `POST /cases/search` too); `total` counts every match, the numbered case plus any whose title or Gherkin contains the digits. Filters are ANDed: `folder` (an imported case's `source_path` under that folder, subfolders included), `linked` (true: has an automated test), `feature` (the Gherkin Feature name), `ado` (digits only, else 422; matches the label `ado-<n>`) |
 | `POST` | `/cases/search` | the same filters as a JSON body (`labels` is a list and `linked` a boolean; `folder` and `feature` up to 500 characters, `ado` 1-12 digits), plus `test_keys` (up to 20 000 64-hex keys, more is 422) and `keys_mode` (`include` default, or `exclude`, which also keeps cases with no automated test); same response as `GET /cases`; every project role may call it. It exists because a list of keys does not fit in a URL |
 | `POST` | `/cases` | `title`, `description`, `steps[{action, expected}]`, `labels`, `priority`, `status`, `automated_test_key`, `automated_name` |
 | `POST` | `/cases/import?dry_run=` | `{files:[{path, content}], full, allow_mass_archive, expected_plan_hash}` (`full` and `allow_mass_archive` default to `false`); returns `{plan_hash, summary, items, errors, warnings}`; a dry run writes nothing; accepts an editor's JWT or the CI service token (ADR-024), whose changes are recorded as user 0; a `full` import that would archive over half the live imported cases is 409 `mass_archive` unless `allow_mass_archive` is true |
 | `GET` / `PATCH` | `/cases/{number}` | the single read also lists the case's suites; `automated_test_key: null` unlinks |
 | `GET` | `/case-labels` | labels in use (archived cases left out), with counts |
 | `GET` | `/case-folders` | `[{path, count}]` folders of imported cases; a count includes subfolders and leaves out archived cases |
+| `GET` | `/features?search=&search_in=&folder=&label=&status=&priority=&linked=&limit=&offset=` | `{total, items:[{feature_name, path, folder, case_count, case_numbers, has_source}]}`: the active cases the filters keep (those of `GET /cases`), grouped by `(feature_name, path)`, ordered by folder then feature name; all manual cases are one last group `{feature_name: null, path: null, folder: null}`. `case_numbers` are the first 200, by number; `has_source` is true when the raw file text is stored. `search_in` is `feature` (the Feature name or the path contains the term), `scenario` (title, Gherkin, TC key) or `both` (default); case-insensitive, `%` and `_` literal. `limit` defaults to 50, at most 200. Every project role |
+| `GET` | `/features/detail?path=` | `{feature_name, path, folder, content, imported_at, cases:[{number, key, title, scenario_name, status, priority, automated_test_key, line}]}`; `content` and `imported_at` are null until the file is imported again after this was added; `cases` are active only, in file order (`line` is the scenario's heading in the stored text) or by number when `line` is null; 404 when no active case has that path |
 | `GET` | `/case-features` | `[{feature, count}]` Gherkin Feature names of active imported cases, sorted by feature |
 | `GET` | `/suites?search=` | `search` (1-200 characters, no NUL, else 422): case-insensitive contains match on the suite name, `%` and `_` literal; every project role |
 | `POST` | `/suites` | name unique per project (409) |
@@ -134,6 +136,11 @@ plan that was previewed, or answers 409 `plan_changed`. See ADR-023.
 - The response carries `errors` (files skipped for a syntax error) and `warnings` (skipped
   scenarios and tags).
 - `summary.mass_archive` tells a dry run whether the guard would refuse the real import.
+- The raw text of every file that parsed is kept (table `feature_files`, one row per project and path,
+  upserted on each import, from the dashboard and from CI). A file over `IMPORT_MAX_FILE_BYTES`
+  (256 KiB by default) is refused with 413 as before, so stored text is never truncated. A `full`
+  import deletes the stored files that are no longer in the folder; a partial one keeps them.
+  `GET /features/detail` serves the text.
 - The automated link the import sets follows a move; a link picked by hand is never changed.
 
 ```

@@ -28,6 +28,11 @@ class Plan:
     errors: List[Issue] = field(default_factory=list)
     warnings: List[Issue] = field(default_factory=list)
     plan_hash: str = ""
+    # The raw files an apply keeps (path, feature name, content): those that parsed. `uploaded` is every
+    # path in the request, so a full import knows which stored files vanished from the folder.
+    sources: List[tuple] = field(default_factory=list)
+    uploaded: set = field(default_factory=set)
+    full: bool = False
 
     def summary(self) -> dict:
         counts = {name: 0 for name in SUMMARY_NAMES.values()}
@@ -89,8 +94,12 @@ def is_mass_archive(summary: dict, full: bool) -> bool:
     return full and live > 0 and summary["archived"] * 2 > live
 
 
+def uploaded_paths(files: List[ParsedFile]) -> List[str]:
+    return [f.path for f in files]
+
+
 def build_plan(files: List[ParsedFile], existing: List[Existing], full: bool) -> Plan:
-    plan = Plan(items=[])
+    plan = Plan(items=[], uploaded=set(uploaded_paths(files)), full=full)
     by_key: Dict[str, Existing] = {c.source_key: c for c in existing}
     uploaded = {f.path for f in files}
     broken = {f.path for f in files if f.errors}

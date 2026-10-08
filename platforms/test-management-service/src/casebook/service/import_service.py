@@ -1,4 +1,5 @@
 """Gherkin import against the database (ADR-023): load, plan, apply in one transaction."""
+import hashlib
 import re
 from datetime import datetime, timezone
 from typing import List, Tuple
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from src.casebook.gherkin_import.parse import parse_feature
 from src.casebook.gherkin_import.plan import Existing, Plan, build_plan, link_is_import_owned
-from src.casebook.models import Case, CaseLabel
+from src.casebook.models import Case, CaseLabel, FeatureFile
 
 PATH_LENGTH = 500
 DRIVE = re.compile(r"^[A-Za-z]:")
@@ -44,7 +45,30 @@ def load_existing(db: Session, project_id: int) -> List[Existing]:
 
 def plan_import(db: Session, project_id: int, files: List[Tuple[str, str]], full: bool) -> Plan:
     parsed = [parse_feature(path, content) for path, content in files]
-    return build_plan(parsed, load_existing(db, project_id), full)
+    plan = build_plan(parsed, load_existing(db, project_id), full)
+    raw = dict(files)
+    plan.sources = [(f.path, f.feature_name[:500], raw[f.path]) for f in parsed if not f.errors]
+    return plan
+
+
+def store_sources(db: Session, project_id: int, plan: Plan, now: datetime) -> None:
+    """Keep the raw text of every file that parsed (upsert by path). A full import also drops the stored
+    files that are no longer in the folder: their cases were archived by the same plan. Not committed here."""
+    kept = {row.path: row for row in db.query(FeatureFile).filter(
+        FeatureFile.project_id == project_id, FeatureFile.path.in_([p for p, _, _ in plan.sources])).all()}
+    for path, feature_name, content in plan.sources:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        row = kept.get(path)
+        if row is None:
+            db.add(FeatureFile(project_id=project_id, path=path, feature_name=feature_name, content=content,
+                               content_sha256=digest, imported_at=now))
+        elif row.content_sha256 != digest or row.feature_name != feature_name:
+            row.feature_name, row.content, row.content_sha256, row.imported_at = feature_name, content, digest, now
+    if plan.full:
+        stale = db.query(FeatureFile).filter(FeatureFile.project_id == project_id)
+        if plan.uploaded:
+            stale = stale.filter(FeatureFile.path.notin_(plan.uploaded))
+        stale.delete(synchronize_session=False)
 
 
 def _content(row: Case, scenario) -> None:
@@ -95,6 +119,7 @@ def apply_plan(db: Session, project_id: int, user_id: int, plan: Plan) -> Plan:
             if item.action == "reactivate":
                 row.status = "draft"
         row.updated_by, row.updated_at = user_id, now
+    store_sources(db, project_id, plan, now)
     try:
         db.commit()
     except IntegrityError as exc:
