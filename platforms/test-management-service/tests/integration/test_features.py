@@ -407,3 +407,41 @@ def test_fallback_handles_bare_cr_line_breaks(client, auth, member, db):
     db.query(FeatureFile).update({FeatureFile.content: feature("A", "s", "t").replace("\n", "\r")})
     db.commit()
     assert lines_of(client, auth, "a.feature") == [("s", 2), ("t", 4)]
+
+
+# --- list: test_keys ---------------------------------------------------------------------------------------
+
+def test_test_keys_are_distinct_sorted_and_skip_nulls(seeded, auth):
+    item = by_name(rows(seeded, auth))["Booking"]
+    assert len(item["test_keys"]) == 2 and item["test_keys"] == sorted(set(item["test_keys"]))
+    seeded.patch(f"{P}/cases/5", json={"automated_test_key": item["test_keys"][0]}, headers=auth())
+    assert by_name(rows(seeded, auth))["Booking"]["test_keys"] == [item["test_keys"][0]]
+    seeded.patch(f"{P}/cases/4", json={"automated_test_key": None}, headers=auth())
+    seeded.patch(f"{P}/cases/5", json={"automated_test_key": None}, headers=auth())
+    assert by_name(rows(seeded, auth))["Booking"]["test_keys"] == []
+    assert by_name(rows(seeded, auth))[None]["test_keys"] == []
+
+
+def test_test_keys_are_capped_at_200(client, auth, member):
+    many = "Feature: Big\n" + "".join(f"  Scenario: s{i}\n    Given x\n" for i in range(205))
+    do_import(client, auth, [("big.feature", many)])
+    item = rows(client, auth)["items"][0]
+    assert len(item["test_keys"]) == 200 and item["test_keys"] == sorted(item["test_keys"])
+
+
+def test_the_filters_apply_to_test_keys(seeded, auth):
+    both = by_name(rows(seeded, auth))["Booking"]["test_keys"]
+    seeded.patch(f"{P}/cases/4", json={"priority": "high"}, headers=auth())
+    only = by_name(rows(seeded, auth, "?priority=high"))["Booking"]["test_keys"]
+    assert len(both) == 2 and len(only) == 1 and only[0] in both
+    seeded.patch(f"{P}/cases/5", json={"status": "archived"}, headers=auth())
+    assert len(by_name(rows(seeded, auth))["Booking"]["test_keys"]) == 1
+
+
+def test_test_keys_are_per_project(client, auth, project_role):
+    project_role("member", project_id=1)
+    project_role("member", project_id=2)
+    do_import(client, auth, [("a.feature", feature("A", "s"))])
+    client.post("/api/v1/projects/2/cases/import", json={"files": [{"path": "a.feature", "content": feature("A", "s", "t")}]},
+                headers=auth())
+    assert len(rows(client, auth)["items"][0]["test_keys"]) == 1

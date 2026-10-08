@@ -10,6 +10,7 @@ class FeatureItem(BaseModel):
     folder: Optional[str] = None
     case_count: int
     case_numbers: List[int]  # the first 200, by number
+    test_keys: List[str] = []  # distinct automated_test_keys of the cases, sorted, at most 200
     has_source: bool  # the raw file text is stored
     linked_count: int  # cases with an automated_test_key
     top_priority: Optional[Literal["critical", "high", "medium", "low"]] = None  # the highest in the group

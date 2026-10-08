@@ -11,6 +11,7 @@ from src.casebook.models import Case, FeatureFile
 from src.casebook.service.case_service import case_key, filtered_cases
 
 CASE_NUMBERS_SHOWN = 200
+TEST_KEYS_SHOWN = 200
 PRIORITIES = ("low", "medium", "high", "critical")  # lowest first: the rank is the index
 STATUSES = ("draft", "ready", "archived")
 
@@ -38,21 +39,25 @@ def list_features(db: Session, project_id: int, *, limit: int, offset: int, **fi
     groups.sort(key=lambda g: (g[1] is None, folder_of(g[1]) or "", (g[0] or "").casefold(), g[1] or ""))
     page = groups[offset:offset + limit]
     numbers = defaultdict(list)
+    keys = defaultdict(set)
     if page:
         wanted = or_(*[and_(Case.feature_name == name if name is not None else Case.feature_name.is_(None),
                             Case.source_path == path if path is not None else Case.source_path.is_(None))
                        for name, path, *_ in page])
         rows = query.filter(wanted).order_by(Case.number).with_entities(
-            Case.number, Case.feature_name, Case.source_path).all()
-        for number, name, path in rows:
+            Case.number, Case.feature_name, Case.source_path, Case.automated_test_key).all()
+        for number, name, path, test_key in rows:
             numbers[(name, path)].append(number)
+            if test_key:
+                keys[(name, path)].add(test_key)
     stored = set()
     paths = [p for _, p, *_ in page if p is not None]
     if paths:
         stored = {p for (p,) in db.query(FeatureFile.path).filter(
             FeatureFile.project_id == project_id, FeatureFile.path.in_(paths)).all()}
     items = [{"feature_name": name, "path": path, "folder": folder_of(path), "case_count": count,
-              "case_numbers": numbers[(name, path)][:CASE_NUMBERS_SHOWN], "has_source": path in stored,
+              "case_numbers": numbers[(name, path)][:CASE_NUMBERS_SHOWN],
+              "test_keys": sorted(keys[(name, path)])[:TEST_KEYS_SHOWN], "has_source": path in stored,
               "linked_count": linked, "top_priority": PRIORITIES[top] if top >= 0 else None,
               "status_counts": dict(zip(STATUSES, (int(n) for n in per_status)))}
              for name, path, count, linked, top, *per_status in page]
