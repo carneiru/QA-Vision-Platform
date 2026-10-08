@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import Message from "../components/Message";
 import StatusDot from "../components/StatusDot";
 import { oneOf, useUrlState } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const DEFAULTS = { status: "" } as const;
 const STATUSES = ["passed", "failed", "errored", "skipped"] as const;
@@ -43,7 +44,14 @@ export default function RunDetailPage() {
   const start = Math.min(offset, Math.max(0, Math.floor((ordered.length - 1) / PAGE) * PAGE));
   const shown = ordered.slice(start, start + PAGE);
   // A new page starts at the top of the table: after Next the reader would otherwise be left at the bottom of the old one
-  const tableRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
+  const setCard = card.ref;
+  const cardRef = useCallback((node: HTMLDivElement | null) => {
+    tableRef.current = node;
+    setCard(node);
+  }, [setCard]);
   const shownStart = useRef(start);
   useEffect(() => {
     if (shownStart.current !== start) tableRef.current?.scrollIntoView?.({ block: "start" });
@@ -177,7 +185,7 @@ export default function RunDetailPage() {
           {run.results.length === 0 ? (
             <p className="muted">No {status || ""} results in this run.</p>
           ) : (
-            <div className="card" ref={tableRef} tabIndex={0} role="region" aria-label="Test results">
+            <div className={tableCardClass(card.wide)} ref={cardRef} tabIndex={0} role="region" aria-label="Test results">
               <table className="data">
                 <thead>
                   <tr>

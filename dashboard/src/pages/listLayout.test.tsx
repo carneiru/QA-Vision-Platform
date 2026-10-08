@@ -136,13 +136,13 @@ describe("Cases chips", () => {
     }
   });
 
-  test("status is a pill, and Priority is a right-aligned number column", async () => {
+  test("status is a pill; Priority is a word, so it stays left-aligned", async () => {
     renderCases();
     const table = (await screen.findByText("Case 1")).closest("table")!;
     expect(within(table).getByText("Draft").closest(".pill")).toHaveClass("pill-neutral");
     expect(within(table).getByText("Ready").closest(".pill")).toHaveClass("pill-ready");
-    expect(within(table).getByRole("columnheader", { name: "Priority" })).toHaveClass("num");
-    expect(within(table).getAllByRole("row")[2].querySelector("td.num")).toHaveTextContent("high");
+    expect(within(table).getByRole("columnheader", { name: "Priority" })).not.toHaveClass("num");
+    expect(within(table).getAllByRole("row")[2].querySelector("td.num")).toBeNull();
   });
 });
 
@@ -209,7 +209,7 @@ describe("Tests and Flaky", () => {
     expect(where().has("search")).toBe(false);
   });
 
-  test("Flaky: Quarantined is a quick chip over the include-quarantined filter; rate and runs are number columns", async () => {
+  test("Flaky: no quick chip (Show quarantined stays the one control); rate and runs are number columns", async () => {
     const seen: (string | null)[] = [];
     server.use(http.get(`${P}/analytics/flaky`, ({ request }) => {
       seen.push(new URL(request.url).searchParams.get("include_muted"));
@@ -223,9 +223,12 @@ describe("Tests and Flaky", () => {
     for (const name of [/^Flips/, /^Flip rate/, /^Runs/]) {
       expect(within(table).getByRole("columnheader", { name })).toHaveClass("num");
     }
-    await userEvent.click(chip("Quarantined"));
+    expect(screen.queryByRole("button", { name: "Quarantined" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("Show quarantined"));
     expect(where().get("muted")).toBe("1");
     await waitFor(() => expect(seen[seen.length - 1]).toBe("true"));
+    // Thresholds and the include-quarantined switch are not chips; nothing to list
+    expect(chips()).toBeEmptyDOMElement();
   });
 });
 
@@ -250,4 +253,76 @@ test("Requested runs: the status is a pill with its detail beside it, and Cases 
   const failed = within(table).getByText("Didn't start").closest(".pill")!;
   expect(failed).toHaveClass("pill-errored");
   expect(failed.closest("td")).toHaveTextContent("Didn't start no workflow");
+});
+
+// --- Fix round 1 -----------------------------------------------------------------------------
+
+describe("fix round 1", () => {
+  const narrow = () => {
+    window.matchMedia = ((query: string) => ({
+      matches: true, media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  };
+  afterEach(() => {
+    // @ts-expect-error restore jsdom default (no matchMedia)
+    delete window.matchMedia;
+  });
+
+  test("Cases: a quick chip does not open the Filters disclosure; a filter only the form shows does", async () => {
+    mockCases();
+    narrow();
+    renderCases("/projects/42/cases?status=ready&linked=true");
+    await screen.findByText("Case 1");
+    const details = () => screen.getByText(/^Filters/, { selector: "summary" }).closest("details")!;
+    expect(details()).not.toHaveAttribute("open");
+    await userEvent.click(chip("Failing"));
+    expect(details()).not.toHaveAttribute("open");
+    // The summary still counts every filter inside it
+    expect(screen.getByText("Filters (3 active)", { selector: "summary" })).toBeInTheDocument();
+  });
+
+  test("Cases: a filter with no quick chip still opens the disclosure on a narrow screen", async () => {
+    mockCases();
+    narrow();
+    renderCases("/projects/42/cases?status=archived");
+    await screen.findByText("Case 1");
+    expect(screen.getByText(/^Filters/, { selector: "summary" }).closest("details")).toHaveAttribute("open");
+  });
+
+  test("Cases: pressing a chip keeps Search text that was typed but not applied", async () => {
+    mockCases();
+    renderCases();
+    await screen.findByText("Case 1");
+    await userEvent.type(screen.getByLabelText("Search"), "legroom");
+    await userEvent.click(chip("Ready"));
+    expect(where().get("status")).toBe("ready");
+    expect(screen.getByLabelText("Search")).toHaveValue("legroom");
+  });
+
+  test("Runs: the More filters disclosure stays open when its last chip is removed", async () => {
+    server.use(http.get(`${P}/runs`, () => HttpResponse.json([run(61)])));
+    renderAt("/projects/:projectId/runs", "/projects/42/runs?environment=staging", <RunsPage />);
+    await screen.findByRole("link", { name: "#61" });
+    const details = screen.getByText(/More filters/, { selector: "summary" }).closest("details")!;
+    expect(details).toHaveAttribute("open");
+    await userEvent.click(within(chips()).getByRole("button", { name: "Remove filter Environment: staging" }));
+    expect(where().has("environment")).toBe(false);
+    expect(details).toHaveAttribute("open");
+  });
+
+  test("Runs: a filter change announces the count in the existing status line", async () => {
+    server.use(http.get(`${P}/runs`, ({ request }) => {
+      const failing = new URL(request.url).searchParams.get("status") === "failing";
+      return HttpResponse.json(failing ? [run(61)] : [run(61), run(62)]);
+    }));
+    renderAt("/projects/:projectId/runs", "/projects/42/runs", <RunsPage />);
+    await screen.findByRole("link", { name: "#62" });
+    // Nothing on first load
+    expect(document.querySelector("p.live-note")).toBeEmptyDOMElement();
+    await userEvent.click(chip("Failed"));
+    expect(await screen.findByText("1 run")).toHaveAttribute("role", "status");
+    await userEvent.click(chip("Failed"));
+    expect(await screen.findByText("2 runs")).toHaveAttribute("role", "status");
+  });
 });

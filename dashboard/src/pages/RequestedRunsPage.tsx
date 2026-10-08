@@ -11,6 +11,7 @@ import { RUN_POLL_MS } from "../lib/useRunGate";
 import { useUserNames } from "../lib/useUserNames";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const PAGE = 50;
 const PILL_TONE: Record<RunTone, PillTone> = {
@@ -25,6 +26,8 @@ function splitStatus(text: string): [string, string] {
 
 /** Runs → Requested runs: every Play, who pressed it, how it ended, and where its results are. */
 export default function RequestedRunsPage() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId } = useParams();
   const id = Number(projectId);
   const [params, setParams] = useSearchParams();
@@ -52,7 +55,7 @@ export default function RequestedRunsPage() {
       {list.isPending && <p className="muted">Loading requested runs…</p>}
       {list.data && list.data.total === 0 && <p className="muted">No runs requested from QEOS yet.</p>}
       {items.length > 0 && (
-        <div className="card" tabIndex={0} role="region" aria-label="Requested runs">
+        <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Requested runs">
           <table className="data">
             <thead>
               <tr>

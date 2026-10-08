@@ -323,17 +323,19 @@ test("picking a folder also applies edits made to the other filters but not yet 
   expect(screen.getByTestId("where")).toHaveTextContent("priority=high");
 });
 
-test("Clear filters is only shown while a filter is active", async () => {
+test("Clear all is only shown while a filter is active", async () => {
   asRole("member");
   renderAt("/projects/42/cases");
   await screen.findByRole("button", { name: "Apply" });
-  expect(screen.queryByRole("button", { name: "Clear filters" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
 });
 
-test("Clear filters appears with a filter and resets the URL", async () => {
+test("Clear all appears with a filter and resets the URL; the form has no second clear button", async () => {
   asRole("member");
   renderAt("/projects/42/cases?priority=high");
-  await userEvent.click(await screen.findByRole("button", { name: "Clear filters" }));
+  await screen.findByRole("button", { name: "Clear all" });
+  expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Clear all" }));
   await waitFor(() => expect(screen.getByTestId("where")).not.toHaveTextContent("priority"));
 });
 
@@ -391,7 +393,7 @@ test("clear filters resets everything", async () => {
   asRole("member"); facets();
   server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })));
   renderAt("/projects/42/cases?status=ready&folder=tests&linked=true");
-  await userEvent.setup().click(await screen.findByRole("button", { name: /clear filters/i }));
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Clear all" }));
   expect(screen.getByTestId("where")).toHaveTextContent(/^\/projects\/42\/cases$/);
 });
 

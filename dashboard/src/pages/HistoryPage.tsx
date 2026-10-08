@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatDuration, formatPassRate, getHistory } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
@@ -15,6 +16,8 @@ const DEFAULTS = { days: "30", branch: "" } as const;
 const DAYS = ["7", "30", "90"] as const;
 
 export default function HistoryPage() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId, testKey } = useParams();
   const id = Number(projectId);
   const { values, update } = useUrlState(DEFAULTS, 1);
@@ -81,7 +84,7 @@ export default function HistoryPage() {
           {data.executions.length === 0 ? (
             <p className="muted">No executions in the last {days} days.</p>
           ) : (
-            <div className="card" tabIndex={0} role="region" aria-label="Executions">
+            <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Executions">
               <table className="data">
                 <thead>
                   <tr>

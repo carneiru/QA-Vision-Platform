@@ -13,6 +13,7 @@ import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const PAGE = 50;
 const DEFAULTS = { days: "30", sort: "failed", dir: "", search: "" } as const;
@@ -25,6 +26,8 @@ const SERVER_SORT = { name: "name", failed: "failures", duration: "duration" } a
 const DEFAULT_SORT: SortState<SortKey> = { key: "failed", dir: "desc" };
 
 export default function TestsPage() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId } = useParams();
   const id = Number(projectId);
   const { values, offset, update, setOffset } = useUrlState(DEFAULTS, PAGE);
@@ -124,7 +127,7 @@ export default function TestsPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card" tabIndex={0} role="region" aria-label="Tests">
+        <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Tests">
           <table className="data">
             <thead>
               <tr>

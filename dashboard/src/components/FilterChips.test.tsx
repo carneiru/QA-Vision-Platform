@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
@@ -90,4 +91,51 @@ test("+ Filter is shown when the page has more filters, and calls back", async (
 test("no + Filter without a disclosure to open", () => {
   setup({});
   expect(screen.queryByRole("button", { name: "+ Filter" })).not.toBeInTheDocument();
+});
+
+/** FilterChips over local state, as a page drives it from the URL */
+function Live({ initial }: { initial: Record<string, string> }) {
+  const [values, setValues] = useState(initial);
+  const names: Record<string, string> = { status: "Status", label: "Label", q: "Search" };
+  const applied = Object.entries(values).filter(([, v]) => v).map(([key, value]) => ({ key, name: names[key], value }));
+  return (
+    <>
+      <button type="button">before</button>
+      <FilterChips quick={QUICK} values={values} applied={applied}
+        onChange={(patch) => setValues((v) => ({ ...v, ...patch }))}
+        onClearAll={() => setValues({})} />
+    </>
+  );
+}
+
+test("removing a chip moves focus to the next chip", async () => {
+  render(<Live initial={{ label: "flights", q: "legroom" }} />);
+  await userEvent.click(screen.getByRole("button", { name: "Remove filter Label: flights" }));
+  expect(screen.getByRole("button", { name: "Remove filter Search: legroom" })).toHaveFocus();
+});
+
+test("removing the last chip moves focus to the previous chip", async () => {
+  render(<Live initial={{ label: "flights", q: "legroom" }} />);
+  await userEvent.click(screen.getByRole("button", { name: "Remove filter Search: legroom" }));
+  expect(screen.getByRole("button", { name: "Remove filter Label: flights" })).toHaveFocus();
+});
+
+test("Clear all moves focus to the chip group, never the page body", async () => {
+  render(<Live initial={{ status: "ready", label: "flights" }} />);
+  await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
+  expect(screen.getByRole("group", { name: "Quick filters" })).toHaveFocus();
+  expect(document.body).not.toHaveFocus();
+});
+
+test("with no quick chips, removing the only chip still leaves focus in the row", async () => {
+  function NoQuick() {
+    const [q, setQ] = useState("legroom");
+    return (
+      <FilterChips values={{ q }} applied={q ? [{ key: "q", name: "Search", value: q }] : []}
+        onChange={(patch) => setQ(patch.q ?? q)} onClearAll={() => setQ("")} />
+    );
+  }
+  render(<NoQuick />);
+  await userEvent.click(screen.getByRole("button", { name: "Remove filter Search: legroom" }));
+  expect(screen.getByRole("group", { name: "Quick filters" })).toHaveFocus();
 });

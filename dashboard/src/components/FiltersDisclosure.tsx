@@ -19,21 +19,24 @@ function remembered(key: string): boolean | null {
 /** The secondary filters of a list, behind a "Filters (n active)" summary. Open on wide screens;
  *  closed on phones, where ten fields would fill the first screen. A reader's own choice is
  *  remembered for the session, but active filters are never hidden: they open it whatever was remembered. */
-export default function FiltersDisclosure({ id, active, children, detailsRef }: {
+export default function FiltersDisclosure({ id, active, reveal = active, children, detailsRef }: {
   id: string;
+  /** How many filters inside are applied (the summary count) */
   active: number;
+  /** How many of those only the form shows: these open it. A filter a pressed quick chip already shows does not. */
+  reveal?: number;
   children: ReactNode;
   /** The details element, for "+ Filter" to open it (revealFilters) */
   detailsRef?: Ref<HTMLDetailsElement>;
 }) {
   const storageKey = `qeos.filters.${id}`;
   // Active filters win over the remembered choice: a link with filters in it must show them
-  const [open, setOpen] = useState(() => active > 0 || (remembered(storageKey) ?? !isNarrow()));
-  const hadActive = useRef(active > 0);
+  const [open, setOpen] = useState(() => reveal > 0 || (remembered(storageKey) ?? !isNarrow()));
+  const hadActive = useRef(reveal > 0);
   useEffect(() => {
-    if (active > 0 && !hadActive.current) setOpen(true);
-    hadActive.current = active > 0;
-  }, [active]);
+    if (reveal > 0 && !hadActive.current) setOpen(true);
+    hadActive.current = reveal > 0;
+  }, [reveal]);
   return (
     <details
       ref={detailsRef}

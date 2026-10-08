@@ -16,6 +16,7 @@ import SortableTh from "../components/SortableTh";
 import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useUrlState } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const axisTick = { fill: "var(--text-secondary)", fontSize: 12 } as const;
 const tooltipStyles = {
@@ -50,6 +51,8 @@ export default function BranchesPage() {
 
 /** The view without its header: the shell loads it lazily under an already rendered PageHeader, so the h1 keeps focus. */
 export function BranchesView() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId } = useParams();
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -201,7 +204,7 @@ export function BranchesView() {
       )}
 
       {rows.length > 0 && (
-        <div className="card" tabIndex={0} role="region" aria-label="Branches">
+        <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Branches">
           <table className="data">
             <thead>
               <tr>

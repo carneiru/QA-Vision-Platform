@@ -135,10 +135,12 @@ test("more filters send commit, PR, CI and a local date range", async () => {
   expect(screen.getByTestId("location")).toHaveTextContent("from=2026-10-01");
 });
 
-test("clear filters drops every filter and refetches", async () => {
+test("Clear all drops every filter and refetches; the form has no second clear button", async () => {
   const seen = captureQueries();
-  renderRuns("/projects/42/runs?status=passing&branch=main");
-  await userEvent.click(await screen.findByRole("button", { name: /clear filters/i }));
+  renderRuns("/projects/42/runs?status=passing&branch=main&environment=qa&author=ana&from=2026-10-01");
+  await screen.findByRole("button", { name: "Clear all" });
+  expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
   await screen.findByText(/no runs yet/i);
   const q = seen[seen.length - 1];
   expect([...q.keys()].sort()).toEqual(["limit", "offset"]);

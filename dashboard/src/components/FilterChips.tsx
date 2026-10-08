@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Check, Plus, X } from "lucide-react";
 
 /** A one-press filter: sets `key` to `value` in the URL. Chips sharing a key are one choice. */
@@ -28,16 +29,35 @@ interface Props {
 }
 
 /** The chips row between the filter form and the table: quick filters as toggle buttons, then every other
- *  filter in force as a removable chip, "+ Filter" and "Clear all". It only reads and patches URL values. */
+ *  filter in force as a removable chip, "+ Filter" and "Clear all". It only reads and patches URL values.
+ *  The row is always mounted (empty when there is nothing to show) so focus can return to it. */
 export default function FilterChips({ quick = [], values, applied, onChange, onClearAll, onAddFilter }: Props) {
   const isOn = (c: QuickChip) => (values[c.key] ?? "") === c.value;
   const shownByQuick = (f: AppliedFilter) => quick.some((c) => c.key === f.key && isOn(c));
   const removable = applied.filter((f) => !shownByQuick(f));
   const anyApplied = removable.length > 0 || quick.some(isOn);
-  // A page with no quick chips shows the row only while something is applied
-  if (quick.length === 0 && removable.length === 0 && !onAddFilter) return null;
+
+  // A removed chip (or Clear all) unmounts the focused button: once the URL has caught up, focus goes to the chip
+  // that took its place, else the one before it, else the row itself. Never the page body.
+  const groupRef = useRef<HTMLDivElement>(null);
+  const pending = useRef<{ key: string | null; index: number } | null>(null);
+  const removedKeys = removable.map((f) => f.key).join("|");
+  useEffect(() => {
+    const want = pending.current;
+    const group = groupRef.current;
+    if (!want || !group) return;
+    if (want.key !== null && removedKeys.split("|").includes(want.key)) return; // not applied yet
+    if (want.key === null && anyApplied) return;
+    pending.current = null;
+    const chips = [...group.querySelectorAll<HTMLElement>("button.fchip, button.fchip-remove")];
+    const target = want.key === null ? null : chips[want.index] ?? chips[want.index - 1];
+    (target ?? group).focus();
+  }, [removedKeys, anyApplied]);
+  const chipIndex = (el: HTMLElement) =>
+    [...(groupRef.current?.querySelectorAll("button.fchip, button.fchip-remove") ?? [])].indexOf(el);
+
   return (
-    <div className="filter-chips" role="group" aria-label="Quick filters">
+    <div ref={groupRef} className="filter-chips" role="group" aria-label="Quick filters" tabIndex={-1}>
       {quick.map((c) => {
         const on = isOn(c);
         return (
@@ -56,7 +76,10 @@ export default function FilterChips({ quick = [], values, applied, onChange, onC
       {removable.map((f) => (
         <span key={f.key} className="fchip fchip-applied">
           <span>{`${f.name}: ${f.value}`}</span>
-          <button type="button" className="fchip-remove" aria-label={`Remove filter ${f.name}: ${f.value}`} onClick={() => onChange({ [f.key]: "" })}>
+          <button type="button" className="fchip-remove" aria-label={`Remove filter ${f.name}: ${f.value}`} onClick={(e) => {
+              pending.current = { key: f.key, index: chipIndex(e.currentTarget) };
+              onChange({ [f.key]: "" });
+            }}>
             <X size={12} aria-hidden="true" />
           </button>
         </span>
@@ -68,7 +91,10 @@ export default function FilterChips({ quick = [], values, applied, onChange, onC
         </button>
       )}
       {anyApplied && (
-        <button type="button" className="ghost fchip-clear" onClick={onClearAll}>
+        <button type="button" className="ghost fchip-clear" onClick={() => {
+          pending.current = { key: null, index: 0 };
+          onClearAll();
+        }}>
           Clear all
         </button>
       )}

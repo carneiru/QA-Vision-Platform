@@ -16,6 +16,7 @@ import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { LIVE_REFRESH_MS } from "../lib/live";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const PAGE = 50;
 // The API has no sort parameter for runs: the columns sort the page that is loaded
@@ -84,6 +85,8 @@ function toFilters(v: Values): RunFilters {
 }
 
 export default function RunsPage() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId } = useParams();
   const id = Number(projectId);
   const [params, setParams] = useSearchParams();
@@ -141,6 +144,20 @@ export default function RunsPage() {
     newest.current = { view, top: Math.max(top, seen?.view === view ? seen.top : 0) };
   }, [query.data, query.isPlaceholderData, offset, view]);
 
+  // A filter change is announced once its runs arrive ("12 runs"), in the same status line as new runs
+  const filterKey = KEYS.map((k) => applied[k]).join("\u0000");
+  const announcedFor = useRef<string | null>(null);
+  const [countNote, setCountNote] = useState("");
+  useEffect(() => {
+    const data = query.data;
+    if (!data || query.isPlaceholderData) return;
+    if (announcedFor.current !== null && announcedFor.current !== filterKey) {
+      const n = data.length;
+      setCountNote(n >= PAGE ? `${PAGE}+ runs` : `${n} run${n === 1 ? "" : "s"}`);
+    }
+    announcedFor.current = filterKey;
+  }, [query.data, query.isPlaceholderData, filterKey]);
+
   function set(key: Key, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
   }
@@ -177,6 +194,13 @@ export default function RunsPage() {
     });
   }
   const moreRef = useRef<HTMLDetailsElement>(null);
+  // Controlled, so removing the last advanced filter does not fold it under the reader; a new one opens it
+  const [moreOpen, setMoreOpen] = useState(advancedActive > 0);
+  const hadAdvanced = useRef(advancedActive > 0);
+  useEffect(() => {
+    if (advancedActive > 0 && !hadAdvanced.current) setMoreOpen(true);
+    hadAdvanced.current = advancedActive > 0;
+  }, [advancedActive]);
 
   function clearFilters() {
     const next = new URLSearchParams();
@@ -199,13 +223,9 @@ export default function RunsPage() {
             <input value={form.branch} onChange={(e) => set("branch", e.target.value)} placeholder="all" />
           </label>
           <button type="submit" className="primary">Apply</button>
-          {active > 0 && (
-            <button type="button" className="ghost" onClick={clearFilters}>
-              Clear filters
-            </button>
-          )}
         </FilterBar>
-        <details ref={moreRef} className="more-filters" open={advancedActive > 0 || undefined}>
+        <details ref={moreRef} className="more-filters" open={moreOpen}
+          onToggle={(e) => setMoreOpen((e.currentTarget as HTMLDetailsElement).open)}>
           <summary><ChevronRight size={14} aria-hidden="true" className="chevron" /> More filters{advancedActive > 0 && ` (${advancedActive} active)`}</summary>
           <FilterBar>
             <label>
@@ -248,7 +268,7 @@ export default function RunsPage() {
         onClearAll={clearFilters} onAddFilter={() => revealFilters(moreRef.current)} />
 
       <p role="status" className="muted live-note">
-        {fresh.size > 0 && `${fresh.size} new run${fresh.size === 1 ? "" : "s"}`}
+        {fresh.size > 0 ? `${fresh.size} new run${fresh.size === 1 ? "" : "s"}` : countNote}
       </p>
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading runs…</p>}
@@ -268,7 +288,7 @@ export default function RunsPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card" tabIndex={0} role="region" aria-label="Runs">
+        <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Runs">
           <table className="data">
             <thead>
               <tr>

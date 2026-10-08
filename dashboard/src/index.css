@@ -64,6 +64,8 @@
   --radius-sm: 6px;
   --radius: 10px;
   --topbar-height: 48px;
+  /* A sortable table header row: 8px + a 24px sort button + 8px + its 1px rule */
+  --thead-height: 41px;
   --rail-width: 56px;
   --rail-expanded-width: 220px;
   /* Inter (self-hosted, @fontsource-variable/inter): built for UI text at small sizes; system fonts stay as fallback */
@@ -362,15 +364,15 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 @media (max-width: 640px) { table.data .hide-narrow { display: none; } }
 .badge-failed { color: var(--danger-text); border-color: color-mix(in srgb, var(--status-failed) 40%, transparent); }
 
-/* Sticky table headers (wide screens). A card with a table normally scrolls sideways inside itself, but a scroll box
-   would also capture the sticky header; from 1024px the card stays open and long cell text wraps anywhere instead,
-   so the table fits. The page's scroll-padding then covers the top bar and the header band, so a row reached by
-   keyboard never lands under them (WCAG 2.4.11). */
-@media (min-width: 1024px) {
-  html { scroll-padding-top: calc(var(--topbar-height) + 32px + var(--space-2)); }
-  .card:has(table.data) { overflow-x: visible; }
-  table.data td { overflow-wrap: anywhere; }
-  table.data thead th { position: sticky; top: var(--topbar-height); z-index: 2; }
+/* Sticky table headers. A table card scrolls sideways inside itself, and a scroll box would capture a sticky header,
+   so only a list card whose table fits (`sticky-head` without `is-wide`, measured by useIsWide) opens up and sticks
+   its header under the top bar; a wide table keeps its scroll and a plain header. The page's scroll-padding covers
+   the top bar and the header row, so a row reached by keyboard never lands under them (WCAG 2.4.11). Phones (the
+   top bar wraps there) keep the scroll and their own padding. */
+@media (min-width: 641px) {
+  html { scroll-padding-top: calc(var(--topbar-height) + var(--thead-height) + var(--space-2)); }
+  .card.sticky-head:not(.is-wide) { overflow-x: visible; }
+  .card.sticky-head:not(.is-wide) table.data thead th { position: sticky; top: var(--topbar-height); z-index: 2; }
 }
 
 /* ---- Status pills ---- */
@@ -385,6 +387,10 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 
 /* ---- Filter chips: quick filters, applied filters, "+ Filter", "Clear all" ---- */
 .filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 var(--space-3); }
+/* Kept (empty) after the last chip goes, so focus has somewhere to land; it takes no room */
+.filter-chips:empty { margin: 0; }
+.filter-chips:focus { outline: none; }
+.filter-chips:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
 .fchip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-secondary); font-size: 12.5px; font-weight: 500; line-height: 18px; }
 button.fchip:hover:not(:disabled) { background: var(--hover-strong); color: var(--text-primary); }
 /* Pressed: accent edge, the cyan wash layered on Paper (Link Cyan on it is 4.76:1 light, 9.43 dark) and a tick */

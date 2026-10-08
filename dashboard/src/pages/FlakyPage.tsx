@@ -13,6 +13,7 @@ import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const UNDO_MS = 8000;
 const DEFAULTS = { window: "14", min_runs: "5", min_flip: "0.3", branch: "", muted: "", sort: "", dir: "" } as const;
@@ -25,10 +26,9 @@ const WINDOWS = ["7", "14", "30", "90"] as const;
 const clampRuns = (raw: string) => Math.min(1000, Math.max(2, Math.round(Number(raw) || 0)));
 const clampRate = (raw: string) => Math.min(1, Math.max(0, Number(raw) || 0));
 
-// "Show quarantined" as a chip; the API has no reason filter, so there is no "Suspected" chip
-const QUICK = [{ key: "muted", value: "1", label: "Quarantined" }];
-
 export default function FlakyPage() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId } = useParams();
   const id = Number(projectId);
   const { values, update } = useUrlState(DEFAULTS, 1);
@@ -174,7 +174,8 @@ export default function FlakyPage() {
           </label>
         </FilterBar>
       </form>
-      <FilterChips quick={QUICK} values={values} applied={applied} onChange={update}
+      {/* No quick chips: "Show quarantined" stays the one control for it, and the API has no reason filter */}
+      <FilterChips values={values} applied={applied} onChange={update}
         onClearAll={() => update({ window: "", min_runs: "", min_flip: "", branch: "", muted: "" })} />
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
@@ -204,7 +205,7 @@ export default function FlakyPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="card" tabIndex={0} role="region" aria-label="Flaky tests">
+        <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Flaky tests">
           <table className="data">
             <thead>
               <tr>

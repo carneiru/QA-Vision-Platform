@@ -10,6 +10,7 @@ import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const MAX_LISTED = 200;
 // One order for every section, kept in the URL; the API returns at most 200 per section, so this sorts what is shown
@@ -60,8 +61,10 @@ function Section({ projectId, kind, items, total, sort, onSort }: {
     if (key === "now") return slower ? t.head_duration_ms : t.head_status;
     return slower ? (t.head_duration_ms ?? 0) - (t.base_duration_ms ?? 0) : t.message;
   });
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLElement>();
   return (
-    <section className="card" aria-labelledby={`cmp-${kind.key}`} role="region">
+    <section ref={card.ref} className={tableCardClass(card.wide)} aria-labelledby={`cmp-${kind.key}`} role="region">
       <h2 id={`cmp-${kind.key}`}>{kind.title} <span className="muted">({total})</span></h2>
       <p className="muted">{kind.hint}{total > items.length && ` Showing the first ${MAX_LISTED}.`}</p>
       <table className="data">

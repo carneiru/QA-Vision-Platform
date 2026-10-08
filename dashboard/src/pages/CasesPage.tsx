@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Bot, FileCode, Plus, Upload } from "lucide-react";
@@ -22,6 +22,7 @@ import { useCanEdit } from "../lib/useCanEdit";
 import { useStickyBottomOffset } from "../lib/useStickyOffset";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const PAGE = 50;
 const MAX_KEYS = 20000;
@@ -80,7 +81,14 @@ export default function CasesPage() {
   const [form, setForm] = useState<Values>(applied);
   const offset = pageOffset(params, PAGE);
   const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
-  const tableRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement | null>(null);
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
+  const setCard = card.ref;
+  const cardRef = useCallback((node: HTMLDivElement | null) => {
+    tableRef.current = node;
+    setCard(node);
+  }, [setCard]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
   const barRef = useRef<HTMLDivElement>(null);
@@ -106,8 +114,12 @@ export default function CasesPage() {
     });
   }
   const search = params.toString();
+  const lastApplied = useRef(applied);
   useEffect(() => {
-    setForm(read(new URLSearchParams(search)));
+    const next = read(new URLSearchParams(search));
+    const before = lastApplied.current;
+    lastApplied.current = next;
+    setForm((f) => Object.fromEntries(KEYS.map((k) => [k, next[k] !== before[k] ? next[k] : f[k]])) as Values);
   }, [search]);
 
   const archived = applied.status === "archived";
@@ -229,6 +241,8 @@ export default function CasesPage() {
   };
   const pageRunnable = (data?.items ?? []).filter(runnable);
   const advancedActive = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== "").length;
+  const advancedHidden = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== ""
+    && !QUICK.some((c) => c.key === k && c.value === applied[k])).length;
   const filtered = KEYS.some((k) => applied[k] !== "");
   // One primary per view: the empty state's "Write the first case", or Run on a selection, take it from the header button
   const emptyList = data?.total === 0 && !filtered;
@@ -261,11 +275,8 @@ export default function CasesPage() {
           </label>
           <FolderSelect folders={folders.data ?? []} total={casesTotal.data} value={applied.folder} onChange={pickFolder} />
           <button type="submit">Apply</button>
-          {filtered && (
-            <button type="button" className="ghost" onClick={() => setParams(new URLSearchParams())}>Clear filters</button>
-          )}
         </FilterBar>
-        <FiltersDisclosure id="cases" active={advancedActive} detailsRef={disclosureRef}>
+        <FiltersDisclosure id="cases" active={advancedActive} reveal={advancedHidden} detailsRef={disclosureRef}>
             <FilterSelect label="Label" value={form.label} options={labelOptions} onChange={(v) => setForm({ ...form, label: v })} />
             <FilterSelect label="Status" value={form.status} emptyLabel="Draft and ready" onChange={(v) => setForm({ ...form, status: v })}
               options={[{ value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" }]} />
@@ -314,7 +325,7 @@ export default function CasesPage() {
           ))}
         </ul>
         )}
-        <div className="card" ref={tableRef} tabIndex={0} role="region" aria-label="Test cases" style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
+        <div className={tableCardClass(card.wide)} ref={cardRef} tabIndex={0} role="region" aria-label="Test cases" style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
           <table className="data">
             <thead>
               <tr>
@@ -326,7 +337,7 @@ export default function CasesPage() {
                       onChange={(e) => toggleAll(e.target.checked, pageRunnable)} />
                   </th>
                 )}
-                <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow num">Priority</th><th>Status</th>
+                <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow">Priority</th><th>Status</th>
                 <th className="hide-narrow">Automated</th>
               </tr>
             </thead>
@@ -353,7 +364,7 @@ export default function CasesPage() {
                     ]} />
                   </td>
                   <td className="hide-narrow">{lastRuns(c)}</td>
-                  <td className="hide-narrow num">{c.priority}</td>
+                  <td className="hide-narrow">{c.priority}</td>
                   <td><CaseStatusPill status={c.status} /></td>
                   <td className="hide-narrow">
                     {c.automated_test_key ? (

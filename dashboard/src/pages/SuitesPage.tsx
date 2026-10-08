@@ -5,9 +5,12 @@ import { createSuite, listSuites } from "../api/cases";
 import ErrorBanner from "../components/ErrorBanner";
 import { useCanEdit } from "../lib/useCanEdit";
 import PageHeader from "../components/PageHeader";
+import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 /** The project's suites: named, ordered lists of test cases. */
 export default function SuitesPage() {
+  // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
+  const card = useIsWide<HTMLDivElement>();
   const { projectId } = useParams();
   const id = Number(projectId);
   const canEdit = useCanEdit(id);
@@ -40,7 +43,7 @@ export default function SuitesPage() {
         <p className="muted">No suites yet. A suite groups cases to run together, such as a smoke check before each deploy.</p>
       )}
       {suites.data != null && suites.data.length > 0 && (
-        <div className="card" tabIndex={0} role="region" aria-label="Suites">
+        <div ref={card.ref} className={tableCardClass(card.wide)} tabIndex={0} role="region" aria-label="Suites">
           <table className="data">
             <thead>
               <tr><th>Suite</th><th className="num">Cases</th><th className="hide-narrow">Changed</th></tr>
