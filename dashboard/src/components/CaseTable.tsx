@@ -116,7 +116,7 @@ interface Props {
   cases: CaseRowData[];
   /** Editors get the selection column. */
   selectable: boolean;
-  picked: Map<number, string>;
+  picked: ReadonlyMap<number, unknown>;
   onToggle: (c: CaseRowData) => void;
   /** The header's select-all box; left out where a parent row already selects the set (a feature row). */
   onToggleAll?: (on: boolean, rows: CaseRowData[]) => void;
@@ -160,7 +160,7 @@ interface RowProps {
   projectId: number;
   c: CaseRowData;
   selectable: boolean;
-  picked: Map<number, string>;
+  picked: ReadonlyMap<number, unknown>;
   onToggle: (c: CaseRowData) => void;
   lastRuns: (key: string | null) => ReactNode;
   lastRunsSummary: (key: string | null) => string | null;

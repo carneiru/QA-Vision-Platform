@@ -47,6 +47,9 @@ export interface RunRequest {
   checked_at: string | null;
   /** Manual cases a whole-suite run left out (they have no automated test). */
   skipped_manual: number;
+  /** What the dashboard estimated before Play (ingestion's duration estimate); null for older requests. */
+  estimate_ms: number | null;
+  estimate_upper_ms: number | null;
   /** True while the server still checks GitHub for this request: keep polling. */
   refreshing: boolean;
 }
@@ -88,8 +91,11 @@ export function deleteCiTarget(projectId: number): Promise<void> {
   return apiFetch(`${base(projectId)}/ci-target`, { method: "DELETE" });
 }
 
-export function createRunRequest(projectId: number, selection: RunSelection): Promise<RunRequest> {
-  return apiFetch(`${base(projectId)}/run-requests`, { method: "POST", body: JSON.stringify(selection) });
+export interface RunEstimate { estimate_ms: number; estimate_upper_ms: number }
+
+/** The estimate is sent only when known; test-management stores it as given. */
+export function createRunRequest(projectId: number, selection: RunSelection, estimate?: RunEstimate | null): Promise<RunRequest> {
+  return apiFetch(`${base(projectId)}/run-requests`, { method: "POST", body: JSON.stringify(estimate ? { ...selection, ...estimate } : selection) });
 }
 
 export function listRunRequests(projectId: number, q: { limit: number; offset: number }): Promise<{ total: number; items: RunRequest[] }> {

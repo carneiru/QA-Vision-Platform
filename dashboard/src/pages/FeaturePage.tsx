@@ -88,7 +88,7 @@ export default function FeaturePage() {
         headingRef={headingRef}
         actions={canEdit && data ? (
           <RunControl projectId={id} label="Run feature"
-            cases={cases.slice(0, MAX_RUN_CASES).map((c) => ({ number: c.number, title: c.title }))}
+            cases={cases.slice(0, MAX_RUN_CASES).map((c) => ({ number: c.number, title: c.title, testKey: c.automated_test_key }))}
             selection={{ case_numbers: cases.slice(0, MAX_RUN_CASES).map((c) => c.number) }}
             emptyReason="This feature has no scenarios" />
         ) : undefined}

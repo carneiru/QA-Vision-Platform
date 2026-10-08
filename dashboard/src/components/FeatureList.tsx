@@ -45,7 +45,7 @@ interface Props {
   projectId: number;
   rows: FeatureRow[];
   selectable: boolean;
-  picked: Map<number, string>;
+  picked: ReadonlyMap<number, unknown>;
   onToggle: (c: CaseRowData) => void;
   onToggleAll: (on: boolean, rows: CaseRowData[]) => void;
   /** The filters in force, for the manual group's cases. */
@@ -148,7 +148,7 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
 
 /** A feature's scenarios as rows of the same table, so they line up under the feature's columns. */
 function GroupCases({ projectId, row, label, selectable, picked, onToggle, filters, columns }: {
-  projectId: number; row: FeatureRow; label: string; selectable: boolean; picked: Map<number, string>;
+  projectId: number; row: FeatureRow; label: string; selectable: boolean; picked: ReadonlyMap<number, unknown>;
   onToggle: (c: CaseRowData) => void; filters: Omit<CaseQuery, "limit" | "offset">; columns: number;
 }) {
   const cases = useQuery(groupCasesQuery(projectId, row, filters));

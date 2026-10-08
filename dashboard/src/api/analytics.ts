@@ -122,6 +122,25 @@ export function getRunStrip(
   });
 }
 
+export interface DurationEstimate {
+  /** Null when no test has history. */
+  estimate_ms: number | null;
+  upper_ms: number | null;
+  tests_with_history: number;
+  tests_without_history: number;
+  /** Tests whose durations came from the requested environment only. */
+  environment_used: number;
+  model: { overhead_ms: number; factor: number; runs: number; fitted: boolean };
+}
+
+/** How long a Play of these tests should take (1–200 keys), from the project's last 30 days. */
+export function getDurationEstimate(projectId: number, testKeys: string[], environment?: string): Promise<DurationEstimate> {
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/duration-estimate`, {
+    method: "POST",
+    body: JSON.stringify(environment ? { test_keys: testKeys, environment } : { test_keys: testKeys }),
+  });
+}
+
 export function getTests(
   projectId: number,
   opts: { days: number; sort: "failures" | "duration" | "name"; search?: string; limit: number; offset: number },

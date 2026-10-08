@@ -4,15 +4,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CircleAlert, Play } from "lucide-react";
 import { ApiError } from "../api/http";
 import { RunSelection, createRunRequest } from "../api/runRequests";
+import { estimateText, runEstimate, useDurationEstimate } from "../lib/durationEstimate";
 import { useRunGate } from "../lib/useRunGate";
 import ErrorBanner from "./ErrorBanner";
+import { SkeletonStatus } from "./Skeleton";
 
 const SHOWN = 10;
 
 interface Props {
   projectId: number;
   /** The cases the confirmation lists, in order. A manual case cannot run: a suite run skips it, and the dialog counts it apart. */
-  cases: { number: number; title: string; manual?: boolean }[];
+  cases: { number: number; title: string; manual?: boolean; testKey?: string | null }[];
   selection: RunSelection;
   /** Visible text of the trigger: "Run", "Run selected (3)", "Run suite". */
   label: string;
@@ -37,8 +39,15 @@ export default function RunControl({ projectId, cases, selection, label, onStart
   // The server refused because the world changed (a run is active, the target is gone): say so, outside the closed dialog
   const [notice, setNotice] = useState<string | null>(null);
 
+  const runnable = cases.filter((c) => !c.manual);
+  // Asked while the question is open (the selection bar or suite header may have asked already: same key, no new request).
+  // It never holds Play back: loading shows a placeholder, a failure shows nothing, and Run sends what is known then.
+  const estimate = useDurationEstimate(projectId, runnable.map((c) => c.testKey), { enabled: open });
+  // Another selection's answer kept while this one loads is not this selection's estimate
+  const known = estimate.isPlaceholderData ? undefined : estimate.data;
+
   const start = useMutation({
-    mutationFn: () => createRunRequest(projectId, selection),
+    mutationFn: () => createRunRequest(projectId, selection, runEstimate(known)),
     onSuccess: async () => {
       restoreFocus.current = true; // before the refetch: it may turn the gate off and close the dialog under us
       await qc.invalidateQueries({ queryKey: ["run-requests", projectId] });
@@ -94,7 +103,6 @@ export default function RunControl({ projectId, cases, selection, label, onStart
     start.mutate();
   }
 
-  const runnable = cases.filter((c) => !c.manual);
   const n = runnable.length;
   const skipped = cases.length - n;
   const blocked = gate === undefined || !gate.ok || n === 0;
@@ -124,6 +132,15 @@ export default function RunControl({ projectId, cases, selection, label, onStart
           </ul>
           {n > SHOWN && <p className="muted">{`+${n - SHOWN} more`}</p>}
           <p>{`${gate.target.repo} @ ${gate.target.ref}`}</p>
+          {known ? (
+            <p className="run-estimate">
+              {known.estimate_ms === null ? estimateText(known) : `Estimated duration ${estimateText(known)}`}
+            </p>
+          ) : (estimate.isPending || estimate.isPlaceholderData) && (
+            <SkeletonStatus label="Estimating duration" className="run-estimate">
+              <span className="skeleton estimate-skeleton" aria-hidden="true" />
+            </SkeletonStatus>
+          )}
           <p className="note warn-note" role="note">
             <CircleAlert size={16} aria-hidden="true" />
             <span>Tests may create real bookings in staging</span>

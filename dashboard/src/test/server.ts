@@ -20,6 +20,10 @@ export const server = setupServer(
   http.get("/api/v1/projects/:projectId/analytics/trends", () => HttpResponse.json({ tz: "UTC", bucket: "week", days: [] })),
   http.get("/api/v1/projects/:projectId/analytics/flaky", () => HttpResponse.json([])),
   http.get("/api/v1/projects/:projectId/analytics/latest-keys", () => HttpResponse.json({ keys: [] })),
+  // Play's duration estimate: no history unless a test says otherwise
+  http.post("/api/v1/projects/:projectId/analytics/duration-estimate", () => HttpResponse.json({
+    estimate_ms: null, upper_ms: null, tests_with_history: 0, tests_without_history: 0, environment_used: 0,
+    model: { overhead_ms: 0, factor: 1, runs: 0, fitted: false } })),
   // Names of the people who ran or stopped something
   http.get("/api/v1/organizations/:orgId/members", () => HttpResponse.json([])),
 );

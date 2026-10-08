@@ -232,7 +232,7 @@ function CaseEditor() {
       </p>
       <PageHeader title={c ? `${c.key} · ${c.title}` : "New test case"} />
       {c?.source_path && c.status !== "archived" && (
-        <RunControl projectId={id} cases={[{ number: c.number, title: c.title }]} selection={{ case_numbers: [c.number] }} label="Run" emphasis={!dirty} />
+        <RunControl projectId={id} cases={[{ number: c.number, title: c.title, testKey: c.automated_test_key }]} selection={{ case_numbers: [c.number] }} label="Run" emphasis={!dirty} />
       )}
       {c && <RunPanel projectId={id} caseNumber={c.number} />}
       {c && c.suites.length > 0 && (

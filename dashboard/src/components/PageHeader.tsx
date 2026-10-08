@@ -11,6 +11,8 @@ interface Props {
   /** The page name; the breadcrumb carries the org and project. */
   title: string;
   subtitle?: ReactNode;
+  /** A muted fact about the page's subject under the subtitle ("Estimated duration ≈ 12 min"). */
+  meta?: ReactNode;
   /** At most one primary button; the rest secondary. They wrap under the title on phones. */
   actions?: ReactNode;
   tabs?: PageTab[];
@@ -19,13 +21,14 @@ interface Props {
 
 /** The head of every signed-in page: one h1 (focused after a navigation), an optional subtitle,
  *  actions on the right and optional view tabs underneath. */
-export default function PageHeader({ title, subtitle, actions, tabs, headingRef }: Props) {
+export default function PageHeader({ title, subtitle, meta, actions, tabs, headingRef }: Props) {
   return (
     <div className="page-head">
       <div className="page-head-row">
         <div className="page-head-text">
           <h1 ref={headingRef} tabIndex={-1}>{title}</h1>
           {subtitle != null && <p className="page-subtitle">{subtitle}</p>}
+          {meta != null && <p className="page-meta">{meta}</p>}
         </div>
         {actions != null && <div className="page-header-actions button-row">{actions}</div>}
       </div>

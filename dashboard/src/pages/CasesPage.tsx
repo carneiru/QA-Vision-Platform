@@ -21,6 +21,7 @@ import FeatureList from "../components/FeatureList";
 import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
 import { useCanEdit } from "../lib/useCanEdit";
+import { ESTIMATE_DEBOUNCE_MS, approxDuration, useDurationEstimate } from "../lib/durationEstimate";
 import { useStickyBottomOffset } from "../lib/useStickyOffset";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
@@ -70,6 +71,9 @@ function appliedFilters(v: Values): AppliedFilter[] {
 const read = (p: URLSearchParams): Values =>
   Object.fromEntries(FORM_KEYS.map((k) => [k, p.get(k) ?? ""])) as Values;
 
+/** A selected case: what the Play dialog lists, and the test it runs (for the duration estimate). */
+interface Picked { title: string; testKey: string | null }
+
 /** The project's written test cases: search, filter, open, write a new one; grouped by .feature file or listed. */
 export default function CasesPage() {
   const { projectId } = useParams();
@@ -94,7 +98,7 @@ export default function CasesPage() {
     setCard(node);
   }, [setCard]);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [picked, setPicked] = useState<Map<number, string>>(new Map());
+  const [picked, setPicked] = useState<Map<number, Picked>>(new Map());
   const barRef = useRef<HTMLDivElement>(null);
   // The bar sticks to the viewport bottom: rows reached by keyboard must stay above it
   const barHeight = useStickyBottomOffset(barRef, picked.size > 0);
@@ -102,7 +106,7 @@ export default function CasesPage() {
     setPicked((now) => {
       const next = new Map(now);
       if (next.has(c.number)) next.delete(c.number);
-      else if (next.size < MAX_RUN_CASES) next.set(c.number, c.title);
+      else if (next.size < MAX_RUN_CASES) next.set(c.number, { title: c.title, testKey: c.automated_test_key });
       return next;
     });
   }
@@ -111,11 +115,14 @@ export default function CasesPage() {
       const next = new Map(now);
       for (const c of rows) {
         if (!on) next.delete(c.number);
-        else if (next.size < MAX_RUN_CASES) next.set(c.number, c.title);
+        else if (next.size < MAX_RUN_CASES) next.set(c.number, { title: c.title, testKey: c.automated_test_key });
       }
       return next;
     });
   }
+  // The bar's live total: asked 400 ms after the selection settles, the last answer kept meanwhile
+  const pickedKeys = useMemo(() => [...picked.values()].map((p) => p.testKey), [picked]);
+  const selectionEstimate = useDurationEstimate(id, pickedKeys, { debounceMs: ESTIMATE_DEBOUNCE_MS });
   const search = params.toString();
   const lastApplied = useRef(applied);
   useEffect(() => {
@@ -389,9 +396,12 @@ export default function CasesPage() {
       {/* After the table, so it appears below the rows instead of pushing them down; sticky keeps it in reach */}
       {canEdit && picked.size > 0 && (
         <div ref={barRef} className="run-selection" role="region" aria-label="Selected cases">
-          <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
+          <RunControl projectId={id} cases={[...picked].map(([number, p]) => ({ number, title: p.title, testKey: p.testKey }))}
             selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
             onStarted={() => { setPicked(new Map()); (tableRef.current ?? headingRef.current)?.focus(); }} />
+          {selectionEstimate.data?.estimate_ms != null && (
+            <span className="run-selection-estimate">{`· ${approxDuration(selectionEstimate.data.estimate_ms)}`}</span>
+          )}
           <button type="button" className="ghost" onClick={() => setPicked(new Map())}>Clear selection</button>
           {picked.size >= MAX_RUN_CASES && <span className="muted">At most 200 cases per run</span>}
         </div>

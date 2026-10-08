@@ -16,7 +16,7 @@ const req = (extra: Partial<RunRequest> = {}): RunRequest => ({
   selection: [{ case_number: 1, path: "tests/features/a.feature", name: "A" }, { case_number: 2, path: "tests/features/a.feature", name: "B" }],
   case_count: 2, suite_id: null, status: "running", conclusion: null, github_run_id: 501,
   github_run_url: "https://github.com/Acme/OBT/actions/runs/501", stopped_by: null, stopped_at: null, error: null,
-  checked_at: new Date().toISOString(), refreshing: true, skipped_manual: 0, ...extra,
+  checked_at: new Date().toISOString(), refreshing: true, skipped_manual: 0, estimate_ms: null, estimate_upper_ms: null, ...extra,
 });
 
 function show(get: () => RunRequest[], role = "member", caseNumber?: number, withSibling = false) {

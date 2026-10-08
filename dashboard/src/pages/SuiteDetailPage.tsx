@@ -8,6 +8,7 @@ import RunControl from "../components/RunControl";
 import ErrorBanner from "../components/ErrorBanner";
 import UnsavedGuard from "../components/UnsavedGuard";
 import { useCanEdit } from "../lib/useCanEdit";
+import { estimateText, useDurationEstimate } from "../lib/durationEstimate";
 import PageHeader from "../components/PageHeader";
 
 /** One suite: its ordered cases, which members can add, remove and reorder, then save. */
@@ -30,6 +31,9 @@ export default function SuiteDetailPage() {
   const detailsDirty = detailsEdit !== null && (detailsEdit.name !== suite.data?.name || detailsEdit.description !== (suite.data?.description ?? ""));
   const setCases = (next: SuiteCase[]) => setCasesEdit(next);
   const setDetails = (patch: Partial<{ name: string; description: string }>) => setDetailsEdit({ name, description, ...patch });
+
+  // The saved suite's automated cases are what Run suite runs (manual ones are skipped)
+  const estimate = useDurationEstimate(id, (suite.data?.cases ?? []).filter((c) => c.source_path !== null).map((c) => c.automated_test_key));
 
   const [search, setSearch] = useState("");
   const [asked, setAsked] = useState<string | null>(null);
@@ -98,8 +102,9 @@ export default function SuiteDetailPage() {
       <p>
         <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All suites</Link>
       </p>
-      <PageHeader title={suite.data.name} subtitle={suite.data.description || undefined} />
-      <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title, manual: c.source_path === null }))}
+      <PageHeader title={suite.data.name} subtitle={suite.data.description || undefined}
+        meta={estimate.data?.estimate_ms != null ? `Estimated duration ${estimateText(estimate.data)}` : undefined} />
+      <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title, manual: c.source_path === null, testKey: c.automated_test_key }))}
         selection={{ suite_id: sid }} label="Run suite" emphasis={!dirty && !detailsDirty}
         emptyReason={suite.data.cases.length === 0 ? "This suite has no cases" : "This suite has no automated cases"} />
 

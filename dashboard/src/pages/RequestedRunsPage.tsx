@@ -7,6 +7,7 @@ import { listRuns } from "../api/runs";
 import ErrorBanner from "../components/ErrorBanner";
 import StatusPill, { type PillTone } from "../components/StatusPill";
 import { MATCH_SLACK_MS, describeRun, matchRun, type RunTone } from "../lib/runStatus";
+import { requestTiming } from "../lib/durationEstimate";
 import { RUN_POLL_MS } from "../lib/useRunGate";
 import { useUserNames } from "../lib/useUserNames";
 import { pageOffset, withOffset } from "../lib/useUrlState";
@@ -41,6 +42,8 @@ export default function RequestedRunsPage() {
     refetchInterval: (q) => (q.state.data?.items.some((r) => r.refreshing) ? RUN_POLL_MS : false),
   });
   const items = list.data?.items ?? [];
+  // Read at each render: the list re-renders on every poll while a request is active, so "≈ 4 min left" keeps up
+  const now = Date.now();
   const oldest = items.length > 0 ? Math.min(...items.map((r) => Date.parse(r.requested_at))) : null;
   const runs = useQuery({
     queryKey: ["run-requests", id, "page-results", offset, oldest],
@@ -68,6 +71,7 @@ export default function RequestedRunsPage() {
                 const result = matchRun(runs.data ?? [], r.github_run_url);
                 const described = describeRun(r, nameOf);
                 const [word, rest] = splitStatus(described.text);
+                const timing = requestTiming(r, now);
                 return (
                   <tr key={r.id}>
                     <td>
@@ -80,6 +84,7 @@ export default function RequestedRunsPage() {
                       <StatusPill tone={PILL_TONE[described.tone]} label={word} />
                       {rest && <> <span className="pill-detail">{rest}</span></>}
                       {described.detail && <div className="muted run-panel-detail">{described.detail}</div>}
+                      {timing && <div className="muted run-estimate-detail">{timing}</div>}
                     </td>
                     <td className="hide-narrow">{r.stopped_by != null ? nameOf(r.stopped_by) : "—"}</td>
                     <td className="row-actions">
