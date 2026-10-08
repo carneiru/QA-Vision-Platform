@@ -389,7 +389,8 @@ Requested 2026-10-07. Users create or import `*.md` files as **skills**: reusabl
 
 ### F. UX
 - [ ] Onboarding wizard: connect a repository, install the collector, first run *(suggested)*
-- [ ] Global search across TCs, suites and runs *(suggested)*
+- [x] Global search: the Ctrl K command palette covers test cases, tests, runs (by number or exact branch), pages and projects (layout phase 3)
+- [ ] Search suites from the palette, and runs by partial branch name (needs a `branch` substring filter or a suites search param) *(suggested)*
 - [ ] Personal dashboard: my suites, my recent failures *(suggested)*
 
 ### G. Built-in terminal
