@@ -89,9 +89,10 @@ export interface RunFilters {
 export function listRuns(
   projectId: number,
   opts: { limit: number; offset: number } & RunFilters,
+  init: { signal?: AbortSignal } = {},
 ): Promise<Run[]> {
   const q = buildQuery({ ...opts });
-  return apiFetch(`/api/v1/projects/${projectId}/runs${q}`);
+  return apiFetch(`/api/v1/projects/${projectId}/runs${q}`, init);
 }
 
 export interface GroupedTest {
@@ -166,7 +167,7 @@ export function getFailureGroups(
   return apiFetch(`/api/v1/runs/${runId}/failure-groups`);
 }
 
-export function getRun(runId: number, status?: RunStatusFilter): Promise<RunDetail> {
+export function getRun(runId: number, status?: RunStatusFilter, init: { signal?: AbortSignal } = {}): Promise<RunDetail> {
   const q = buildQuery({ status });
-  return apiFetch(`/api/v1/runs/${runId}${q}`);
+  return apiFetch(`/api/v1/runs/${runId}${q}`, init);
 }

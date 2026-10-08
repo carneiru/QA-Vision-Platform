@@ -125,9 +125,10 @@ export function getRunStrip(
 export function getTests(
   projectId: number,
   opts: { days: number; sort: "failures" | "duration" | "name"; search?: string; limit: number; offset: number },
+  init: { signal?: AbortSignal } = {},
 ): Promise<StatsRow[]> {
   const q = buildQuery({ days: opts.days, sort: opts.sort, search: opts.search, limit: opts.limit, offset: opts.offset });
-  return apiFetch(`/api/v1/projects/${projectId}/analytics/tests${q}`);
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/tests${q}`, init);
 }
 
 export function getHistory(

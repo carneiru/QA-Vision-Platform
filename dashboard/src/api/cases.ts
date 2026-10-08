@@ -66,9 +66,13 @@ export interface CaseSearchBody extends Omit<CaseQuery, "label" | "linked"> {
 
 const base = (projectId: number) => `/api/v1/projects/${projectId}`;
 
-export function listCases(projectId: number, q: CaseQuery): Promise<{ total: number; items: Case[] }> {
+export function listCases(
+  projectId: number,
+  q: CaseQuery,
+  init: { signal?: AbortSignal } = {},
+): Promise<{ total: number; items: Case[] }> {
   const query = buildQuery({ ...q, include_archived: q.include_archived ? "true" : undefined });
-  return apiFetch(`${base(projectId)}/cases${query}`);
+  return apiFetch(`${base(projectId)}/cases${query}`, init);
 }
 
 export function searchCases(projectId: number, body: CaseSearchBody): Promise<{ total: number; items: Case[] }> {

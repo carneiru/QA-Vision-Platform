@@ -1,27 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useMatch } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Building2, ClipboardList, FileText, FlaskConical, FolderKanban, GitBranch, LayoutDashboard, ListChecks, Menu,
-  PanelLeftClose, PanelLeftOpen, ScanSearch, Settings, Shuffle, TrendingUp, X,
-} from "lucide-react";
+import { Building2, FolderKanban, Menu, PanelLeftClose, PanelLeftOpen, ScanSearch, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getProject, listMyOrganizations } from "../api/orgs";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { PROJECT_VIEWS } from "../lib/projectViews";
 import Breadcrumb from "./Breadcrumb";
+import CommandPalette from "./CommandPalette";
 import UserMenu from "./UserMenu";
-
-const PROJECT_VIEWS: { to: string; label: string; icon: LucideIcon }[] = [
-  { to: "overview", label: "Overview", icon: LayoutDashboard },
-  { to: "runs", label: "Runs", icon: ListChecks },
-  { to: "tests", label: "Tests", icon: FlaskConical },
-  { to: "flaky", label: "Flaky", icon: Shuffle },
-  { to: "branches", label: "Branches", icon: GitBranch },
-  { to: "trends", label: "Trends", icon: TrendingUp },
-  { to: "report", label: "Report", icon: FileText },
-  { to: "cases", label: "Test cases", icon: ClipboardList },
-  { to: "settings", label: "Settings", icon: Settings },
-];
 
 /** Phones: the rail becomes a drawer behind the menu button (matches the CSS breakpoint). */
 const DRAWER_QUERY = "(max-width: 640px)";
@@ -213,6 +200,7 @@ export default function AppShell() {
         </Link>
         <Breadcrumb />
         <span className="topbar-spacer" />
+        <CommandPalette projectId={projectId} compact={drawerLayout} />
         <UserMenu orgId={orgId} />
       </header>
 
