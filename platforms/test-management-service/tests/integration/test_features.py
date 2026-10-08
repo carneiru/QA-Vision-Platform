@@ -142,6 +142,63 @@ def test_filters_apply_to_the_groups(seeded, auth):
     assert [i["feature_name"] for i in rows(seeded, auth, "?linked=false")["items"]][-1] is None
 
 
+# --- list: aggregates ------------------------------------------------------------------------------------
+
+def by_name(data):
+    return {i["feature_name"]: i for i in data["items"]}
+
+
+def test_aggregates_for_a_mixed_group(seeded, auth):
+    # Booking holds cases 4 and 5
+    # Imports link themselves; unlink case 5
+    seeded.patch(f"{P}/cases/4", json={"priority": "high", "status": "ready"}, headers=auth())
+    seeded.patch(f"{P}/cases/5", json={"priority": "low", "automated_test_key": None}, headers=auth())
+    booking = by_name(rows(seeded, auth))["Booking"]
+    assert booking["linked_count"] == 1
+    assert booking["top_priority"] == "high"
+    assert booking["status_counts"] == {"draft": 1, "ready": 1, "archived": 0}
+    seeded.patch(f"{P}/cases/5", json={"priority": "critical"}, headers=auth())
+    assert by_name(rows(seeded, auth))["Booking"]["top_priority"] == "critical"
+
+
+def test_aggregates_for_the_manual_group(seeded, auth):
+    manual = by_name(rows(seeded, auth))[None]
+    assert (manual["linked_count"], manual["top_priority"]) == (0, "medium")
+    assert manual["status_counts"] == {"draft": 2, "ready": 0, "archived": 0}
+    seeded.patch(f"{P}/cases/6", json={"priority": "low", "status": "ready"}, headers=auth())
+    seeded.patch(f"{P}/cases/7", json={"priority": "low"}, headers=auth())
+    manual = by_name(rows(seeded, auth))[None]
+    assert manual["top_priority"] == "low"
+    assert manual["status_counts"] == {"draft": 1, "ready": 1, "archived": 0}
+
+
+def test_the_filters_change_the_aggregates(seeded, auth):
+    seeded.patch(f"{P}/cases/4", json={"priority": "high", "status": "ready"}, headers=auth())
+    seeded.patch(f"{P}/cases/5", json={"automated_test_key": None}, headers=auth())
+    booking = by_name(rows(seeded, auth, "?status=draft"))["Booking"]
+    assert booking["case_count"] == 1 and booking["linked_count"] == 0
+    assert booking["top_priority"] == "medium" and booking["status_counts"] == {"draft": 1, "ready": 0, "archived": 0}
+    booking = by_name(rows(seeded, auth, "?linked=true"))["Booking"]
+    assert (booking["case_count"], booking["linked_count"], booking["top_priority"]) == (1, 1, "high")
+    # An archived case is never in a feature group, so it adds to no count
+    seeded.patch(f"{P}/cases/5", json={"status": "archived"}, headers=auth())
+    booking = by_name(rows(seeded, auth))["Booking"]
+    assert booking["case_count"] == 1 and booking["status_counts"]["archived"] == 0
+
+
+def test_aggregates_are_per_project(client, auth, project_role):
+    project_role("member", project_id=1)
+    project_role("member", project_id=2)
+    do_import(client, auth, [("a.feature", feature("A", "s"))])
+    client.post("/api/v1/projects/2/cases/import", json={"files": [{"path": "a.feature", "content": feature("A", "s", "t")}]},
+                headers=auth())
+    client.patch("/api/v1/projects/2/cases/1", json={"priority": "critical", "automated_test_key": None}, headers=auth())
+    client.patch("/api/v1/projects/2/cases/2", json={"automated_test_key": None}, headers=auth())
+    item = rows(client, auth)["items"][0]
+    assert (item["case_count"], item["linked_count"], item["top_priority"]) == (1, 1, "medium")
+    assert item["status_counts"] == {"draft": 1, "ready": 0, "archived": 0}
+
+
 # --- list: search modes ----------------------------------------------------------------------------------
 
 def names(data):

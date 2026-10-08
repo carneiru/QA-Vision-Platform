@@ -4,13 +4,15 @@ from collections import defaultdict
 from typing import Optional
 
 from gherkin.dialect import DIALECTS
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session
 
 from src.casebook.models import Case, FeatureFile
 from src.casebook.service.case_service import case_key, filtered_cases
 
 CASE_NUMBERS_SHOWN = 200
+PRIORITIES = ("low", "medium", "high", "critical")  # lowest first: the rank is the index
+STATUSES = ("draft", "ready", "archived")
 
 
 def folder_of(path: Optional[str]) -> Optional[str]:
@@ -25,28 +27,35 @@ def list_features(db: Session, project_id: int, *, limit: int, offset: int, **fi
     a few thousand files at most, and the folder is not a column."""
     query, _ = filtered_cases(db, project_id, **filters)
     query = query.filter(Case.status != "archived")
-    sub = query.with_entities(Case.id, Case.feature_name, Case.source_path).subquery()
-    groups = db.query(sub.c.feature_name, sub.c.source_path, func.count(sub.c.id)).group_by(
-        sub.c.feature_name, sub.c.source_path).all()
+    sub = query.with_entities(Case.id, Case.feature_name, Case.source_path, Case.priority, Case.status,
+                              Case.automated_test_key).subquery()
+    rank = case(*[(sub.c.priority == p, i) for i, p in enumerate(PRIORITIES)], else_=-1)
+    count_status = [func.coalesce(func.sum(case((sub.c.status == s, 1), else_=0)), 0) for s in STATUSES]
+    groups = db.query(
+        sub.c.feature_name, sub.c.source_path, func.count(sub.c.id),
+        func.count(sub.c.automated_test_key), func.max(rank), *count_status,
+    ).group_by(sub.c.feature_name, sub.c.source_path).all()
     groups.sort(key=lambda g: (g[1] is None, folder_of(g[1]) or "", (g[0] or "").casefold(), g[1] or ""))
     page = groups[offset:offset + limit]
     numbers = defaultdict(list)
     if page:
         wanted = or_(*[and_(Case.feature_name == name if name is not None else Case.feature_name.is_(None),
                             Case.source_path == path if path is not None else Case.source_path.is_(None))
-                       for name, path, _ in page])
+                       for name, path, *_ in page])
         rows = query.filter(wanted).order_by(Case.number).with_entities(
             Case.number, Case.feature_name, Case.source_path).all()
         for number, name, path in rows:
             numbers[(name, path)].append(number)
     stored = set()
-    paths = [p for _, p, _ in page if p is not None]
+    paths = [p for _, p, *_ in page if p is not None]
     if paths:
         stored = {p for (p,) in db.query(FeatureFile.path).filter(
             FeatureFile.project_id == project_id, FeatureFile.path.in_(paths)).all()}
     items = [{"feature_name": name, "path": path, "folder": folder_of(path), "case_count": count,
-              "case_numbers": numbers[(name, path)][:CASE_NUMBERS_SHOWN], "has_source": path in stored}
-             for name, path, count in page]
+              "case_numbers": numbers[(name, path)][:CASE_NUMBERS_SHOWN], "has_source": path in stored,
+              "linked_count": linked, "top_priority": PRIORITIES[top] if top >= 0 else None,
+              "status_counts": dict(zip(STATUSES, (int(n) for n in per_status)))}
+             for name, path, count, linked, top, *per_status in page]
     return {"total": len(groups), "items": items}
 
 

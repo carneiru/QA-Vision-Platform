@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -11,6 +11,9 @@ class FeatureItem(BaseModel):
     case_count: int
     case_numbers: List[int]  # the first 200, by number
     has_source: bool  # the raw file text is stored
+    linked_count: int  # cases with an automated_test_key
+    top_priority: Optional[Literal["critical", "high", "medium", "low"]] = None  # the highest in the group
+    status_counts: Dict[str, int]  # every status, 0 when none
 
 
 class FeatureList(BaseModel):
