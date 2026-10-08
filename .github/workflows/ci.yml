@@ -25,7 +25,7 @@ jobs:
         include:
           # Adding a service is one more entry here. `extra_tests` runs additional suites
           # from the same environment: the shared package has no venv of its own, and a
-          # service's requirements already install it plus pytest and psycopg2.
+          # service's requirements already install it plus pytest and psycopg 3 (psycopg[binary]).
           - service: organization-service
             path: platforms/organization-service
             extra_tests: ../../shared/tests

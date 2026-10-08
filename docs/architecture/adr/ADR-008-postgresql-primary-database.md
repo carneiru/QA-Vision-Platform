@@ -244,7 +244,7 @@ All domains: Platform, Execution, Quality Intelligence Platform (QIP), Automatio
 
 ## Deployment Implications
 - PostgreSQL cluster deployment and administration required
-- Client libraries needed for all services (Go: pgx, Python: psycopg2/asyncpg, Node.js: pg)
+- Client libraries needed for all services (Go: pgx, Python: psycopg 3 (SQLAlchemy 2.1 default driver), Node.js: pg)
 - Connection pooling configuration (e.g., PgBouncher for high-concurrency scenarios)
 - Monitoring and alerting for database health, performance, and replication lag
 - Backup storage planning and retention policy implementation
