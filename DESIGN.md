@@ -99,7 +99,9 @@ spacing:
   space-5: "24px"
   space-6: "32px"
   space-7: "48px"
-  sidebar-width: "240px"
+  topbar-height: "48px"
+  rail-width: "56px"
+  rail-expanded-width: "220px"
 components:
   button:
     backgroundColor: "{colors.surface-1}"
@@ -154,10 +156,14 @@ components:
     padding: "2px 10px"
   badge-failed:
     textColor: "{colors.danger-text}"
-  sidebar:
-    backgroundColor: "{colors.surface-2}"
-    width: "{spacing.sidebar-width}"
-    padding: "16px 12px"
+  topbar:
+    backgroundColor: "{colors.surface-1}"
+    height: "{spacing.topbar-height}"
+    padding: "0 16px 0 12px"
+  rail:
+    backgroundColor: "{colors.surface-1}"
+    width: "{spacing.rail-width}"
+    padding: "8px 0"
   project-tile:
     backgroundColor: "{colors.surface-1}"
     textColor: "{colors.text-primary}"
@@ -178,15 +184,15 @@ components:
 
 QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Cool blue-grey slate neutrals carry the structure, one cyan accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
 
-Density is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, and a persistent left sidebar holds the project switcher and every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.
+Density is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, a top bar carries the brand, a breadcrumb (with the project switcher) and the user menu, and a slim icon rail on the left holds every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.
 
-Depth is light and ambient: hairline borders do the structural work, and a faint shadow lifts cards off the page. Motion is short and functional (120ms colour/border transitions, a 200ms drawer slide) and switches off under `prefers-reduced-motion`.
+Depth is light and ambient: hairline borders do the structural work, and a faint shadow lifts cards off the page. Motion is short and functional (120ms colour/border transitions, a 120ms rail reveal, a 200ms drawer slide) and switches off under `prefers-reduced-motion`.
 
 **Key Characteristics:**
 - Cyan Slate: cool blue-grey slate neutrals, one cyan accent, status hues reserved for status.
 - Every readable text pair is at least 4.5:1 in both themes. Each accent and danger hue has a separate role token for text and for fill.
 - Status is never colour alone. A word or label always sits beside the hue.
-- Sidebar shell with project switcher. Under 900px it becomes a focus-managed drawer.
+- Top bar + icon rail shell. The rail expands over the content on hover or focus and can be pinned open; at 640px and below it becomes a focus-managed drawer.
 - Icons come only from lucide-react, marked `aria-hidden`, and always sit beside visible text or inside an `aria-label`ed control.
 - Touch targets are 44px under `pointer: coarse`. Body text grows to 16px under 640px.
 
@@ -211,7 +217,8 @@ The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected fo
 ### Neutral
 - **Mist Page** (`page`; slate `#0b1117` in dark): the app background. Code blocks also use it to sit one step below the card surface.
 - **Paper** (`surface-1`; `#121b24` in dark): cards, inputs, buttons, tiles, badges and the active nav item.
-- **Sidebar Mist** (`surface-2`): the sidebar and the narrow-screen top bar.
+- **Sidebar Mist** (`surface-2`): recessed panels (secret blocks). Its dark value is also the chrome in dark mode.
+- **Chrome** (`chrome`): an alias, not a new colour. The top bar, the rail and the drawer use it: Paper in light, Sidebar Mist in dark.
 - **Ink** (`text-primary`): headings, body and values.
 - **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (6.8:1 light, 6.7:1 dark).
 - **Tick Grey** (`text-muted`): chart axis ticks only. It is below AA for text (about 3.7:1) and must never carry readable copy.
@@ -243,7 +250,7 @@ The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected fo
 - **Stat** (650, 28px, tabular figures, -0.01em): the single headline number in an overview card. The tile value is a 26px sibling.
 - **Body** (400, 14px, 1.5): everything else. It rises to 16px under 640px, because iOS zooms into inputs below 16px and phones read better at that size.
 - **Label** (500, 13px): form labels, metadata rows and tile labels, in Graphite.
-- **Label Small** (600, 12.5px): table headers and badges. Sidebar section titles and the switcher label use 12px/600.
+- **Label Small** (600, 12.5px): table headers and badges.
 - **Mono** (12.5px, or 0.92em inline): failure messages, SHAs and code blocks.
 
 ### Named Rules
@@ -253,7 +260,7 @@ The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected fo
 
 ## Layout
 
-An app shell runs the full height of the viewport: a fixed-width sidebar (240px) on Sidebar Mist and a fluid main column. Content sits in a centred page container (max 1120px) with 32px/24px padding, reduced to 24px/16px under 640px. Single-card focus pages (sign in, register, verify) narrow to 400px with 48px top padding.
+An app shell runs the full height of the viewport: a 48px sticky top bar across the full width, a 56px icon rail on the left (220px when pinned open) and a fluid main column, all on Chrome. The page scrolls under the top bar, and `scroll-padding-top` keeps a focused control clear of it. Content sits in a centred page container (max 1120px) with 32px/24px padding, reduced to 24px/16px under 640px. Single-card focus pages (sign in, register, verify) narrow to 400px with 48px top padding.
 
 Spacing follows a 4px-based scale (4, 8, 12, 16, 24, 32, 48). Cards own their vertical rhythm through 16px block margins, which collapse between siblings so conditional stacks stay evenly spaced. Inside a grid, the grid gap owns the spacing and card margins are zeroed.
 
@@ -263,9 +270,9 @@ Grids are auto-fitting rather than column-counted:
 - **Project grid:** `auto-fill, minmax(220px, 1fr)` with a 12px gap.
 
 Breakpoints:
-- **900px and below:** the sidebar becomes an off-canvas drawer (min(85vw, 300px)) behind a sticky top bar with a menu button. A 40% black backdrop closes it.
-- **640px and below:** body text goes to 16px and page and card padding tighten.
-- **`pointer: coarse`:** inputs, selects, buttons and nav links grow to a 44px minimum height, and table cells to 12px padding, without changing density on mouse devices.
+- **1280px and up:** a new visitor gets the rail pinned open; below, it starts collapsed. The reader's choice (pin toggle) is remembered in localStorage.
+- **640px and below:** the rail becomes an off-canvas drawer (min(85vw, 300px)) behind the top bar's menu button; a 40% black backdrop closes it. The breadcrumb moves to a second line of the top bar. Body text goes to 16px and page and card padding tighten.
+- **`pointer: coarse`:** inputs, selects, buttons, rail links and menu items grow to a 44px minimum height, and table cells to 12px padding, without changing density on mouse devices.
 
 ### Named Rules
 **The Grid Gap Owns It Rule.** Inside a grid, children carry no margins. Outside one, a card's own block margin sets the rhythm.
@@ -277,8 +284,8 @@ Breakpoints:
 The system is a hybrid that leans flat. Hairline borders carry structure, and two ambient shadow levels exist. Shadows never signal status and are never hard-edged or offset.
 
 ### Shadow Vocabulary
-- **Resting lift** (`box-shadow: 0 1px 2px rgba(17,17,16,0.04), 0 1px 3px rgba(17,17,16,0.06)`; dark: `0 1px 2px rgba(0,0,0,0.4)`): cards, project tiles and the active nav item, which reads as a paper chip raised out of the sidebar.
-- **Overlay** (`box-shadow: 0 8px 24px rgba(17,17,16,0.12), 0 2px 6px rgba(17,17,16,0.08)`; dark: `0 12px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.4)`): elements that float over content, namely the open drawer and the focused skip link.
+- **Resting lift** (`box-shadow: 0 1px 2px rgba(17,17,16,0.04), 0 1px 3px rgba(17,17,16,0.06)`; dark: `0 1px 2px rgba(0,0,0,0.4)`): cards and project tiles.
+- **Overlay** (`box-shadow: 0 8px 24px rgba(17,17,16,0.12), 0 2px 6px rgba(17,17,16,0.08)`; dark: `0 12px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.4)`): elements that float over content, namely the rail while it expands over the page, the user menu, the open drawer and the focused skip link.
 
 ### Named Rules
 **The Two Levels Rule.** Resting surfaces get the resting lift and floating layers get the overlay. There is no third level, and hover does not raise elevation. Hover changes border colour or background tint instead.
@@ -295,7 +302,7 @@ Quiet by default. Only one action in a group is filled.
 - **Default:** Paper fill, Ink text, Hairline Strong border. Hover applies the Hover Strong wash.
 - **Primary:** Button Blue fill with white text and no visible border. Hover goes to the deeper fill. There is one primary per form or action group.
 - **Danger:** Failed Red fill with white text. It appears only as the confirm step of an in-place destructive confirmation, never as a first-click trigger.
-- **Ghost:** transparent fill and border. Used for icon-only controls (menu, close) and the sidebar footer action.
+- **Ghost:** transparent fill and border. Used for icon-only controls (menu, close, the rail's pin toggle).
 - **Disabled:** 55% opacity with a default cursor.
 - **Motion:** 120ms ease-out on background and border colour, removed under reduced motion.
 
@@ -371,10 +378,14 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 - **Inline form:** a one-row create form of label and input pairs ending in its submit and Cancel buttons. It wraps on narrow widths.
 
 ### Navigation
-- **Sidebar:** Sidebar Mist with a right hairline. From top to bottom it holds the brand (lucide mark in Signal Cyan with the bold 15px wordmark), the project switcher (a native select grouped by organization), project views, workspace links, and a footer pinned to the bottom with Security and Sign out.
-- **Nav link:** Graphite text at weight 500 with a 17px lucide icon, 34px tall and 6px radius. Hover applies Hover Strong with Ink text. **Active** is a Paper chip with resting lift, Ink text and a Signal Cyan icon.
-- **Section title:** 12px/600 Graphite, sentence case. It is a real group label such as "Workspace".
-- **Mobile (900px and below):** a sticky top bar holds a ghost menu button and the brand. The drawer slides in over 200ms `cubic-bezier(0.2, 0, 0, 1)`. Opening it focuses the first control inside. Escape, the backdrop, the close button or following a link closes it, and focus returns to the menu button.
+- **Top bar:** 48px, Chrome with a bottom hairline, sticky. In order: the brand (lucide mark in Signal Cyan with the bold 15px wordmark, a link to the project picker), the breadcrumb, a spacer, and the user menu. No search box until global search exists.
+- **Breadcrumb:** `<nav aria-label="Breadcrumb">` with an `<ol>`: Org (link to the organization) / Project / section (on detail pages, e.g. Runs) / Page. The project item *is* the project switcher, a compact native select grouped by organization, labelled "Project". The last item is the page, Ink at 600 with `aria-current="page"`; the others are Graphite links. Slashes are CSS decoration with empty alt text.
+- **User menu:** a 32px round avatar (the email's initials, Link Cyan on Cyan Wash) with `aria-haspopup="menu"` and `aria-expanded`. The popup (Paper, overlay shadow, 10px radius) shows the email, then Security and Organization, then a hairline separator and Sign out last. Opening focuses the first item; arrow keys, Home and End move between items; Escape closes and returns focus to the avatar; a click outside or Tab closes it.
+- **Icon rail:** 56px of Chrome with a right hairline. Project views (Overview, Runs, Tests, Flaky, Branches, Trends, Report, Test cases, Settings), then a hairline, then the workspace items (All projects, Organization). Each item is a 40px-tall target with an 18px lucide icon and a visually hidden label; the item on screen has `aria-current="page"`, a Cyan Wash fill, a Link Cyan icon and a 3px Signal Cyan bar on its inline-start edge. Hover (after a 200ms rest) or keyboard focus inside expands it to 220px *over* the content with the overlay shadow: the rail's box switches width at once (it overflows its grid track, so nothing moves) while the sheet behind it slides in with a 120ms transform and the labels fade in; no layout property is animated, and nothing animates under reduced motion. While collapsed, each label shows as a tooltip (Ink chip, Paper text) on hover or focus. The pin toggle at the bottom ("Expand sidebar" / "Collapse sidebar", `aria-pressed`) keeps it open at 220px, pushing the content.
+- **Mobile (640px and below):** the top bar adds a ghost menu button before the brand and wraps the breadcrumb to a second line. The rail becomes the drawer, which slides in over 200ms `cubic-bezier(0.2, 0, 0, 1)` with labels visible and a close button. Opening it focuses the first link. Escape, the backdrop, the close button or following a link closes it; focus returns to the menu button, except after a link, when it goes to the new page's heading.
+
+### Page Header
+Every signed-in page starts with `PageHeader`: the page name as the one `h1` (22px/650), an optional Graphite subtitle line under it, actions on the right (at most one primary, the rest secondary) and optional view tabs (Cases/Suites, Runs/Requested runs) underneath. Under 640px the actions wrap below the title. The org and project are not repeated: the breadcrumb carries them. Section headings inside a page are `h2`.
 
 ### Project Tile
 A Paper tile with a 10px radius, Hairline border and resting lift, holding a folder icon and the project name at 600. On hover the border turns Signal Cyan, with no lift and no underline.
@@ -387,10 +398,11 @@ Mist Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizo
 
 ### Accessibility Plumbing
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
-- **Route focus:** on each user navigation (not the first render, not redirects), focus moves to the view's content region, which is the project tab panel or `<main>`. Regions take focus without a visible ring; the ring belongs to controls.
+- **Route focus:** on each user navigation (not the first render, not redirects), focus moves to the new page's `h1` (falling back to the content region while a lazy view loads). The skip link still targets the content region. Headings and regions take focus without a visible ring; the ring belongs to controls.
 - **Titles:** each view sets `document.title` as "View · Project · QEOS".
 - **Focus not obscured:** a bar stuck to the bottom of the viewport (the Cases selection bar) writes its height to the page's `scroll-padding-bottom` while it exists and pads the table, so a row reached by keyboard scrolls above it.
-- **Drawer:** on narrow screens the open sidebar is a modal dialog (focus trapped, Escape from anywhere closes it). Following a link in it hands focus to the new page's content, not back to the menu button. Widening the window past the breakpoint closes it and removes the dialog role.
+- **Landmarks:** the top bar is the `banner`, the rail is `nav` "Main", the breadcrumb is `nav` "Breadcrumb", and the page is `main`.
+- **Drawer:** on phones the open rail is a modal dialog (focus trapped, Escape from anywhere closes it). Following a link in it hands focus to the new page's heading, not back to the menu button. Widening the window past the breakpoint closes it and removes the dialog role.
 - **Live regions:** a status card announces only its status line (`role="status"` on that line), never the links and buttons around it.
 
 ## Do's and Don'ts
