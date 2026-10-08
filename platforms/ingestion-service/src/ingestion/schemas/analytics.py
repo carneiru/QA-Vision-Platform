@@ -98,3 +98,19 @@ class FlakyOut(BaseModel):
     runs: int
     last_status: str
     last_seen: datetime
+
+
+class DurationModelOut(BaseModel):
+    overhead_ms: int
+    factor: float
+    runs: int
+    fitted: bool
+
+
+class DurationEstimateOut(BaseModel):
+    estimate_ms: Optional[int] = None  # null when no test has history
+    upper_ms: Optional[int] = None
+    tests_with_history: int
+    tests_without_history: int
+    environment_used: int  # tests whose durations came from the requested environment only
+    model: DurationModelOut

@@ -13,9 +13,9 @@ from src.ingestion.analytics.flaky import rank_flaky
 from src.ingestion.analytics.trends import bucketed, daily, window_start
 from src.ingestion.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
 from src.ingestion.schemas.analytics import (
-    BranchStatsOut, FlakyOut, HistoryOut, MuteIn, StatsRowOut, TrendsOut,
+    BranchStatsOut, DurationEstimateOut, FlakyOut, HistoryOut, MuteIn, StatsRowOut, TrendsOut,
 )
-from src.ingestion.service import analytics_service
+from src.ingestion.service import analytics_service, duration_service
 
 router = APIRouter()  # mounted at /projects/{project_id}/analytics
 
@@ -169,3 +169,23 @@ def run_strip(
 ):
     """Last-runs strip for the Cases list: the page's keys against the project's last runs."""
     return analytics_service.run_strip(db, access.project_id, body.test_keys, body.limit, body.branch)
+
+
+ESTIMATE_WINDOW_DAYS = 30
+
+
+class DurationEstimateIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    test_keys: List[Annotated[str, StringConstraints(pattern=r"^[0-9a-fA-F]{64}$")]] = Field(min_length=1, max_length=200)
+    environment: Optional[Annotated[str, StringConstraints(max_length=100, pattern=NO_NUL)]] = None
+
+
+@router.post("/duration-estimate", response_model=DurationEstimateOut)
+def duration_estimate(
+    body: DurationEstimateIn,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    """How long a Play of these tests should take, from the last 30 days (the dashboard sends the keys)."""
+    since = _now() - timedelta(days=ESTIMATE_WINDOW_DAYS)
+    return duration_service.estimate(db, access.project_id, body.test_keys, since, body.environment or None)
