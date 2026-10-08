@@ -9,6 +9,7 @@ import { getLatestKeys, getRunStrip } from "../api/analytics";
 import { MAX_RUN_CASES } from "../api/runRequests";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
+import FilterChips, { revealFilters, type AppliedFilter, type QuickChip } from "../components/FilterChips";
 import FiltersDisclosure from "../components/FiltersDisclosure";
 import FilterSelect from "../components/FilterSelect";
 import FolderSelect from "../components/FolderSelect";
@@ -16,6 +17,7 @@ import NarrowMeta from "../components/NarrowMeta";
 import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
 import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
+import { CaseStatusPill } from "../components/StatusPill";
 import { useCanEdit } from "../lib/useCanEdit";
 import { useStickyBottomOffset } from "../lib/useStickyOffset";
 import { pageOffset, withOffset } from "../lib/useUrlState";
@@ -27,6 +29,34 @@ const RESULTS = ["passed", "failed", "skipped", "never"];
 const LEGEND = [["passed", "Passed"], ["failed", "Failed"], ["rerun", "Re-run"], ["skipped", "Skipped"], ["none", "Didn't run"]] as const;
 const KEYS = ["q", "label", "status", "priority", "origin", "folder", "linked", "result", "feature", "ado"] as const;
 type Values = Record<(typeof KEYS)[number], string>;
+
+// One press each; chips that share a key are one choice
+const QUICK: QuickChip[] = [
+  { key: "result", value: "failed", label: "Failing" },
+  { key: "result", value: "never", label: "Never ran" },
+  { key: "linked", value: "true", label: "Linked" },
+  { key: "linked", value: "false", label: "Manual" },
+  { key: "status", value: "draft", label: "Draft" },
+  { key: "status", value: "ready", label: "Ready" },
+];
+// How an applied filter reads in its chip
+const FILTER_NAMES: Record<(typeof KEYS)[number], string> = {
+  q: "Search", label: "Label", status: "Status", priority: "Priority", origin: "Origin", folder: "Folder",
+  linked: "Link", result: "Latest result", feature: "Feature", ado: "Azure DevOps",
+};
+const VALUE_NAMES: Partial<Record<(typeof KEYS)[number], Record<string, string>>> = {
+  status: { draft: "Draft", ready: "Ready", archived: "Archived" },
+  origin: { manual: "Manual", imported: "Imported" },
+  linked: { true: "Linked", false: "Not linked" },
+  result: { passed: "Passed", failed: "Failed", skipped: "Skipped", never: "Never ran" },
+};
+function appliedFilters(v: Values): AppliedFilter[] {
+  return KEYS.filter((k) => v[k] !== "").map((k) => ({
+    key: k,
+    name: FILTER_NAMES[k],
+    value: k === "folder" ? v[k].split("/").join(" / ") : k === "ado" ? `#${v[k]}` : VALUE_NAMES[k]?.[v[k]] ?? v[k],
+  }));
+}
 
 const read = (p: URLSearchParams): Values =>
   Object.fromEntries(KEYS.map((k) => [k, p.get(k) ?? ""])) as Values;
@@ -146,6 +176,20 @@ export default function CasesPage() {
 
   const pickFolder = (path: string) => submit({ ...form, folder: path });
 
+  // Chips patch the applied URL (not the form draft) and go back to page 1
+  function patchFilters(patch: Record<string, string>) {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v) next.set(k, v);
+        else next.delete(k);
+      }
+      next.delete("offset");
+      return next;
+    });
+  }
+  const disclosureRef = useRef<HTMLDetailsElement>(null);
+
   function apply(e: FormEvent) {
     e.preventDefault();
     submit(form);
@@ -221,7 +265,7 @@ export default function CasesPage() {
             <button type="button" className="ghost" onClick={() => setParams(new URLSearchParams())}>Clear filters</button>
           )}
         </FilterBar>
-        <FiltersDisclosure id="cases" active={advancedActive}>
+        <FiltersDisclosure id="cases" active={advancedActive} detailsRef={disclosureRef}>
             <FilterSelect label="Label" value={form.label} options={labelOptions} onChange={(v) => setForm({ ...form, label: v })} />
             <FilterSelect label="Status" value={form.status} emptyLabel="Draft and ready" onChange={(v) => setForm({ ...form, status: v })}
               options={[{ value: "draft", label: "Draft" }, { value: "ready", label: "Ready" }, { value: "archived", label: "Archived" }]} />
@@ -237,6 +281,8 @@ export default function CasesPage() {
             <FilterSelect label="Azure DevOps" value={form.ado} options={adoOptions} onChange={(v) => setForm({ ...form, ado: v })} />
         </FiltersDisclosure>
       </form>
+      <FilterChips quick={QUICK} values={applied} applied={appliedFilters(applied)} onChange={patchFilters}
+        onClearAll={() => setParams(new URLSearchParams())} onAddFilter={() => revealFilters(disclosureRef.current)} />
 
       {query.data?.notice === "unavailable" && (
         <p className="error-banner" role="status">Latest result filter unavailable right now; showing the other filters.</p>
@@ -280,7 +326,7 @@ export default function CasesPage() {
                       onChange={(e) => toggleAll(e.target.checked, pageRunnable)} />
                   </th>
                 )}
-                <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow">Priority</th><th>Status</th>
+                <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow num">Priority</th><th>Status</th>
                 <th className="hide-narrow">Automated</th>
               </tr>
             </thead>
@@ -307,8 +353,8 @@ export default function CasesPage() {
                     ]} />
                   </td>
                   <td className="hide-narrow">{lastRuns(c)}</td>
-                  <td className="hide-narrow">{c.priority}</td>
-                  <td>{c.status}</td>
+                  <td className="hide-narrow num">{c.priority}</td>
+                  <td><CaseStatusPill status={c.status} /></td>
                   <td className="hide-narrow">
                     {c.automated_test_key ? (
                       <span className="linked"><Bot size={14} aria-hidden="true" /> Linked</span>

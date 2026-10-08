@@ -65,6 +65,9 @@ test("shows why a request is stale or was cancelled, and looks results up among 
   ]);
   server.use(http.get(`${P}/runs`, ({ request }) => { query = new URL(request.url).search; return HttpResponse.json([]); }));
   expect(await screen.findByText("GitHub: token invalid or expired")).toBeInTheDocument();
-  expect(screen.getByText("Cancelled: The run is no longer on GitHub")).toBeInTheDocument();
+  // The status word is the pill; the reason follows it in the same cell
+  const cancelled = screen.getByText("The run is no longer on GitHub").closest("td")!;
+  expect(cancelled).toHaveTextContent("Cancelled The run is no longer on GitHub");
+  expect(screen.getByText("Cancelled").closest(".pill")).toHaveClass("pill-cancelled");
   await vi.waitFor(() => expect(query).toContain("ci_provider=github_actions"));
 });

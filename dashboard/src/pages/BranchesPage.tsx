@@ -182,14 +182,14 @@ export function BranchesView() {
               <DataTableDisclosure name={`pass rate of ${branchA} and ${branchB}`}>
                 <table className="data">
                   <thead>
-                    <tr><th>Date</th><th>{branchA}</th><th>{branchB}</th></tr>
+                    <tr><th>Date</th><th className="num">{branchA}</th><th className="num">{branchB}</th></tr>
                   </thead>
                   <tbody>
                     {compareData.map((d) => (
                       <tr key={d.date}>
                         <td>{d.date}</td>
-                        <td>{d.a === null ? "—" : `${d.a.toFixed(1)}%`}</td>
-                        <td>{d.b === null ? "—" : `${d.b.toFixed(1)}%`}</td>
+                        <td className="num">{d.a === null ? "—" : `${d.a.toFixed(1)}%`}</td>
+                        <td className="num">{d.b === null ? "—" : `${d.b.toFixed(1)}%`}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -206,11 +206,11 @@ export function BranchesView() {
             <thead>
               <tr>
                 <SortableTh label="Branch" sortKey="branch" sort={sort} onSort={onSort} />
-                <SortableTh label="Runs" sortKey="runs" sort={sort} onSort={onSort} />
-                <SortableTh label="Pass rate" sortKey="rate" sort={sort} onSort={onSort} />
-                <th className="hide-narrow">Passed</th>
-                <SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} />
-                <th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th>
+                <SortableTh label="Runs" sortKey="runs" sort={sort} onSort={onSort} className="num" />
+                <SortableTh label="Pass rate" sortKey="rate" sort={sort} onSort={onSort} className="num" />
+                <th className="hide-narrow num">Passed</th>
+                <SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} className="num" />
+                <th className="hide-narrow num">Errored</th><th className="hide-narrow num">Skipped</th>
                 <SortableTh label="Last run" sortKey="last" sort={sort} onSort={onSort} className="hide-narrow" />
               </tr>
             </thead>
@@ -226,12 +226,12 @@ export function BranchesView() {
                       { label: "Last run", value: new Date(r.last_seen).toLocaleString() },
                     ]} />
                   </td>
-                  <td>{r.runs}</td>
-                  <td>{formatPassRate(r.pass_rate)}</td>
-                  <td className="hide-narrow">{r.passed}</td>
-                  <td>{r.failed}</td>
-                  <td className="hide-narrow">{r.errored}</td>
-                  <td className="hide-narrow">{r.skipped}</td>
+                  <td className="num">{r.runs}</td>
+                  <td className="num">{formatPassRate(r.pass_rate)}</td>
+                  <td className="hide-narrow num">{r.passed}</td>
+                  <td className="num">{r.failed}</td>
+                  <td className="hide-narrow num">{r.errored}</td>
+                  <td className="hide-narrow num">{r.skipped}</td>
                   <td className="hide-narrow">{new Date(r.last_seen).toLocaleString()}</td>
                 </tr>
               ))}

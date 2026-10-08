@@ -216,12 +216,12 @@ export function TrendsView() {
             <DataTableDisclosure name={`results per ${unit}`}>
               <table className="data">
                 <thead>
-                  <tr><th>{unit === "day" ? "Date" : unit === "week" ? "Week of" : "Month"}</th><th>Runs</th><th>Passed</th><th>Failed</th><th>Errored</th><th>Skipped</th></tr>
+                  <tr><th>{unit === "day" ? "Date" : unit === "week" ? "Week of" : "Month"}</th><th className="num">Runs</th><th className="num">Passed</th><th className="num">Failed</th><th className="num">Errored</th><th className="num">Skipped</th></tr>
                 </thead>
                 <tbody>
                   {trendDays.map((d) => (
                     <tr key={d.date}>
-                      <td>{d.date}</td><td>{d.runs}</td><td>{d.passed}</td><td>{d.failed}</td><td>{d.errored}</td><td>{d.skipped}</td>
+                      <td>{d.date}</td><td className="num">{d.runs}</td><td className="num">{d.passed}</td><td className="num">{d.failed}</td><td className="num">{d.errored}</td><td className="num">{d.skipped}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -251,12 +251,12 @@ export function TrendsView() {
             <DataTableDisclosure name={`pass rate per ${unit}`}>
               <table className="data">
                 <thead>
-                  <tr><th>{unit === "day" ? "Date" : unit === "week" ? "Week of" : "Month"}</th><th>Pass rate</th><th>Avg duration</th></tr>
+                  <tr><th>{unit === "day" ? "Date" : unit === "week" ? "Week of" : "Month"}</th><th className="num">Pass rate</th><th className="num">Avg duration</th></tr>
                 </thead>
                 <tbody>
                   {trendDays.map((d) => (
                     <tr key={d.date}>
-                      <td>{d.date}</td><td>{formatPassRate(d.pass_rate)}</td><td>{formatDuration(d.avg_run_duration_ms)}</td>
+                      <td>{d.date}</td><td className="num">{formatPassRate(d.pass_rate)}</td><td className="num">{formatDuration(d.avg_run_duration_ms)}</td>
                     </tr>
                   ))}
                 </tbody>

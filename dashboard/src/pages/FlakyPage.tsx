@@ -7,6 +7,7 @@ import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
+import FilterChips, { type AppliedFilter } from "../components/FilterChips";
 import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
@@ -23,6 +24,9 @@ const isSortKey = (v: string): v is SortKey => (SORT_KEYS as readonly string[]).
 const WINDOWS = ["7", "14", "30", "90"] as const;
 const clampRuns = (raw: string) => Math.min(1000, Math.max(2, Math.round(Number(raw) || 0)));
 const clampRate = (raw: string) => Math.min(1, Math.max(0, Number(raw) || 0));
+
+// "Show quarantined" as a chip; the API has no reason filter, so there is no "Suspected" chip
+const QUICK = [{ key: "muted", value: "1", label: "Quarantined" }];
 
 export default function FlakyPage() {
   const { projectId } = useParams();
@@ -53,6 +57,14 @@ export default function FlakyPage() {
       branch: commitBranch((raw) => raw.trim()),
     });
   }
+
+  // Thresholds away from their defaults count as applied filters
+  const applied: AppliedFilter[] = [
+    ...(values.window !== DEFAULTS.window ? [{ key: "window", name: "Window", value: `${windowDays} days` }] : []),
+    ...(values.min_runs !== DEFAULTS.min_runs ? [{ key: "min_runs", name: "Min runs", value: String(minRuns) }] : []),
+    ...(values.min_flip !== DEFAULTS.min_flip ? [{ key: "min_flip", name: "Min flip rate", value: String(minFlipRate) }] : []),
+    ...(branch ? [{ key: "branch", name: "Branch", value: branch }] : []),
+  ];
 
   const queryClient = useQueryClient();
 
@@ -162,6 +174,8 @@ export default function FlakyPage() {
           </label>
         </FilterBar>
       </form>
+      <FilterChips quick={QUICK} values={values} applied={applied} onChange={update}
+        onClearAll={() => update({ window: "", min_runs: "", min_flip: "", branch: "", muted: "" })} />
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       <p className="muted">
@@ -194,8 +208,8 @@ export default function FlakyPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Test</th><th className="hide-narrow">Reason</th><th className="hide-narrow">Flips</th><SortableTh label="Flip rate" sortKey="rate" sort={sort} onSort={onSort} />
-                <th className="hide-narrow">Runs</th><th>Last status</th>
+                <th>Test</th><th className="hide-narrow">Reason</th><th className="hide-narrow num">Flips</th><SortableTh label="Flip rate" sortKey="rate" sort={sort} onSort={onSort} className="num" />
+                <th className="hide-narrow num">Runs</th><th>Last status</th>
                 <SortableTh label="Last seen" sortKey="seen" sort={sort} onSort={onSort} className="hide-narrow" />
                 <th className="hide-narrow">Commits</th>
                 <th><span className="sr-only">Quarantine</span></th>
@@ -218,9 +232,9 @@ export default function FlakyPage() {
                     ]} />
                   </td>
                   <td className="hide-narrow">{r.reason === "same_commit" ? "Confirmed" : "Suspected"}</td>
-                  <td className="hide-narrow">{r.flips ?? "—"}</td>
-                  <td>{formatPassRate(r.flip_rate)}</td>
-                  <td className="hide-narrow">{r.runs}</td>
+                  <td className="hide-narrow num">{r.flips ?? "—"}</td>
+                  <td className="num">{formatPassRate(r.flip_rate)}</td>
+                  <td className="hide-narrow num">{r.runs}</td>
                   <td><StatusDot status={r.last_status} /></td>
                   <td className="hide-narrow">{new Date(r.last_seen).toLocaleString()}</td>
                   <td className="hide-narrow">

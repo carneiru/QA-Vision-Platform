@@ -48,15 +48,15 @@ function TestTable({ caption, rows, value }: { caption: string; rows: StatsRow[]
     <table className="data">
       <caption className="sr-only">{caption}</caption>
       <thead>
-        <tr><th>Test</th><th>Runs</th><th>Pass rate</th><th>{caption.startsWith("Slowest") ? "Average duration" : "Failures"}</th></tr>
+        <tr><th>Test</th><th className="num">Runs</th><th className="num">Pass rate</th><th className="num">{caption.startsWith("Slowest") ? "Average duration" : "Failures"}</th></tr>
       </thead>
       <tbody>
         {rows.map((r) => (
           <tr key={r.test_key}>
             <td className="wrap-anywhere">{testLabel(r)}</td>
-            <td>{number.format(r.runs)}</td>
-            <td>{formatPassRate(r.pass_rate)}</td>
-            <td>{value(r)}</td>
+            <td className="num">{number.format(r.runs)}</td>
+            <td className="num">{formatPassRate(r.pass_rate)}</td>
+            <td className="num">{value(r)}</td>
           </tr>
         ))}
       </tbody>
@@ -171,7 +171,7 @@ export default function ReportPage() {
         <table className="data">
           <caption className="sr-only">Pass rate by week</caption>
           <thead>
-            <tr><th>Week of</th><th>Runs</th><th className="hide-narrow">Executions</th><th>Failures</th><th>Pass rate</th><th className="hide-narrow">Average run</th></tr>
+            <tr><th>Week of</th><th className="num">Runs</th><th className="hide-narrow num">Executions</th><th className="num">Failures</th><th className="num">Pass rate</th><th className="hide-narrow num">Average run</th></tr>
           </thead>
           <tbody>
             {weeks.map((w) => (
@@ -183,11 +183,11 @@ export default function ReportPage() {
                     { label: "Average run", value: formatDuration(w.avg_run_duration_ms) },
                   ]} />
                 </td>
-                <td>{number.format(w.runs)}</td>
-                <td className="hide-narrow">{number.format(w.total)}</td>
-                <td>{number.format(w.failed + w.errored)}</td>
-                <td>{formatPassRate(w.pass_rate)}</td>
-                <td className="hide-narrow">{formatDuration(w.avg_run_duration_ms)}</td>
+                <td className="num">{number.format(w.runs)}</td>
+                <td className="hide-narrow num">{number.format(w.total)}</td>
+                <td className="num">{number.format(w.failed + w.errored)}</td>
+                <td className="num">{formatPassRate(w.pass_rate)}</td>
+                <td className="hide-narrow num">{formatDuration(w.avg_run_duration_ms)}</td>
               </tr>
             ))}
           </tbody>
@@ -205,12 +205,12 @@ export default function ReportPage() {
       <Section title="Flaky tests" query={flaky} loading={flaky.isPending} empty={(flaky.data ?? []).length === 0}>
         <table className="data">
           <caption className="sr-only">Flaky tests</caption>
-          <thead><tr><th>Test</th><th>Runs</th><th>Why flaky</th></tr></thead>
+          <thead><tr><th>Test</th><th className="num">Runs</th><th>Why flaky</th></tr></thead>
           <tbody>
             {(flaky.data ?? []).slice(0, TOP).map((f) => (
               <tr key={f.test_key}>
                 <td className="wrap-anywhere">{testLabel(f)}</td>
-                <td>{number.format(f.runs)}</td>
+                <td className="num">{number.format(f.runs)}</td>
                 <td>
                   {f.reason === "same_commit"
                     ? `Passed and failed on the same commit (${f.commits.length})`
@@ -225,14 +225,14 @@ export default function ReportPage() {
       <Section title={`Branches (top ${TOP})`} query={branches} loading={branches.isPending} empty={(branches.data ?? []).length === 0}>
         <table className="data">
           <caption className="sr-only">Branches</caption>
-          <thead><tr><th>Branch</th><th>Runs</th><th>Failures</th><th>Pass rate</th></tr></thead>
+          <thead><tr><th>Branch</th><th className="num">Runs</th><th className="num">Failures</th><th className="num">Pass rate</th></tr></thead>
           <tbody>
             {(branches.data ?? []).map((b) => (
               <tr key={b.branch ?? "(none)"}>
                 <td>{b.branch ?? <span className="muted">no branch</span>}</td>
-                <td>{number.format(b.runs)}</td>
-                <td>{number.format(b.failed + b.errored)}</td>
-                <td>{formatPassRate(b.pass_rate)}</td>
+                <td className="num">{number.format(b.runs)}</td>
+                <td className="num">{number.format(b.failed + b.errored)}</td>
+                <td className="num">{formatPassRate(b.pass_rate)}</td>
               </tr>
             ))}
           </tbody>

@@ -68,9 +68,9 @@ function Section({ projectId, kind, items, total, sort, onSort }: {
         <thead>
           <tr>
             <SortableTh label="Test" sortKey="name" sort={sort} onSort={onSort} />
-            <SortableTh label="Before" sortKey="before" sort={sort} onSort={onSort} />
-            <SortableTh label="Now" sortKey="now" sort={sort} onSort={onSort} />
-            <SortableTh label={slower ? "Change" : "Message"} sortKey="change" sort={sort} onSort={onSort} className={slower ? undefined : "hide-narrow"} />
+            <SortableTh label="Before" sortKey="before" sort={sort} onSort={onSort} className={slower ? "num" : undefined} />
+            <SortableTh label="Now" sortKey="now" sort={sort} onSort={onSort} className={slower ? "num" : undefined} />
+            <SortableTh label={slower ? "Change" : "Message"} sortKey="change" sort={sort} onSort={onSort} className={slower ? "num" : "hide-narrow"} />
           </tr>
         </thead>
         <tbody>
@@ -83,9 +83,9 @@ function Section({ projectId, kind, items, total, sort, onSort }: {
               </td>
               {slower ? (
                 <>
-                  <td>{formatDuration(t.base_duration_ms ?? 0)}</td>
-                  <td>{formatDuration(t.head_duration_ms ?? 0)}</td>
-                  <td>+{formatDuration((t.head_duration_ms ?? 0) - (t.base_duration_ms ?? 0))}</td>
+                  <td className="num">{formatDuration(t.base_duration_ms ?? 0)}</td>
+                  <td className="num">{formatDuration(t.head_duration_ms ?? 0)}</td>
+                  <td className="num">+{formatDuration((t.head_duration_ms ?? 0) - (t.base_duration_ms ?? 0))}</td>
                 </>
               ) : (
                 <>

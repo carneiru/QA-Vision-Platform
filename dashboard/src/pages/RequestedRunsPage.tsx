@@ -5,13 +5,23 @@ import { ExternalLink } from "lucide-react";
 import { listRunRequests } from "../api/runRequests";
 import { listRuns } from "../api/runs";
 import ErrorBanner from "../components/ErrorBanner";
-import { MATCH_SLACK_MS, describeRun, matchRun } from "../lib/runStatus";
+import StatusPill, { type PillTone } from "../components/StatusPill";
+import { MATCH_SLACK_MS, describeRun, matchRun, type RunTone } from "../lib/runStatus";
 import { RUN_POLL_MS } from "../lib/useRunGate";
 import { useUserNames } from "../lib/useUserNames";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
 
 const PAGE = 50;
+const PILL_TONE: Record<RunTone, PillTone> = {
+  queued: "queued", running: "running", passed: "passed", failed: "failed", cancelled: "cancelled", error: "errored",
+};
+
+/** The status word goes in the pill; what follows it ("1 test · started by …", the error) sits beside it */
+function splitStatus(text: string): [string, string] {
+  const m = /^(.*?)(?: · |: )(.*)$/.exec(text);
+  return m ? [m[1], m[2]] : [text, ""];
+}
 
 /** Runs → Requested runs: every Play, who pressed it, how it ended, and where its results are. */
 export default function RequestedRunsPage() {
@@ -46,7 +56,7 @@ export default function RequestedRunsPage() {
           <table className="data">
             <thead>
               <tr>
-                <th>Date</th><th>Requested by</th><th>Cases</th><th>Status</th>
+                <th>Date</th><th>Requested by</th><th className="num">Cases</th><th>Status</th>
                 <th className="hide-narrow">Stopped by</th><th>Links</th>
               </tr>
             </thead>
@@ -54,6 +64,7 @@ export default function RequestedRunsPage() {
               {items.map((r) => {
                 const result = matchRun(runs.data ?? [], r.github_run_url);
                 const described = describeRun(r, nameOf);
+                const [word, rest] = splitStatus(described.text);
                 return (
                   <tr key={r.id}>
                     <td>
@@ -63,7 +74,8 @@ export default function RequestedRunsPage() {
                     <td>{nameOf(r.requested_by)}</td>
                     <td className="num">{r.case_count}</td>
                     <td>
-                      {described.text}
+                      <StatusPill tone={PILL_TONE[described.tone]} label={word} />
+                      {rest && <> <span className="pill-detail">{rest}</span></>}
                       {described.detail && <div className="muted run-panel-detail">{described.detail}</div>}
                     </td>
                     <td className="hide-narrow">{r.stopped_by != null ? nameOf(r.stopped_by) : "—"}</td>

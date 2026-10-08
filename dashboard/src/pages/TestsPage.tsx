@@ -7,6 +7,7 @@ import { fetchAllTests } from "../lib/exportData";
 import ErrorBanner from "../components/ErrorBanner";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
+import FilterChips from "../components/FilterChips";
 import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
@@ -100,6 +101,13 @@ export default function TestsPage() {
           </button>
         </FilterBar>
       </form>
+      {/* No outcome filter here: the chips row only lists what is applied */}
+      <FilterChips values={values}
+        applied={[
+          ...(values.days !== DEFAULTS.days ? [{ key: "days", name: "Days", value: String(days) }] : []),
+          ...(search ? [{ key: "search", name: "Search", value: search }] : []),
+        ]}
+        onChange={update} onClearAll={() => update({ days: "", search: "" })} />
 
       {exportError != null && <ErrorBanner error={exportError} onRetry={onExport} />}
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
@@ -121,11 +129,11 @@ export default function TestsPage() {
             <thead>
               <tr>
                 <SortableTh label="Test" sortKey="name" sort={sort} onSort={onSort} />
-                <th className="hide-narrow">Runs</th>
-                <SortableTh label="Pass rate" sortKey="rate" sort={sort} onSort={onSort} />
-                <SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} />
-                <th className="hide-narrow">Errored</th>
-                <SortableTh label="Avg duration" sortKey="duration" sort={sort} onSort={onSort} className="hide-narrow" />
+                <th className="hide-narrow num">Runs</th>
+                <SortableTh label="Pass rate" sortKey="rate" sort={sort} onSort={onSort} className="num" />
+                <SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} className="num" />
+                <th className="hide-narrow num">Errored</th>
+                <SortableTh label="Avg duration" sortKey="duration" sort={sort} onSort={onSort} className="hide-narrow num" />
                 <th>Last status</th>
                 <SortableTh label="Last seen" sortKey="seen" sort={sort} onSort={onSort} className="hide-narrow" />
               </tr>
@@ -145,11 +153,11 @@ export default function TestsPage() {
                       { label: "Last seen", value: new Date(r.last_seen).toLocaleString() },
                     ]} />
                   </td>
-                  <td className="hide-narrow">{r.runs}</td>
-                  <td>{formatPassRate(r.pass_rate)}</td>
-                  <td>{r.failed}</td>
-                  <td className="hide-narrow">{r.errored}</td>
-                  <td className="hide-narrow">{formatDuration(r.avg_duration_ms)}</td>
+                  <td className="hide-narrow num">{r.runs}</td>
+                  <td className="num">{formatPassRate(r.pass_rate)}</td>
+                  <td className="num">{r.failed}</td>
+                  <td className="hide-narrow num">{r.errored}</td>
+                  <td className="hide-narrow num">{formatDuration(r.avg_duration_ms)}</td>
                   <td><StatusDot status={r.last_status} /></td>
                   <td className="hide-narrow">{new Date(r.last_seen).toLocaleString()}</td>
                 </tr>

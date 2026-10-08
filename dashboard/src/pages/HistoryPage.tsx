@@ -86,7 +86,7 @@ export default function HistoryPage() {
                 <thead>
                   <tr>
                     <th>Run</th><th>Started</th><th>Branch</th><th className="hide-narrow">Commit</th>
-                    <th className="hide-narrow">Environment</th><th>Status</th><th className="hide-narrow">Duration</th><th className="hide-narrow">Message</th>
+                    <th className="hide-narrow">Environment</th><th>Status</th><th className="hide-narrow num">Duration</th><th className="hide-narrow">Message</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -106,7 +106,7 @@ export default function HistoryPage() {
                       <td className="hide-narrow">{x.commit_sha ? x.commit_sha.slice(0, 7) : "—"}</td>
                       <td className="hide-narrow">{x.environment ?? "—"}</td>
                       <td><StatusDot status={x.status} /></td>
-                      <td className="hide-narrow">{formatDuration(x.duration_ms)}</td>
+                      <td className="hide-narrow num">{formatDuration(x.duration_ms)}</td>
                       <td className="hide-narrow"><Message text={x.message} /></td>
                     </tr>
                   ))}

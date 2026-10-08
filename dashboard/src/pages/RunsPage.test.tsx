@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
@@ -109,8 +109,8 @@ test("filters in the URL drive the first request and prefill the form", async ()
   expect(q.get("author")).toBe("ana");
   expect(screen.getByLabelText(/^status/i)).toHaveValue("failing");
   // An active advanced filter keeps "More filters" open
-  expect(screen.getByLabelText(/environment/i)).toBeVisible();
-  expect(screen.getByLabelText(/author/i)).toHaveValue("ana");
+  expect(screen.getByLabelText(/^environment/i)).toBeVisible();
+  expect(screen.getByLabelText(/^author/i)).toHaveValue("ana");
 });
 
 test("more filters send commit, PR, CI and a local date range", async () => {
@@ -207,10 +207,10 @@ test("a Status column names each run's verdict with an icon and a word", async (
   renderRuns();
   await screen.findByRole("link", { name: "#3" });
   expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument();
-  // Wide cells and the narrow-meta line each carry it; the table body has one badge per run per place
-  expect(screen.getAllByText("Passed", { selector: ".badge" }).length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Errored", { selector: ".badge" }).length).toBeGreaterThan(0);
-  expect(screen.getAllByText("Failed", { selector: ".badge" }).length).toBeGreaterThan(0);
+  // Wide cells and the narrow-meta line each carry it; the table body has one pill per run per place
+  expect(screen.getAllByText("Passed", { selector: ".pill" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Errored", { selector: ".pill" }).length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Failed", { selector: ".pill" }).length).toBeGreaterThan(0);
   const cells = screen.getAllByRole("row").slice(1).map((r) => r.querySelector("td.hide-narrow")?.textContent?.trim());
   expect(cells).toEqual(["Passed", "Errored", "Failed"]);
   // Narrow screens: the same verdict leads the muted line under the run link
@@ -236,13 +236,13 @@ test("column headers sort the loaded page and keep the order in the URL", async 
   expect(screen.getByRole("columnheader", { name: /started/i })).toHaveAttribute("aria-sort", "descending");
   expect(screen.getByRole("columnheader", { name: /^failed/i })).not.toHaveAttribute("aria-sort");
 
-  await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
+  await userEvent.click(within(screen.getByRole("table")).getByRole("button", { name: /^failed/i }));
   expect(ids()).toEqual(["#2", "#1", "#3"]);
   expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "descending");
   expect(screen.getByRole("columnheader", { name: /started/i })).not.toHaveAttribute("aria-sort");
   expect(screen.getByTestId("location")).toHaveTextContent("sort=failed");
 
-  await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
+  await userEvent.click(within(screen.getByRole("table")).getByRole("button", { name: /^failed/i }));
   expect(ids()).toEqual(["#3", "#1", "#2"]);
   expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "ascending");
   expect(screen.getByTestId("location")).toHaveTextContent("dir=asc");

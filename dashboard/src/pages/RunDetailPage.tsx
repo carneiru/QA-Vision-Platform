@@ -142,7 +142,7 @@ export default function RunDetailPage() {
                 <table className="data">
                   <thead>
                     <tr>
-                      <th>File</th><th>Status</th><th>+</th><th>−</th>
+                      <th>File</th><th>Status</th><th className="num">+</th><th className="num">−</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -150,8 +150,8 @@ export default function RunDetailPage() {
                       <tr key={f.path}>
                         <td>{f.path}</td>
                         <td>{f.status}</td>
-                        <td>{f.additions ?? "—"}</td>
-                        <td>{f.deletions ?? "—"}</td>
+                        <td className="num">{f.additions ?? "—"}</td>
+                        <td className="num">{f.deletions ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -181,7 +181,7 @@ export default function RunDetailPage() {
               <table className="data">
                 <thead>
                   <tr>
-                    <th>Test</th><th>Status</th><th>Duration</th><th>Message</th>
+                    <th>Test</th><th>Status</th><th className="num">Duration</th><th>Message</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -202,7 +202,7 @@ export default function RunDetailPage() {
                         <StatusDot status={r.status} />
                         {r.quarantined && <div className="muted">quarantined</div>}
                       </td>
-                      <td>{formatDuration(r.duration_ms)}</td>
+                      <td className="num">{formatDuration(r.duration_ms)}</td>
                       <td><Message text={r.message} name={r.name} /></td>
                     </tr>
                   ))}

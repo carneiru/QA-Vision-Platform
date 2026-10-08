@@ -82,3 +82,16 @@ test("branch table headers sort, and the narrow line carries the hidden columns"
   expect(screen.getByRole("columnheader", { name: /^branch/i })).toHaveAttribute("aria-sort", "ascending");
   expect(screen.getAllByRole("row")[1].querySelector(".narrow-meta")).toHaveTextContent("Passed 60");
 });
+
+test("runs, pass rate and the counts are right-aligned number columns", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/branches", () => HttpResponse.json(branches)),
+  );
+  renderBranches();
+  await screen.findByRole("cell", { name: /^main/ });
+  for (const name of [/^Runs/, /^Pass rate/, /^Passed/, /^Failed/, /^Errored/, /^Skipped/]) {
+    expect(screen.getByRole("columnheader", { name })).toHaveClass("num");
+  }
+  expect(screen.getByText("90.0%").closest("td")).toHaveClass("num");
+  expect(screen.getByRole("columnheader", { name: /^Branch/ })).not.toHaveClass("num");
+});

@@ -43,7 +43,7 @@ export default function SuitesPage() {
         <div className="card" tabIndex={0} role="region" aria-label="Suites">
           <table className="data">
             <thead>
-              <tr><th>Suite</th><th>Cases</th><th className="hide-narrow">Changed</th></tr>
+              <tr><th>Suite</th><th className="num">Cases</th><th className="hide-narrow">Changed</th></tr>
             </thead>
             <tbody>
               {suites.data.map((s) => (
@@ -52,7 +52,7 @@ export default function SuitesPage() {
                     <Link to={`${s.id}`}>{s.name}</Link>
                     {s.description && <div className="muted">{s.description}</div>}
                   </td>
-                  <td>{s.case_count}</td>
+                  <td className="num">{s.case_count}</td>
                   <td className="hide-narrow">{new Date(s.updated_at ?? s.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}

@@ -6,9 +6,11 @@ import { listRuns, RunFilters } from "../api/runs";
 import { formatDuration } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
+import FilterChips, { revealFilters, type AppliedFilter, type QuickChip } from "../components/FilterChips";
 import FilterSelect from "../components/FilterSelect";
 import NarrowMeta from "../components/NarrowMeta";
-import RunStatusBadge, { runVerdict } from "../components/RunStatusBadge";
+import { runVerdict } from "../components/RunStatusBadge";
+import { RunVerdictPill } from "../components/StatusPill";
 import SortableTh from "../components/SortableTh";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { LIVE_REFRESH_MS } from "../lib/live";
@@ -36,6 +38,24 @@ const KEYS = ["status", "branch", "environment", "ci_provider", "commit", "pr", 
 const ADVANCED = ["environment", "ci_provider", "commit", "pr", "author", "from", "to"] as const;
 type Key = (typeof KEYS)[number];
 type Values = Record<Key, string>;
+
+const QUICK: QuickChip[] = [
+  { key: "status", value: "failing", label: "Failed" },
+  { key: "status", value: "passing", label: "Passed" },
+  { key: "branch", value: "main", label: "main" },
+];
+const FILTER_NAMES: Record<Key, string> = {
+  status: "Status", branch: "Branch", environment: "Environment", ci_provider: "CI", commit: "Commit",
+  pr: "Pull request", author: "Author", from: "From", to: "To",
+};
+function appliedFilters(v: Values): AppliedFilter[] {
+  return KEYS.filter((k) => v[k] !== "").map((k) => ({
+    key: k,
+    name: FILTER_NAMES[k],
+    value: k === "status" ? (v[k] === "failing" ? "With failures" : v[k] === "passing" ? "All green" : v[k])
+      : k === "ci_provider" ? CI_LABELS[v[k]] ?? v[k] : k === "pr" ? `#${v[k]}` : v[k],
+  }));
+}
 
 function readValues(params: URLSearchParams): Values {
   return Object.fromEntries(KEYS.map((k) => [k, params.get(k) ?? ""])) as Values;
@@ -144,6 +164,20 @@ export default function RunsPage() {
     }
   }
 
+  // Chips patch the applied URL; the sort stays, the page goes back to 1
+  function patchFilters(patch: Record<string, string>) {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v) next.set(k, v);
+        else next.delete(k);
+      }
+      next.delete("offset");
+      return next;
+    });
+  }
+  const moreRef = useRef<HTMLDetailsElement>(null);
+
   function clearFilters() {
     const next = new URLSearchParams();
     keepSort(next);
@@ -171,7 +205,7 @@ export default function RunsPage() {
             </button>
           )}
         </FilterBar>
-        <details className="more-filters" open={advancedActive > 0 || undefined}>
+        <details ref={moreRef} className="more-filters" open={advancedActive > 0 || undefined}>
           <summary><ChevronRight size={14} aria-hidden="true" className="chevron" /> More filters{advancedActive > 0 && ` (${advancedActive} active)`}</summary>
           <FilterBar>
             <label>
@@ -210,6 +244,8 @@ export default function RunsPage() {
           </FilterBar>
         </details>
       </form>
+      <FilterChips quick={QUICK} values={applied} applied={appliedFilters(applied)} onChange={patchFilters}
+        onClearAll={clearFilters} onAddFilter={() => revealFilters(moreRef.current)} />
 
       <p role="status" className="muted live-note">
         {fresh.size > 0 && `${fresh.size} new run${fresh.size === 1 ? "" : "s"}`}
@@ -239,7 +275,7 @@ export default function RunsPage() {
                 <th>Run</th><th className="hide-narrow">Status</th>
                 <SortableTh label="Started" sortKey="started" sort={sort} onSort={onSort} />
                 <th>Branch</th><th className="hide-narrow">Commit</th><th className="hide-narrow">Environment</th>
-                <th className="hide-narrow">CI</th><th>Passed</th><SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} /><th className="hide-narrow">Errored</th><th className="hide-narrow">Skipped</th><SortableTh label="Duration" sortKey="duration" sort={sort} onSort={onSort} className="hide-narrow" />
+                <th className="hide-narrow">CI</th><th className="num">Passed</th><SortableTh label="Failed" sortKey="failed" sort={sort} onSort={onSort} className="num" /><th className="hide-narrow num">Errored</th><th className="hide-narrow num">Skipped</th><SortableTh label="Duration" sortKey="duration" sort={sort} onSort={onSort} className="hide-narrow num" />
               </tr>
             </thead>
             <tbody>
@@ -248,7 +284,7 @@ export default function RunsPage() {
                   <td>
                     <Link to={`${r.id}`}>#{r.id}</Link>
                     <NarrowMeta items={[
-                      { label: "Status", value: <RunStatusBadge verdict={runVerdict(r)} /> },
+                      { label: "Status", value: <RunVerdictPill verdict={runVerdict(r)} /> },
                       { label: "Commit", value: r.commit_sha ? r.commit_sha.slice(0, 7) : "—" },
                       { label: "Environment", value: r.environment ?? "—" },
                       { label: "CI", value: CI_LABELS[r.ci_provider] ?? r.ci_provider },
@@ -257,7 +293,7 @@ export default function RunsPage() {
                       { label: "Duration", value: formatDuration(r.duration_ms) },
                     ]} />
                   </td>
-                  <td className="hide-narrow"><RunStatusBadge verdict={runVerdict(r)} /></td>
+                  <td className="hide-narrow"><RunVerdictPill verdict={runVerdict(r)} /></td>
                   <td>{new Date(r.started_at).toLocaleString()}</td>
                   <td>{r.branch ?? "—"}</td>
                   <td className="hide-narrow">{r.commit_sha ? r.commit_sha.slice(0, 7) : "—"}</td>
@@ -271,11 +307,11 @@ export default function RunsPage() {
                       CI_LABELS[r.ci_provider] ?? r.ci_provider
                     )}
                   </td>
-                  <td>{r.passed}</td>
-                  <td>{r.failed}</td>
-                  <td className="hide-narrow">{r.errored}</td>
-                  <td className="hide-narrow">{r.skipped}</td>
-                  <td className="hide-narrow">{formatDuration(r.duration_ms)}</td>
+                  <td className="num">{r.passed}</td>
+                  <td className="num">{r.failed}</td>
+                  <td className="hide-narrow num">{r.errored}</td>
+                  <td className="hide-narrow num">{r.skipped}</td>
+                  <td className="hide-narrow num">{formatDuration(r.duration_ms)}</td>
                 </tr>
               ))}
             </tbody>
