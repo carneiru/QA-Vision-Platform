@@ -782,6 +782,14 @@ No blueprint adoption trigger fires, so the blueprint itself does not change.
   `beforeprint`.
 - **Before every push:** `npm run lint`, `typecheck` and `build`, as the pre-push hook runs them.
 
+
+## Decisions confirmed by the user (2026-10-08)
+
+1. **Regressions default to the main branch.** The branch filter starts on the project's default branch, as known to project-service. When there is none, it starts on `main`. So "newly failing" and "fixed" mean "on main" unless the user picks another branch. The filter chip shows this default.
+2. **Run origin is matched by URL in v1.** A Play whose GitHub run never matched counts as CI. A stored origin marker on uploads is a TODO item, not part of this work.
+3. **The report's flakiness is labelled "Instability (flips)".** A short note explains that it counts pass/fail flips and differs from the Flaky page's same-commit rule.
+4. **ADR-026** records the origin rule and the report joins. It is written with phase 1.
+
 ## Out of scope
 
 - **A stored origin marker on runs.** That would be a Play workflow input, then the collector, then
