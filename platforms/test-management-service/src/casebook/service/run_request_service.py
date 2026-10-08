@@ -277,7 +277,8 @@ def refresh(db: Session, row: RunRequest, force: bool = False) -> RunRequest:
 
 
 def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[List[int]],
-           suite_id: Optional[int]) -> RunRequest:
+           suite_id: Optional[int], estimate_ms: Optional[int] = None,
+           estimate_upper_ms: Optional[int] = None) -> RunRequest:
     target, token = _target_and_token(db, project_id)
     selection, skipped_manual = build_selection(db, project_id, case_numbers, suite_id)
     preview = dispatch_inputs(0, selection)
@@ -289,7 +290,8 @@ def create(db: Session, project_id: int, user_id: int, case_numbers: Optional[Li
         if active.status in ACTIVE_STATUSES:
             raise RunActive(active.id)
     row = RunRequest(project_id=project_id, requested_by=user_id, requested_at=now(), selection=selection,
-                     suite_id=suite_id, status="queued", skipped_manual=skipped_manual)
+                     suite_id=suite_id, status="queued", skipped_manual=skipped_manual,
+                     estimate_ms=estimate_ms, estimate_upper_ms=estimate_upper_ms)
     db.add(row)
     try:
         db.commit()
@@ -345,7 +347,8 @@ def out(row: RunRequest) -> dict:
         "selection": selection, "case_count": len(selection), "suite_id": row.suite_id, "status": row.status,
         "conclusion": row.conclusion, "github_run_id": row.github_run_id, "github_run_url": row.github_run_url,
         "stopped_by": row.stopped_by, "stopped_at": aware(row.stopped_at), "error": row.error,
-        "checked_at": aware(row.checked_at), "skipped_manual": row.skipped_manual or 0, "refreshing": needs_refresh(row, now()),
+        "checked_at": aware(row.checked_at), "skipped_manual": row.skipped_manual or 0,
+        "estimate_ms": row.estimate_ms, "estimate_upper_ms": row.estimate_upper_ms, "refreshing": needs_refresh(row, now()),
     }
 
 

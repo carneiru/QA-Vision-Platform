@@ -54,6 +54,9 @@ class RunRequest(Base):
     error = Column(String(500), nullable=True)
     checked_at = Column(DateTime(timezone=True), nullable=True)
     skipped_manual = Column(Integer, nullable=False, default=0, server_default="0")  # manual cases a suite run left out
+    # What the dashboard estimated before Play (from ingestion; test-management never asks it): null when unknown
+    estimate_ms = Column(Integer, nullable=True)
+    estimate_upper_ms = Column(Integer, nullable=True)
 
 
 class CiTargetEvent(Base):

@@ -183,3 +183,29 @@ def test_migration_007_adds_a_nullable_scenario_line_and_downgrades(tmp_path):
     finally:
         engine.dispose()
     command.upgrade(cfg, "head")
+
+
+def test_migration_008_adds_nullable_run_estimates_and_downgrades(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'down8.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    engine = create_engine(url)
+    try:
+        columns = {c["name"]: c for c in inspect(engine).get_columns("run_requests")}
+        assert columns["estimate_ms"]["nullable"] is True and columns["estimate_upper_ms"]["nullable"] is True
+        with engine.begin() as conn:
+            conn.execute(text(RUN), {"project": 1, "status": "completed"})
+            assert conn.execute(text("SELECT estimate_ms, estimate_upper_ms FROM run_requests")).one() == (None, None)
+    finally:
+        engine.dispose()
+    command.downgrade(cfg, "007")
+    engine = create_engine(url)
+    try:
+        columns = {c["name"] for c in inspect(engine).get_columns("run_requests")}
+        assert not columns & {"estimate_ms", "estimate_upper_ms"}
+        assert "scenario_line" in {c["name"] for c in inspect(engine).get_columns("cases")}
+    finally:
+        engine.dispose()
+    command.upgrade(cfg, "head")

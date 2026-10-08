@@ -826,3 +826,42 @@ def test_a_pending_cancel_is_retried_after_github_fails_on_the_cancel(project, a
     body = get(project, auth, rid)
     assert (body["status"], body["github_run_id"], body["refreshing"]) == ("cancelled", 501, False)
     assert cancel.calls.last.response.status_code == 202
+
+
+# ---- duration estimate (the dashboard sends what ingestion estimated; test-management never asks it) ----
+
+def test_the_estimate_is_stored_and_returned_on_every_read(project, auth, github, clock):
+    github.dispatch(run_id=900)
+    body = play(project, auth, case_numbers=[CARD], estimate_ms=720_000, estimate_upper_ms=900_000).json()
+    assert (body["estimate_ms"], body["estimate_upper_ms"]) == (720_000, 900_000)
+    github.run(github.run_body(900, body["id"], status="in_progress"))
+    assert (get(project, auth, body["id"])["estimate_ms"], get(project, auth, body["id"])["estimate_upper_ms"]) == (
+        720_000, 900_000)
+    listed = project.get(URL, headers=auth()).json()["items"][0]
+    assert (listed["estimate_ms"], listed["estimate_upper_ms"]) == (720_000, 900_000)
+
+
+def test_an_omitted_estimate_stays_null(project, auth, github, clock):
+    github.dispatch(run_id=901)
+    body = play(project, auth, case_numbers=[CARD]).json()
+    assert (body["estimate_ms"], body["estimate_upper_ms"]) == (None, None)
+
+
+def test_an_explicit_null_estimate_is_accepted(project, auth, github, clock):
+    github.dispatch(run_id=902)
+    r = play(project, auth, case_numbers=[CARD], estimate_ms=None, estimate_upper_ms=None)
+    assert r.status_code == 201, r.text
+    assert r.json()["estimate_ms"] is None
+
+
+def test_the_estimate_bounds_are_inclusive(project, auth, github, clock):
+    github.dispatch(run_id=903)
+    r = play(project, auth, case_numbers=[CARD], estimate_ms=0, estimate_upper_ms=86_400_000)
+    assert r.status_code == 201, r.text
+    assert (r.json()["estimate_ms"], r.json()["estimate_upper_ms"]) == (0, 86_400_000)
+
+
+@pytest.mark.parametrize("field", ["estimate_ms", "estimate_upper_ms"])
+@pytest.mark.parametrize("value", [-1, 86_400_001, 1.5, "600000", True])
+def test_a_bad_estimate_is_422(project, auth, field, value):
+    assert play(project, auth, case_numbers=[CARD], **{field: value}).status_code == 422

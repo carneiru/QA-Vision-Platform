@@ -72,11 +72,18 @@ class CiTargetOut(BaseModel):
 MAX_RUN_CASES = 200
 
 
+MAX_ESTIMATE_MS = 86_400_000  # one day
+EstimateMs = Annotated[int, Field(strict=True, ge=0, le=MAX_ESTIMATE_MS)]
+
+
 class RunRequestIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     case_numbers: Optional[Annotated[List[Annotated[int, Field(ge=1)]], Field(min_length=1, max_length=MAX_RUN_CASES)]] = None
     suite_id: Optional[int] = Field(None, ge=1)
+    # The dashboard's estimate (ingestion's POST /analytics/duration-estimate), stored as sent
+    estimate_ms: Optional[EstimateMs] = None
+    estimate_upper_ms: Optional[EstimateMs] = None
 
     @model_validator(mode="after")
     def _one_of(self):
@@ -107,6 +114,8 @@ class RunRequestOut(BaseModel):
     error: Optional[str] = None
     checked_at: Optional[datetime] = None
     skipped_manual: int = 0  # manual cases a whole-suite run left out
+    estimate_ms: Optional[int] = None
+    estimate_upper_ms: Optional[int] = None
     refreshing: bool  # true while the server still checks GitHub for it: poll
 
 

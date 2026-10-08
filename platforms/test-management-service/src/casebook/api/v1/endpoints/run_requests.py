@@ -29,7 +29,8 @@ def create_run_request(
     access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
 ):
     try:
-        row = runs.create(db, access.project_id, access.user_id, payload.case_numbers, payload.suite_id)
+        row = runs.create(db, access.project_id, access.user_id, payload.case_numbers, payload.suite_id,
+                          payload.estimate_ms, payload.estimate_upper_ms)
     except runs.NoTarget:
         raise HTTPException(status.HTTP_412_PRECONDITION_FAILED, detail=NO_TARGET)
     except secret_box.SecretsUnavailable as exc:
