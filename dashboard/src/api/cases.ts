@@ -263,3 +263,58 @@ export function importCases(
   };
   return apiFetch(`${base(projectId)}/cases/import?dry_run=${opts.dryRun}`, { method: "POST", body: JSON.stringify(body) });
 }
+
+/** GET /case-areas as the server sends it: short names keep 20,000 cases near 0.5 MB gzipped. */
+interface CaseAreasWire {
+  generated_at: string;
+  counts: { cases: number; linked: number; manual: number };
+  folders: string[];
+  features: string[];
+  labels: string[];
+  suites: { id: number; name: string }[];
+  cases: { n: number; t: string; k: string | null; fo: number | null; fe: number | null; l: number[]; s: number[] }[];
+}
+
+/** One active case, for the report's joins (the dashboard maps test keys to areas; ADR-026). */
+export interface CaseArea {
+  number: number;
+  title: string;
+  testKey: string | null;
+  /** The directory part of its .feature path; null at the root and for a manual case */
+  folder: string | null;
+  feature: string | null;
+  labels: string[];
+  suiteIds: number[];
+}
+
+export interface CaseAreas {
+  generatedAt: string;
+  counts: { cases: number; linked: number; manual: number };
+  folders: string[];
+  features: string[];
+  labels: string[];
+  suites: { id: number; name: string }[];
+  cases: CaseArea[];
+}
+
+/** Every active case in one response; a 409 `too_many_cases` above 50,000. The short names are mapped here, once. */
+export async function getCaseAreas(projectId: number, init: { signal?: AbortSignal } = {}): Promise<CaseAreas> {
+  const wire = await apiFetch<CaseAreasWire>(`${base(projectId)}/case-areas`, init);
+  return {
+    generatedAt: wire.generated_at,
+    counts: wire.counts,
+    folders: wire.folders,
+    features: wire.features,
+    labels: wire.labels,
+    suites: wire.suites,
+    cases: wire.cases.map((c) => ({
+      number: c.n,
+      title: c.t,
+      testKey: c.k,
+      folder: c.fo === null ? null : wire.folders[c.fo],
+      feature: c.fe === null ? null : wire.features[c.fe],
+      labels: c.l.map((i) => wire.labels[i]),
+      suiteIds: c.s.map((i) => wire.suites[i].id),
+    })),
+  };
+}

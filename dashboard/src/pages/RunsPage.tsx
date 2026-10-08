@@ -17,21 +17,13 @@ import { LIVE_REFRESH_MS } from "../lib/live";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 import PageHeader from "../components/PageHeader";
 import { tableCardClass, useIsWide } from "../lib/useIsWide";
+import { CI_LABELS } from "../lib/ciProviders";
 
 const PAGE = 50;
 // The API has no sort parameter for runs: the columns sort the page that is loaded
 const SORT_KEYS = ["started", "duration", "failed"] as const;
 type SortKey = (typeof SORT_KEYS)[number];
 const DEFAULT_SORT: SortState<SortKey> = { key: "started", dir: "desc" };
-
-const CI_LABELS: Record<string, string> = {
-  github_actions: "GitHub Actions",
-  gitlab_ci: "GitLab CI",
-  azure_pipelines: "Azure Pipelines",
-  jenkins: "Jenkins",
-  other: "Other",
-  local: "Local",
-};
 
 // URL keys, in URL order. "from" and "to" are local calendar days
 // (YYYY-MM-DD); the rest go to the API unchanged.

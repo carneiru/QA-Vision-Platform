@@ -109,3 +109,12 @@ export function getRunRequest(projectId: number, requestId: number): Promise<Run
 export function stopRunRequest(projectId: number, requestId: number): Promise<RunRequest> {
   return apiFetch(`${base(projectId)}/run-requests/${requestId}/stop`, { method: "POST", body: "{}" });
 }
+
+/** The GitHub run URLs of Play requests made since `since` (ISO), newest first: the report's origin filter. */
+export function getRunUrls(
+  projectId: number,
+  since: string,
+  init: { signal?: AbortSignal } = {},
+): Promise<{ urls: string[]; truncated: boolean }> {
+  return apiFetch(`${base(projectId)}/run-requests/run-urls${buildQuery({ since })}`, init);
+}

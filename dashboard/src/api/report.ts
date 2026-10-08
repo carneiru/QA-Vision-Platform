@@ -1,0 +1,81 @@
+import { apiFetch } from "./http";
+
+// Types mirror platforms/ingestion-service/src/ingestion/schemas/report.py and service/report_service.py
+// (spec docs/superpowers/specs/2026-10-08-report-deep-analysis-design.md). Phases 2 and 3 add their sections.
+
+export type ReportSectionName = "summary" | "failure_causes" | "regressions" | "tests" | "duration";
+export type ReportOrigin = "any" | "ci" | "qeos";
+
+export interface ReportRequest {
+  from: string;
+  to: string;
+  tz: string;
+  branch: string | null;
+  environment: string | null;
+  ci_provider: string | null;
+  origin: ReportOrigin;
+  requested_run_urls: string[] | null;
+  test_keys: string[] | null;
+  sections: ReportSectionName[];
+  bucket: "auto" | "day" | "week";
+}
+
+export interface ReportPeriod { from: string; to: string; days: number; start: string; end: string }
+
+export interface ReportTotals {
+  runs: number;
+  executions: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  skipped: number;
+  pass_rate: number | null;
+  tests: number;
+  failing_tests: number;
+  avg_run_duration_ms: number | null;
+}
+
+export interface ReportBucket {
+  date: string;
+  runs: number;
+  executions: number;
+  passed: number;
+  failed: number;
+  errored: number;
+  skipped: number;
+  pass_rate: number | null;
+}
+
+export interface ReportTestRef { test_key: string; suite: string; class_name: string; name: string }
+
+export interface SummarySection {
+  current: ReportTotals;
+  previous: ReportTotals | null;
+  buckets: ReportBucket[];
+  /** The previous period, bucket by bucket: `date` is the previous period's day (plan Ruling 2) */
+  previous_buckets: ReportBucket[];
+  top_failing: (ReportTestRef & { executions: number; failures: number; pass_rate: number | null })[];
+  slowest: (ReportTestRef & { executions: number; avg_duration_ms: number | null })[];
+  branches: { branch: string | null; runs: number; executions: number; failures: number; pass_rate: number | null }[];
+  facets: { branches: string[]; environments: string[]; ci_providers: string[] };
+}
+
+export interface Report {
+  period: ReportPeriod;
+  previous_period: ReportPeriod;
+  tz: string;
+  bucket: "day" | "week";
+  generated_at: string;
+  scope: { runs: number; previous_runs: number; test_keys: number | null };
+  summary?: SummarySection;
+}
+
+export function postReport(projectId: number, body: ReportRequest, init: { signal?: AbortSignal } = {}): Promise<Report> {
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/report`, {
+    method: "POST", body: JSON.stringify(body), signal: init.signal,
+  });
+}
+
+export function testLabel(r: { suite: string; class_name: string; name: string }): string {
+  return [r.suite, r.class_name, r.name].filter(Boolean).join(" › ");
+}

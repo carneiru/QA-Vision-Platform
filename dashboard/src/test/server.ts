@@ -18,6 +18,8 @@ export const server = setupServer(
   http.get("/api/v1/users/me", () => HttpResponse.json({ id: 1, email: "tester@example.com", mfa_enabled: false })),
   // The Cases KPI tiles (and Overview) read these; tests about them override
   http.get("/api/v1/projects/:projectId/analytics/trends", () => HttpResponse.json({ tz: "UTC", bucket: "week", days: [] })),
+  // The report's default branch reads the project's repositories; tests about it override
+  http.get("/api/v1/projects/:projectId/repositories", () => HttpResponse.json([])),
   http.get("/api/v1/projects/:projectId/analytics/flaky", () => HttpResponse.json([])),
   http.get("/api/v1/projects/:projectId/analytics/latest-keys", () => HttpResponse.json({ keys: [] })),
   // Play's duration estimate: no history unless a test says otherwise
