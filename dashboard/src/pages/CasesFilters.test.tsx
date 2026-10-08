@@ -31,7 +31,7 @@ afterEach(() => {
   delete window.matchMedia;
 });
 
-function renderCases(url = "/projects/42/cases") {
+function renderCases(url = "/projects/42/cases?group=scenario") {
   setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -76,7 +76,7 @@ test("a narrow screen reopens the disclosure the reader left open", async () => 
 
 test("active filters are counted in the summary, and a narrow screen opens to show them", async () => {
   mockNarrow(true);
-  renderCases("/projects/42/cases?priority=high&status=ready&q=login");
+  renderCases("/projects/42/cases?group=scenario&priority=high&status=ready&q=login");
   await screen.findByLabelText("Search");
   expect(screen.getByText("Filters (2 active)", { selector: "summary" })).toBeInTheDocument();
   expect(disclosure()).toHaveAttribute("open");
@@ -85,7 +85,7 @@ test("active filters are counted in the summary, and a narrow screen opens to sh
 test("active filters open the disclosure even when the reader last left it closed", async () => {
   mockNarrow(false);
   sessionStorage.setItem("qeos.filters.cases", "closed");
-  renderCases("/projects/42/cases?priority=high&status=ready");
+  renderCases("/projects/42/cases?group=scenario&priority=high&status=ready");
   await screen.findByLabelText("Search");
   expect(disclosure()).toHaveAttribute("open");
 });

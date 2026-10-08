@@ -147,7 +147,7 @@ test("selected rows run together; manual cases have no checkbox", async () => {
   let sent: unknown = null;
   listing([kase(1), kase(2, { source_path: null }), kase(3)]);
   server.use(http.post(`${P}/run-requests`, async ({ request }) => { sent = await request.json(); return HttpResponse.json(runRequest(), { status: 201 }); }));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
   expect(screen.queryByRole("checkbox", { name: /TC-2/ })).not.toBeInTheDocument();
   await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-3 Case 3" }));
@@ -160,7 +160,7 @@ test("selected rows run together; manual cases have no checkbox", async () => {
 
 test("the dialog lists ten cases and then how many more", async () => {
   listing(Array.from({ length: 12 }, (_, i) => kase(i + 1)));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await userEvent.click(await screen.findByRole("checkbox", { name: "Select all imported cases on this page" }));
   await userEvent.click(screen.getByRole("button", { name: "Run selected (12)" }));
   const dialog = screen.getByRole("dialog", { name: "Run 12 tests?" });
@@ -170,7 +170,7 @@ test("the dialog lists ten cases and then how many more", async () => {
 
 test("at most 200 cases can be selected", async () => {
   listing(Array.from({ length: 260 }, (_, i) => kase(i + 1)));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   for (let page = 0; page < 4; page++) {
     await userEvent.click(await screen.findByRole("checkbox", { name: "Select all imported cases on this page" }));
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -323,7 +323,7 @@ test("the selection survives a filter that shows no rows, and stays visible", as
     const sp = new URL(request.url).searchParams;
     return HttpResponse.json(sp.get("search") ? { total: 0, items: [] } : { total: 1, items: [kase(1)] });
   }));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
   await userEvent.type(screen.getByRole("searchbox", { name: "Search" }), "zzz");
   await userEvent.click(screen.getByRole("button", { name: "Apply" }));
@@ -357,7 +357,7 @@ test("with no rows left on the page, a started selection still leaves focus on t
     }),
     http.post(`${P}/run-requests`, () => HttpResponse.json(runRequest(), { status: 201 })),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
   await userEvent.type(screen.getByRole("searchbox", { name: "Search" }), "zzz");
   await userEvent.click(screen.getByRole("button", { name: "Apply" }));
@@ -401,7 +401,7 @@ test("a suite of manual cases only cannot run, and says why", async () => {
 
 test("select-all is indeterminate while only some of the page is selected", async () => {
   listing(Array.from({ length: 3 }, (_, i) => kase(i + 1)));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   const all = await screen.findByRole("checkbox", { name: "Select all imported cases on this page" }) as HTMLInputElement;
   expect(all.indeterminate).toBe(false);
   await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-1 Case 1" }));
@@ -417,7 +417,7 @@ test("select-all is indeterminate while only some of the page is selected", asyn
 
 test("selecting a row inserts nothing above the table: the bar follows it and cannot push rows down", async () => {
   listing([kase(1), kase(2)]);
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   const table = await screen.findByRole("region", { name: "Test cases" });
   // The header's New case link steps back from primary once a selection exists; that is a class, not layout
   const above = () => (table.parentElement as HTMLElement).innerHTML.split(table.outerHTML)[0].replace(/class="button( primary)?"/g, "");
@@ -433,7 +433,7 @@ const primaries = () =>
 
 test("Cases: New case is the one primary until cases are selected; then Run selected is", async () => {
   listing([kase(1), kase(2)]);
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" });
   expect(primaries()).toEqual(["New case"]);
   await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-1 Case 1" }));
@@ -441,7 +441,7 @@ test("Cases: New case is the one primary until cases are selected; then Run sele
 });
 
 test("Cases: an empty list keeps one primary, the empty state's", async () => {
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await screen.findByText("No test cases yet");
   expect(primaries()).toEqual(["Write the first case"]);
 });
@@ -470,7 +470,7 @@ test("the sticky selection bar reserves its height so a focused row is not hidde
   Element.prototype.scrollIntoView = scrolled;
   try {
     listing([kase(1), kase(2)]);
-    renderAt("/projects/42/cases");
+    renderAt("/projects/42/cases?group=scenario");
     expect(document.documentElement.style.scrollPaddingBottom).toBe("");
     await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
     await waitFor(() => expect(document.documentElement.style.scrollPaddingBottom).toBe("88px"));

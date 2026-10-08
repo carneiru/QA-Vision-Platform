@@ -23,6 +23,7 @@ import ComparePage from "./pages/ComparePage";
 import CaseEditorPage from "./pages/CaseEditorPage";
 import CaseImportPage from "./pages/CaseImportPage";
 import CasesPage from "./pages/CasesPage";
+import FeaturePage from "./pages/FeaturePage";
 import SuiteDetailPage from "./pages/SuiteDetailPage";
 import SuitesPage from "./pages/SuitesPage";
 import RunDetailPage from "./pages/RunDetailPage";
@@ -145,6 +146,7 @@ export function AppRoutes() {
             <Route path="cases" element={<CasesPage />} />
             <Route path="cases/new" element={<CaseEditorPage />} />
             <Route path="cases/import" element={<CaseImportPage />} />
+            <Route path="cases/feature" element={<FeaturePage />} />
             <Route path="cases/:caseNumber" element={<CaseEditorPage />} />
             <Route path="suites" element={<SuitesPage />} />
             <Route path="suites/:suiteId" element={<SuiteDetailPage />} />

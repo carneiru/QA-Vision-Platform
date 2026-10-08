@@ -63,7 +63,7 @@ function mockCases(items = [kase(1), kase(2, { status: "ready", priority: "high"
     http.post(`${P}/cases/search`, () => HttpResponse.json({ total: items.length, items })),
   );
 }
-const renderCases = (url = "/projects/42/cases") => renderAt("/projects/:projectId/cases", url, <CasesPage />);
+const renderCases = (url = "/projects/42/cases?group=scenario") => renderAt("/projects/:projectId/cases", url, <CasesPage />);
 
 describe("Cases chips", () => {
   beforeEach(() => mockCases());
@@ -83,7 +83,7 @@ describe("Cases chips", () => {
   });
 
   test("Draft and Ready are one choice; pressing the active chip clears it", async () => {
-    renderCases("/projects/42/cases?status=draft");
+    renderCases("/projects/42/cases?group=scenario&status=draft");
     await screen.findByText("Case 1");
     expect(chip("Draft")).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(chip("Ready"));
@@ -94,7 +94,7 @@ describe("Cases chips", () => {
   });
 
   test("a chip resets paging and Back undoes it", async () => {
-    renderCases("/projects/42/cases?offset=50");
+    renderCases("/projects/42/cases?group=scenario&offset=50");
     await screen.findByText("Case 1");
     await userEvent.click(chip("Never ran"));
     expect(where().get("result")).toBe("never");
@@ -105,7 +105,7 @@ describe("Cases chips", () => {
   });
 
   test("other applied filters are removable chips, and Clear all drops them all", async () => {
-    renderCases("/projects/42/cases?label=flights&folder=features/hotels&q=legroom&status=ready");
+    renderCases("/projects/42/cases?group=scenario&label=flights&folder=features/hotels&q=legroom&status=ready");
     await screen.findByText("Case 1");
     expect(within(chips()).getByText("Label: flights")).toBeInTheDocument();
     expect(within(chips()).getByText("Folder: features / hotels")).toBeInTheDocument();
@@ -113,7 +113,8 @@ describe("Cases chips", () => {
     expect(where().has("q")).toBe(false);
     expect(where().get("label")).toBe("flights");
     await userEvent.click(within(chips()).getByRole("button", { name: "Clear all" }));
-    expect(where().toString()).toBe("");
+    // The grouping is a view, not a filter: it stays
+    expect(where().toString()).toBe("group=scenario");
     expect(within(chips()).queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
   });
 
@@ -272,7 +273,7 @@ describe("fix round 1", () => {
   test("Cases: a quick chip does not open the Filters disclosure; a filter only the form shows does", async () => {
     mockCases();
     narrow();
-    renderCases("/projects/42/cases?status=ready&linked=true");
+    renderCases("/projects/42/cases?group=scenario&status=ready&linked=true");
     await screen.findByText("Case 1");
     const details = () => screen.getByText(/^Filters/, { selector: "summary" }).closest("details")!;
     expect(details()).not.toHaveAttribute("open");
@@ -285,7 +286,7 @@ describe("fix round 1", () => {
   test("Cases: a filter with no quick chip still opens the disclosure on a narrow screen", async () => {
     mockCases();
     narrow();
-    renderCases("/projects/42/cases?status=archived");
+    renderCases("/projects/42/cases?group=scenario&status=archived");
     await screen.findByText("Case 1");
     expect(screen.getByText(/^Filters/, { selector: "summary" }).closest("details")).toHaveAttribute("open");
   });
@@ -332,11 +333,12 @@ describe("fix round 1", () => {
 describe("Clear all blanks the form drafts", () => {
   test("Cases: Search text typed but not applied is cleared too", async () => {
     mockCases();
-    renderCases("/projects/42/cases?status=ready");
+    renderCases("/projects/42/cases?group=scenario&status=ready");
     await screen.findByText("Case 1");
     await userEvent.type(screen.getByLabelText("Search"), "legroom");
     await userEvent.click(within(chips()).getByRole("button", { name: "Clear all" }));
-    expect(where().toString()).toBe("");
+    // The grouping is a view, not a filter: it stays
+    expect(where().toString()).toBe("group=scenario");
     expect(screen.getByLabelText("Search")).toHaveValue("");
   });
 

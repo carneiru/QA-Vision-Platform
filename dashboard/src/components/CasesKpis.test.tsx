@@ -61,7 +61,7 @@ function apis({ thisWeek = 0.924 as number | null, lastWeek = 0.893 as number | 
   );
 }
 
-function renderCases(url = "/projects/42/cases") {
+function renderCases(url = "/projects/42/cases?group=scenario") {
   setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -100,7 +100,7 @@ test("four tiles: totals, pass rate trend, failing and flaky counts, each with a
 
 test("the Failing count is the Failing filter's total, from the same requests", async () => {
   apis();
-  renderCases("/projects/42/cases?result=failed");
+  renderCases("/projects/42/cases?group=scenario&result=failed");
   expect(await within(tiles()).findByRole("link", { name: /^Failing 17 / })).toBeInTheDocument();
   expect(await screen.findByText("1–1 of 17")).toBeInTheDocument();
   // The list and the tile share their keys: one ask for failed keys, one search
@@ -158,7 +158,7 @@ test("no failing cases keeps the Failing edge neutral", async () => {
 
 test("the Failing tile applies the Failing quick chip", async () => {
   apis();
-  renderCases("/projects/42/cases?status=ready");
+  renderCases("/projects/42/cases?group=scenario&status=ready");
   await userEvent.setup().click(await screen.findByRole("link", { name: /^Failing 17/ }));
   expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?result=failed");
   expect(await screen.findByRole("button", { name: "Failing", pressed: true })).toBeInTheDocument();

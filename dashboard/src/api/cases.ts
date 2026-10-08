@@ -40,8 +40,13 @@ export type CaseInput = Partial<
   Pick<Case, "title" | "description" | "steps" | "labels" | "priority" | "status" | "automated_test_key" | "automated_name">
 >;
 
+/** Where a search looks: scenario (title, Gherkin, TC key), feature (feature name or path), or both. */
+export type SearchIn = "feature" | "scenario" | "both";
+export const SEARCH_IN: SearchIn[] = ["feature", "scenario", "both"];
+
 export interface CaseQuery {
   search?: string;
+  search_in?: SearchIn;
   label?: string;
   status?: CaseStatus;
   priority?: Priority;
@@ -88,6 +93,65 @@ export function listFolders(projectId: number): Promise<{ path: string; count: n
 
 export function listFeatures(projectId: number): Promise<{ feature: string; count: number }[]> {
   return apiFetch(`${base(projectId)}/case-features`);
+}
+
+/** One .feature file's cases (or every manual case: feature_name, path and folder null), from GET /features. */
+export interface FeatureGroup {
+  feature_name: string | null;
+  path: string | null;
+  /** The path's folder, "" for a file at the root. */
+  folder: string | null;
+  case_count: number;
+  /** The first 200 matching cases, by number. */
+  case_numbers: number[];
+  /** True when the raw file is stored (imported since raw storage). */
+  has_source: boolean;
+}
+
+export interface FeatureQuery {
+  search?: string;
+  /** Always sent: the server's default (both) is not the dashboard's. */
+  search_in: SearchIn;
+  folder?: string;
+  label?: string;
+  status?: "draft" | "ready";
+  priority?: Priority;
+  linked?: "true" | "false";
+  limit: number;
+  offset: number;
+}
+
+/** Active cases grouped by .feature file: ordered by folder then name, manual group last. */
+export function listFeatureGroups(projectId: number, q: FeatureQuery): Promise<{ total: number; items: FeatureGroup[] }> {
+  return apiFetch(`${base(projectId)}/features${buildQuery({ ...q })}`);
+}
+
+export interface FeatureCase {
+  number: number;
+  key: string;
+  title: string;
+  scenario_name: string | null;
+  status: CaseStatus;
+  priority: Priority;
+  automated_test_key: string | null;
+  /** 1-based line of the scenario's heading in `content`, when found. */
+  line: number | null;
+}
+
+export interface FeatureDetail {
+  feature_name: string | null;
+  path: string;
+  folder: string | null;
+  /** The raw file as last imported; null until the file is re-imported. */
+  content: string | null;
+  imported_at: string | null;
+  /** In file order (by number when the file is not stored). */
+  cases: FeatureCase[];
+}
+
+/** One .feature file: 404 when no active case has the path. */
+export function getFeatureDetail(projectId: number, path: string): Promise<FeatureDetail> {
+  return apiFetch(`${base(projectId)}/features/detail${buildQuery({ path })}`);
 }
 
 export function getCase(projectId: number, number: number): Promise<Case> {

@@ -75,7 +75,7 @@ test("lists cases with their key, labels and whether they are automated; filters
     }),
     http.get(`${P}/case-labels`, () => HttpResponse.json([{ label: "smoke", count: 1 }])),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   const row = (await screen.findByRole("link", { name: "Case 1" })).closest("tr")!;
   expect(within(row).getByText("smoke")).toBeInTheDocument();
   expect(within(row).getAllByText(/linked/i).length).toBeGreaterThan(0); // column and narrow line
@@ -96,7 +96,7 @@ test("an empty project invites editors to write the first case; viewers just rea
     http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })),
     http.get(`${P}/case-labels`, () => HttpResponse.json([])),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   expect(await screen.findByText(/no test cases yet/i)).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: /write the first case|new case/i })).not.toBeInTheDocument();
 });
@@ -259,7 +259,7 @@ test("the origin filter reaches the API", async () => {
     http.get(`${P}/cases`, ({ request }) => { const sp = listParams(request); if (sp) seen.push(sp.get("origin") ?? ""); return HttpResponse.json({ total: 0, items: [] }); }),
     http.get(`${P}/case-labels`, () => HttpResponse.json([])),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await userEvent.setup().selectOptions(await screen.findByLabelText(/origin/i), "imported");
   await userEvent.setup().click(screen.getByRole("button", { name: /apply/i }));
   await vi.waitFor(() => expect(seen).toContain("imported"));
@@ -284,7 +284,7 @@ test("a folder in the URL reaches the API", async () => {
   asRole("member"); facets();
   const seen: URLSearchParams[] = [];
   server.use(http.get(`${P}/cases`, ({ request }) => { const sp = listParams(request); if (sp) seen.push(sp); return HttpResponse.json({ total: 0, items: [] }); }));
-  renderAt("/projects/42/cases?folder=tests%2Ffeatures");
+  renderAt("/projects/42/cases?group=scenario&folder=tests%2Ffeatures");
   await waitFor(() => expect(seen.at(-1)?.get("folder")).toBe("tests/features"));
   await screen.findByRole("option", { name: "Hotels (2)" });
 });
@@ -301,7 +301,7 @@ test("picking a folder from the dropdown puts it in the URL and the API call, ke
       return HttpResponse.json({ total: 3, items: [kase(1)] });
     }),
   );
-  renderAt("/projects/42/cases?priority=high");
+  renderAt("/projects/42/cases?group=scenario&priority=high");
   await userEvent.click(await screen.findByRole("button", { name: /^folder/i }));
   expect(screen.getByRole("dialog", { name: "Folder" })).toBeInTheDocument();
   await userEvent.type(await screen.findByRole("searchbox", { name: "Search folders" }), "hotels");
@@ -315,7 +315,7 @@ test("picking a folder from the dropdown puts it in the URL and the API call, ke
 test("picking a folder also applies edits made to the other filters but not yet applied", async () => {
   asRole("member");
   server.use(http.get(`${P}/case-folders`, () => HttpResponse.json([{ path: "tests", count: 3 }, { path: "tests/hotels", count: 2 }])));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Priority" }), "high");
   await userEvent.click(screen.getByRole("button", { name: /^folder/i }));
   await userEvent.click(await screen.findByRole("treeitem", { name: /hotels 2/i }));
@@ -325,14 +325,14 @@ test("picking a folder also applies edits made to the other filters but not yet 
 
 test("Clear all is only shown while a filter is active", async () => {
   asRole("member");
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await screen.findByRole("button", { name: "Apply" });
   expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
 });
 
 test("Clear all appears with a filter and resets the URL; the form has no second clear button", async () => {
   asRole("member");
-  renderAt("/projects/42/cases?priority=high");
+  renderAt("/projects/42/cases?group=scenario&priority=high");
   await screen.findByRole("button", { name: "Clear all" });
   expect(screen.queryByRole("button", { name: /clear filters/i })).not.toBeInTheDocument();
   await userEvent.click(await screen.findByRole("button", { name: "Clear all" }));
@@ -343,7 +343,7 @@ test("link, feature and ADO filters reach the API", async () => {
   asRole("member"); facets();
   const seen: URLSearchParams[] = [];
   server.use(http.get(`${P}/cases`, ({ request }) => { const sp = listParams(request); if (sp) seen.push(sp); return HttpResponse.json({ total: 0, items: [] }); }));
-  renderAt("/projects/42/cases?linked=false&feature=Hotels&ado=81284");
+  renderAt("/projects/42/cases?group=scenario&linked=false&feature=Hotels&ado=81284");
   await waitFor(() => expect(seen.at(-1)?.get("feature")).toBe("Hotels"));
   expect(seen.at(-1)?.get("linked")).toBe("false");
   expect(seen.at(-1)?.get("ado")).toBe("81284");
@@ -362,7 +362,7 @@ test("a latest-result filter asks ingestion for keys, then searches with them", 
       return HttpResponse.json({ total: 1, items: [kase(1)] });
     }),
   );
-  renderAt("/projects/42/cases?result=failed&folder=tests%2Ffeatures");
+  renderAt("/projects/42/cases?group=scenario&result=failed&folder=tests%2Ffeatures");
   await waitFor(() => expect(body).not.toBeNull());
   expect(body).toMatchObject({ test_keys: ["f".repeat(64)], keys_mode: "include", folder: "tests/features" });
   await settled();
@@ -380,7 +380,7 @@ test("never ran asks for any result and excludes those keys", async () => {
     }),
     http.post(`${P}/cases/search`, async ({ request }) => { body = (await request.json()) as Record<string, unknown>; return HttpResponse.json({ total: 0, items: [] }); }),
   );
-  renderAt("/projects/42/cases?result=never");
+  renderAt("/projects/42/cases?group=scenario&result=never");
   await waitFor(() => expect(body).not.toBeNull());
   expect(status).toBe("any");
   expect(body).toMatchObject({ test_keys: [], keys_mode: "exclude" });
@@ -394,7 +394,7 @@ test("when ingestion is down the result filter is skipped with a banner", async 
     http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ detail: "down" }, { status: 503 })),
     http.get(`${P}/cases`, ({ request }) => { const sp = listParams(request); if (sp) seen.push(sp); return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
   );
-  renderAt("/projects/42/cases?result=passed&label=smoke");
+  renderAt("/projects/42/cases?group=scenario&result=passed&label=smoke");
   expect(await screen.findByText(/latest result filter unavailable right now/i)).toBeInTheDocument();
   expect(seen.at(-1)?.get("label")).toBe("smoke");
 });
@@ -402,9 +402,9 @@ test("when ingestion is down the result filter is skipped with a banner", async 
 test("clear filters resets everything", async () => {
   asRole("member"); facets();
   server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: 0, items: [] })));
-  renderAt("/projects/42/cases?status=ready&folder=tests&linked=true");
+  renderAt("/projects/42/cases?group=scenario&status=ready&folder=tests&linked=true");
   await userEvent.setup().click(await screen.findByRole("button", { name: "Clear all" }));
-  expect(screen.getByTestId("where")).toHaveTextContent(/^\/projects\/42\/cases$/);
+  expect(screen.getByTestId("where")).toHaveTextContent(/^\/projects\/42\/cases\?group=scenario$/);
 });
 
 test("more than 20000 latest keys fall back to the plain list with a notice", async () => {
@@ -415,7 +415,7 @@ test("more than 20000 latest keys fall back to the plain list with a notice", as
     http.post(`${P}/cases/search`, () => { searched = true; return HttpResponse.json({ detail: "too many" }, { status: 422 }); }),
     http.get(`${P}/cases`, () => { listed += 1; return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
   );
-  renderAt("/projects/42/cases?result=passed");
+  renderAt("/projects/42/cases?group=scenario&result=passed");
   expect(await screen.findByText(/too many tests for the latest-result filter/i)).toBeInTheDocument();
   expect(searched).toBe(false);
   expect(listed).toBeGreaterThan(0);
@@ -429,7 +429,7 @@ test("a failing search falls back to the plain list with the unavailable notice"
     http.post(`${P}/cases/search`, () => HttpResponse.json({ detail: "boom" }, { status: 500 })),
     http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1)] })),
   );
-  renderAt("/projects/42/cases?result=passed");
+  renderAt("/projects/42/cases?group=scenario&result=passed");
   expect(await screen.findByText(/latest result filter unavailable right now/i)).toBeInTheDocument();
   expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
   await settled();
@@ -445,7 +445,7 @@ test("an unknown result value is ignored: the list does not ask ingestion (only 
     }),
     http.get(`${P}/cases`, () => { listed = true; return HttpResponse.json({ total: 0, items: [] }); }),
   );
-  renderAt("/projects/42/cases?result=foo");
+  renderAt("/projects/42/cases?group=scenario&result=foo");
   await waitFor(() => expect(listed).toBe(true));
   expect(asked).toBe(false);
   await settled();
@@ -462,7 +462,7 @@ test("linked cases show their last runs; unlinked say not linked", async () => {
       return HttpResponse.json({ runs: [{ id: 9, started_at: "2026-10-06T10:00:00Z", branch: "main" }], statuses: { [stripKey]: ["failed"] } });
     }),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   expect(await screen.findByRole("link", { name: /^Last 1 runs?: 1 failed/ })).toBeInTheDocument();
   expect(asked).toEqual([stripKey]);
   expect(screen.getByText("not linked")).toBeInTheDocument();
@@ -484,7 +484,7 @@ test("the run-strip request keys are deduplicated and sorted, and the skeleton s
       return HttpResponse.json({ runs: [], statuses: {} });
     }),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   expect((await screen.findAllByText("Loading last runs")).length).toBe(3);
   release();
   await waitFor(() => expect(body?.test_keys).toEqual([a, z]));
@@ -493,7 +493,7 @@ test("the run-strip request keys are deduplicated and sorted, and the skeleton s
 test("the legend is hidden when no case on the page is linked", async () => {
   asRole("member");
   server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1)] })));
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await screen.findByText("not linked");
   expect(screen.queryByText("Didn't run")).toBeNull();
 });
@@ -505,7 +505,7 @@ test("no linked cases means no run-strip request", async () => {
     http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1)] })),
     http.post(`${P}/analytics/run-strip`, () => { called = true; return HttpResponse.json({ runs: [], statuses: {} }); }),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   await screen.findByText("not linked");
   expect(called).toBe(false);
 });
@@ -517,7 +517,7 @@ test("a failing run-strip leaves the list usable", async () => {
     http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1, { automated_test_key: stripKey })] })),
     http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({ detail: "down" }, { status: 503 })),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   expect(await screen.findByRole("link", { name: "Case 1" })).toBeInTheDocument();
   expect(await screen.findByLabelText(/last runs unavailable/i)).toBeInTheDocument();
 });
@@ -530,10 +530,10 @@ test("the page of cases is in the URL: read on load, written by Next", async () 
     if (sp) seen.push(sp);
     return HttpResponse.json({ total: 200, items: [kase(51)] });
   }));
-  renderAt("/projects/42/cases?offset=50&priority=high");
+  renderAt("/projects/42/cases?group=scenario&offset=50&priority=high");
   await waitFor(() => expect(seen.at(-1)?.get("offset")).toBe("50"));
   await userEvent.click(await screen.findByRole("button", { name: "Next" }));
-  expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?offset=100&priority=high");
+  expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?group=scenario&offset=100&priority=high");
   await waitFor(() => expect(seen.at(-1)?.get("offset")).toBe("100"));
 });
 
@@ -547,7 +547,7 @@ test("on phones the last runs come back as a count under the title", async () =>
       statuses: { [stripKey]: ["failed", "passed", "passed"] },
     })),
   );
-  renderAt("/projects/42/cases");
+  renderAt("/projects/42/cases?group=scenario");
   const link = await screen.findByRole("link", { name: "Case 1" });
   const meta = await waitFor(() => {
     const el = link.closest("td")!.querySelector(".narrow-meta")!;

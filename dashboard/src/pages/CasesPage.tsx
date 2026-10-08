@@ -1,13 +1,15 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, FileCode, Plus, Upload } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import {
-  Case, CaseStatus, MAX_SEARCH_KEYS, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels,
+  CaseStatus, MAX_SEARCH_KEYS, PRIORITIES, Priority, SEARCH_IN, type SearchIn, listCases, listFeatureGroups, listFeatures,
+  listFolders, listLabels,
 } from "../api/cases";
-import { getRunStrip } from "../api/analytics";
 import { CASES_PAGE, caseSearchQuery, latestKeysQuery } from "../lib/caseQueries";
+import { FEATURES_PAGE, GROUP_CASES_MAX, groupByFeature } from "../lib/featureQueries";
 import { MAX_RUN_CASES } from "../api/runRequests";
+import CaseTable, { type CaseRowData } from "../components/CaseTable";
 import CasesKpis from "../components/CasesKpis";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
@@ -15,11 +17,9 @@ import FilterChips, { revealFilters, type AppliedFilter, type QuickChip } from "
 import FiltersDisclosure from "../components/FiltersDisclosure";
 import FilterSelect from "../components/FilterSelect";
 import FolderSelect from "../components/FolderSelect";
-import NarrowMeta from "../components/NarrowMeta";
+import FeatureList from "../components/FeatureList";
 import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
-import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
-import { CaseStatusPill } from "../components/StatusPill";
 import { useCanEdit } from "../lib/useCanEdit";
 import { useStickyBottomOffset } from "../lib/useStickyOffset";
 import { pageOffset, withOffset } from "../lib/useUrlState";
@@ -29,7 +29,14 @@ import { tableCardClass, useIsWide } from "../lib/useIsWide";
 const RESULTS = ["passed", "failed", "skipped", "never"];
 const LEGEND = [["passed", "Passed"], ["failed", "Failed"], ["rerun", "Re-run"], ["skipped", "Skipped"], ["none", "Didn't run"]] as const;
 const KEYS = ["q", "label", "status", "priority", "origin", "folder", "linked", "result", "feature", "ado"] as const;
-type Values = Record<(typeof KEYS)[number], string>;
+// The form also holds where the search looks; it is part of the search, not a filter of its own (no chip)
+const FORM_KEYS = [...KEYS, "search_in"] as const;
+type Values = Record<(typeof FORM_KEYS)[number], string>;
+// Filters GET /features cannot apply: with one of these the Feature view groups the matching cases itself
+const CASE_ONLY = ["result", "origin", "feature", "ado"] as const;
+type Group = "feature" | "scenario";
+const SEARCH_IN_NAMES: Record<SearchIn, string> = { feature: "Feature", scenario: "Scenario", both: "Both" };
+const SEARCH_HINT: Record<SearchIn, string> = { feature: "feature name or path", scenario: "title, steps or TC key", both: "feature or scenario" };
 
 // One press each; chips that share a key are one choice
 const QUICK: QuickChip[] = [
@@ -52,26 +59,18 @@ const VALUE_NAMES: Partial<Record<(typeof KEYS)[number], Record<string, string>>
   result: { passed: "Passed", failed: "Failed", skipped: "Skipped", never: "Never ran" },
 };
 function appliedFilters(v: Values): AppliedFilter[] {
+  // A search chip reads where it looks, when the reader chose
   return KEYS.filter((k) => v[k] !== "").map((k) => ({
     key: k,
-    name: FILTER_NAMES[k],
+    name: k === "q" && SEARCH_IN.includes(v.search_in as SearchIn) ? `Search (${SEARCH_IN_NAMES[v.search_in as SearchIn].toLowerCase()})` : FILTER_NAMES[k],
     value: k === "folder" ? v[k].split("/").join(" / ") : k === "ado" ? `#${v[k]}` : VALUE_NAMES[k]?.[v[k]] ?? v[k],
   }));
 }
 
 const read = (p: URLSearchParams): Values =>
-  Object.fromEntries(KEYS.map((k) => [k, p.get(k) ?? ""])) as Values;
+  Object.fromEntries(FORM_KEYS.map((k) => [k, p.get(k) ?? ""])) as Values;
 
-export function Labels({ labels }: { labels: string[] }) {
-  if (labels.length === 0) return null;
-  return (
-    <ul className="chip-list" aria-label="Labels">
-      {labels.map((l) => <li key={l} className="chip">{l}</li>)}
-    </ul>
-  );
-}
-
-/** The project's written test cases: search, filter, open, write a new one. */
+/** The project's written test cases: search, filter, open, write a new one; grouped by .feature file or listed. */
 export default function CasesPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
@@ -80,7 +79,11 @@ export default function CasesPage() {
   const [params, setParams] = useSearchParams();
   const applied = read(params);
   const [form, setForm] = useState<Values>(applied);
-  const offset = pageOffset(params, CASES_PAGE);
+  const group: Group = params.get("group") === "scenario" ? "scenario" : "feature";
+  // Where the search looks: the reader's choice, else the view's own field (feature names, or scenarios)
+  const searchIn: SearchIn = SEARCH_IN.includes(applied.search_in as SearchIn) ? (applied.search_in as SearchIn) : group;
+  const formSearchIn: SearchIn = SEARCH_IN.includes(form.search_in as SearchIn) ? (form.search_in as SearchIn) : group;
+  const offset = pageOffset(params, group === "feature" ? FEATURES_PAGE : CASES_PAGE);
   const setOffset = (to: number) => setParams((prev) => withOffset(prev, to));
   const tableRef = useRef<HTMLDivElement | null>(null);
   // The header sticks only while the table fits its card; a wide table keeps its sideways scroll
@@ -92,11 +95,11 @@ export default function CasesPage() {
   }, [setCard]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
+  const [expanded, setExpanded] = useState(0);
   const barRef = useRef<HTMLDivElement>(null);
   // The bar sticks to the viewport bottom: rows reached by keyboard must stay above it
   const barHeight = useStickyBottomOffset(barRef, picked.size > 0);
-  const runnable = (c: Case) => c.source_path != null && c.status !== "archived";
-  function toggle(c: Case) {
+  function toggle(c: CaseRowData) {
     setPicked((now) => {
       const next = new Map(now);
       if (next.has(c.number)) next.delete(c.number);
@@ -104,7 +107,7 @@ export default function CasesPage() {
       return next;
     });
   }
-  function toggleAll(on: boolean, rows: Case[]) {
+  function toggleAll(on: boolean, rows: CaseRowData[]) {
     setPicked((now) => {
       const next = new Map(now);
       for (const c of rows) {
@@ -120,22 +123,29 @@ export default function CasesPage() {
     const next = read(new URLSearchParams(search));
     const before = lastApplied.current;
     lastApplied.current = next;
-    setForm((f) => Object.fromEntries(KEYS.map((k) => [k, next[k] !== before[k] ? next[k] : f[k]])) as Values);
+    setForm((f) => Object.fromEntries(FORM_KEYS.map((k) => [k, next[k] !== before[k] ? next[k] : f[k]])) as Values);
   }, [search]);
 
   const archived = applied.status === "archived";
   const status = applied.status === "draft" || applied.status === "ready" || archived ? (applied.status as CaseStatus) : undefined;
+  const priority = (PRIORITIES as string[]).includes(applied.priority) ? (applied.priority as Priority) : undefined;
+  const linked = applied.linked === "true" || applied.linked === "false" ? applied.linked : undefined;
+  // The Feature view asks GET /features, unless a filter only the case list knows is in force (or archived cases)
+  const grouped = group === "feature" && !archived && CASE_ONLY.every((k) => applied[k] === "");
+  const listed = !grouped;
+  // Grouping in the page reads one large page of cases
+  const caseLimit = group === "scenario" ? CASES_PAGE : GROUP_CASES_MAX;
+  const caseOffset = group === "scenario" ? offset : 0;
   const query = useQuery({
-    queryKey: ["cases", id, search, offset],
+    queryKey: ["cases", id, search, caseOffset, caseLimit],
+    enabled: listed,
     queryFn: async () => {
       const base = {
-        search: applied.q || undefined, status,
-        priority: (PRIORITIES as string[]).includes(applied.priority) ? (applied.priority as Priority) : undefined,
+        search: applied.q || undefined, search_in: applied.q ? searchIn : undefined, status, priority,
         origin: (applied.origin === "manual" || applied.origin === "imported" ? applied.origin : undefined) as "manual" | "imported" | undefined,
         folder: applied.folder || undefined, feature: applied.feature || undefined, ado: applied.ado || undefined,
-        limit: CASES_PAGE, offset,
+        limit: caseLimit, offset: caseOffset,
       };
-      const linked = applied.linked === "true" || applied.linked === "false" ? applied.linked : undefined;
       const plain = { ...base, label: applied.label || undefined, linked: linked as "true" | "false" | undefined };
       const result = RESULTS.includes(applied.result) ? applied.result : "";
       if (!result) return { page: await listCases(id, plain), notice: null };
@@ -164,8 +174,33 @@ export default function CasesPage() {
     },
     placeholderData: keepPreviousData,
   });
+  const featureFilters = {
+    search: applied.q || undefined, search_in: searchIn, folder: applied.folder || undefined, label: applied.label || undefined,
+    status: status === "draft" || status === "ready" ? status : undefined, priority, linked: linked as "true" | "false" | undefined,
+  };
+  const features = useQuery({
+    queryKey: ["features", id, search, offset],
+    enabled: grouped,
+    queryFn: () => listFeatureGroups(id, { ...featureFilters, limit: FEATURES_PAGE, offset }),
+    placeholderData: keepPreviousData,
+  });
+  // "n failing" on a feature row: the failed keys (shared with the Failing tile) resolved to case numbers in one search
+  const failedKeys = useQuery({ ...latestKeysQuery(id, "failed"), enabled: group === "feature" });
+  const failedKeyList = failedKeys.data?.keys;
+  const failedCases = useQuery({
+    ...caseSearchQuery(id, { labels: [], test_keys: failedKeyList ?? [], keys_mode: "include", limit: GROUP_CASES_MAX, offset: 0 }),
+    enabled: group === "feature" && !!failedKeyList && failedKeyList.length > 0 && failedKeyList.length <= MAX_SEARCH_KEYS,
+  });
+  const failing = useMemo(() => {
+    if (!failedKeyList) return null;
+    if (failedKeyList.length === 0) return new Set<number>();
+    // More failing cases than one search reads: a partial count would mislead, so rows show none
+    if (!failedCases.data || failedCases.data.total > failedCases.data.items.length) return null;
+    return new Set(failedCases.data.items.map((c) => c.number));
+  }, [failedKeyList, failedCases.data]);
+
   const labels = useQuery({ queryKey: ["case-labels", id], queryFn: () => listLabels(id) });
-  const features = useQuery({ queryKey: ["case-features", id], queryFn: () => listFeatures(id) });
+  const featureNames = useQuery({ queryKey: ["case-features", id], queryFn: () => listFeatures(id) });
   const folders = useQuery({ queryKey: ["case-folders", id], queryFn: () => listFolders(id) });
   const casesTotal = useQuery({ queryKey: ["cases-total", id], queryFn: async () => (await listCases(id, { limit: 1, offset: 0 })).total });
   const labelOptions = useMemo(
@@ -180,14 +215,15 @@ export default function CasesPage() {
     [labels.data],
   );
   const featureOptions = useMemo(
-    () => (features.data ?? []).map((f) => ({ value: f.feature, label: `${f.feature} (${f.count})` })),
-    [features.data],
+    () => (featureNames.data ?? []).map((f) => ({ value: f.feature, label: `${f.feature} (${f.count})` })),
+    [featureNames.data],
   );
 
-  // Picking a folder applies it together with whatever else is typed in the form
+  // Picking a folder applies it together with whatever else is typed in the form; the grouping stays
   function submit(values: Values) {
     const next = new URLSearchParams();
-    for (const k of KEYS) if (values[k].trim()) next.set(k, values[k].trim());
+    if (group === "scenario") next.set("group", "scenario");
+    for (const k of FORM_KEYS) if (values[k].trim()) next.set(k, values[k].trim());
     setParams(next);
   }
 
@@ -205,11 +241,17 @@ export default function CasesPage() {
       return next;
     });
   }
+  // A view switch keeps the filters and goes back to page 1
+  function setGroup(to: Group) {
+    if (to === group) return;
+    setExpanded(0);
+    patchFilters({ group: to === "scenario" ? "scenario" : "" });
+  }
   const disclosureRef = useRef<HTMLDetailsElement>(null);
   // Clear all means a blank form: drafts in fields whose URL value did not change go too
   function clearAll() {
     setForm(read(new URLSearchParams()));
-    setParams(new URLSearchParams());
+    setParams(group === "scenario" ? new URLSearchParams({ group: "scenario" }) : new URLSearchParams());
   }
 
   function apply(e: FormEvent) {
@@ -218,44 +260,22 @@ export default function CasesPage() {
   }
 
   const data = query.data?.page;
+  // The Feature view's rows: from the server, or grouped here from the matching cases
+  const featureRows = grouped ? features.data?.items : data ? groupByFeature(data.items) : undefined;
+  const truncated = group === "feature" && listed && data != null && data.total > data.items.length;
+  const total = grouped ? features.data?.total : group === "feature" ? featureRows?.length : data?.total;
+  const active = grouped ? features : query;
   const stripKeys = useMemo(
-    () => [...new Set((data?.items ?? []).flatMap((c) => (c.automated_test_key ? [c.automated_test_key] : [])))].sort(),
+    () => [...new Set((data?.items ?? []).flatMap((c) => (c.automated_test_key ? [c.automated_test_key] : [])))],
     [data],
   );
-  const strip = useQuery({
-    queryKey: ["run-strip", id, stripKeys],
-    queryFn: () => getRunStrip(id, stripKeys),
-    enabled: stripKeys.length > 0,
-    staleTime: 60_000,
-  });
-  // The strip is shown in its own column on wide screens and in the narrow line under the title on phones
-  const lastRuns = (c: { automated_test_key: string | null }) =>
-    !c.automated_test_key ? (
-      <span className="muted">not linked</span>
-    ) : strip.isError ? (
-      <span aria-label="Last runs unavailable">—</span>
-    ) : strip.data ? (
-      <RunStrip projectId={id} runs={strip.data.runs} statuses={strip.data.statuses[c.automated_test_key.toLowerCase()] ?? strip.data.runs.map(() => null)} />
-    ) : (
-      <RunStripSkeleton />
-    );
-  // Phones get a count instead of the strip: the same information, in a line, without a second set of links
-  const lastRunsSummary = (c: { automated_test_key: string | null }): string | null => {
-    if (!c.automated_test_key || !strip.data) return null;
-    const statuses = strip.data.statuses[c.automated_test_key.toLowerCase()] ?? [];
-    const ran = statuses.filter((s) => s !== null);
-    if (ran.length === 0) return "none yet";
-    const count = (status: string) => ran.filter((s) => s === status).length;
-    const parts = (["failed", "rerun", "passed", "skipped"] as const).filter((st) => count(st) > 0).map((st) => `${count(st)} ${st}`);
-    return `${parts.join(", ")} of the last ${ran.length}`;
-  };
-  const pageRunnable = (data?.items ?? []).filter(runnable);
+  const showLegend = group === "scenario" ? stripKeys.length > 0 : expanded > 0;
   const advancedActive = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== "").length;
   const advancedHidden = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== ""
     && !QUICK.some((c) => c.key === k && c.value === applied[k])).length;
   const filtered = KEYS.some((k) => applied[k] !== "");
   // One primary per view: the empty state's "Write the first case", or Run on a selection, take it from the header button
-  const emptyList = data?.total === 0 && !filtered;
+  const emptyList = total === 0 && !filtered;
   const newIsPrimary = !emptyList && picked.size === 0;
 
   return (
@@ -280,9 +300,25 @@ export default function CasesPage() {
 
       <form onSubmit={apply}>
         <FilterBar>
+          <div className="segmented-field">
+            <span id="cases-group-label" className="segmented-label">Group by</span>
+            <div className="segmented" role="group" aria-labelledby="cases-group-label">
+              {(["feature", "scenario"] as const).map((g) => (
+                <button key={g} type="button" aria-pressed={group === g} onClick={() => setGroup(g)}>
+                  {g === "feature" ? "Feature" : "Scenario"}
+                </button>
+              ))}
+            </div>
+          </div>
           <label>
             Search
-            <input type="search" value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} placeholder="title" />
+            <input type="search" value={form.q} onChange={(e) => setForm({ ...form, q: e.target.value })} placeholder={SEARCH_HINT[formSearchIn]} />
+          </label>
+          <label>
+            Search in
+            <select value={formSearchIn} onChange={(e) => setForm({ ...form, search_in: e.target.value })}>
+              {SEARCH_IN.map((s) => <option key={s} value={s}>{SEARCH_IN_NAMES[s]}</option>)}
+            </select>
           </label>
           <FolderSelect folders={folders.data ?? []} total={casesTotal.data} value={applied.folder} onChange={pickFolder} />
           <button type="submit">Apply</button>
@@ -306,15 +342,21 @@ export default function CasesPage() {
       <FilterChips quick={QUICK} values={applied} applied={appliedFilters(applied)} onChange={patchFilters}
         onClearAll={clearAll} onAddFilter={() => revealFilters(disclosureRef.current)} />
 
-      {query.data?.notice === "unavailable" && (
+      {listed && query.data?.notice === "unavailable" && (
         <p className="error-banner" role="status">Latest result filter unavailable right now; showing the other filters.</p>
       )}
-      {query.data?.notice === "too-many" && (
+      {listed && query.data?.notice === "too-many" && (
         <p className="error-banner" role="status">Too many tests for the latest-result filter; showing the other filters.</p>
       )}
-      {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
-      {query.isPending && <p className="muted">Loading test cases…</p>}
-      {data && data.total === 0 && (
+      {truncated && (
+        <p className="muted" role="status">
+          {`Grouped from the first ${data!.items.length} of ${data!.total} matching cases. `}
+          <button type="button" className="ghost" onClick={() => setGroup("scenario")}>Show every case in Scenario view</button>
+        </p>
+      )}
+      {active.error != null && <ErrorBanner error={active.error} onRetry={() => active.refetch()} />}
+      {active.isPending && <p className="muted">Loading test cases…</p>}
+      {total === 0 && (
         filtered ? (
           <p className="muted">No test cases match these filters.</p>
         ) : (
@@ -327,72 +369,37 @@ export default function CasesPage() {
           </div>
         )
       )}
-      {data && data.items.length > 0 && (
+      {total != null && total > 0 && (
         <>
-        {stripKeys.length > 0 && (
+        {showLegend && (
         <ul className="run-legend hide-narrow" aria-label="Last runs legend">
           {LEGEND.map(([kind, text]) => (
             <li key={kind}><span className={`run-bar bar-${kind}`} aria-hidden="true" /> {text}</li>
           ))}
         </ul>
         )}
-        <div className={tableCardClass(card.wide)} ref={cardRef} tabIndex={0} role="region" aria-label="Test cases" style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
-          <table className="data">
-            <thead>
-              <tr>
-                {canEdit && (
-                  <th className="select-col">
-                    <input type="checkbox" aria-label="Select all imported cases on this page" disabled={pageRunnable.length === 0}
-                      checked={pageRunnable.length > 0 && pageRunnable.every((c) => picked.has(c.number))}
-                      ref={(el) => { if (el) el.indeterminate = pageRunnable.some((c) => picked.has(c.number)) && !pageRunnable.every((c) => picked.has(c.number)); }}
-                      onChange={(e) => toggleAll(e.target.checked, pageRunnable)} />
-                  </th>
-                )}
-                <th>Title</th><th className="hide-narrow">Last runs</th><th className="hide-narrow">Priority</th><th>Status</th>
-                <th className="hide-narrow">Automated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((c) => (
-                <tr key={c.number}>
-                  {canEdit && (
-                    <td className="select-col">
-                      {runnable(c) && (
-                        <input type="checkbox" aria-label={`Select ${c.key} ${c.title}`} checked={picked.has(c.number)}
-                          disabled={!picked.has(c.number) && picked.size >= MAX_RUN_CASES} onChange={() => toggle(c)}
-                          onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: "nearest" })} />
-                      )}
-                    </td>
-                  )}
-                  <td className="wrap-anywhere">
-                    {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
-                    <Link className="case-title" to={`${c.number}`}>{c.title}</Link>
-                    <Labels labels={c.labels} />
-                    <NarrowMeta items={[
-                      { label: "Last runs", value: lastRunsSummary(c) },
-                      { label: "Priority", value: c.priority },
-                      { label: "Automated", value: c.automated_test_key ? "Linked" : "Manual" },
-                    ]} />
-                  </td>
-                  <td className="hide-narrow">{lastRuns(c)}</td>
-                  <td className="hide-narrow">{c.priority}</td>
-                  <td><CaseStatusPill status={c.status} /></td>
-                  <td className="hide-narrow">
-                    {c.automated_test_key ? (
-                      <span className="linked"><Bot size={14} aria-hidden="true" /> Linked</span>
-                    ) : (
-                      <span className="muted">Manual</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="filters">
-            <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - CASES_PAGE))}>Previous</button>
-            <span className="muted">{offset + 1}–{offset + data.items.length} of {data.total}</span>
-            <button disabled={offset + CASES_PAGE >= data.total} onClick={() => setOffset(offset + CASES_PAGE)}>Next</button>
-          </div>
+        <div className={tableCardClass(card.wide)} ref={cardRef} tabIndex={0} role="region"
+          aria-label={group === "feature" ? "Features" : "Test cases"} style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
+          {group === "feature" ? (
+            <FeatureList projectId={id} rows={featureRows ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle}
+              onToggleAll={toggleAll} filters={featureFilters} failing={failing} onExpandedChange={setExpanded} />
+          ) : (
+            <CaseTable projectId={id} cases={data?.items ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle} onToggleAll={toggleAll} />
+          )}
+          {group === "scenario" && data && (
+            <div className="filters">
+              <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - CASES_PAGE))}>Previous</button>
+              <span className="muted">{offset + 1}–{offset + data.items.length} of {data.total}</span>
+              <button disabled={offset + CASES_PAGE >= data.total} onClick={() => setOffset(offset + CASES_PAGE)}>Next</button>
+            </div>
+          )}
+          {grouped && features.data && (
+            <div className="filters">
+              <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - FEATURES_PAGE))}>Previous</button>
+              <span className="muted">{offset + 1}–{offset + features.data.items.length} of {features.data.total} features</span>
+              <button disabled={offset + FEATURES_PAGE >= features.data.total} onClick={() => setOffset(offset + FEATURES_PAGE)}>Next</button>
+            </div>
+          )}
         </div>
         </>
       )}

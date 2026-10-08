@@ -651,8 +651,8 @@ label.button:hover { background: var(--hover-strong); }
 /* Compact tags: the box hugs the text (16px tall), so labels support the title instead of competing with it */
 .chip { display: inline-flex; align-items: center; font-size: 11.5px; line-height: 16px; padding: 0 6px; border-radius: 4px;
   background: var(--hover-strong); color: var(--text-secondary); white-space: nowrap; }
-/* Test case titles in lists: the row's primary text — semibold, primary colour, accent + underline on hover/focus */
-.case-title { color: var(--text-primary); font-weight: 600; font-size: 14.5px; line-height: 1.4; letter-spacing: -0.005em; }
+/* Test case titles in lists: the row's primary text — medium weight, primary colour, accent + underline on hover/focus */
+.case-title { color: var(--text-primary); font-weight: 500; font-size: 14.5px; line-height: 1.4; letter-spacing: -0.005em; }
 .case-title:hover, .case-title:focus-visible { color: var(--accent-text); text-decoration: underline; }
 .gherkin { margin: 0 0 var(--space-3); padding: var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
   font-family: var(--font-mono); font-size: 13px; line-height: 1.6; overflow-x: auto; white-space: pre; }
@@ -663,6 +663,46 @@ label.button:hover { background: var(--hover-strong); }
 .gk-comment { color: var(--gk-comment); font-style: italic; }
 .gk-string { color: var(--gk-string); }
 .gk-param { color: var(--gk-param); background: var(--gk-param-bg); border-radius: 3px; }
+/* A whole .feature file: numbered lines (the number is drawn, never copied), long lines wrap under their text */
+.gherkin.numbered { white-space: pre-wrap; overflow-wrap: anywhere; padding-left: 0; counter-reset: none; }
+.gherkin.numbered .gk-line { display: grid; grid-template-columns: 4ch minmax(0, 1fr) auto; column-gap: var(--space-3); align-items: start; }
+.gherkin.numbered .gk-line::before { content: attr(data-line); text-align: right; color: var(--text-muted); user-select: none; font-variant-numeric: tabular-nums; }
+.gherkin.numbered .gk-note { display: inline-flex; align-items: center; gap: var(--space-2); font-family: var(--font-sans); user-select: none; white-space: nowrap; }
+.feature-source { padding: 0; overflow: hidden; }
+.feature-source .gherkin { margin: 0; border: 0; border-radius: 0; }
+/* TC-12 on a scenario line: a compact link chip, 24px tall */
+.case-chip { display: inline-flex; align-items: center; min-height: 24px; padding: 0 8px; border-radius: 999px; border: 1px solid var(--border-strong);
+  background: var(--surface-1); color: var(--accent-text); font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+.case-chip:hover, .case-chip:focus-visible { background: var(--hover-strong); text-decoration: underline; }
+@media (max-width: 640px) { .gherkin.numbered .gk-line { grid-template-columns: 3ch minmax(0, 1fr); } .gherkin.numbered .gk-note { grid-column: 2; } }
+/* Group by: a segmented pair of pressed buttons, sized like the fields beside it */
+.segmented-field { display: flex; flex-direction: column; gap: var(--space-1); }
+.segmented-label { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.segmented { display: inline-flex; }
+.segmented button { border-radius: 0; margin-left: -1px; color: var(--text-secondary); }
+.segmented button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); margin-left: 0; }
+.segmented button:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.segmented button[aria-pressed="true"] { position: relative; border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+.segmented button:focus-visible { position: relative; z-index: 1; }
+@media (pointer: coarse) { .segmented button { min-height: 44px; } }
+/* Feature view: a row per .feature file; the chevron expands it in place to its scenarios */
+.feature-head { display: flex; align-items: flex-start; gap: var(--space-2); }
+.feature-text { display: flex; flex-direction: column; min-width: 0; }
+.feature-name { color: var(--text-primary); font-weight: 500; font-size: 14.5px; line-height: 1.4; }
+a.feature-name:hover, a.feature-name:focus-visible { color: var(--accent-text); text-decoration: underline; }
+.feature-folder { color: var(--text-muted); font-size: 12.5px; overflow-wrap: anywhere; }
+button.disclosure { min-height: 24px; min-width: 24px; padding: 0; justify-content: center; border-color: transparent; background: transparent; color: var(--text-secondary); }
+button.disclosure svg { transition: transform 120ms ease-out; }
+button.disclosure[aria-expanded="true"] svg { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { button.disclosure svg { transition: none; } }
+@media (pointer: coarse) { button.disclosure { min-height: 44px; min-width: 44px; } }
+.failing-count { display: inline-flex; align-items: center; gap: 4px; color: var(--danger-text); font-size: 13px; }
+table.data tr.feature-cases > td { padding: 0 0 var(--space-2) var(--space-6); background: var(--surface-2); }
+table.data tr.feature-cases:hover > td { background: var(--surface-2); }
+table.data tr.feature-cases table.data { background: var(--surface-1); }
+/* The scenarios' header is not sticky: only the list's own header sticks under the top bar */
+.card.sticky-head:not(.is-wide) table.data tr.feature-cases thead th { position: static; }
+.feature-more { margin: var(--space-2) var(--space-3); }
 .source-badge { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .source-badge code { overflow-wrap: anywhere; }
 input[readonly] { background: var(--surface-2); }
