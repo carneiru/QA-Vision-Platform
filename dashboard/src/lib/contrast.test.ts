@@ -41,3 +41,12 @@ describe.each([
     expect(ratio(t("--status-errored"), t("--page"))).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe("layout rules", () => {
+  test("boxes (banners, notes, secrets) are exempt from the prose measure", () => {
+    expect(css).toMatch(/\.page p:is\(\.error-banner, \.note, \.warn-note, \.secret-note\)[^{]*\{ max-width: none; \}/);
+  });
+  test("a table that becomes blocks keeps its semantics with explicit roles in the markup, not in CSS", () => {
+    expect(css).toContain("table.stacked");
+  });
+});

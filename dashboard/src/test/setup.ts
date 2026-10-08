@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll } from "vitest";
 import { server } from "./server";
 
@@ -31,6 +32,9 @@ class ResizeObserverStub {
   disconnect() {}
 }
 globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+
+// The first render in a file compiles the page on demand; on a busy machine that outlasts the 1 s default of findBy*/waitFor
+configure({ asyncUtilTimeout: 4000 });
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {

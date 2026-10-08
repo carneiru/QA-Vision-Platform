@@ -596,6 +596,8 @@ input[readonly] { background: var(--surface-2); }
 /* Wide screens: data pages use the room. Prose keeps a readable measure. */
 .page p, .card p { max-width: 75ch; }
 .page-narrow p, .tiles p { max-width: none; }
+/* Boxes (banners, notes, secrets) span their container; only running prose keeps the measure */
+.page p:is(.error-banner, .note, .warn-note, .secret-note), .card p:is(.error-banner, .note, .warn-note, .secret-note) { max-width: none; }
 /* Inline confirmations ("Remove X? Yes / No") wrap inside their cell instead of forcing one wide line */
 .row-actions { white-space: normal; }
 .row-actions button { white-space: nowrap; }

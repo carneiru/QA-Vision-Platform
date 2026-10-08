@@ -46,7 +46,8 @@ test("lists who requested, how many cases, the status, who stopped it, and the l
   expect(first.getByText("Passed")).toBeInTheDocument();
   expect(first.getByRole("link", { name: /github/i })).toHaveAttribute("href", "https://github.com/acme/obt/actions/runs/501");
   expect(await first.findByRole("link", { name: "Run #77" })).toHaveAttribute("href", "/projects/42/runs/77");
-  expect(within(rows[2]).getByText("rui@example.com")).toBeInTheDocument();
+  // The stopper shows in its own column on wide screens and in the narrow line under the date on phones
+  expect(within(rows[2]).getAllByText("rui@example.com")).toHaveLength(2);
   expect(screen.getByRole("link", { name: "Runs" })).toHaveAttribute("href", "/projects/42/runs");
 });
 

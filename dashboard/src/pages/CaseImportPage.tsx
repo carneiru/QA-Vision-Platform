@@ -1,3 +1,4 @@
+import NarrowMeta from "../components/NarrowMeta";
 import { DragEvent, useId, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -337,7 +338,10 @@ export default function CaseImportPage() {
                   {rows.map((r, i) => (
                     <tr key={i}>
                       <td>{r.action}</td>
-                      <td className="wrap-anywhere">{r.scenario ?? <span className="muted">(file)</span>}</td>
+                      <td className="wrap-anywhere">
+                        {r.scenario ?? <span className="muted">(file)</span>}
+                        <NarrowMeta items={[{ label: "File", value: r.path }]} />
+                      </td>
                       <td className="hide-narrow wrap-anywhere">{r.path}</td>
                       <td>
                         {r.case_number != null ? <Link to={`../${r.case_number}`} relative="path">TC-{r.case_number}</Link> : ""}

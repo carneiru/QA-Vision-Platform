@@ -521,3 +521,23 @@ test("the page of cases is in the URL: read on load, written by Next", async () 
   expect(screen.getByTestId("where")).toHaveTextContent("/projects/42/cases?offset=100&priority=high");
   await waitFor(() => expect(seen.at(-1)?.get("offset")).toBe("100"));
 });
+
+test("on phones the last runs come back as a count under the title", async () => {
+  asRole("member");
+  const stripKey = "c".repeat(64);
+  server.use(
+    http.get(`${P}/cases`, () => HttpResponse.json({ total: 1, items: [kase(1, { automated_test_key: stripKey })] })),
+    http.post(`${P}/analytics/run-strip`, () => HttpResponse.json({
+      runs: [{ id: 9, started_at: "2026-10-06T10:00:00Z", branch: "main" }, { id: 8, started_at: "2026-10-05T10:00:00Z", branch: "main" }, { id: 7, started_at: "2026-10-04T10:00:00Z", branch: "main" }],
+      statuses: { [stripKey]: ["failed", "passed", "passed"] },
+    })),
+  );
+  renderAt("/projects/42/cases");
+  const link = await screen.findByRole("link", { name: "Case 1" });
+  const meta = await waitFor(() => {
+    const el = link.closest("td")!.querySelector(".narrow-meta")!;
+    expect(el).toHaveTextContent("Last runs 1 failed, 2 passed of the last 3");
+    return el;
+  });
+  expect(meta.querySelector("a")).toBeNull(); // a count, not a second strip of links
+});

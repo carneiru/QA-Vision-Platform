@@ -22,7 +22,9 @@ colors:
   series-2: "#eb6834"
   status-passed: "#0ca30c"
   status-failed: "#d03b3b"
-  status-errored: "#ec835a"
+  status-errored: "#c4501f"
+  control-border: "#807e78"
+  placeholder: "#6b6a64"
   status-skipped: "#898781"
   danger-text: "#c23434"
   danger-fill-hover: "#b83131"
@@ -43,6 +45,9 @@ colors:
   series-1-dark: "#3987e5"
   series-2-dark: "#d95926"
   danger-text-dark: "#ec7272"
+  status-errored-dark: "#ec835a"
+  control-border-dark: "#6f6e68"
+  placeholder-dark: "#a3a299"
 typography:
   headline:
     fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
@@ -196,7 +201,7 @@ The palette is a warm stone neutral with one interaction blue, plus a colour-bli
 - **Blue Wash** (`accent-soft`): a translucent tint of the accent for soft selected states.
 
 ### Status (reserved)
-- **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it.
+- **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it, and never stands alone as a shape: dots, badges and chart bars also differ by shape or texture (see Status Dot and Badges, Chart Textures). Errored Orange is `#c4501f` in light (4.65:1 on Paper, 4.22:1 on Stone Page; the earlier `#ec835a` was 2.64:1) and `#ec835a` in dark (6.67:1 on Paper). Every status colour reaches 3:1 on Paper in both themes; `lib/contrast.test.ts` checks it.
 - **Danger Text** (`danger-text`): error copy, the error banner border and text, and the failed badge label. It exists because the dot red is a chart/dot hue, not a text colour. It measures 4.6:1 on the banner's red tint in light and 6.0:1 in dark.
 - **Danger Fill** (`status-failed`, hover `danger-fill-hover`): the confirm button of a destructive action. White on it measures 4.8:1 in both themes, while red *text* on the dark surface would fail AA.
 
@@ -211,7 +216,9 @@ The palette is a warm stone neutral with one interaction blue, plus a colour-bli
 - **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (7.6:1 light, 9.2:1 dark).
 - **Tick Grey** (`text-muted`): chart axis ticks only. It is below AA for text (about 3.4:1) and must never carry readable copy.
 - **Rule** (`grid`): table row dividers and list separators.
-- **Hairline** (`border`) and **Hairline Strong** (`border-strong`): translucent borders for containers and controls.
+- **Hairline** (`border`) and **Hairline Strong** (`border-strong`): translucent borders for containers and for buttons.
+- **Control Edge** (`control-border`): the border of inputs, selects, textareas and checkboxes, at least 3:1 against every surface they sit on (WCAG 1.4.11). Light `#807e78`: 4.06 on Paper, 3.68 on Stone Page, 3.40 on Sidebar Stone. Dark `#6f6e68`: 3.44 on Paper, 3.60 on Sidebar Stone, 3.75 on Stone Page. Used for form controls only, so the rest of the interface stays light.
+- **Placeholder** (`placeholder`): placeholder text at full opacity, at least 4.5:1 (light `#6b6a64`: 5.43 on Paper, 4.55 on Sidebar Stone; dark `#a3a299`: 6.86 on Paper).
 - **Hover** (`hover`) and **Hover Strong** (`hover-strong`): translucent ink washes for row hover and button/nav hover.
 
 ### Named Rules
@@ -296,7 +303,8 @@ Quiet by default. Only one action in a group is filled.
 A destructive action never runs on the first click. The trigger is a default button. Clicking it swaps in place for a group with three parts: a one-sentence consequence ("what stops working"), a Danger confirm button that takes focus, and a default Cancel. Cancel or Escape backs out and returns focus to the trigger. There is no modal.
 
 ### Status Dot and Badges
-- **Status dot:** an 8px circle in the status hue, always followed by its word or count label ("3 failed").
+- **Status dot:** a 10px mark in the status hue with a shape of its own: circle for passed, triangle for failed, square for errored, ring for skipped. It is `aria-hidden` and always followed by its word or count label ("3 failed").
+- **Run verdict badge** (`RunStatusBadge`): icon and word, *Passed*, *Failed* or *Errored* (failures first, then errors). Overview, the runs list and any run summary use this one component; `note` appends text ("Passed · 2 quarantined").
 - **Badge:** a Paper pill with a Hairline border, 12.5px/600, holding a 14px lucide icon and a word. *Passed* has Ink text with a green icon. *Failed* has Danger Text and a border at 40% of the failed red.
 
 ### Run Strip
@@ -334,6 +342,20 @@ Starting a GitHub Actions run from the cases, and watching it end.
 - **Anatomy:** an optional head row (title left, badge or action right), body, and a foot pinned to the bottom (`margin-top: auto`) that holds the one-click "go deeper" link.
 - A card that holds a data table scrolls horizontally inside itself.
 
+### Sortable Headers
+`SortableTh` puts a button inside the `th`. The `th` carries `aria-sort` (`ascending`, `descending`, or `none`; absent state is `none`), and the button shows an arrow: a double chevron when idle, an up or down arrow on the sorted column. Clicking the sorted column flips it; another column starts descending for figures and dates, ascending for names. The sort lives in the URL as `sort` and `dir` (`lib/sort.ts`, defaults left out), so reload, share and Back keep it. Sorting happens on the server when the API has a sort parameter for that column (Tests: failures, duration, name), otherwise on the rows already loaded, and the page says so ("Sorted within these 50 rows"). Missing values always sort last.
+
+### Narrow Meta
+Columns that phones drop (`hide-narrow`) come back as a muted second line in the row's first cell (`NarrowMeta`: label in 600 weight, then the value). It is `display: none` above 640px, so a value is never read twice. Use it on every table that hides columns: Runs (status first), Tests, Flaky, Branches, Compare, Report, Requested runs, the import plan and Cases. Where a column is a graphic (the Cases run strip) the line carries a count instead ("1 failed, 2 passed of the last 3").
+
+### Chart Textures
+Outcome series are never told apart by hue alone. `ChartPatternDefs` defines the fills once per page: passed is solid, failed is diagonal stripes, errored is dots, skipped is thin lines, drawn in the surface colour over the status colour. The chart bars and the legend swatches point at the same ids. Comparison lines differ by dash (the second line is dashed) and carry point markers.
+
+Each chart is a `figure` with an off-screen caption that states the totals and the notable point, uses Recharts' `accessibilityLayer` (arrow keys step through the tooltip) and has no `role="img"`. Below it a native `details` (`DataTableDisclosure`, "Show data table") holds the full series as a table. The legend (`SeriesLegend`) is a row of toggle buttons (`aria-pressed`): a hidden series is struck through. Titles, captions, column headings and the last-value tile name the granularity (day, week, month); X ticks are short `Intl` dates ("Mar 4"), thinned on narrow screens; tick text is Graphite, not Tick Grey.
+
+### Secret Block
+A value the server shows once (API key, invitation link, recovery codes) sits in a `SecretBlock`: Sidebar Stone fill, Hairline Strong border, a bold one-line note saying it cannot be shown again, the value in mono (wraps anywhere), and a Copy button whose result ("Copied") is announced politely. Recovery codes add Download and an "I saved these codes" button that dismisses them; the codes are not hidden until the reader says so.
+
 ### Data Tables
 Rows are separated by Rule lines, with no zebra striping and no vertical lines. Headers are Graphite at 12.5px/600 and never wrap. Cells use 10px 12px padding and are top-aligned. Hovering a row applies the Hover wash. Numbers are tabular.
 
@@ -343,6 +365,9 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 - **Focus:** the border turns Signal Blue, with a 2px accent outline at offset 0.
 - **Filter dropdown:** a filter dropdown with more than 15 options is a searchable list (`FilterSelect`): a search field at the top of the open list, matching anywhere and ignoring accents, with an "x of y" count. Up to 15 options stay a native select.
 - **Folder dropdown:** the folder filter (`FolderSelect`) looks like the other filters; its popup is a dialog with a search box, an "x of y" count and the folder tree. Searching keeps matching folders and their ancestors, Enter picks the first match, Esc and Tab close it, and picking applies at once.
+- **Text field** (`TextField`): label, input, hint and error as one block. The error appears under the field when it is left (not while typing), is linked with `aria-describedby`, sets `aria-invalid`, and is never inside the `<label>`. A password field has a Show/Hide toggle (an eye icon with off-screen text, `aria-pressed`) outside the label. Checkboxes are drawn 18px (24px when they are a row's only target, in a table cell) with the Control Edge border; a label around one is the hit area.
+- **Public pages** (`AuthShell`): the QEOS name and subtitle are a lockup paragraph; each page has its own h1 ("Sign in", "Create account", "Reset your password").
+- **One primary:** each view has one primary button. A dirty form's Save takes it from Run; Run on a selection takes it from New case; Import takes it from Preview once there is a plan.
 - **Inline form:** a one-row create form of label and input pairs ending in its submit and Cancel buttons. It wraps on narrow widths.
 
 ### Navigation
@@ -364,6 +389,9 @@ Stone Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horiz
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
 - **Route focus:** on each user navigation (not the first render, not redirects), focus moves to the view's content region, which is the project tab panel or `<main>`. Regions take focus without a visible ring; the ring belongs to controls.
 - **Titles:** each view sets `document.title` as "View · Project · QEOS".
+- **Focus not obscured:** a bar stuck to the bottom of the viewport (the Cases selection bar) writes its height to the page's `scroll-padding-bottom` while it exists and pads the table, so a row reached by keyboard scrolls above it.
+- **Drawer:** on narrow screens the open sidebar is a modal dialog (focus trapped, Escape from anywhere closes it). Following a link in it hands focus to the new page's content, not back to the menu button. Widening the window past the breakpoint closes it and removes the dialog role.
+- **Live regions:** a status card announces only its status line (`role="status"` on that line), never the links and buttons around it.
 
 ## Do's and Don'ts
 

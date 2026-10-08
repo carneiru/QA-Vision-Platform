@@ -281,3 +281,15 @@ test("Preview is the one primary button until there is a plan; then Import takes
   await screen.findByText("Pay");
   expect(primaries()).toEqual(["Import 2 changes (archives 1)"]);
 });
+
+test("the plan table keeps the file under the scenario on phones", async () => {
+  asRole("member");
+  server.use(http.post(`${P}/cases/import`, () => HttpResponse.json(preview)));
+  renderAt("/projects/42/cases/import");
+  const user = userEvent.setup();
+  await user.upload(await screen.findByLabelText(/choose folder/i), [featureFile("a.feature", "Feature: A", "features/a.feature")]);
+  await screen.findByText(/1 \.feature file/i);
+  await user.click(screen.getByRole("button", { name: /preview/i }));
+  const scenario = (await screen.findByText("Pay")).closest("td")!;
+  expect(scenario.querySelector(".narrow-meta")).toHaveTextContent("File tests/features/a.feature");
+});

@@ -17,6 +17,7 @@ import RunControl from "../components/RunControl";
 import RunPanel from "../components/RunPanel";
 import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
 import { useCanEdit } from "../lib/useCanEdit";
+import { useStickyBottomOffset } from "../lib/useStickyOffset";
 import { pageOffset, withOffset } from "../lib/useUrlState";
 
 const PAGE = 50;
@@ -51,6 +52,9 @@ export default function CasesPage() {
   const tableRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [picked, setPicked] = useState<Map<number, string>>(new Map());
+  const barRef = useRef<HTMLDivElement>(null);
+  // The bar sticks to the viewport bottom: rows reached by keyboard must stay above it
+  const barHeight = useStickyBottomOffset(barRef, picked.size > 0);
   const runnable = (c: Case) => c.source_path != null && c.status !== "archived";
   function toggle(c: Case) {
     setPicked((now) => {
@@ -157,6 +161,27 @@ export default function CasesPage() {
     enabled: stripKeys.length > 0,
     staleTime: 60_000,
   });
+  // The strip is shown in its own column on wide screens and in the narrow line under the title on phones
+  const lastRuns = (c: { automated_test_key: string | null }) =>
+    !c.automated_test_key ? (
+      <span className="muted">not linked</span>
+    ) : strip.isError ? (
+      <span aria-label="Last runs unavailable">—</span>
+    ) : strip.data ? (
+      <RunStrip projectId={id} runs={strip.data.runs} statuses={strip.data.statuses[c.automated_test_key.toLowerCase()] ?? strip.data.runs.map(() => null)} />
+    ) : (
+      <RunStripSkeleton />
+    );
+  // Phones get a count instead of the strip: the same information, in a line, without a second set of links
+  const lastRunsSummary = (c: { automated_test_key: string | null }): string | null => {
+    if (!c.automated_test_key || !strip.data) return null;
+    const statuses = strip.data.statuses[c.automated_test_key.toLowerCase()] ?? [];
+    const ran = statuses.filter((s) => s !== null);
+    if (ran.length === 0) return "none yet";
+    const count = (status: string) => ran.filter((s) => s === status).length;
+    const parts = (["failed", "rerun", "passed", "skipped"] as const).filter((st) => count(st) > 0).map((st) => `${count(st)} ${st}`);
+    return `${parts.join(", ")} of the last ${ran.length}`;
+  };
   const pageRunnable = (data?.items ?? []).filter(runnable);
   const advancedActive = KEYS.filter((k) => k !== "q" && k !== "folder" && applied[k] !== "").length;
   const filtered = KEYS.some((k) => applied[k] !== "");
@@ -242,7 +267,7 @@ export default function CasesPage() {
           ))}
         </ul>
         )}
-        <div className="card" ref={tableRef} tabIndex={0} role="region" aria-label="Test cases">
+        <div className="card" ref={tableRef} tabIndex={0} role="region" aria-label="Test cases" style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
           <table className="data">
             <thead>
               <tr>
@@ -265,7 +290,8 @@ export default function CasesPage() {
                     <td className="select-col">
                       {runnable(c) && (
                         <input type="checkbox" aria-label={`Select ${c.key} ${c.title}`} checked={picked.has(c.number)}
-                          disabled={!picked.has(c.number) && picked.size >= MAX_RUN_CASES} onChange={() => toggle(c)} />
+                          disabled={!picked.has(c.number) && picked.size >= MAX_RUN_CASES} onChange={() => toggle(c)}
+                          onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: "nearest" })} />
                       )}
                     </td>
                   )}
@@ -274,21 +300,12 @@ export default function CasesPage() {
                     <Link to={`${c.number}`}>{c.title}</Link>
                     <Labels labels={c.labels} />
                     <NarrowMeta items={[
+                      { label: "Last runs", value: lastRunsSummary(c) },
                       { label: "Priority", value: c.priority },
                       { label: "Automated", value: c.automated_test_key ? "Linked" : "Manual" },
                     ]} />
                   </td>
-                  <td className="hide-narrow">
-                    {!c.automated_test_key ? (
-                      <span className="muted">not linked</span>
-                    ) : strip.isError ? (
-                      <span aria-label="Last runs unavailable">—</span>
-                    ) : strip.data ? (
-                      <RunStrip projectId={id} runs={strip.data.runs} statuses={strip.data.statuses[c.automated_test_key.toLowerCase()] ?? strip.data.runs.map(() => null)} />
-                    ) : (
-                      <RunStripSkeleton />
-                    )}
-                  </td>
+                  <td className="hide-narrow">{lastRuns(c)}</td>
                   <td className="hide-narrow">{c.priority}</td>
                   <td>{c.status}</td>
                   <td className="hide-narrow">
@@ -312,7 +329,7 @@ export default function CasesPage() {
       )}
       {/* After the table, so it appears below the rows instead of pushing them down; sticky keeps it in reach */}
       {canEdit && picked.size > 0 && (
-        <div className="run-selection" role="region" aria-label="Selected cases">
+        <div ref={barRef} className="run-selection" role="region" aria-label="Selected cases">
           <RunControl projectId={id} cases={[...picked].map(([number, title]) => ({ number, title }))}
             selection={{ case_numbers: [...picked.keys()] }} label={`Run selected (${picked.size})`}
             onStarted={() => { setPicked(new Map()); (tableRef.current ?? headingRef.current)?.focus(); }} />

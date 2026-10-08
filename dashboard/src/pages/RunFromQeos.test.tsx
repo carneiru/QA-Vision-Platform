@@ -461,3 +461,27 @@ test("Suite detail: Run suite is the one primary while nothing is unsaved", asyn
   await userEvent.click(screen.getByRole("button", { name: "Run suite" }));
   expect(primaries().sort()).toEqual(["Run"]); // the open question's Run; the trigger steps back
 });
+
+test("the sticky selection bar reserves its height so a focused row is not hidden under it", async () => {
+  const offset = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(80);
+  const scrolled = vi.fn();
+  Element.prototype.scrollIntoView = scrolled;
+  try {
+    listing([kase(1), kase(2)]);
+    renderAt("/projects/42/cases");
+    expect(document.documentElement.style.scrollPaddingBottom).toBe("");
+    await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
+    await waitFor(() => expect(document.documentElement.style.scrollPaddingBottom).toBe("88px"));
+    expect(screen.getByRole("region", { name: "Test cases" })).toHaveStyle({ paddingBottom: "80px" });
+    // Tabbing to another row's checkbox scrolls it into view above the bar
+    scrolled.mockClear();
+    screen.getByRole("checkbox", { name: "Select TC-2 Case 2" }).focus();
+    expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+    // No selection, no reserved space
+    await userEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+    await waitFor(() => expect(document.documentElement.style.scrollPaddingBottom).toBe(""));
+  } finally {
+    offset.mockRestore();
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  }
+});

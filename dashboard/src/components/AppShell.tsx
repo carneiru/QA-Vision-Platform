@@ -67,16 +67,39 @@ export default function AppShell() {
   const wasOpen = useRef(false);
   const drawerLayout = useDrawerLayout();
 
-  // A followed link closes the drawer
-  useEffect(() => setOpen(false), [pathname]);
+  // Focus goes back to the menu button only when the reader closes the drawer. A followed link closes it too,
+  // but then the new page's content takes focus (routeFocus): the button must not take it back.
+  const focusMenuOnClose = useRef(true);
+  const closeForNavigation = () => {
+    focusMenuOnClose.current = false;
+    setOpen(false);
+  };
+  useEffect(() => closeForNavigation(), [pathname]);
+  // The layout widened past the drawer breakpoint while it was open: it is a plain sidebar again
+  const wasDrawer = useRef(drawerLayout);
+  useEffect(() => {
+    if (wasDrawer.current && !drawerLayout && open) closeForNavigation();
+    wasDrawer.current = drawerLayout;
+  }, [drawerLayout, open]);
 
   useEffect(() => {
     if (open) {
+      focusMenuOnClose.current = true;
       sidebar.current?.querySelector<HTMLElement>("a[href]")?.focus();
-    } else if (wasOpen.current) {
+    } else if (wasOpen.current && focusMenuOnClose.current) {
       menuButton.current?.focus();
     }
     wasOpen.current = open;
+  }, [open]);
+
+  // Escape closes the open drawer from wherever focus is, not only from inside it
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
   // A closed drawer is off-screen, not gone: inert + aria-hidden keep Tab and screen readers out of it
@@ -137,12 +160,10 @@ export default function AppShell() {
         ref={sidebar}
         className={open ? "sidebar open" : "sidebar"}
         aria-label="Navigation"
-        role={open ? "dialog" : undefined}
-        aria-modal={open ? true : undefined}
+        role={open && drawerLayout ? "dialog" : undefined}
+        aria-modal={open && drawerLayout ? true : undefined}
         onKeyDown={(e) => {
-          if (!open) return;
-          if (e.key === "Escape") setOpen(false);
-          else if (e.key === "Tab") trapTab(e);
+          if (open && drawerLayout && e.key === "Tab") trapTab(e);
         }}
       >
         <div className="brand brand-row">

@@ -81,3 +81,11 @@ test("active filters are counted in the summary, and a narrow screen opens to sh
   expect(screen.getByText("Filters (2 active)", { selector: "summary" })).toBeInTheDocument();
   expect(disclosure()).toHaveAttribute("open");
 });
+
+test("active filters open the disclosure even when the reader last left it closed", async () => {
+  mockNarrow(false);
+  sessionStorage.setItem("qeos.filters.cases", "closed");
+  renderCases("/projects/42/cases?priority=high&status=ready");
+  await screen.findByLabelText("Search");
+  expect(disclosure()).toHaveAttribute("open");
+});

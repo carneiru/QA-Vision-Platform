@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -133,5 +133,43 @@ describe("narrow drawer accessibility", () => {
     await userEvent.keyboard("{Escape}");
     expect(menu).toHaveFocus();
     expect(sidebar).toHaveAttribute("inert");
+  });
+});
+
+describe("drawer focus and layout changes", () => {
+  afterEach(() => {
+    // @ts-expect-error restore jsdom default (no matchMedia)
+    delete window.matchMedia;
+  });
+
+  test("following a link in the drawer leaves focus on the new page, not the menu button", async () => {
+    mockNarrow(true);
+    renderAt("/projects/42/runs");
+    const menu = screen.getByRole("button", { name: /open navigation/i });
+    await userEvent.click(menu);
+    await userEvent.click(within(document.getElementById("sidebar")!).getByRole("link", { name: /overview/i }));
+    expect(await screen.findByRole("heading", { name: "Overview view" })).toBeInTheDocument();
+    expect(document.getElementById("sidebar")).not.toHaveClass("open");
+    expect(menu).not.toHaveFocus();
+    expect(document.activeElement?.id).toMatch(/^(main|content)$/);
+  });
+
+  test("Escape closes the open drawer even when focus is outside it", async () => {
+    mockNarrow(true);
+    renderAt("/projects/42/runs");
+    const menu = screen.getByRole("button", { name: /open navigation/i });
+    await userEvent.click(menu);
+    (screen.getByRole("main") as HTMLElement).focus();
+    await userEvent.keyboard("{Escape}");
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("on a wide layout the open class is not a dialog: no role, no modal", async () => {
+    mockNarrow(false);
+    renderAt("/");
+    const sidebar = document.getElementById("sidebar")!;
+    await userEvent.click(screen.getByRole("button", { name: /open navigation/i }));
+    expect(sidebar).not.toHaveAttribute("role", "dialog");
+    expect(sidebar).not.toHaveAttribute("aria-modal");
   });
 });

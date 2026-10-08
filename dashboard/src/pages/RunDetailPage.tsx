@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -15,8 +15,10 @@ const DEFAULTS = { status: "" } as const;
 const STATUSES = ["passed", "failed", "errored", "skipped"] as const;
 // The API returns every result of the run (no limit/offset), so the table pages on the client.
 const PAGE = 100;
-/** Failing results lead: that is what a reader opens a run for. Stable, so each group keeps the API's order. */
-const RANK: Record<string, number> = { failed: 0, errored: 0, skipped: 2, passed: 3 };
+/** Failing results lead: that is what a reader opens a run for. Order: failed, errored, anything else, skipped, passed.
+ *  Stable, so each group keeps the API's order. */
+const RANK: Record<string, number> = { failed: 0, errored: 1, skipped: 3, passed: 4 };
+const OTHER_RANK = 2;
 
 export default function RunDetailPage() {
   const { projectId, runId } = useParams();
@@ -33,12 +35,19 @@ export default function RunDetailPage() {
 
   const run = query.data;
   const ordered = useMemo(
-    () => [...(run?.results ?? [])].sort((a, b) => (RANK[a.status] ?? 1) - (RANK[b.status] ?? 1)),
+    () => [...(run?.results ?? [])].sort((a, b) => (RANK[a.status] ?? OTHER_RANK) - (RANK[b.status] ?? OTHER_RANK)),
     [run?.results],
   );
   // A link to a page past the end (a shorter run, an edited URL) shows the last page, not an empty one
   const start = Math.min(offset, Math.max(0, Math.floor((ordered.length - 1) / PAGE) * PAGE));
   const shown = ordered.slice(start, start + PAGE);
+  // A new page starts at the top of the table: after Next the reader would otherwise be left at the bottom of the old one
+  const tableRef = useRef<HTMLDivElement>(null);
+  const shownStart = useRef(start);
+  useEffect(() => {
+    if (shownStart.current !== start) tableRef.current?.scrollIntoView?.({ block: "start" });
+    shownStart.current = start;
+  }, [start]);
   // The run before this one on the same branch: the natural thing to compare with
   const previous = useQuery({
     queryKey: ["runs", Number(projectId), "before", id],
@@ -167,7 +176,7 @@ export default function RunDetailPage() {
           {run.results.length === 0 ? (
             <p className="muted">No {status || ""} results in this run.</p>
           ) : (
-            <div className="card" tabIndex={0} role="region" aria-label="Test results">
+            <div className="card" ref={tableRef} tabIndex={0} role="region" aria-label="Test results">
               <table className="data">
                 <thead>
                   <tr>

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 const NARROW_QUERY = "(max-width: 640px)";
@@ -18,10 +18,16 @@ function remembered(key: string): boolean | null {
 
 /** The secondary filters of a list, behind a "Filters (n active)" summary. Open on wide screens;
  *  closed on phones, where ten fields would fill the first screen. A reader's own choice is
- *  remembered for the session, and active filters are never hidden: they open it. */
+ *  remembered for the session, but active filters are never hidden: they open it whatever was remembered. */
 export default function FiltersDisclosure({ id, active, children }: { id: string; active: number; children: ReactNode }) {
   const storageKey = `qeos.filters.${id}`;
-  const [open, setOpen] = useState(() => remembered(storageKey) ?? (!isNarrow() || active > 0));
+  // Active filters win over the remembered choice: a link with filters in it must show them
+  const [open, setOpen] = useState(() => active > 0 || (remembered(storageKey) ?? !isNarrow()));
+  const hadActive = useRef(active > 0);
+  useEffect(() => {
+    if (active > 0 && !hadActive.current) setOpen(true);
+    hadActive.current = active > 0;
+  }, [active]);
   return (
     <details
       className="more-filters"

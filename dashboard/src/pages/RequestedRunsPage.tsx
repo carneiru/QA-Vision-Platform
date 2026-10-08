@@ -1,3 +1,4 @@
+import NarrowMeta from "../components/NarrowMeta";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
@@ -58,7 +59,10 @@ export default function RequestedRunsPage() {
                 const described = describeRun(r, nameOf);
                 return (
                   <tr key={r.id}>
-                    <td>{new Date(r.requested_at).toLocaleString()}</td>
+                    <td>
+                      {new Date(r.requested_at).toLocaleString()}
+                      <NarrowMeta items={[{ label: "Stopped by", value: r.stopped_by != null ? nameOf(r.stopped_by) : null }]} />
+                    </td>
                     <td>{nameOf(r.requested_by)}</td>
                     <td className="num">{r.case_count}</td>
                     <td>

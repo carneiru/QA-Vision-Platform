@@ -121,3 +121,12 @@ test("a failed section shows its error with Retry instead of a false 'nothing in
   await userEvent.click(within(section).getByRole("button", { name: "Retry" }));
   expect(await within(section).findByText(/nothing in this period/i)).toBeInTheDocument();
 });
+
+test("the weekly table keeps Executions and Average run on phones, under the week", async () => {
+  serve();
+  renderPage();
+  const weekly = await screen.findByRole("table", { name: /pass rate by week/i });
+  const meta = within(weekly).getAllByRole("row")[1].querySelector(".narrow-meta")!;
+  expect(meta).toHaveTextContent("Executions 1,000");
+  expect(meta).toHaveTextContent("Average run 1m 00s");
+});

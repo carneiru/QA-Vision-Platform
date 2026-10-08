@@ -1,3 +1,4 @@
+import NarrowMeta from "../components/NarrowMeta";
 import { ReactNode, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -176,7 +177,13 @@ export default function ReportPage() {
           <tbody>
             {weeks.map((w) => (
               <tr key={w.date}>
-                <td>{new Date(`${w.date}T00:00:00`).toLocaleDateString()}</td>
+                <td>
+                  {new Date(`${w.date}T00:00:00`).toLocaleDateString()}
+                  <NarrowMeta items={[
+                    { label: "Executions", value: number.format(w.total) },
+                    { label: "Average run", value: formatDuration(w.avg_run_duration_ms) },
+                  ]} />
+                </td>
                 <td>{number.format(w.runs)}</td>
                 <td className="hide-narrow">{number.format(w.total)}</td>
                 <td>{number.format(w.failed + w.errored)}</td>

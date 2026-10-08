@@ -282,3 +282,52 @@ test("a short run shows no pager", async () => {
   const region = await screen.findByRole("region", { name: "Test results" });
   expect(within(region).queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
 });
+
+test("a hand-edited offset is rounded down to a page boundary; one past the end shows the last page", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(250)))));
+  renderDetail("/projects/42/runs/61?offset=150");
+  const region = await screen.findByRole("region", { name: "Test results" });
+  expect(within(region).getByText("Rows 101–200 of 250")).toBeInTheDocument();
+});
+
+test("an offset beyond the results shows the last page, and Previous goes back one page", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(250)))));
+  renderDetail("/projects/42/runs/61?offset=99999");
+  const region = await screen.findByRole("region", { name: "Test results" });
+  expect(within(region).getByText("Rows 201–250 of 250")).toBeInTheDocument();
+  await userEvent.click(within(region).getByRole("button", { name: "Previous" }));
+  expect(within(region).getByText("Rows 101–200 of 250")).toBeInTheDocument();
+});
+
+test("junk offsets read as the first page", async () => {
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(250)))));
+  renderDetail("/projects/42/runs/61?offset=-5");
+  const region = await screen.findByRole("region", { name: "Test results" });
+  expect(within(region).getByText("Rows 1–100 of 250")).toBeInTheDocument();
+});
+
+test("results are ordered failed, errored, other, skipped, passed", async () => {
+  const mk = (id: number, status: string) => ({ ...result, id, test_key: `k${id}`, name: `t-${status}`, status, message: null });
+  server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail([
+    mk(1, "passed"), mk(2, "skipped"), mk(3, "weird"), mk(4, "errored"), mk(5, "failed"),
+  ]))));
+  renderDetail();
+  const region = await screen.findByRole("region", { name: "Test results" });
+  const names = within(region).getAllByRole("row").slice(1).map((r) => within(r).getByRole("link").textContent);
+  expect(names).toEqual(["t-failed", "t-errored", "t-weird", "t-skipped", "t-passed"]);
+});
+
+test("changing page scrolls to the top of the table", async () => {
+  const scroll = vi.fn();
+  Element.prototype.scrollIntoView = scroll;
+  try {
+    server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail(many(250)))));
+    renderDetail();
+    const region = await screen.findByRole("region", { name: "Test results" });
+    expect(scroll).not.toHaveBeenCalled(); // not on the first render
+    await userEvent.click(within(region).getByRole("button", { name: "Next" }));
+    expect(scroll).toHaveBeenCalledWith({ block: "start" });
+  } finally {
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  }
+});
