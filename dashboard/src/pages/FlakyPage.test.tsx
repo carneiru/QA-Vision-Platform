@@ -276,7 +276,7 @@ test("flip rate and last seen sort the rows; the order is announced with aria-so
   await screen.findByText("test_add");
   const names = () => screen.getAllByRole("row").slice(1).map((r) => r.querySelector("a")?.textContent);
   expect(names()).toEqual(["test_ok", "test_add"]); // the server's order until a header is used
-  expect(screen.getByRole("columnheader", { name: /flip rate/i })).toHaveAttribute("aria-sort", "none");
+  expect(screen.getByRole("columnheader", { name: /flip rate/i })).not.toHaveAttribute("aria-sort");
   await userEvent.click(screen.getByRole("button", { name: /flip rate/i }));
   expect(names()).toEqual(["test_add", "test_ok"]); // highest first; no rate sorts last
   expect(screen.getByRole("columnheader", { name: /flip rate/i })).toHaveAttribute("aria-sort", "descending");
@@ -285,5 +285,5 @@ test("flip rate and last seen sort the rows; the order is announced with aria-so
   await userEvent.click(screen.getByRole("button", { name: /last seen/i }));
   expect(names()).toEqual(["test_ok", "test_add"]);
   expect(screen.getByRole("columnheader", { name: /last seen/i })).toHaveAttribute("aria-sort", "ascending");
-  expect(screen.getByRole("columnheader", { name: /flip rate/i })).toHaveAttribute("aria-sort", "none");
+  expect(screen.getByRole("columnheader", { name: /flip rate/i })).not.toHaveAttribute("aria-sort");
 });

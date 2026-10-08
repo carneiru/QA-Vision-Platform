@@ -232,12 +232,12 @@ test("column headers sort the loaded page and keep the order in the URL", async 
   // Default: newest first
   expect(ids()).toEqual(["#3", "#2", "#1"]);
   expect(screen.getByRole("columnheader", { name: /started/i })).toHaveAttribute("aria-sort", "descending");
-  expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "none");
+  expect(screen.getByRole("columnheader", { name: /^failed/i })).not.toHaveAttribute("aria-sort");
 
   await userEvent.click(screen.getByRole("button", { name: /^failed/i }));
   expect(ids()).toEqual(["#2", "#1", "#3"]);
   expect(screen.getByRole("columnheader", { name: /^failed/i })).toHaveAttribute("aria-sort", "descending");
-  expect(screen.getByRole("columnheader", { name: /started/i })).toHaveAttribute("aria-sort", "none");
+  expect(screen.getByRole("columnheader", { name: /started/i })).not.toHaveAttribute("aria-sort");
   expect(screen.getByTestId("location")).toHaveTextContent("sort=failed");
 
   await userEvent.click(screen.getByRole("button", { name: /^failed/i }));

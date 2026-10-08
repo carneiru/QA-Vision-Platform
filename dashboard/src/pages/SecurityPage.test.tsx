@@ -10,6 +10,12 @@ vi.mock("qrcode", () => ({
   default: { toCanvas: vi.fn(async () => {}) },
 }));
 
+let mfaOn = false;
+beforeEach(() => {
+  mfaOn = false;
+  server.use(http.get("/api/v1/users/me", () => HttpResponse.json({ id: 1, email: "a@b.co", mfa_enabled: mfaOn })));
+});
+
 function renderSecurity() {
   setAccessToken("acc");
   render(
@@ -112,14 +118,21 @@ const enrollHandlers = () => [
   http.post("/api/v1/auth/mfa/disable", () => new HttpResponse(null, { status: 204 })),
 ];
 
-test("two-factor status is stated, and follows what this page does", async () => {
+test("two-factor status comes from the account and is refreshed after enrolling", async () => {
   server.use(...enrollHandlers());
   renderSecurity();
-  expect(await screen.findByText(/status: not shown here/i)).toBeInTheDocument();
+  expect(await screen.findByText("Two-factor authentication: Off")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /set up/i }));
   await userEvent.type(await screen.findByLabelText(/code from the app/i), "123456");
+  mfaOn = true;
   await userEvent.click(screen.getByRole("button", { name: /confirm code/i }));
-  expect(await screen.findByText(/status: on/i)).toBeInTheDocument();
+  expect(await screen.findByText("Two-factor authentication: On")).toBeInTheDocument();
+});
+
+test("an account with two-factor on says so at once", async () => {
+  mfaOn = true;
+  renderSecurity();
+  expect(await screen.findByText("Two-factor authentication: On")).toBeInTheDocument();
 });
 
 test("enrolling can be cancelled, and focus returns to the button that started it", async () => {
@@ -147,7 +160,7 @@ test("disabling is a danger action that can be cancelled", async () => {
   await userEvent.click(screen.getByRole("button", { name: /^disable two-factor/i }));
   await userEvent.type(screen.getByLabelText(/current code/i), "123456");
   await userEvent.click(screen.getByRole("button", { name: /^disable two-factor/i }));
-  expect(await screen.findByText(/status: off/i)).toBeInTheDocument();
+  expect(await screen.findByText("Two-factor authentication: Off")).toBeInTheDocument();
 });
 
 test("recovery codes can be copied and must be acknowledged before they go away", async () => {
@@ -155,10 +168,11 @@ test("recovery codes can be copied and must be acknowledged before they go away"
   renderSecurity();
   await userEvent.click(await screen.findByRole("button", { name: /set up/i }));
   await userEvent.type(await screen.findByLabelText(/code from the app/i), "123456");
+  mfaOn = true;
   await userEvent.click(screen.getByRole("button", { name: /confirm code/i }));
   expect(await screen.findByRole("button", { name: "Copy recovery codes" })).toBeInTheDocument();
   expect(screen.getByText("aaaa-1111")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /i saved these codes/i }));
   expect(screen.queryByText("aaaa-1111")).not.toBeInTheDocument();
-  expect(screen.getByText(/status: on/i)).toBeInTheDocument();
+  expect(screen.getByText("Two-factor authentication: On")).toBeInTheDocument();
 });

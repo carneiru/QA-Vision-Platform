@@ -71,6 +71,11 @@ export async function mfaVerify(mfaToken: string, code: string): Promise<void> {
   setAccessToken(tokens.access_token);
 }
 
+/** The signed-in account; `mfa_enabled` says whether two-factor sign-in is on. */
+export function getMe(): Promise<{ id: number; email: string; mfa_enabled: boolean }> {
+  return apiFetch("/api/v1/users/me");
+}
+
 export function mfaEnroll(): Promise<{ secret: string; otpauth_uri: string }> {
   return apiFetch("/api/v1/auth/mfa/enroll", { method: "POST", body: "{}" });
 }

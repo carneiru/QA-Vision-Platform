@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import QRCode from "qrcode";
-import { CircleCheck, CircleSlash, HelpCircle } from "lucide-react";
-import { changePassword, mfaConfirm, mfaDisable, mfaEnroll } from "../api/auth";
+import { CircleCheck, CircleSlash } from "lucide-react";
+import { changePassword, getMe, mfaConfirm, mfaDisable, mfaEnroll } from "../api/auth";
 import { downloadCsv } from "../lib/csv";
 import ErrorBanner from "../components/ErrorBanner";
 import NewPasswordFields from "../components/NewPasswordFields";
@@ -10,7 +10,7 @@ import SecretBlock from "../components/SecretBlock";
 import TextField from "../components/TextField";
 
 type Step = "idle" | "enrolling" | "enrolled" | "disabling";
-/** The server has no read endpoint for this yet: until this page turns it on or off, the state is unknown */
+/** From GET /users/me; "unknown" until it answers (or if it cannot) */
 type Known = "unknown" | "on" | "off";
 
 function ChangePasswordCard() {
@@ -94,6 +94,13 @@ export default function SecurityPage() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [known, setKnown] = useState<Known>("unknown");
+  const loadStatus = () =>
+    getMe().then((me) => setKnown(me.mfa_enabled ? "on" : "off")).catch(() => {
+      // The line stays "unknown" rather than guessing
+    });
+  useEffect(() => {
+    void loadStatus();
+  }, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Leaving a step by Cancel puts focus back on the button that opened it
   const setupRef = useRef<HTMLButtonElement>(null);
@@ -145,6 +152,7 @@ export default function SecurityPage() {
       const result = await mfaConfirm(code.trim());
       setRecovery(result.recovery_codes);
       setKnown("on");
+      void loadStatus();
       setStep("enrolled");
       setCode("");
     } catch (err) {
@@ -161,6 +169,7 @@ export default function SecurityPage() {
     try {
       await mfaDisable(code.trim());
       setKnown("off");
+      void loadStatus();
       setStep("idle");
       setSecret("");
       setUri("");
@@ -186,14 +195,9 @@ export default function SecurityPage() {
         {error != null && <ErrorBanner error={error} />}
 
         <p className="mfa-status" role="status">
-          {known === "on" && <><CircleCheck size={16} aria-hidden="true" /> <strong>Status: on.</strong></>}
-          {known === "off" && <><CircleSlash size={16} aria-hidden="true" /> <strong>Status: off.</strong></>}
-          {known === "unknown" && (
-            <>
-              <HelpCircle size={16} aria-hidden="true" /> <strong>Status: not shown here.</strong>{" "}
-              <span className="muted">This page cannot read the current setting yet; it updates when you turn it on or off.</span>
-            </>
-          )}
+          {known === "on" && <><CircleCheck size={16} aria-hidden="true" /> <strong>Two-factor authentication: On</strong></>}
+          {known === "off" && <><CircleSlash size={16} aria-hidden="true" /> <strong>Two-factor authentication: Off</strong></>}
+          {known === "unknown" && <span className="muted">Checking two-factor status…</span>}
         </p>
 
         {step === "idle" && (
