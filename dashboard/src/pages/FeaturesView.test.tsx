@@ -84,7 +84,7 @@ test("the Cases list opens grouped by feature: one row per .feature file, manual
   expect(link).toHaveAttribute("href", "/projects/42/cases/feature?path=features%2Fauth%2Flogin.feature");
   const row = link.closest("tr")!;
   expect(within(row).getByText("features/auth")).toBeInTheDocument();
-  expect(within(row).getByText("2 scenarios")).toBeInTheDocument();
+  expect(within(row).getByRole("cell", { name: "2" })).toHaveClass("num");
   expect(screen.getByText("No feature (manual)")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "No feature (manual)" })).not.toBeInTheDocument();
   // Feature view searches in feature names and paths unless told otherwise, and the server is always told
@@ -140,12 +140,29 @@ test("a feature row expands in place to its matching scenarios, in file order", 
   expect(toggle).toHaveAttribute("aria-expanded", "false");
   await userEvent.click(toggle);
   expect(toggle).toHaveAttribute("aria-expanded", "true");
-  const scenarios = await screen.findByRole("table", { name: "Scenarios of Login" });
+  const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
   const titles = within(scenarios).getAllByRole("link").filter((a) => a.classList.contains("case-title")).map((a) => a.textContent);
   expect(titles).toEqual(["Case 2", "Case 1"]);
   expect(within(scenarios).getByRole("link", { name: "Case 2" })).toHaveAttribute("href", "/projects/42/cases/2");
   await userEvent.click(toggle);
-  expect(screen.queryByRole("table", { name: "Scenarios of Login" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("rowgroup", { name: "Scenarios of Login" })).not.toBeInTheDocument();
+});
+
+test("feature and scenario rows share one table: the Scenario view's columns plus Scenarios, filled on feature rows only", async () => {
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  await userEvent.click(within(featureRow("Login")).getByRole("button", { name: "Show scenarios of Login" }));
+  const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
+  expect(screen.getAllByRole("table")).toHaveLength(1);
+  const heads = within(screen.getByRole("table")).getAllByRole("columnheader").map((th) => th.textContent);
+  expect(heads).toEqual(["Select", "Title", "Scenarios", "Last runs", "Priority", "Status", "Automated"]);
+  const caseRow = within(scenarios).getByRole("link", { name: "Case 2" }).closest("tr")!;
+  const cells = within(caseRow).getAllByRole("cell");
+  expect(cells).toHaveLength(heads.length);
+  expect(cells[2]).toHaveTextContent("");
+  expect(cells[4]).toHaveTextContent("high");
+  expect(cells[6]).toHaveTextContent("Linked");
+  expect(within(featureRow("Login")).getAllByRole("cell")).toHaveLength(heads.length);
 });
 
 test("the manual group expands to the manual cases", async () => {
@@ -166,7 +183,7 @@ test("checking a feature selects its runnable scenarios; the box is tri-state", 
   expect(await screen.findByRole("button", { name: "Run selected (2)" })).toBeInTheDocument();
   expect(box).toBeChecked();
   await userEvent.click(within(featureRow("Login")).getByRole("button", { name: "Show scenarios of Login" }));
-  const scenarios = await screen.findByRole("table", { name: "Scenarios of Login" });
+  const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
   await userEvent.click(within(scenarios).getByRole("checkbox", { name: "Select TC-1 Case 1" }));
   expect(screen.getByRole("button", { name: "Run selected (1)" })).toBeInTheDocument();
   expect(box).not.toBeChecked();
@@ -201,7 +218,7 @@ test("a filter the feature list cannot apply groups the matching cases in the pa
   }));
   renderCases("/projects/42/cases?origin=imported");
   expect(await screen.findByRole("link", { name: "Login" })).toBeInTheDocument();
-  expect(within(featureRow("Login")).getByText("1 scenario")).toBeInTheDocument();
+  expect(within(featureRow("Login")).getByRole("cell", { name: "1" })).toHaveClass("num");
   expect(screen.getByRole("link", { name: "Pay" })).toBeInTheDocument();
   expect(seenFeatures).toHaveLength(0);
   expect(seenCases[seenCases.length - 1].get("origin")).toBe("imported");

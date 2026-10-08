@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, FileCode } from "lucide-react";
@@ -102,39 +102,61 @@ export default function CaseTable({ projectId, cases, selectable, picked, onTogg
       </thead>
       <tbody>
         {cases.map((c) => (
-          <tr key={c.number}>
-            {selectable && (
-              <td className="select-col">
-                {isRunnable(c) && (
-                  <input type="checkbox" aria-label={`Select ${c.key} ${c.title}`} checked={picked.has(c.number)}
-                    disabled={!picked.has(c.number) && picked.size >= MAX_RUN_CASES} onChange={() => onToggle(c)}
-                    onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: "nearest" })} />
-                )}
-              </td>
-            )}
-            <td className="wrap-anywhere">
-              {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
-              <Link className="case-title" to={`/projects/${projectId}/cases/${c.number}`}>{c.title}</Link>
-              <Labels labels={c.labels ?? []} />
-              <NarrowMeta items={[
-                { label: "Last runs", value: lastRunsSummary(c.automated_test_key) },
-                { label: "Priority", value: c.priority },
-                { label: "Automated", value: c.automated_test_key ? "Linked" : "Manual" },
-              ]} />
-            </td>
-            <td className="hide-narrow">{lastRuns(c.automated_test_key)}</td>
-            <td className="hide-narrow">{c.priority}</td>
-            <td><CaseStatusPill status={c.status} /></td>
-            <td className="hide-narrow">
-              {c.automated_test_key ? (
-                <span className="linked"><Bot size={14} aria-hidden="true" /> Linked</span>
-              ) : (
-                <span className="muted">Manual</span>
-              )}
-            </td>
-          </tr>
+          <CaseRow key={c.number} projectId={projectId} c={c} selectable={selectable} picked={picked} onToggle={onToggle}
+            lastRuns={lastRuns} lastRunsSummary={lastRunsSummary} />
         ))}
       </tbody>
     </table>
+  );
+}
+
+interface RowProps {
+  projectId: number;
+  c: CaseRowData;
+  selectable: boolean;
+  picked: Map<number, string>;
+  onToggle: (c: CaseRowData) => void;
+  lastRuns: (key: string | null) => ReactNode;
+  lastRunsSummary: (key: string | null) => string | null;
+  /** Feature view's extra Scenarios column, which a scenario row leaves empty. */
+  scenariosColumn?: boolean;
+  className?: string;
+}
+
+/** One scenario row: shared by the Scenario view and a feature's expanded scenarios in the Feature view. */
+export function CaseRow({ projectId, c, selectable, picked, onToggle, lastRuns, lastRunsSummary, scenariosColumn, className }: RowProps) {
+  return (
+    <tr className={className}>
+      {selectable && (
+        <td className="select-col">
+          {isRunnable(c) && (
+            <input type="checkbox" aria-label={`Select ${c.key} ${c.title}`} checked={picked.has(c.number)}
+              disabled={!picked.has(c.number) && picked.size >= MAX_RUN_CASES} onChange={() => onToggle(c)}
+              onFocus={(e) => e.currentTarget.scrollIntoView?.({ block: "nearest" })} />
+          )}
+        </td>
+      )}
+      <td className="wrap-anywhere">
+        {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
+        <Link className="case-title" to={`/projects/${projectId}/cases/${c.number}`}>{c.title}</Link>
+        <Labels labels={c.labels ?? []} />
+        <NarrowMeta items={[
+          { label: "Last runs", value: lastRunsSummary(c.automated_test_key) },
+          { label: "Priority", value: c.priority },
+          { label: "Automated", value: c.automated_test_key ? "Linked" : "Manual" },
+        ]} />
+      </td>
+      {scenariosColumn && <td className="num" />}
+      <td className="hide-narrow">{lastRuns(c.automated_test_key)}</td>
+      <td className="hide-narrow">{c.priority}</td>
+      <td><CaseStatusPill status={c.status} /></td>
+      <td className="hide-narrow">
+        {c.automated_test_key ? (
+          <span className="linked"><Bot size={14} aria-hidden="true" /> Linked</span>
+        ) : (
+          <span className="muted">Manual</span>
+        )}
+      </td>
+    </tr>
   );
 }
