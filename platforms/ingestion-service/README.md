@@ -49,11 +49,19 @@ can sync cases without a user login. See ADR-024.
 ## Reading results
 
 - `GET /api/v1/projects/<id>/runs?limit=&offset=` — newest first, with counts. Optional filters,
-  combined with AND: `branch`, `status=failing|passing` (failing means at least one failed or
-  errored result), `branch_contains` (case-insensitive substring of the branch, at most 255
-  characters; `%` and `_` match themselves; combines with `branch`), `environment`, `ci_provider`, `commit` (hex prefix of 4+ characters, any
-  case), `pr`, `author` (case-insensitive substring; `%` and `_` match themselves), `since`
-  (inclusive) and `until` (exclusive) on `started_at`, as ISO 8601 instants.
+  combined with AND: `branch`, `branch_contains` (case-insensitive substring of the branch, at
+  most 255 characters; `%` and `_` match themselves; combines with `branch`),
+  `status=failing|passing` (failing means at least one failed or errored result), `environment`,
+  `ci_provider`, `commit` (hex prefix of 4+ characters, any case), `pr`, `author`
+  (case-insensitive substring; `%` and `_` match themselves), `since` (inclusive) and `until`
+  (exclusive) on `started_at`, as ISO 8601 instants. `branch_contains` cannot use the branch
+  index; a per-project scan is fine at today's sizes (a `pg_trgm` GIN index on `lower(branch)` is
+  the fix if run tables grow very large).
+- `GET /api/v1/projects/<id>/runs/<run_id>/summary` — one run's header only, no results:
+  `{id, project_id, started_at, finished_at, branch, commit_sha, environment, status:
+  "passing"|"failing", counts:{passed, failed, errored, skipped}, ci_provider, ci_run_url}`.
+  Every project role may read it; 404 for an unknown run or a run of another project. The
+  dashboard's search uses it to check that a run exists.
 - `GET /api/v1/runs/<run_id>?status=failed` — one run with its results.
 - `GET /api/v1/runs/<run_id>/failure-groups` — failed and errored tests grouped by cause. The
   cause is the first error line with numbers, ids and hashes ignored (`analytics/signature.py`).
@@ -179,7 +187,7 @@ Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that
 | Endpoint | Returns |
 |---|---|
 | `GET /trends?days=30&tz=UTC&branch=&environment=` | One entry per local day (`days` 1–365, zone `tz`), oldest first, empty days zero-filled: runs, counts, `pass_rate`, average and maximum run duration |
-| `GET /tests?days=30&sort=failures&search=&limit=50&offset=0` | One row per test in the window (`days` 1–90): counts, `pass_rate`, average duration, last status and when last seen; `sort` is `failures`, `duration` or `name`; `search` matches the name literally, case-insensitively |
+| `GET /tests?days=30&sort=failures&search=&limit=50&offset=0` | One row per test in the window (`days` 1–90; the cap stays at 90 because the scan grows with the window, about 1.3 s at 90 days in the benchmark above): counts, `pass_rate`, average duration, last status and when last seen; `sort` is `failures`, `duration` or `name`; `search` matches the name literally, case-insensitively |
 | `GET /tests/{test_key}/history?days=30&branch=&limit=100` | One test: a summary over the window and its executions, newest first, with the message cut to 500 characters. 404 if the test was never seen in this project |
 | `GET /flaky?window_days=14&min_runs=5&min_flip_rate=0.3&branch=` | At most 100 flaky tests (`window_days` 1–90) |
 | `GET /latest-keys?status=any&branch=` | `{"keys": [...]}`: the `test_key`s whose latest result has that status (`passed`, `failed` including errored, `skipped`, or `any` for at least one result). Latest is the most recent run (`started_at`, then run id); `branch` narrows it. Test Management uses it for the "result" filter on All Cases |
