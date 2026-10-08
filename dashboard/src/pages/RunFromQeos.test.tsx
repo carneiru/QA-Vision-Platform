@@ -257,8 +257,10 @@ test("a 409 run_active closes the dialog, says why and turns Play off", async ()
   renderAt("/projects/42/cases/1");
   await userEvent.click(await screen.findByRole("button", { name: "Run" }));
   await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
-  // the server's message and the gate's reason are the same text: shown once, never twice
-  expect(await screen.findByText("A run is in progress")).toBeInTheDocument();
+  // the server's message and the gate's reason are the same text: shown once, never twice.
+  // The notice shows first and the gate's reason replaces it once the refetch lands, so the
+  // element is looked up again on each try rather than held from the first find.
+  await waitFor(() => expect(screen.getByText("A run is in progress")).toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole("button", { name: "Run" })).toBeDisabled());
   expect(screen.getAllByText("A run is in progress")).toHaveLength(1);
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

@@ -36,7 +36,7 @@ globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObse
 // The first render in a file compiles the page on demand; on a busy machine that outlasts the 1 s default of findBy*/waitFor
 configure({ asyncUtilTimeout: 4000 });
 
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+beforeAll(() => server.listen({ onUnhandledFrame: "error" }));
 afterEach(() => {
   server.resetHandlers();
   sessionStorage.clear();
