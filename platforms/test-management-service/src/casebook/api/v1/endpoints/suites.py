@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from src.casebook.api.deps import EDIT_ROLES, READ_ROLES, ProjectAccess, get_db, require_project_role
@@ -19,10 +21,11 @@ def _suite_or_404(db: Session, access: ProjectAccess, suite_id: int):
 
 @router.get("", response_model=list[SuiteOut])
 def list_suites(
+    search: Optional[str] = Query(None, min_length=1, max_length=200, pattern=r"^[^\x00]*$"),
     db: Session = Depends(get_db),
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
-    return [suite_service.out(db, row) for row in suite_service.list_suites(db, access.project_id)]
+    return [suite_service.out(db, row) for row in suite_service.list_suites(db, access.project_id, search)]
 
 
 @router.post("", response_model=SuiteOut, status_code=status.HTTP_201_CREATED)

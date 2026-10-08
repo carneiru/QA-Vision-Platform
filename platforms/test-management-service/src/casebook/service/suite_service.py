@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.casebook.models import Case, Suite, SuiteCase
-from src.casebook.service.case_service import case_key
+from src.casebook.service.case_service import _escape_like, case_key
 
 
 class DuplicateName(Exception):
@@ -39,8 +39,11 @@ def out(db: Session, row: Suite, with_cases: bool = False) -> dict:
     return body
 
 
-def list_suites(db: Session, project_id: int) -> List[Suite]:
-    return db.query(Suite).filter(Suite.project_id == project_id).order_by(Suite.name).all()
+def list_suites(db: Session, project_id: int, search: Optional[str] = None) -> List[Suite]:
+    query = db.query(Suite).filter(Suite.project_id == project_id)
+    if search:
+        query = query.filter(Suite.name.ilike(f"%{_escape_like(search)}%", escape="\\"))
+    return query.order_by(Suite.name).all()
 
 
 def get_suite(db: Session, project_id: int, suite_id: int) -> Optional[Suite]:

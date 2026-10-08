@@ -1,9 +1,10 @@
 """Cases (docs/superpowers/specs/2026-10-06-test-management-design.md)."""
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlalchemy import exists, false, func, or_, select
+from sqlalchemy import case as sql_case, exists, false, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,9 @@ def case_key(number: int) -> str:
 
 def _escape_like(term: str) -> str:
     return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+CASE_KEY = re.compile(r"^\s*(?:TC-?)?(\d{1,9})\s*$", re.IGNORECASE)
 
 
 def out(row: Case, suites: Optional[list] = None) -> dict:
@@ -124,9 +128,17 @@ def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: L
         query = query.filter(Case.source_key.isnot(None))
     elif origin == "manual":
         query = query.filter(Case.source_key.is_(None))
+    key_first = None
     if search:
         pattern = f"%{_escape_like(search)}%"
-        query = query.filter(or_(Case.title.ilike(pattern, escape="\\"), Case.gherkin.ilike(pattern, escape="\\")))
+        text_match = or_(Case.title.ilike(pattern, escape="\\"), Case.gherkin.ilike(pattern, escape="\\"))
+        key = CASE_KEY.match(search)
+        if key:  # "TC-12", "tc12" and "12" also find case 12, which then sorts first
+            key_match = Case.number == int(key.group(1))
+            query = query.filter(or_(text_match, key_match))
+            key_first = sql_case((key_match, 0), else_=1)
+        else:
+            query = query.filter(text_match)
     for label in {label.lower() for label in labels}:
         query = query.filter(exists().where(CaseLabel.case_id == Case.id, CaseLabel.label == label))
     if folder:
@@ -146,7 +158,8 @@ def list_cases(db: Session, project_id: int, *, search: Optional[str], labels: L
         elif keys:
             query = query.filter(or_(Case.automated_test_key.is_(None), Case.automated_test_key.notin_(keys)))
     total = query.count()
-    rows = query.order_by(Case.number).offset(offset).limit(limit).all()
+    order = [key_first, Case.number] if key_first is not None else [Case.number]
+    rows = query.order_by(*order).offset(offset).limit(limit).all()
     return total, rows
 
 
