@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -156,39 +156,60 @@ function listing(items: object[]) {
   server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: items.length, items })));
 }
 
+// The debounce runs on a fake clock that only moves when the test says so (plus real time for msw and React Query):
+// the checkbox clicks are synchronous fireEvents, so no time can pass between them however slow the machine is.
+function fakeClock() {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+}
+afterEach(() => vi.useRealTimers());
+const settle = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
+
 test("the selection bar totals the selection once it settles, asking once for a quick run of clicks", async () => {
   listing([kase(1), kase(2), kase(3, { automated_test_key: null })]);
   const asked = estimates(estimate(6 * MIN, 8 * MIN));
   renderAt("/projects/42/cases?group=scenario");
-  await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-2 Case 2" }));
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-3 Case 3" }));
-  expect(asked).toEqual([]); // still within the 400 ms debounce
+  const first = await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" });
+  const user = fakeClock();
+  fireEvent.click(first);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select TC-2 Case 2" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select TC-3 Case 3" }));
   const bar = screen.getByRole("region", { name: "Selected cases" });
+  await settle(399);
+  expect(within(bar).queryByText(/≈/)).not.toBeInTheDocument();
+  await settle(1);
   expect(await within(bar).findByText("· ≈ 6 min")).toBeInTheDocument();
-  expect(asked).toEqual([[KEY(1), KEY(2)]]);
-  // The dialog reuses the bar's answer (same sorted keys): no second request
-  await userEvent.click(within(bar).getByRole("button", { name: "Run selected (3)" }));
-  expect(await within(bar).findByText("Estimated duration ≈ 6 min (up to 8 min)")).toBeInTheDocument();
+  expect(asked).toEqual([[KEY(1), KEY(2)]]); // one request, after the burst, for the linked keys only
+  // The dialog reuses the bar's answer (same sorted keys): no second request. TC-3 has no test: it counts as without history
+  await user.click(within(bar).getByRole("button", { name: "Run selected (3)" }));
+  expect(await within(bar).findByText("Estimated duration ≈ 6 min (up to 8 min) · 1 test without history")).toBeInTheDocument();
   expect(asked).toHaveLength(1);
 });
 
 test("the selection bar keeps the last total while the next one loads", async () => {
   listing([kase(1), kase(2)]);
-  let answer = 6;
-  server.use(http.post(`${P}/analytics/duration-estimate`, async () => {
-    const minutes = answer;
-    if (minutes === 9) await delay(300);
-    return HttpResponse.json(estimate(minutes * MIN, minutes * MIN));
+  let release: () => void = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  const asked: string[][] = [];
+  server.use(http.post(`${P}/analytics/duration-estimate`, async ({ request }) => {
+    const keys = ((await request.json()) as { test_keys: string[] }).test_keys;
+    asked.push(keys);
+    if (keys.length === 1) return HttpResponse.json(estimate(6 * MIN, 6 * MIN));
+    await held;
+    return HttpResponse.json(estimate(9 * MIN, 9 * MIN));
   }));
   renderAt("/projects/42/cases?group=scenario");
-  await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  const first = await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" });
+  fakeClock();
+  fireEvent.click(first);
+  await settle(400);
   const bar = screen.getByRole("region", { name: "Selected cases" });
   expect(await within(bar).findByText("· ≈ 6 min")).toBeInTheDocument();
-  answer = 9;
-  await userEvent.click(screen.getByRole("checkbox", { name: "Select TC-2 Case 2" }));
-  await new Promise((r) => setTimeout(r, 500));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Select TC-2 Case 2" }));
+  await settle(400);
+  await waitFor(() => expect(asked).toHaveLength(2)); // the next answer is on its way, and held
   expect(within(bar).getByText("· ≈ 6 min")).toBeInTheDocument();
+  release();
   expect(await within(bar).findByText("· ≈ 9 min")).toBeInTheDocument();
 });
 
@@ -196,8 +217,11 @@ test("a selection with no linked case shows no total", async () => {
   listing([kase(1, { automated_test_key: null })]);
   const asked = estimates(estimate(MIN, MIN));
   renderAt("/projects/42/cases?group=scenario");
-  await userEvent.click(await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" }));
-  await new Promise((r) => setTimeout(r, 500));
+  const first = await screen.findByRole("checkbox", { name: "Select TC-1 Case 1" });
+  fakeClock();
+  fireEvent.click(first);
+  await settle(1000);
+  await act(async () => {}); // let any request that would have started reach the server
   expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
   expect(asked).toEqual([]);
 });
@@ -220,6 +244,15 @@ test("suite detail shows the estimate in its header, from its automated cases, a
   const dialog = screen.getByRole("dialog");
   await userEvent.click(within(dialog).getByRole("button", { name: "Run" }));
   await waitFor(() => expect(sent).toEqual([{ suite_id: 5, estimate_ms: 100 * MIN, estimate_upper_ms: 120 * MIN }]));
+});
+
+test("automated cases with no linked test count as without history, on top of what the server reports", async () => {
+  // 5 automated cases, 2 of them unlinked; the server knows no history for 1 of the 3 it was asked about
+  suite([suiteCase(1), suiteCase(2), suiteCase(3), suiteCase(4, { automated_test_key: null }), suiteCase(5, { automated_test_key: null })]);
+  const asked = estimates(estimate(12 * MIN, 15 * MIN, 1));
+  renderAt("/projects/42/suites/5");
+  expect(await screen.findByText("Estimated duration ≈ 12 min (up to 15 min) · 3 tests without history")).toBeInTheDocument();
+  expect(asked[0]).toEqual([KEY(1), KEY(2), KEY(3)]);
 });
 
 test("a suite with no linked case shows no estimate", async () => {
@@ -249,6 +282,20 @@ test("Requested runs: time left while running, longer than estimated, estimate a
   expect(within(rows[2]).getByText("running longer than estimated")).toBeInTheDocument();
   expect(within(rows[3]).getByText("estimated 12 min · took 14 min")).toBeInTheDocument();
   expect(within(rows[4]).queryByText(/estimated|left/)).not.toBeInTheDocument();
+});
+
+test("Requested runs: took is the matched QEOS run's own duration, not when the end was seen", async () => {
+  const url = "https://github.com/acme/obt/actions/runs/700";
+  server.use(
+    http.get(`${P}/run-requests`, () => HttpResponse.json({ total: 1, items: [
+      runRequest({ id: 7, status: "completed", conclusion: "success", refreshing: false, requested_at: "2026-10-07T10:00:00Z",
+        checked_at: "2026-10-07T13:00:00Z", github_run_url: url, estimate_ms: 12 * MIN, estimate_upper_ms: 15 * MIN }),
+    ] })),
+    http.get(`${P}/runs`, () => HttpResponse.json([{ id: 70, ci_run_url: url, started_at: "2026-10-07T10:02:00Z",
+      finished_at: "2026-10-07T10:15:00Z", duration_ms: 13 * MIN }])),
+  );
+  renderAt("/projects/42/runs/requested");
+  expect(await screen.findByText("estimated 12 min · took 13 min")).toBeInTheDocument();
 });
 
 test("the dialog never stores the previous selection's estimate while the new one loads", async () => {

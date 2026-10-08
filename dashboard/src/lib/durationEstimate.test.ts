@@ -79,3 +79,24 @@ test("what Play stores: the estimate when known and storable, else nothing", () 
   // test-management takes at most a day: a longer estimate is left out rather than turn Play into a 422
   expect(runEstimate(est(20 * 60 * MIN, 25 * 60 * MIN))).toBeNull();
 });
+
+const doneAt = (checked: string | null, extra: Partial<RunRequest> = {}) =>
+  request({ status: "completed", conclusion: "success", refreshing: false, checked_at: checked, ...extra });
+
+test("took is the matched QEOS run's own duration, not when the end was seen", () => {
+  // Nobody looked for two hours: checked_at is late, the run itself took 13 min
+  const late = doneAt("2026-10-07T12:00:00Z");
+  expect(requestTiming(late, at(200), { duration_ms: 13 * MIN, started_at: "2026-10-07T10:01:00Z", finished_at: "2026-10-07T10:14:00Z" }))
+    .toBe("estimated 10 min · took 13 min");
+  // A run without a duration falls back to finished_at − started_at
+  expect(requestTiming(late, at(200), { duration_ms: 0, started_at: "2026-10-07T10:01:00Z", finished_at: "2026-10-07T10:09:00Z" }))
+    .toBe("estimated 10 min · took 8 min");
+});
+
+test("unmatched, took falls back to when the end was seen", () => {
+  expect(requestTiming(doneAt("2026-10-07T10:14:00Z"), at(30), undefined)).toBe("estimated 10 min · took 14 min");
+});
+
+test("with no real end time, took is left out", () => {
+  expect(requestTiming(doneAt(null), at(30))).toBe("estimated 10 min");
+});

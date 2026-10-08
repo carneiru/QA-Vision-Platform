@@ -71,7 +71,7 @@ export default function RequestedRunsPage() {
                 const result = matchRun(runs.data ?? [], r.github_run_url);
                 const described = describeRun(r, nameOf);
                 const [word, rest] = splitStatus(described.text);
-                const timing = requestTiming(r, now);
+                const timing = requestTiming(r, now, result);
                 return (
                   <tr key={r.id}>
                     <td>

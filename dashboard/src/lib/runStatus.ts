@@ -16,10 +16,15 @@ export interface RunDescription {
   detail: string | null;
 }
 
-/** The moment an ended request ended: the later of stopped_at and checked_at (when the end was seen). */
-export function endedAt(r: RunRequest): number {
+/** When the end of a request was seen: the later of stopped_at and checked_at; null when it has neither. */
+export function seenEndAt(r: RunRequest): number | null {
   const times = [r.stopped_at, r.checked_at].map((t) => (t ? Date.parse(t) : NaN)).filter((t) => !Number.isNaN(t));
-  return times.length > 0 ? Math.max(...times) : Date.parse(r.requested_at);
+  return times.length > 0 ? Math.max(...times) : null;
+}
+
+/** The moment an ended request ended: seenEndAt, else requested_at. */
+export function endedAt(r: RunRequest): number {
+  return seenEndAt(r) ?? Date.parse(r.requested_at);
 }
 
 function describeState(r: RunRequest, nameOf: (id: number | null) => string, now: number): { text: string; tone: RunTone; liveText?: string } {
