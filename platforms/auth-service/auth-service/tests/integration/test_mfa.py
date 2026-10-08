@@ -135,3 +135,14 @@ def test_tokens_with_purpose_or_token_type_are_401_on_users_me(client, register_
     user_id = me.json()["id"]
     forged = _signed({"sub": str(user_id), **extra})
     assert client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {forged}"}).status_code == 401
+
+
+def test_users_me_reports_whether_two_factor_is_on(client, register_and_verify):
+    tokens = register_and_verify(EMAIL)
+    me = client.get("/api/v1/users/me", headers=_auth(tokens))
+    assert me.json()["mfa_enabled"] is False
+    _enroll_and_confirm(client, tokens)
+    me = client.get("/api/v1/users/me", headers=_auth(tokens))
+    assert me.json()["mfa_enabled"] is True
+    # The secret itself is never part of the response
+    assert "mfa_secret" not in me.json()

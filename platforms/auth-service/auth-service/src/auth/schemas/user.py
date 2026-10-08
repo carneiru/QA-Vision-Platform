@@ -88,6 +88,7 @@ class User(UserBase):
     id: int
     is_active: bool = True
     is_superuser: bool = False
+    mfa_enabled: bool = False
     tenant_id: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
