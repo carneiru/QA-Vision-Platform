@@ -38,7 +38,7 @@ function renderPage(role = "member") {
 test("repositories come first, editable for members", async () => {
   server.use(http.get("/api/v1/projects/42/api-keys", () => HttpResponse.json([])));
   renderPage("member");
-  expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Repositories");
+  expect(screen.getAllByRole("heading", { level: 2 })[0]).toHaveTextContent("Repositories");
   expect(await screen.findByLabelText(/repository url/i)).toBeInTheDocument();
 });
 

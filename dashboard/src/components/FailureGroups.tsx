@@ -23,7 +23,7 @@ export default function FailureGroups({ runId, projectId }: { runId: number; pro
 
   return (
     <section className="card" aria-labelledby="causes">
-      <h3 id="causes">Failures by cause</h3>
+      <h2 id="causes">Failures by cause</h2>
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Grouping failures…</p>}
       {data && (

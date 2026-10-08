@@ -44,6 +44,8 @@ function renderPage(state?: unknown) {
 test("lists members and pending invitations", async () => {
   mockOrg();
   renderPage();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Acme QA" })).toBeInTheDocument();
   expect(await screen.findByText("Acme QA")).toBeInTheDocument();
   expect(screen.getByText("owner@example.com")).toBeInTheDocument();
   expect(screen.getByText("user 11")).toBeInTheDocument(); // auth had no email: honest fallback

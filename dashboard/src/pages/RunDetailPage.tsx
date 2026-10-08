@@ -10,6 +10,7 @@ import FilterBar from "../components/FilterBar";
 import Message from "../components/Message";
 import StatusDot from "../components/StatusDot";
 import { oneOf, useUrlState } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const DEFAULTS = { status: "" } as const;
 const STATUSES = ["passed", "failed", "errored", "skipped"] as const;
@@ -62,13 +63,13 @@ export default function RunDetailPage() {
       <p>
         <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All runs</Link>
       </p>
+      <PageHeader title={`Run #${id}`} />
 
       {query.error != null && <ErrorBanner error={query.error} onRetry={() => query.refetch()} />}
       {query.isPending && <p className="muted">Loading run…</p>}
 
       {run && (
         <>
-          <h2>Run #{run.id}</h2>
           <p className="muted">
             <span>{new Date(run.started_at).toLocaleString()}</span> ·{" "}
             <span>{run.branch ?? "no branch"}</span> ·{" "}
@@ -132,7 +133,7 @@ export default function RunDetailPage() {
 
           {run.change_base_ref !== null && (
             <div className="card">
-              <h3>Changes</h3>
+              <h2>Changes</h2>
               <p className="muted">
                 {run.changed_files} file(s), +{run.additions ?? 0} −{run.deletions ?? 0} vs {run.change_base_ref}
                 {run.changes_truncated && <span> · list truncated at 1000 files</span>}

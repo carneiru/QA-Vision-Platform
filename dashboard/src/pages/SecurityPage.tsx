@@ -8,6 +8,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import NewPasswordFields from "../components/NewPasswordFields";
 import SecretBlock from "../components/SecretBlock";
 import TextField from "../components/TextField";
+import PageHeader from "../components/PageHeader";
 
 type Step = "idle" | "enrolling" | "enrolled" | "disabling";
 /** From GET /users/me; "unknown" until it answers (or if it cannot) */
@@ -184,10 +185,7 @@ export default function SecurityPage() {
 
   return (
     <div className="page" style={{ maxWidth: 560 }}>
-      <div className="page-header">
-        <h1>Security</h1>
-        <Link to="/">Back to projects</Link>
-      </div>
+      <PageHeader title="Security" actions={<Link to="/">Back to projects</Link>} />
       <h2 className="sr-only">Sign-in settings</h2>
       <ChangePasswordCard />
       <div className="card">

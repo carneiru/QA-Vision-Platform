@@ -49,6 +49,8 @@ function renderDetail(url = "/projects/42/runs/61") {
 test("renders run metadata, truncated badge, and links to test history", async () => {
   server.use(http.get("/api/v1/runs/61", () => HttpResponse.json(detail([result]))));
   renderDetail();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Run #61" })).toBeInTheDocument();
   expect(await screen.findByText("abcdef1")).toBeInTheDocument();
   expect(screen.getByText(/truncated/i)).toBeInTheDocument();
   await userEvent.click(screen.getByRole("link", { name: "test_ok" }));

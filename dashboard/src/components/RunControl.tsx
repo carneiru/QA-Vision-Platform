@@ -114,11 +114,11 @@ export default function RunControl({ projectId, cases, selection, label, onStart
       {open && gate?.ok && (
         <div className="card run-confirm" role="dialog" aria-labelledby={`${ids}-title`}
           onKeyDown={(e) => { if (e.key === "Escape") close(); }}>
-          <h3 id={`${ids}-title`}>
+          <h2 id={`${ids}-title`}>
             {skipped > 0
               ? `Run ${n === 1 ? "1 automated case" : `${n} automated cases`} (${skipped === 1 ? "1 manual case" : `${skipped} manual cases`} skipped)?`
               : n === 1 ? "Run 1 test?" : `Run ${n} tests?`}
-          </h3>
+          </h2>
           <ul className="run-confirm-cases">
             {runnable.slice(0, SHOWN).map((c) => <li key={c.number}>{`TC-${c.number} · ${c.title}`}</li>)}
           </ul>

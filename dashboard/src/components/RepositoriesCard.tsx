@@ -86,7 +86,7 @@ export default function RepositoriesCard({ projectId, canEdit }: Props) {
 
   return (
     <div className="card">
-      <h3>Repositories</h3>
+      <h2>Repositories</h2>
       <p className="muted">
         Where this project's test code lives, on github.com, gitlab.com or Azure DevOps. Paste
         the address from the browser or a clone URL.

@@ -9,6 +9,7 @@ import NarrowMeta from "../components/NarrowMeta";
 import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
+import PageHeader from "../components/PageHeader";
 
 const MAX_LISTED = 200;
 // One order for every section, kept in the URL; the API returns at most 200 per section, so this sorts what is shown
@@ -61,7 +62,7 @@ function Section({ projectId, kind, items, total, sort, onSort }: {
   });
   return (
     <section className="card" aria-labelledby={`cmp-${kind.key}`} role="region">
-      <h3 id={`cmp-${kind.key}`}>{kind.title} <span className="muted">({total})</span></h3>
+      <h2 id={`cmp-${kind.key}`}>{kind.title} <span className="muted">({total})</span></h2>
       <p className="muted">{kind.hint}{total > items.length && ` Showing the first ${MAX_LISTED}.`}</p>
       <table className="data">
         <thead>
@@ -141,7 +142,7 @@ export default function ComparePage() {
       <p>
         <Link className="link-arrow" to={`/projects/${projectId}/runs/${head}`}><ArrowLeft size={14} aria-hidden="true" /> Run #{head}</Link>
       </p>
-      <h2>Run #{head} compared with #{base}</h2>
+      <PageHeader title={`Run #${head} compared with #${base}`} />
 
       <form className="filters" onSubmit={onSubmit}>
         <label>

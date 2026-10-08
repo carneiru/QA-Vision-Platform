@@ -10,6 +10,7 @@ import RunStatusBadge from "../components/RunStatusBadge";
 import ErrorBanner from "../components/ErrorBanner";
 import { SkeletonCard, SkeletonStatus } from "../components/Skeleton";
 import StatusDot from "../components/StatusDot";
+import PageHeader from "../components/PageHeader";
 
 const MAX_CAUSES = 5;
 // The Flaky view's defaults, so both screens count the same tests
@@ -31,6 +32,15 @@ function ago(iso: string): string {
 /** "What is broken now" in one screen: the latest run's verdict and failures,
  *  then the week's pass rate and the flaky count, each one click from depth. */
 export default function OverviewPage() {
+  return (
+    <>
+      <PageHeader title="Overview" />
+      <OverviewBody />
+    </>
+  );
+}
+
+function OverviewBody() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";

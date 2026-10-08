@@ -11,6 +11,7 @@ import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const PAGE = 50;
 const DEFAULTS = { days: "30", sort: "failed", dir: "", search: "" } as const;
@@ -78,7 +79,7 @@ export default function TestsPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Tests</h2>
+      <PageHeader title="Tests" />
       <form onSubmit={applyFilters}>
         <FilterBar>
           <label>

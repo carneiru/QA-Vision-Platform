@@ -49,7 +49,7 @@ export default function DataCard({ project: initial, canManage }: Props) {
 
   return (
     <div className="card">
-      <h3>Data</h3>
+      <h2>Data</h2>
       <p>
         Results are kept for <strong>{days} days</strong>, then deleted by the daily retention job.
       </p>

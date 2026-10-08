@@ -129,7 +129,7 @@ export default function CiTargetCard({ projectId }: { projectId: number }) {
   const workflowFile = data?.workflow ?? DEFAULT_WORKFLOW;
   return (
     <div className="card">
-      <h3>Run from QEOS</h3>
+      <h2>Run from QEOS</h2>
       <p className="muted">
         Play runs the selected scenarios in this repository's GitHub Actions, through a dedicated workflow.
         QEOS never runs test code itself.

@@ -7,6 +7,7 @@ import { ImportAction, ImportFile, ImportResult, importCases } from "../api/case
 import { ApiError } from "../api/http";
 import ErrorBanner from "../components/ErrorBanner";
 import { useCanEdit } from "../lib/useCanEdit";
+import PageHeader from "../components/PageHeader";
 
 const SUMMARY: { key: keyof ImportResult["summary"]; action: ImportAction; label: string }[] = [
   { key: "created", action: "create", label: "Created" },
@@ -128,7 +129,7 @@ export default function CaseImportPage() {
   if (!canEdit) {
     return (
       <section>
-        <h2>Import from Gherkin</h2>
+        <PageHeader title="Import from Gherkin" />
         <p className="muted">Only editors can import cases. Ask a project member or admin.</p>
       </section>
     );
@@ -149,7 +150,7 @@ export default function CaseImportPage() {
   return (
     <section>
       <Link className="link-arrow" to=".." relative="path">Back to cases</Link>
-      <h2>Import from Gherkin</h2>
+      <PageHeader title="Import from Gherkin" />
       <p className="muted">
         Each scenario in your .feature files becomes a read-only test case. Preview the changes first; nothing is written until you import.
       </p>

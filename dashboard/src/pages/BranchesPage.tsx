@@ -15,6 +15,7 @@ import { useMediaQuery } from "../lib/useMediaQuery";
 import SortableTh from "../components/SortableTh";
 import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useUrlState } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const axisTick = { fill: "var(--text-secondary)", fontSize: 12 } as const;
 const tooltipStyles = {
@@ -99,7 +100,7 @@ export default function BranchesPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Branches</h2>
+      <PageHeader title="Branches" />
       <FilterBar>
         <label>
           Days
@@ -139,7 +140,7 @@ export default function BranchesPage() {
 
       {branchA && branchB && (
         <div className="card">
-          <h3 id="branch-compare">Pass rate per day: {branchA} vs {branchB}</h3>
+          <h2 id="branch-compare">Pass rate per day: {branchA} vs {branchB}</h2>
           {(trendA.error != null || trendB.error != null) && (
             <ErrorBanner error={trendA.error ?? trendB.error} />
           )}

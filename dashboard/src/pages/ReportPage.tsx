@@ -16,6 +16,7 @@ import { getProject } from "../api/orgs";
 import { downloadCsv, toCsv } from "../lib/csv";
 import { fetchAllTests } from "../lib/exportData";
 import ErrorBanner from "../components/ErrorBanner";
+import PageHeader from "../components/PageHeader";
 
 const PERIODS = [7, 30, 90];
 const TOP = 10;
@@ -36,7 +37,7 @@ function Section({ title, children, loading, empty, query }: {
 }) {
   return (
     <section className="card report-section" tabIndex={0} aria-label={title}>
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       {query.error != null ? <ErrorBanner error={query.error} onRetry={() => void query.refetch()} /> : loading ? <p className="muted">Loading…</p> : empty ? <p className="muted">Nothing in this period.</p> : children}
     </section>
   );
@@ -127,32 +128,30 @@ export default function ReportPage() {
 
   return (
     <div className="report">
-      <div className="report-head">
-        <div>
-          <h2>{title}</h2>
-          <p className="muted">
-            Last {days} days, generated {new Date().toLocaleString()} ({tz}).
-          </p>
-        </div>
-        <div className="report-actions no-print">
-          <label>
-            Period
-            <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-              {PERIODS.map((d) => <option key={d} value={d}>Last {d} days</option>)}
-            </select>
-          </label>
-          <button onClick={() => window.print()}>
-            <Printer size={15} aria-hidden="true" /> Save as PDF
-          </button>
-          <button onClick={onCsv} disabled={csvBusy}>
-            <Download size={15} aria-hidden="true" /> {csvBusy ? "Preparing…" : "Download CSV"}
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Report"
+        subtitle={`${title}. Last ${days} days, generated ${new Date().toLocaleString()} (${tz}).`}
+        actions={
+          <div className="report-actions no-print">
+            <label>
+              Period
+              <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+                {PERIODS.map((d) => <option key={d} value={d}>Last {d} days</option>)}
+              </select>
+            </label>
+            <button onClick={() => window.print()}>
+              <Printer size={15} aria-hidden="true" /> Save as PDF
+            </button>
+            <button onClick={onCsv} disabled={csvBusy}>
+              <Download size={15} aria-hidden="true" /> {csvBusy ? "Preparing…" : "Download CSV"}
+            </button>
+          </div>
+        }
+      />
       {csvError != null && <ErrorBanner error={csvError} />}
 
       <section className="card report-section" aria-label="Summary">
-        <h3>Summary</h3>
+        <h2>Summary</h2>
         {trends.error != null ? (
           <ErrorBanner error={trends.error} onRetry={() => void trends.refetch()} />
         ) : trends.isPending ? (

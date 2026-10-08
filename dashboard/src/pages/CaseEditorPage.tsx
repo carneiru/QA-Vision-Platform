@@ -12,6 +12,7 @@ import RunPanel from "../components/RunPanel";
 import StatusDot from "../components/StatusDot";
 import UnsavedGuard from "../components/UnsavedGuard";
 import { useCanEdit } from "../lib/useCanEdit";
+import PageHeader from "../components/PageHeader";
 
 interface Draft {
   title: string;
@@ -70,7 +71,7 @@ function Automation({ projectId, c, canEdit, onLink }: {
 
   return (
     <section className="card" aria-labelledby="automation">
-      <h3 id="automation">Automation</h3>
+      <h2 id="automation">Automation</h2>
       {c.automated_test_key ? (
         <>
           <p>
@@ -205,7 +206,14 @@ function CaseEditor() {
   if (number !== null && existing.error != null) {
     return <ErrorBanner error={existing.error} onRetry={() => existing.refetch()} />;
   }
-  if (number !== null && existing.isPending) return <p className="muted">Loading the case…</p>;
+  if (number !== null && existing.isPending) {
+    return (
+      <>
+        <PageHeader title={`TC-${number}`} />
+        <p className="muted">Loading the case…</p>
+      </>
+    );
+  }
   const c = existing.data;
   const readOnly = !canEdit;
   const imported = c?.source_path != null;
@@ -217,7 +225,7 @@ function CaseEditor() {
           <ArrowLeft size={14} aria-hidden="true" /> All test cases
         </Link>
       </p>
-      <h2>{c ? `${c.key} · ${c.title}` : "New test case"}</h2>
+      <PageHeader title={c ? `${c.key} · ${c.title}` : "New test case"} />
       {c?.source_path && c.status !== "archived" && (
         <RunControl projectId={id} cases={[{ number: c.number, title: c.title }]} selection={{ case_numbers: [c.number] }} label="Run" emphasis={!dirty} />
       )}
@@ -253,12 +261,12 @@ function CaseEditor() {
 
           {imported ? (
             <>
-              <h3>Gherkin</h3>
+              <h2>Gherkin</h2>
               <GherkinBlock text={c?.gherkin ?? ""} />
             </>
           ) : (
             <>
-          <h3 id={`${ids}-steps`}>Steps</h3>
+          <h2 id={`${ids}-steps`}>Steps</h2>
           <ol className="steps" aria-labelledby={`${ids}-steps`}>
             {draft.steps.map((s, i) => (
               <li key={i} className="step">

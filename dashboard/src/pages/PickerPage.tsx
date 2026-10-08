@@ -7,6 +7,7 @@ import {
   MyOrganization, createOrganization, createProject, listMyOrganizations, listProjects, slugify,
 } from "../api/orgs";
 import ErrorBanner from "../components/ErrorBanner";
+import PageHeader from "../components/PageHeader";
 
 const MANAGER_ROLES = ["owner", "admin"];
 
@@ -101,14 +102,14 @@ export default function PickerPage() {
 
   return (
     <div className="page">
-      <header className="view-head">
-        <h1>Projects</h1>
-        {!orgFormOpen && (
+      <PageHeader
+        title="Projects"
+        actions={!orgFormOpen ? (
           <button ref={newOrgRef} onClick={() => setOrgFormOpen(true)}>
             <Plus size={16} aria-hidden="true" /> New organization
           </button>
-        )}
-      </header>
+        ) : undefined}
+      />
 
       {orgFormOpen && (
         <form

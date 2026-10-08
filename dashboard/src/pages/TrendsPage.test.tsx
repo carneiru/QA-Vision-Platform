@@ -37,6 +37,8 @@ test("renders stat tiles and the data table with null pass_rate as em dash", asy
     ),
   );
   renderTrends();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Trends" })).toBeInTheDocument();
   await userEvent.click((await screen.findAllByText(/show data table/i))[0]);
   expect(screen.getAllByText("2026-09-30").length).toBeGreaterThan(0);
   expect(screen.getAllByText("—").length).toBeGreaterThan(0); // null pass_rate rendered as em dash

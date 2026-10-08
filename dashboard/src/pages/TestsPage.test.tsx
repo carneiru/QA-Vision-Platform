@@ -41,6 +41,8 @@ test("renders rows; clicking a test navigates to its encoded history route", asy
     ),
   );
   renderTests();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Tests" })).toBeInTheDocument();
   await userEvent.click(await screen.findByText("test_ok"));
   expect(await screen.findByText("HISTORY")).toBeInTheDocument();
 });

@@ -62,7 +62,8 @@ function renderPage() {
 test("the summary adds up the period: runs, executions, pass rate without skipped, failures", async () => {
   serve();
   renderPage();
-  expect(await screen.findByRole("heading", { name: /web shop: quality report/i })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { level: 1, name: "Report" })).toBeInTheDocument();
+  expect(await screen.findByText(/web shop: quality report/i)).toBeInTheDocument();
   const summary = screen.getByRole("region", { name: /summary/i });
   expect(within(summary).getByText("22")).toBeInTheDocument();                // runs
   expect(within(summary).getByText("2,200")).toBeInTheDocument();             // executions

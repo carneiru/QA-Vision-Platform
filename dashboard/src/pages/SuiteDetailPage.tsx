@@ -8,6 +8,7 @@ import RunControl from "../components/RunControl";
 import ErrorBanner from "../components/ErrorBanner";
 import UnsavedGuard from "../components/UnsavedGuard";
 import { useCanEdit } from "../lib/useCanEdit";
+import PageHeader from "../components/PageHeader";
 
 /** One suite: its ordered cases, which members can add, remove and reorder, then save. */
 export default function SuiteDetailPage() {
@@ -87,14 +88,13 @@ export default function SuiteDetailPage() {
       <p>
         <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All suites</Link>
       </p>
-      <h2>{suite.data.name}</h2>
-      {suite.data.description && <p className="muted">{suite.data.description}</p>}
+      <PageHeader title={suite.data.name} subtitle={suite.data.description || undefined} />
       <RunControl projectId={id} cases={suite.data.cases.map((c) => ({ number: c.number, title: c.title, manual: c.source_path === null }))}
         selection={{ suite_id: sid }} label="Run suite" emphasis={!dirty && !detailsDirty}
         emptyReason={suite.data.cases.length === 0 ? "This suite has no cases" : "This suite has no automated cases"} />
 
       <section className="card" aria-labelledby="suite-cases">
-        <h3 id="suite-cases">Cases, in order <span className="muted">({cases.length})</span></h3>
+        <h2 id="suite-cases">Cases, in order <span className="muted">({cases.length})</span></h2>
         {cases.length === 0 && <p className="muted">No cases yet{canEdit && ": find them below and add them"}.</p>}
         <ol className="ordered-cases">
           {cases.map((c, i) => (
@@ -167,7 +167,7 @@ export default function SuiteDetailPage() {
 
       {canEdit && (
         <form className="card form-stack" onSubmit={(e) => { e.preventDefault(); saveDetails.mutate(); }}>
-          <h3>Details</h3>
+          <h2>Details</h2>
           <label>
             Name
             <input required maxLength={100} value={name} onChange={(e) => setDetails({ name: e.target.value })} />

@@ -43,6 +43,8 @@ function renderFlaky() {
 test("renders confirmed and suspected rows with flip rate", async () => {
   server.use(http.get("/api/v1/projects/42/analytics/flaky", () => HttpResponse.json(flaky)));
   renderFlaky();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Flaky tests" })).toBeInTheDocument();
   expect((await screen.findAllByText("Confirmed")).length).toBeGreaterThan(0);
   expect(screen.getAllByText("Suspected").length).toBeGreaterThan(0);
   expect(screen.getByText("42.0%")).toBeInTheDocument();

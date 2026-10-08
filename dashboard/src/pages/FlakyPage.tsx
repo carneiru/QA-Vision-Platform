@@ -11,6 +11,7 @@ import SortableTh from "../components/SortableTh";
 import StatusDot from "../components/StatusDot";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { oneOf, useDraft, useUrlState } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const UNDO_MS = 8000;
 const DEFAULTS = { window: "14", min_runs: "5", min_flip: "0.3", branch: "", muted: "", sort: "", dir: "" } as const;
@@ -117,7 +118,7 @@ export default function FlakyPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Flaky tests</h2>
+      <PageHeader title="Flaky tests" />
       <form onSubmit={applyFilters}>
         <FilterBar>
           <label>

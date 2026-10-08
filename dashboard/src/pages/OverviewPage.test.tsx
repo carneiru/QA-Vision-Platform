@@ -81,6 +81,8 @@ function renderPage() {
 test("the latest run leads, with its verdict in words and what broke", async () => {
   mockProject();
   renderPage();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
   expect(await screen.findByText("Failed")).toBeInTheDocument();
   expect(screen.getByText(/fix\(cart\): keep totals stable/)).toBeInTheDocument();
   expect(await screen.findByRole("link", { name: "pays with stored card" })).toBeInTheDocument();

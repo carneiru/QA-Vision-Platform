@@ -50,7 +50,7 @@ export default function MaskingCard({ projectId, canEdit }: Props) {
 
   return (
     <div className="card">
-      <h3>Masking</h3>
+      <h2>Masking</h2>
       <p className="muted">
         Before results are stored, passwords, tokens, keys, emails and card numbers in failure
         messages are replaced with <code>[REDACTED:kind]</code>. Add patterns for what only this

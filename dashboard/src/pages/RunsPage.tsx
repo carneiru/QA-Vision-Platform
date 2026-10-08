@@ -13,6 +13,7 @@ import SortableTh from "../components/SortableTh";
 import { nextSort, parseSort, sortRows, SortState } from "../lib/sort";
 import { LIVE_REFRESH_MS } from "../lib/live";
 import { pageOffset, withOffset } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const PAGE = 50;
 // The API has no sort parameter for runs: the columns sort the page that is loaded
@@ -154,11 +155,7 @@ export default function RunsPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Runs</h2>
-      <div className="view-tabs">
-        <span aria-current="page">Runs</span>
-        <Link to="requested">Requested runs</Link>
-      </div>
+      <PageHeader title="Runs" tabs={[{ label: "Runs" }, { label: "Requested runs", to: "requested" }]} />
       <form onSubmit={applyFilters}>
         <FilterBar>
           <FilterSelect label="Status" value={form.status} emptyLabel="All" onChange={(v) => set("status", v)}

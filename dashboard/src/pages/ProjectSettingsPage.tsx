@@ -11,6 +11,7 @@ import DataCard from "../components/DataCard";
 import MaskingCard from "../components/MaskingCard";
 import NotificationsCard from "../components/NotificationsCard";
 import RepositoriesCard from "../components/RepositoriesCard";
+import PageHeader from "../components/PageHeader";
 
 const COLLECTOR_REF = "collector-v0.4.0";
 
@@ -161,10 +162,10 @@ export default function ProjectSettingsPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Project settings</h2>
+      <PageHeader title="Settings" />
       <RepositoriesCard projectId={id} canEdit={project.data == null ? undefined : canEdit} />
       <div className="card">
-        <h3>API keys</h3>
+        <h2>API keys</h2>
         <p className="muted">
           The collector authenticates uploads with a project API key, sent as the{" "}
           <code>QEOS_API_KEY</code> environment variable in CI.
@@ -233,7 +234,7 @@ export default function ProjectSettingsPage() {
       </div>
 
       <div className="card">
-        <h3>Wire up your CI</h3>
+        <h2>Wire up your CI</h2>
         <p className="muted">
           {platform === "cli" ? (
             <>Run this on any machine with Python 3.9+, from the folder holding your test reports.</>

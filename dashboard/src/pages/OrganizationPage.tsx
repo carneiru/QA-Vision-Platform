@@ -8,6 +8,7 @@ import {
 import ConfirmButton from "../components/ConfirmButton";
 import ErrorBanner from "../components/ErrorBanner";
 import SecretBlock from "../components/SecretBlock";
+import PageHeader from "../components/PageHeader";
 
 const MANAGER_ROLES = ["owner", "admin"];
 
@@ -63,10 +64,7 @@ export default function OrganizationPage() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h1>{org?.name ?? `Organization ${id}`}</h1>
-        <Link to="/">Choose a project</Link>
-      </div>
+      <PageHeader title={org?.name ?? `Organization ${id}`} actions={<Link to="/">Choose a project</Link>} />
       {error != null && <ErrorBanner error={error} onRetry={() => members.refetch()} />}
       {(invite.error ?? revoke.error ?? remove.error) != null && (
         <ErrorBanner error={(invite.error ?? revoke.error ?? remove.error)!} />

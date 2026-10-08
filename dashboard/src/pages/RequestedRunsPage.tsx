@@ -9,6 +9,7 @@ import { MATCH_SLACK_MS, describeRun, matchRun } from "../lib/runStatus";
 import { RUN_POLL_MS } from "../lib/useRunGate";
 import { useUserNames } from "../lib/useUserNames";
 import { pageOffset, withOffset } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const PAGE = 50;
 
@@ -36,11 +37,7 @@ export default function RequestedRunsPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Requested runs</h2>
-      <div className="view-tabs">
-        <Link to=".." relative="path">Runs</Link>
-        <span aria-current="page">Requested runs</span>
-      </div>
+      <PageHeader title="Requested runs" tabs={[{ label: "Runs", to: ".." }, { label: "Requested runs" }]} />
       {list.error != null && <ErrorBanner error={list.error} onRetry={() => list.refetch()} />}
       {list.isPending && <p className="muted">Loading requested runs…</p>}
       {list.data && list.data.total === 0 && <p className="muted">No runs requested from QEOS yet.</p>}

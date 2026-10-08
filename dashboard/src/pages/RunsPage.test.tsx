@@ -46,6 +46,8 @@ test("renders runs; clicking a run opens its detail", async () => {
     http.get("/api/v1/projects/42/runs", () => HttpResponse.json([run(61)])),
   );
   renderRuns();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Runs" })).toBeInTheDocument();
   await userEvent.click(await screen.findByRole("link", { name: /#61/ }));
   expect(await screen.findByText("RUN DETAIL")).toBeInTheDocument();
 });

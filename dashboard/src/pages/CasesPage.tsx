@@ -19,6 +19,7 @@ import RunStrip, { RunStripSkeleton } from "../components/RunStrip";
 import { useCanEdit } from "../lib/useCanEdit";
 import { useStickyBottomOffset } from "../lib/useStickyOffset";
 import { pageOffset, withOffset } from "../lib/useUrlState";
+import PageHeader from "../components/PageHeader";
 
 const PAGE = 50;
 const MAX_KEYS = 20000;
@@ -191,21 +192,21 @@ export default function CasesPage() {
 
   return (
     <section>
-      <h2 ref={headingRef} tabIndex={-1} className="sr-only">Test cases</h2>
-      <div className="view-tabs">
-        <span aria-current="page">Cases</span>
-        <Link to="../suites" relative="path">Suites</Link>
-        {canEdit && (
-          <div className="button-row view-tabs-actions">
+      <PageHeader
+        title="Test cases"
+        headingRef={headingRef}
+        tabs={[{ label: "Cases" }, { label: "Suites", to: "../suites" }]}
+        actions={canEdit ? (
+          <>
             <Link className="button" to="import">
               <Upload size={16} aria-hidden="true" /> Import from Gherkin
             </Link>
             <Link className={newIsPrimary ? "button primary" : "button"} to="new">
               <Plus size={16} aria-hidden="true" /> New case
             </Link>
-          </div>
-        )}
-      </div>
+          </>
+        ) : undefined}
+      />
       <RunPanel projectId={id} />
 
       <form onSubmit={apply}>
@@ -250,7 +251,7 @@ export default function CasesPage() {
           <p className="muted">No test cases match these filters.</p>
         ) : (
           <div className="card empty-state">
-            <h3>No test cases yet</h3>
+            <h2>No test cases yet</h2>
             <p className="muted">
               Write down what to check, step by step, and link each case to the automated test that covers it.
             </p>

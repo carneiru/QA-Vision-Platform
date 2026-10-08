@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createSuite, listSuites } from "../api/cases";
 import ErrorBanner from "../components/ErrorBanner";
 import { useCanEdit } from "../lib/useCanEdit";
+import PageHeader from "../components/PageHeader";
 
 /** The project's suites: named, ordered lists of test cases. */
 export default function SuitesPage() {
@@ -31,11 +32,7 @@ export default function SuitesPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Suites</h2>
-      <div className="view-tabs">
-        <Link to="../cases" relative="path">Cases</Link>
-        <span aria-current="page">Suites</span>
-      </div>
+      <PageHeader title="Suites" tabs={[{ label: "Cases", to: "../cases" }, { label: "Suites" }]} />
 
       {suites.error != null && <ErrorBanner error={suites.error} onRetry={() => suites.refetch()} />}
       {suites.isPending && <p className="muted">Loading suites…</p>}
@@ -66,7 +63,7 @@ export default function SuitesPage() {
 
       {canEdit && (
         <form className="card form-stack" onSubmit={onSubmit}>
-          <h3>New suite</h3>
+          <h2>New suite</h2>
           <label>
             Name
             <input required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Smoke" />

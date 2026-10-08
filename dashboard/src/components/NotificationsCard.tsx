@@ -114,7 +114,7 @@ export default function NotificationsCard({ projectId, projectName, canEdit }: P
 
   return (
     <div className="card">
-      <h3>Notifications</h3>
+      <h2>Notifications</h2>
       <p className="muted">
         Each channel can get <strong>failed runs</strong> as they arrive (counts, the first failing tests and a
         link to the run) and a <strong>weekly summary</strong> on Mondays at 07:00 UTC (last week's pass rate,

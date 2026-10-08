@@ -33,6 +33,8 @@ test("lists per-branch aggregates", async () => {
     http.get("/api/v1/projects/42/analytics/branches", () => HttpResponse.json(branches)),
   );
   renderBranches();
+  // The page name is the one h1; the org and project live in the breadcrumb
+  expect(await screen.findByRole("heading", { level: 1, name: "Branches" })).toBeInTheDocument();
   expect(await screen.findByRole("cell", { name: /^main/ })).toBeInTheDocument();
   expect(screen.getByText("90.0%")).toBeInTheDocument();
   expect(screen.getByText("75.0%")).toBeInTheDocument();

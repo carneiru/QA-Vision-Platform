@@ -363,7 +363,7 @@ test("with no rows left on the page, a started selection still leaves focus on t
   await userEvent.click(screen.getByRole("button", { name: "Run selected (1)" }));
   await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Run" }));
   await waitFor(() => expect(screen.queryByRole("button", { name: /Run selected/ })).not.toBeInTheDocument());
-  expect(screen.getByRole("heading", { name: "Test cases" })).toHaveFocus();
+  expect(screen.getByRole("heading", { level: 1, name: "Test cases" })).toHaveFocus();
 });
 
 const suiteWith = (sourcePaths: (string | null)[]) => http.get(`${P}/suites/5`, () => HttpResponse.json({

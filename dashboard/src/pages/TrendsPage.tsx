@@ -13,6 +13,7 @@ import FilterBar from "../components/FilterBar";
 import { ChartPatternDefs, DataTableDisclosure, LegendSeries, PATTERN, SeriesLegend } from "../components/ChartKit";
 import { formatPointLabel, formatTick } from "../lib/chartFormat";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import PageHeader from "../components/PageHeader";
 
 const tooltipStyles = {
   contentStyle: { background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 },
@@ -102,7 +103,7 @@ export default function TrendsPage() {
 
   return (
     <section>
-      <h2 className="sr-only">Trends</h2>
+      <PageHeader title="Trends" />
       <ChartPatternDefs />
       <form onSubmit={applyFilters}>
         <FilterBar>
@@ -176,7 +177,7 @@ export default function TrendsPage() {
           </div>
 
           <div className="card">
-            <h3 id="trend-results">Results per {unit}</h3>
+            <h2 id="trend-results">Results per {unit}</h2>
             <SeriesLegend series={LEGEND} hidden={hidden} onToggle={toggleSeries} label="Show or hide a result type" />
             <figure className="chart-figure" aria-labelledby="trend-results">
               <figcaption className="sr-only">{resultsSummary}</figcaption>
@@ -219,7 +220,7 @@ export default function TrendsPage() {
           </div>
 
           <div className="card">
-            <h3 id="trend-rate">Pass rate per {unit}</h3>
+            <h2 id="trend-rate">Pass rate per {unit}</h2>
             <figure className="chart-figure" aria-labelledby="trend-rate">
               <figcaption className="sr-only">{rateSummary}</figcaption>
               <ResponsiveContainer width="100%" height={180}>
