@@ -13,9 +13,13 @@ const day = (date: string, passed: number, failed: number, pass_rate: number | n
 });
 
 function renderTrends() {
+  renderTrendsIn();
+}
+
+function renderTrendsIn() {
   setAccessToken("acc");
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={["/projects/42/trends"]}>
         <Routes>
@@ -33,8 +37,8 @@ test("renders stat tiles and the data table with null pass_rate as em dash", asy
     ),
   );
   renderTrends();
-  await userEvent.click(await screen.findByRole("button", { name: /view data/i }));
-  expect(screen.getByText("2026-09-30")).toBeInTheDocument();
+  await userEvent.click((await screen.findAllByText(/show data table/i))[0]);
+  expect(screen.getAllByText("2026-09-30").length).toBeGreaterThan(0);
   expect(screen.getAllByText("—").length).toBeGreaterThan(0); // null pass_rate rendered as em dash
   expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
 });
@@ -109,4 +113,70 @@ test("while trends load, placeholders reserve the tiles and both charts", async 
   expect(status.querySelectorAll(".skeleton-card").length).toBeGreaterThanOrEqual(5); // three tiles, two charts
   expect(await screen.findByText("Results per day")).toBeInTheDocument();
   expect(screen.queryByRole("status", { name: /loading trends/i })).not.toBeInTheDocument();
+});
+
+function setBucket(b: string) {
+  return userEvent.selectOptions(screen.getByLabelText("View"), b);
+}
+
+test("charts are not hidden behind role=img: each has a summary and a Show data table disclosure", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", () =>
+      HttpResponse.json({ tz: "UTC", days: [day("2026-09-29", 8, 2, 0.8), day("2026-09-30", 9, 1, 0.9)] }),
+    ),
+  );
+  const { container } = renderTrendsIn();
+  await screen.findByText("Results per day");
+  expect(container.querySelector('[role="img"]')).toBeNull();
+  const figures = container.querySelectorAll("figure");
+  expect(figures).toHaveLength(2);
+  expect(figures[0].querySelector("figcaption")).toHaveTextContent(/17 passed, 3 failed/);
+  expect(figures[1].querySelector("figcaption")).toHaveTextContent(/pass rate per day, from 80\.0% to 90\.0%/i);
+  const disclosures = container.querySelectorAll("details.chart-data");
+  expect(disclosures).toHaveLength(2);
+  expect(disclosures[0]).not.toHaveAttribute("open");
+  expect(disclosures[0].querySelector("summary")).toHaveTextContent("Show data table");
+  expect(disclosures[0].querySelectorAll("tbody tr")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: /view data/i })).not.toBeInTheDocument();
+});
+
+test("headings, summaries and the duration tile follow the view (week, month)", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", ({ request }) => {
+      const bucket = new URL(request.url).searchParams.get("bucket") ?? "day";
+      return HttpResponse.json({ tz: "UTC", bucket, days: [day("2026-09-28", 8, 2, 0.8)] });
+    }),
+  );
+  renderTrendsIn();
+  expect(await screen.findByText("Results per day")).toBeInTheDocument();
+  expect(screen.getByText("Avg run duration (last day)")).toBeInTheDocument();
+  await setBucket("week");
+  expect(await screen.findByText("Results per week")).toBeInTheDocument();
+  expect(screen.getByText("Pass rate per week")).toBeInTheDocument();
+  expect(screen.getByText("Avg run duration (last week)")).toBeInTheDocument();
+  expect(screen.getAllByRole("columnheader", { name: "Week of" }).length).toBe(2);
+  await setBucket("month");
+  expect(await screen.findByText("Results per month")).toBeInTheDocument();
+  expect(screen.getAllByRole("columnheader", { name: "Month" }).length).toBe(2);
+});
+
+test("the legend toggles series and repeats the bar textures", async () => {
+  server.use(
+    http.get("/api/v1/projects/42/analytics/trends", () =>
+      HttpResponse.json({ tz: "UTC", days: [day("2026-09-29", 8, 2, 0.8)] }),
+    ),
+  );
+  const { container } = renderTrendsIn();
+  const failed = await screen.findByRole("button", { name: "Failed" });
+  expect(failed).toHaveAttribute("aria-pressed", "true");
+  // The swatch uses the same pattern as the bars, and the pattern is defined once on the page
+  expect(failed.querySelector("rect")).toHaveAttribute("fill", "url(#qeos-pat-failed)");
+  expect(screen.getByRole("button", { name: "Errored" }).querySelector("rect")).toHaveAttribute("fill", "url(#qeos-pat-errored)");
+  for (const id of ["qeos-pat-failed", "qeos-pat-errored", "qeos-pat-skipped"]) {
+    expect(container.querySelector(`pattern#${id}`)).not.toBeNull();
+  }
+  await userEvent.click(failed);
+  expect(failed).toHaveAttribute("aria-pressed", "false");
+  await userEvent.click(failed);
+  expect(failed).toHaveAttribute("aria-pressed", "true");
 });

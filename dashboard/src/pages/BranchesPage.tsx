@@ -1,19 +1,22 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { formatPassRate, getBranches, getTrends } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
+import { DataTableDisclosure, LegendSeries, SeriesLegend } from "../components/ChartKit";
+import { SkeletonCard } from "../components/Skeleton";
+import { formatPointLabel, formatTick } from "../lib/chartFormat";
+import { useMediaQuery } from "../lib/useMediaQuery";
 import SortableTh from "../components/SortableTh";
 import { nextSort, parseSort, sortPatch, sortRows, SortState } from "../lib/sort";
 import { oneOf, useUrlState } from "../lib/useUrlState";
 
-const inkLegend = (value: string) => (
-  <span className="muted">{value}</span>
-);
+const axisTick = { fill: "var(--text-secondary)", fontSize: 12 } as const;
 const tooltipStyles = {
   contentStyle: { background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 },
   itemStyle: { color: "var(--text-primary)" },
@@ -53,6 +56,15 @@ export default function BranchesPage() {
     queryFn: () => getBranches(id, { days }),
   });
 
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const narrow = useMediaQuery("(max-width: 640px)");
+  const toggleSeries = (key: string) =>
+    setHidden((h) => {
+      const next = new Set(h);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   const trendA = useBranchTrend(id, days, tz, branchA);
   const trendB = useBranchTrend(id, days, tz, branchB);
 
@@ -74,6 +86,16 @@ export default function BranchesPage() {
     }
     return [...byDate.values()].sort((x, y) => x.date.localeCompare(y.date));
   })();
+
+  const legend: LegendSeries[] = [
+    { key: "a", label: branchA, paint: "var(--series-1)", line: {} },
+    { key: "b", label: branchB, paint: "var(--series-2)", line: { dash: "6 4" } },
+  ];
+  const avg = (key: "a" | "b") => {
+    const v = compareData.map((d) => d[key]).filter((x): x is number => x !== null);
+    return v.length === 0 ? "no runs" : `${(v.reduce((a, b) => a + b, 0) / v.length).toFixed(1)}% on average`;
+  };
+  const summary = `Pass rate per day over the last ${days} days: ${branchA}, ${avg("a")}; ${branchB}, ${avg("b")}.`;
 
   return (
     <section>
@@ -117,30 +139,53 @@ export default function BranchesPage() {
 
       {branchA && branchB && (
         <div className="card">
-          <h3>Pass rate: {branchA} vs {branchB}</h3>
+          <h3 id="branch-compare">Pass rate per day: {branchA} vs {branchB}</h3>
           {(trendA.error != null || trendB.error != null) && (
             <ErrorBanner error={trendA.error ?? trendB.error} />
           )}
-          <div
-            role="img"
-            aria-label={`Daily pass rate of ${branchA} and ${branchB} over the last ${days} days; the table below carries the per-branch numbers.`}
-          >
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={compareData}>
-              <CartesianGrid stroke="var(--grid)" vertical={false} />
-              <XAxis dataKey="date" stroke="var(--text-muted)" tickLine={false} />
-              <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="var(--text-muted)" tickLine={false} />
-              <Tooltip
-                {...tooltipStyles}
-                cursor={{ stroke: "var(--grid)" }}
-                formatter={(v) => `${Number(v).toFixed(1)}%`}
-              />
-              <Legend formatter={inkLegend} />
-              <Line dataKey="a" name={branchA} stroke="var(--series-1)" strokeWidth={2} dot={false} connectNulls={false} />
-              <Line dataKey="b" name={branchB} stroke="var(--series-2)" strokeWidth={2} dot={false} connectNulls={false} />
-            </LineChart>
-          </ResponsiveContainer>
-          </div>
+          {(trendA.isPending || trendB.isPending) && trendA.error == null && trendB.error == null ? (
+            <SkeletonCard height={220} className="skeleton-chart" />
+          ) : compareData.length === 0 ? (
+            <p className="muted">No runs on {branchA} or {branchB} in the last {days} days.</p>
+          ) : (
+            <>
+              <SeriesLegend series={legend} hidden={hidden} onToggle={toggleSeries} label="Show or hide a branch" />
+              <figure className="chart-figure" aria-labelledby="branch-compare">
+                <figcaption className="sr-only">{summary}</figcaption>
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={compareData} accessibilityLayer>
+                    <CartesianGrid stroke="var(--grid)" vertical={false} />
+                    <XAxis dataKey="date" stroke="var(--text-muted)" tick={axisTick} tickLine={false} tickFormatter={(v) => formatTick(String(v))} minTickGap={narrow ? 36 : 16} interval="preserveStartEnd" />
+                    <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} stroke="var(--text-muted)" tick={axisTick} tickLine={false} width={narrow ? 40 : 48} />
+                    <Tooltip
+                      {...tooltipStyles}
+                      labelFormatter={(v) => formatPointLabel(String(v))}
+                      cursor={{ stroke: "var(--grid)" }}
+                      formatter={(v) => `${Number(v).toFixed(1)}%`}
+                    />
+                    <Line dataKey="a" name={branchA} stroke="var(--series-1)" strokeWidth={2} dot={{ r: 3 }} hide={hidden.has("a")} connectNulls={false} />
+                    <Line dataKey="b" name={branchB} stroke="var(--series-2)" strokeWidth={2} strokeDasharray="6 4" dot={{ r: 3, strokeWidth: 1.5 }} hide={hidden.has("b")} connectNulls={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </figure>
+              <DataTableDisclosure name={`pass rate of ${branchA} and ${branchB}`}>
+                <table className="data">
+                  <thead>
+                    <tr><th>Date</th><th>{branchA}</th><th>{branchB}</th></tr>
+                  </thead>
+                  <tbody>
+                    {compareData.map((d) => (
+                      <tr key={d.date}>
+                        <td>{d.date}</td>
+                        <td>{d.a === null ? "—" : `${d.a.toFixed(1)}%`}</td>
+                        <td>{d.b === null ? "—" : `${d.b.toFixed(1)}%`}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </DataTableDisclosure>
+            </>
+          )}
         </div>
       )}
 

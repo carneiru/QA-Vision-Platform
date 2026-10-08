@@ -151,7 +151,7 @@ export default function FlakyPage() {
           <button type="button" onClick={onExport} disabled={rows.length === 0}>
             Export CSV
           </button>
-          <label style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <label className="check">
             <input
               type="checkbox"
               checked={showMuted}

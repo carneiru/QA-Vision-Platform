@@ -13,6 +13,10 @@
   --grid: #e6e5df;
   --border: rgba(11, 11, 11, 0.1);
   --border-strong: rgba(11, 11, 11, 0.18);
+  /* Edge of inputs, selects and checkboxes (WCAG 1.4.11, >= 3:1): 4.06 on white, 3.68 on --page, 3.40 on --surface-2 */
+  --control-border: #807e78;
+  /* Placeholder text, >= 4.5:1: 5.43 on white, 4.92 on --page, 4.55 on --surface-2 */
+  --placeholder: #6b6a64;
   --accent: #2a78d6;
   --accent-text: #1f66bd; /* links and accent text: the fill blue is 4.4:1 on white */
   --accent-soft: rgba(42, 120, 214, 0.1);
@@ -26,7 +30,8 @@
   /* Re-run amber: 3.8:1 on --surface-1 (bars need >= 3:1); stripe is the darker tone */
   --status-rerun: #b07800;
   --status-rerun-stripe: #5c3f00;
-  --status-errored: #ec835a;
+  /* 4.65:1 on white, 4.22 on --page (the old #ec835a was 2.64, under the 3:1 non-text rule) */
+  --status-errored: #c4501f;
   --status-skipped: #898781;
   /* Error text on surfaces; the status colour stays the validated chart/dot hue. */
   --danger-text: #c23434;
@@ -69,6 +74,9 @@
     --grid: #2a2a28;
     --border: rgba(255, 255, 255, 0.09);
     --border-strong: rgba(255, 255, 255, 0.16);
+    --control-border: #6f6e68; /* 3.44 on --surface-1, 3.60 on --surface-2, 3.75 on --page */
+    --placeholder: #a3a299; /* 6.86 on --surface-1 */
+    --status-errored: #ec835a; /* 6.67 on --surface-1 */
     --accent: #3987e5;
     --accent-text: #6aa6ef;
     --accent-soft: rgba(57, 135, 229, 0.16);
@@ -128,9 +136,11 @@ input, select, button, textarea {
   padding: 6px 10px;
   min-height: 34px;
 }
-input:hover, select:hover { border-color: var(--text-muted); }
+/* Inputs, selects and checkboxes carry the 3:1 edge; buttons keep the quieter one */
+input, select, textarea { border-color: var(--control-border); }
+input:hover, select:hover, textarea:hover { border-color: var(--text-secondary); }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
-input::placeholder { color: var(--text-secondary); opacity: 0.75; }
+input::placeholder, textarea::placeholder { color: var(--placeholder); opacity: 1; }
 button { cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: background-color 120ms ease-out, border-color 120ms ease-out; }
 button:hover:not(:disabled) { background: var(--hover-strong); }
 button:disabled { opacity: 0.55; cursor: default; }
@@ -170,7 +180,12 @@ button.ghost { background: transparent; border-color: transparent; }
 .filters { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: end; margin: 0 0 var(--space-4); }
 /* Checkbox + text on one line, inside cards that otherwise stack label over field */
 .card label.check, label.check { flex-direction: row; align-items: center; gap: var(--space-2); font-size: 14px; font-weight: 400; color: var(--text-primary); min-height: 28px; cursor: pointer; }
-label.check input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent-fill); cursor: pointer; }
+/* Drawn checkbox: a 3:1 edge (the native one is about 1.5:1 in dark mode) and a fixed size that ignores the 34px/44px input min-height */
+input[type="checkbox"] { appearance: none; -webkit-appearance: none; flex: none; display: inline-block; vertical-align: middle; width: 18px; height: 18px; min-height: 0; margin: 0; padding: 0; border: 1.5px solid var(--control-border); border-radius: 4px; background: var(--surface-1) center / 12px 12px no-repeat; cursor: pointer; }
+input[type="checkbox"]:checked { background-color: var(--accent-fill); border-color: var(--accent-fill); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6.5l2.6 2.6L10 3.4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+input[type="checkbox"]:indeterminate { background-color: var(--accent-fill); border-color: var(--accent-fill); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6h7' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E"); }
+input[type="checkbox"]:disabled { opacity: 0.55; cursor: default; }
+label.check input[type="checkbox"] { cursor: pointer; }
 label.check input[type="checkbox"]:disabled, label.check input[type="checkbox"]:disabled + span { cursor: default; }
 fieldset.check-group { border: 0; padding: 0; margin: 0 0 var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
 fieldset.check-group > legend { padding: 0; margin-bottom: var(--space-1); font-size: 13px; font-weight: 500; color: var(--text-secondary); }
@@ -291,7 +306,11 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 .run-legend li { display: inline-flex; align-items: center; gap: 6px; }
 .run-legend .run-bar { height: 14px; }
 @media (max-width: 640px) { .run-legend.hide-narrow { display: none; } }
-.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+/* The shape says the status too: circle passed, triangle failed, square errored, ring skipped */
+.status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+.status-dot.shape-failed { border-radius: 0; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.status-dot.shape-errored { border-radius: 2px; }
+.status-dot.shape-skipped { background: transparent !important; border: 2px solid var(--status-skipped); }
 
 /* ---- Badges ---- */
 .badge { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); background: var(--surface-1); white-space: nowrap; }
@@ -507,14 +526,15 @@ input[readonly] { background: var(--surface-2); }
 /* FolderTree: case folders as an ARIA tree */
 .folder-tree, .folder-tree ul { list-style: none; margin: 0; padding: 0; }
 .folder-tree [role="treeitem"] { outline: none; }
-.folder-tree .folder-row { display: flex; align-items: center; gap: var(--space-2); min-height: 32px; padding-right: var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; color: var(--text-primary); }
+.folder-tree .folder-row { display: flex; align-items: center; gap: var(--space-1); min-height: 32px; padding-right: var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; color: var(--text-primary); }
 .folder-tree .folder-row:hover { background: var(--hover); }
 .folder-tree [role="treeitem"][aria-selected="true"] > .folder-row { background: var(--accent-soft); font-weight: 600; }
 .folder-tree [role="treeitem"]:focus-visible > .folder-row { outline: 2px solid var(--accent); outline-offset: -2px; }
-.folder-chevron, .folder-chevron-space { flex: none; width: 16px; height: 16px; }
+/* 24px so the toggle is a fair target; the drawn arrow stays small */
+.folder-chevron, .folder-chevron-space { flex: none; width: 24px; height: 24px; }
 .folder-chevron { position: relative; }
-.folder-chevron::before { content: ""; position: absolute; left: 4px; top: 4px; width: 6px; height: 6px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: rotate(-45deg); transition: transform 0.12s ease; }
-.folder-chevron[data-open="true"]::before { transform: rotate(45deg); top: 3px; }
+.folder-chevron::before { content: ""; position: absolute; left: 8px; top: 8px; width: 6px; height: 6px; border-right: 1.5px solid var(--text-secondary); border-bottom: 1.5px solid var(--text-secondary); transform: rotate(-45deg); transition: transform 0.12s ease; }
+.folder-chevron[data-open="true"]::before { transform: rotate(45deg); top: 7px; }
 .folder-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .folder-count { flex: none; margin-left: auto; font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 @media (prefers-reduced-motion: reduce) { .folder-chevron::before { transition: none; } }
@@ -537,8 +557,9 @@ input[readonly] { background: var(--surface-2); }
 .run-selection { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); margin: var(--space-3) 0 0; background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-2); /* the confirmation card opens inside it: scroll rather than run off-screen */ max-height: min(70vh, 520px); max-height: min(70dvh, 520px); overflow-y: auto; overscroll-behavior: contain; }
 .run-selection .run-control { margin: 0; }
 .select-col { width: 36px; }
-.select-col input { width: 18px; height: 18px; }
-@media (pointer: coarse) { .select-col input { width: 24px; height: 24px; } }
+/* A row's selection checkbox is its own target (no wrapping label): 24x24 with a mouse, larger on touch (WCAG 2.5.8) */
+.select-col input[type="checkbox"] { width: 24px; height: 24px; background-size: 16px 16px; border-radius: 5px; }
+@media (pointer: coarse) { .select-col input[type="checkbox"] { width: 28px; height: 28px; } }
 
 /* Run from QEOS: the run panel (a role="status" card) */
 .run-panel { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
@@ -606,3 +627,14 @@ input[readonly] { background: var(--surface-2); }
 .stat-skeleton { height: 34px; width: 40%; }
 .skeleton-chart { margin-block: var(--space-4); }
 .tiles > .skeleton-card { padding: var(--space-4); }
+
+/* Charts: a toggle legend with the same textures as the bars, and the data table behind a disclosure */
+.series-legend { list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); margin: 0 0 var(--space-2); padding: 0; }
+button.legend-toggle { background: transparent; border-color: transparent; gap: 6px; min-height: 28px; padding: 2px 8px; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
+button.legend-toggle[aria-pressed="false"] { text-decoration: line-through; }
+button.legend-toggle[aria-pressed="false"] svg { opacity: 0.45; }
+.chart-figure { margin: 0; }
+.chart-data { margin-top: var(--space-3); }
+.chart-data > summary { cursor: pointer; width: fit-content; min-height: 28px; display: flex; align-items: center; color: var(--accent-text); font-size: 13px; font-weight: 500; }
+.chart-data > summary:hover { text-decoration: underline; }
+.chart-data-body { margin-top: var(--space-2); max-height: 320px; overflow: auto; }
