@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, ChevronRight, CircleX } from "lucide-react";
+import { Bot, ChevronRight } from "lucide-react";
 import type { CaseQuery } from "../api/cases";
 import { type FeatureRow, STATUS_ORDER, fileLabel, groupCasesQuery } from "../lib/featureQueries";
 import { CaseRow, type CaseRowData, isRunnable, useFeatureStrips, useRunStrips } from "./CaseTable";
@@ -50,12 +50,10 @@ interface Props {
   onToggleAll: (on: boolean, rows: CaseRowData[]) => void;
   /** The filters in force, for the manual group's cases. */
   filters: Omit<CaseQuery, "limit" | "offset">;
-  /** Case numbers whose latest result failed, or null when unknown (the row then shows no count). */
-  failing: Set<number> | null;
 }
 
 /** The Feature view of the Cases list: one row per .feature file, expanding in place to its scenarios. */
-export default function FeatureList({ projectId, rows, selectable, picked, onToggle, onToggleAll, filters, failing }: Props) {
+export default function FeatureList({ projectId, rows, selectable, picked, onToggle, onToggleAll, filters }: Props) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const qc = useQueryClient();
   const { lastRuns, lastRunsSummary } = useFeatureStrips(projectId, rows);
@@ -88,7 +86,6 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
         const label = featureLabel(row);
         const expanded = open.has(idOf(row));
         const shown = row.case_numbers.filter((n) => picked.has(n)).length;
-        const failed = failing && row.path != null ? row.case_numbers.filter((n) => failing.has(n)).length : 0;
         return (
           <Fragment key={idOf(row)}>
             <tbody className="feature-group">
@@ -117,7 +114,7 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                       )}
                       {row.folder ? <span className="feature-folder">{row.folder}</span> : null}
                       <NarrowMeta items={[
-                        { label: "Last runs", value: lastRunsSummary(row) ?? (failed > 0 ? `${failed} failing` : null) },
+                        { label: "Last runs", value: lastRunsSummary(row) },
                         { label: "Priority", value: row.top_priority },
                         { label: "Automated", value: automatedText(row) },
                       ]} />
@@ -128,7 +125,6 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                 <td className="hide-narrow">
                   <div className="feature-runs">
                     {lastRuns(row)}
-                    {failed > 0 && <span className="failing-count"><CircleX size={14} aria-hidden="true" /> {failed} failing</span>}
                   </div>
                 </td>
                 {/* Aggregates of the group's matching scenarios: its highest priority, its statuses, how many are linked */}

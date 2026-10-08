@@ -183,21 +183,6 @@ export default function CasesPage() {
     queryFn: () => listFeatureGroups(id, { ...featureFilters, limit: FEATURES_PAGE, offset }),
     placeholderData: keepPreviousData,
   });
-  // "n failing" on a feature row: the failed keys (shared with the Failing tile) resolved to case numbers in one search
-  const failedKeys = useQuery({ ...latestKeysQuery(id, "failed"), enabled: group === "feature" });
-  const failedKeyList = failedKeys.data?.keys;
-  const failedCases = useQuery({
-    ...caseSearchQuery(id, { labels: [], test_keys: failedKeyList ?? [], keys_mode: "include", limit: GROUP_CASES_MAX, offset: 0 }),
-    enabled: group === "feature" && !!failedKeyList && failedKeyList.length > 0 && failedKeyList.length <= MAX_SEARCH_KEYS,
-  });
-  const failing = useMemo(() => {
-    if (!failedKeyList) return null;
-    if (failedKeyList.length === 0) return new Set<number>();
-    // More failing cases than one search reads: a partial count would mislead, so rows show none
-    if (!failedCases.data || failedCases.data.total > failedCases.data.items.length) return null;
-    return new Set(failedCases.data.items.map((c) => c.number));
-  }, [failedKeyList, failedCases.data]);
-
   const labels = useQuery({ queryKey: ["case-labels", id], queryFn: () => listLabels(id) });
   const featureNames = useQuery({ queryKey: ["case-features", id], queryFn: () => listFeatures(id) });
   const folders = useQuery({ queryKey: ["case-folders", id], queryFn: () => listFolders(id) });
@@ -380,7 +365,7 @@ export default function CasesPage() {
           aria-label={group === "feature" ? "Features" : "Test cases"} style={barHeight > 0 ? { paddingBottom: barHeight } : undefined}>
           {group === "feature" ? (
             <FeatureList projectId={id} rows={featureRows ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle}
-              onToggleAll={toggleAll} filters={featureFilters} failing={failing} />
+              onToggleAll={toggleAll} filters={featureFilters} />
           ) : (
             <CaseTable projectId={id} cases={data?.items ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle} onToggleAll={toggleAll} />
           )}

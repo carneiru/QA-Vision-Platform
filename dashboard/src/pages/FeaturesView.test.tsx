@@ -194,18 +194,6 @@ test("checking a feature selects its runnable scenarios; the box is tri-state", 
   expect(screen.queryByRole("button", { name: /Run selected/ })).not.toBeInTheDocument();
 });
 
-test("a feature row counts its failing scenarios from the latest-result join", async () => {
-  server.use(
-    http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ keys: [KEY] })),
-    http.post(`${P}/cases/search`, () => HttpResponse.json({ total: 1, items: [kase(2, { automated_test_key: KEY })] })),
-  );
-  renderCases();
-  await screen.findByRole("link", { name: "Login" });
-  // The column on wide screens, and the narrow line under the name on phones
-  expect(await within(featureRow("Login")).findAllByText("1 failing")).toHaveLength(2);
-  expect(within(featureRow("No feature (manual)")).queryByText(/failing/)).not.toBeInTheDocument();
-});
-
 test("a filter the feature list cannot apply groups the matching cases in the page instead", async () => {
   server.use(http.get(`${P}/cases`, ({ request }) => {
     const sp = new URL(request.url).searchParams;
@@ -308,7 +296,7 @@ test("a feature row shows one strip: the worst status per run over its scenarios
   expect(strip.querySelectorAll(".bar-passed")).toHaveLength(1);
 });
 
-test("a feature row keeps its failing count beside the strip, and the narrow line summarises the runs", async () => {
+test("a feature row's Last runs is the strip alone, never a failing count; the narrow line summarises the runs", async () => {
   withFeatures({ ...LOGIN, test_keys: [KEY_A] });
   server.use(
     http.get(`${P}/analytics/latest-keys`, () => HttpResponse.json({ keys: [KEY_A] })),
@@ -319,7 +307,7 @@ test("a feature row keeps its failing count beside the strip, and the narrow lin
   await screen.findByRole("link", { name: "Login" });
   const row = featureRow("Login");
   expect(await within(row).findByRole("link", { name: /^Last 2 runs/ })).toBeInTheDocument();
-  expect(await within(row).findByText("1 failing", { selector: ".failing-count" })).toBeInTheDocument();
+  expect(within(row).queryByText(/failing/)).not.toBeInTheDocument();
   expect(within(row).getByText("1 failed, 1 passed of the last 2")).toBeInTheDocument();
 });
 
