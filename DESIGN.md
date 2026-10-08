@@ -2,86 +2,86 @@
 name: QEOS
 description: Self-hosted test-results analytics; an authenticated Operate surface for triaging CI and reading suite health.
 colors:
-  page: "#f4f4f1"
+  page: "#f5f6fb"
   surface-1: "#ffffff"
-  surface-2: "#ecebe7"
-  hover: "rgba(11, 11, 11, 0.05)"
-  hover-strong: "rgba(11, 11, 11, 0.08)"
-  text-primary: "#111110"
-  text-secondary: "#55544f"
-  text-muted: "#898781"
-  grid: "#e6e5df"
-  border: "rgba(11, 11, 11, 0.1)"
-  border-strong: "rgba(11, 11, 11, 0.18)"
-  accent: "#2a78d6"
-  accent-text: "#1f66bd"
-  accent-soft: "rgba(42, 120, 214, 0.1)"
-  accent-fill: "#2468bd"
-  accent-fill-hover: "#1d5aa6"
-  series-1: "#2a78d6"
+  surface-2: "#eceefa"
+  hover: "rgba(21, 26, 51, 0.05)"
+  hover-strong: "rgba(79, 70, 229, 0.09)"
+  text-primary: "#151a33"
+  text-secondary: "#4c5470"
+  text-muted: "#7d839f"
+  grid: "#e4e7f2"
+  border: "rgba(21, 26, 51, 0.1)"
+  border-strong: "rgba(21, 26, 51, 0.18)"
+  accent: "#4f46e5"
+  accent-text: "#4338ca"
+  accent-soft: "rgba(79, 70, 229, 0.1)"
+  accent-fill: "#4f46e5"
+  accent-fill-hover: "#4338ca"
+  series-1: "#4f46e5"
   series-2: "#eb6834"
   status-passed: "#0ca30c"
   status-failed: "#d03b3b"
   status-errored: "#c4501f"
-  control-border: "#807e78"
-  placeholder: "#6b6a64"
-  status-skipped: "#898781"
+  control-border: "#7a809c"
+  placeholder: "#5f6580"
+  status-skipped: "#7d839f"
   danger-text: "#c23434"
   danger-fill-hover: "#b83131"
   on-fill: "#ffffff"
-  page-dark: "#0f0f0e"
-  surface-1-dark: "#191918"
-  surface-2-dark: "#141413"
-  hover-dark: "rgba(255, 255, 255, 0.05)"
-  hover-strong-dark: "rgba(255, 255, 255, 0.09)"
-  text-primary-dark: "#f4f4f1"
-  text-secondary-dark: "#bdbcb3"
-  grid-dark: "#2a2a28"
-  border-dark: "rgba(255, 255, 255, 0.09)"
-  border-strong-dark: "rgba(255, 255, 255, 0.16)"
-  accent-dark: "#3987e5"
-  accent-text-dark: "#6aa6ef"
-  accent-soft-dark: "rgba(57, 135, 229, 0.16)"
-  series-1-dark: "#3987e5"
+  page-dark: "#0b1020"
+  surface-1-dark: "#141c33"
+  surface-2-dark: "#0f1629"
+  hover-dark: "rgba(165, 180, 252, 0.06)"
+  hover-strong-dark: "rgba(129, 140, 248, 0.15)"
+  text-primary-dark: "#eef1fb"
+  text-secondary-dark: "#a9b2cc"
+  grid-dark: "#222b45"
+  border-dark: "rgba(148, 163, 214, 0.14)"
+  border-strong-dark: "rgba(148, 163, 214, 0.24)"
+  accent-dark: "#818cf8"
+  accent-text-dark: "#a5b4fc"
+  accent-soft-dark: "rgba(129, 140, 248, 0.18)"
+  series-1-dark: "#818cf8"
   series-2-dark: "#d95926"
-  danger-text-dark: "#ec7272"
+  danger-text-dark: "#f08080"
   status-errored-dark: "#ec835a"
-  control-border-dark: "#6f6e68"
-  placeholder-dark: "#a3a299"
+  control-border-dark: "#6f7a9c"
+  placeholder-dark: "#a3abc6"
 typography:
   headline:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "22px"
     fontWeight: 650
     lineHeight: 1.25
     letterSpacing: "-0.01em"
   title:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "17px"
     fontWeight: 600
     lineHeight: 1.3
   title-small:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "15px"
     fontWeight: 600
     lineHeight: 1.35
   stat:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "28px"
     fontWeight: 650
     letterSpacing: "-0.01em"
     fontFeature: "\"tnum\""
   body:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "14px"
     fontWeight: 400
     lineHeight: 1.5
   label:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "13px"
     fontWeight: 500
   label-small:
-    fontFamily: "system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
+    fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
     fontSize: "12.5px"
     fontWeight: 600
   mono:
@@ -176,14 +176,14 @@ components:
 
 **Creative North Star: "The Triage Desk"**
 
-QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Warm off-white and near-black neutrals carry the structure, one blue accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
+QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Cool indigo-tinted neutrals (navy in dark mode) carry the structure, one indigo accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
 
 Density is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, and a persistent left sidebar holds the project switcher and every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.
 
 Depth is light and ambient: hairline borders do the structural work, and a faint shadow lifts cards off the page. Motion is short and functional (120ms colour/border transitions, a 200ms drawer slide) and switches off under `prefers-reduced-motion`.
 
 **Key Characteristics:**
-- Warm neutrals, one blue accent, status hues reserved for status.
+- Midnight Indigo: cool indigo-tinted neutrals, one indigo accent, status hues reserved for status.
 - Every readable text pair is at least 4.5:1 in both themes. Each accent and danger hue has a separate role token for text and for fill.
 - Status is never colour alone. A word or label always sits beside the hue.
 - Sidebar shell with project switcher. Under 900px it becomes a focus-managed drawer.
@@ -192,34 +192,34 @@ Depth is light and ambient: hairline borders do the structural work, and a faint
 
 ## Colors
 
-The palette is a warm stone neutral with one interaction blue, plus a colour-blind-validated status set that never decorates. Dark-theme counterparts carry the `-dark` suffix in the frontmatter. Status hues, `accent-fill` and `on-fill` are the same in both themes.
+The palette (Midnight Indigo, chosen 2026-10-08) is a cool indigo-tinted neutral — navy surfaces in dark mode — with one interaction indigo, plus a colour-blind-validated status set that never decorates. Dark-theme counterparts carry the `-dark` suffix in the frontmatter. Status hues, `accent-fill` and `on-fill` are the same in both themes.
 
 ### Primary
-- **Signal Blue** (`accent`): focus rings, text selection, the active nav icon, the brand mark, project-tile hover border. Never body text on white, because it reaches only 4.4:1 there.
-- **Link Blue** (`accent-text`): all links and any blue text. It is a darker step chosen because the accent fails AA as text (5.7:1 on white; the dark value is 7.0:1 on the dark surface).
-- **Button Blue** (`accent-fill`, hover `accent-fill-hover`): the fill of primary buttons only. White on it measures 5.5:1, which the accent blue (4.4:1) does not reach. The same value is kept in dark mode so white text stays legible.
-- **Blue Wash** (`accent-soft`): a translucent tint of the accent for soft selected states.
+- **Signal Indigo** (`accent`): focus rings, text selection, the active nav icon, the brand mark, project-tile hover border (6.3:1 on white; `#818cf8` in dark, 5.7:1 on Paper).
+- **Link Indigo** (`accent-text`): all links and any accent text (7.9:1 on white; the dark value `#a5b4fc` is 8.5:1 on Paper).
+- **Button Indigo** (`accent-fill`, hover `accent-fill-hover`): the fill of primary buttons only. White on it measures 6.3:1 (hover 7.9:1). The same value is kept in dark mode so white text stays legible.
+- **Indigo Wash** (`accent-soft`): a translucent tint of the accent for soft selected states.
 
 ### Status (reserved)
-- **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it, and never stands alone as a shape: dots, badges and chart bars also differ by shape or texture (see Status Dot and Badges, Chart Textures). Errored Orange is `#c4501f` in light (4.65:1 on Paper, 4.22:1 on Stone Page; the earlier `#ec835a` was 2.64:1) and `#ec835a` in dark (6.67:1 on Paper). Every status colour reaches 3:1 on Paper in both themes; `lib/contrast.test.ts` checks it.
+- **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it, and never stands alone as a shape: dots, badges and chart bars also differ by shape or texture (see Status Dot and Badges, Chart Textures). Errored Orange is `#c4501f` in light (4.65:1 on Paper, 4.31:1 on Mist Page) and `#ec835a` in dark (6.40:1 on Paper). Every status colour reaches 3:1 on Paper in both themes; `lib/contrast.test.ts` checks it.
 - **Danger Text** (`danger-text`): error copy, the error banner border and text, and the failed badge label. It exists because the dot red is a chart/dot hue, not a text colour. It measures 4.6:1 on the banner's red tint in light and 6.0:1 in dark.
 - **Danger Fill** (`status-failed`, hover `danger-fill-hover`): the confirm button of a destructive action. White on it measures 4.8:1 in both themes, while red *text* on the dark surface would fail AA.
 
 ### Chart Series
-- **Series Blue** (`series-1`) and **Series Ember** (`series-2`): the two lines of a comparison chart, such as branch A against branch B. They are for non-status series only.
+- **Series Indigo** (`series-1`) and **Series Ember** (`series-2`): the two lines of a comparison chart, such as branch A against branch B. They are for non-status series only.
 
 ### Neutral
-- **Stone Page** (`page`): the app background. Code blocks also use it to sit one step below the card surface.
-- **Paper** (`surface-1`): cards, inputs, buttons, tiles, badges and the active nav item.
-- **Sidebar Stone** (`surface-2`): the sidebar and the narrow-screen top bar.
+- **Mist Page** (`page`; navy `#0b1020` in dark): the app background. Code blocks also use it to sit one step below the card surface.
+- **Paper** (`surface-1`; `#141c33` in dark): cards, inputs, buttons, tiles, badges and the active nav item.
+- **Sidebar Mist** (`surface-2`): the sidebar and the narrow-screen top bar.
 - **Ink** (`text-primary`): headings, body and values.
-- **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (7.6:1 light, 9.2:1 dark).
-- **Tick Grey** (`text-muted`): chart axis ticks only. It is below AA for text (about 3.4:1) and must never carry readable copy.
+- **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (7.5:1 light, 8.0:1 dark).
+- **Tick Grey** (`text-muted`): chart axis ticks only. It is below AA for text (about 3.7:1) and must never carry readable copy.
 - **Rule** (`grid`): table row dividers and list separators.
 - **Hairline** (`border`) and **Hairline Strong** (`border-strong`): translucent borders for containers and for buttons.
-- **Control Edge** (`control-border`): the border of inputs, selects, textareas and checkboxes, at least 3:1 against every surface they sit on (WCAG 1.4.11). Light `#807e78`: 4.06 on Paper, 3.68 on Stone Page, 3.40 on Sidebar Stone. Dark `#6f6e68`: 3.44 on Paper, 3.60 on Sidebar Stone, 3.75 on Stone Page. Used for form controls only, so the rest of the interface stays light.
-- **Placeholder** (`placeholder`): placeholder text at full opacity, at least 4.5:1 (light `#6b6a64`: 5.43 on Paper, 4.55 on Sidebar Stone; dark `#a3a299`: 6.86 on Paper).
-- **Hover** (`hover`) and **Hover Strong** (`hover-strong`): translucent ink washes for row hover and button/nav hover.
+- **Control Edge** (`control-border`): the border of inputs, selects, textareas and checkboxes, at least 3:1 against every surface they sit on (WCAG 1.4.11). Light `#7a809c`: 3.89 on Paper, 3.61 on Mist Page, 3.37 on Sidebar Mist. Dark `#6f7a9c`: 3.97 on Paper, 4.23 on Sidebar Mist, 4.45 on Mist Page. Used for form controls only, so the rest of the interface stays light.
+- **Placeholder** (`placeholder`): placeholder text at full opacity, at least 4.5:1 (light `#5f6580`: 5.74 on Paper, 4.97 on Sidebar Mist; dark `#a3abc6`: 7.40 on Paper).
+- **Hover** (`hover`) and **Hover Strong** (`hover-strong`): translucent washes for row hover and button/nav hover; Hover Strong is indigo-tinted and also fills label tags.
 
 ### Named Rules
 **The Reserved Hue Rule.** Green, red, orange and skipped-stone mean test outcomes. They never decorate, brand or highlight anything else. The only non-status uses are destructive confirmation (red fill) and error messaging (danger text), and both mean "something failed or will be destroyed".
@@ -231,7 +231,7 @@ The palette is a warm stone neutral with one interaction blue, plus a colour-bli
 ## Typography
 
 **Display Font:** none (the product has no display role)
-**Body Font:** system UI stack (system-ui, -apple-system, "Segoe UI", Roboto, sans-serif)
+**Body Font:** Inter (variable, self-hosted via `@fontsource-variable/inter`), falling back to the system UI stack
 **Label/Mono Font:** ui-monospace stack (ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace)
 
 **Character:** A single sans family across every role, separated by weight (500 to 650) and small size steps rather than by contrasting faces. Mono marks machine text such as commit SHAs, failure messages and CI snippets.
@@ -253,7 +253,7 @@ The palette is a warm stone neutral with one interaction blue, plus a colour-bli
 
 ## Layout
 
-An app shell runs the full height of the viewport: a fixed-width sidebar (240px) on Sidebar Stone and a fluid main column. Content sits in a centred page container (max 1120px) with 32px/24px padding, reduced to 24px/16px under 640px. Single-card focus pages (sign in, register, verify) narrow to 400px with 48px top padding.
+An app shell runs the full height of the viewport: a fixed-width sidebar (240px) on Sidebar Mist and a fluid main column. Content sits in a centred page container (max 1120px) with 32px/24px padding, reduced to 24px/16px under 640px. Single-card focus pages (sign in, register, verify) narrow to 400px with 48px top padding.
 
 Spacing follows a 4px-based scale (4, 8, 12, 16, 24, 32, 48). Cards own their vertical rhythm through 16px block margins, which collapse between siblings so conditional stacks stay evenly spaced. Inside a grid, the grid gap owns the spacing and card margins are zeroed.
 
@@ -335,7 +335,7 @@ Starting a GitHub Actions run from the cases, and watching it end.
 
 ### Cards / Containers
 - **Corner Style:** 10px.
-- **Background:** Paper on the Stone Page.
+- **Background:** Paper on the Mist Page.
 - **Shadow Strategy:** resting lift (see Elevation & Depth).
 - **Border:** 1px Hairline.
 - **Internal Padding:** 24px, or 16px under 640px and inside tile grids.
@@ -354,7 +354,7 @@ Outcome series are never told apart by hue alone. `ChartPatternDefs` defines the
 Each chart is a `figure` with an off-screen caption that states the totals and the notable point, uses Recharts' `accessibilityLayer` (arrow keys step through the tooltip) and has no `role="img"`. Below it a native `details` (`DataTableDisclosure`, "Show data table") holds the full series as a table. The legend (`SeriesLegend`) is a row of toggle buttons (`aria-pressed`): a hidden series is struck through. Titles, captions, column headings and the last-value tile name the granularity (day, week, month); X ticks are short `Intl` dates ("Mar 4"), thinned on narrow screens; tick text is Graphite, not Tick Grey.
 
 ### Secret Block
-A value the server shows once (API key, invitation link, recovery codes) sits in a `SecretBlock`: Sidebar Stone fill, Hairline Strong border, a bold one-line note saying it cannot be shown again, the value in mono (wraps anywhere), and a Copy button whose result ("Copied") is announced politely. Recovery codes add Download and an "I saved these codes" button that dismisses them; the codes are not hidden until the reader says so.
+A value the server shows once (API key, invitation link, recovery codes) sits in a `SecretBlock`: Sidebar Mist fill, Hairline Strong border, a bold one-line note saying it cannot be shown again, the value in mono (wraps anywhere), and a Copy button whose result ("Copied") is announced politely. Recovery codes add Download and an "I saved these codes" button that dismisses them; the codes are not hidden until the reader says so.
 
 ### Data Tables
 Rows are separated by Rule lines, with no zebra striping and no vertical lines. Headers are Graphite at 12.5px/600 and never wrap. Cells use 10px 12px padding and are top-aligned. Hovering a row applies the Hover wash. Numbers are tabular.
@@ -362,7 +362,7 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 ### Inputs / Fields
 - **Style:** Paper fill, Hairline Strong border, 6px radius, 34px height (44px on coarse pointers). Labels stack above the field at 13px/500 in Graphite.
 - **Hover:** the border darkens to Tick Grey.
-- **Focus:** the border turns Signal Blue, with a 2px accent outline at offset 0.
+- **Focus:** the border turns Signal Indigo, with a 2px accent outline at offset 0.
 - **Filter dropdown:** a filter dropdown with more than 15 options is a searchable list (`FilterSelect`): a search field at the top of the open list, matching anywhere and ignoring accents, with an "x of y" count. Up to 15 options stay a native select.
 - **Folder dropdown:** the folder filter (`FolderSelect`) looks like the other filters; its popup is a dialog with a search box, an "x of y" count and the folder tree. Searching keeps matching folders and their ancestors, Enter picks the first match, Esc and Tab close it, and picking applies at once.
 - **Text field** (`TextField`): label, input, hint and error as one block. The error appears under the field when it is left (not while typing), is linked with `aria-describedby`, sets `aria-invalid`, and is never inside the `<label>`. A password field has a Show/Hide toggle (an eye icon with off-screen text, `aria-pressed`) outside the label. Checkboxes are drawn 18px (24px when they are a row's only target, in a table cell) with the Control Edge border; a label around one is the hit area.
@@ -371,19 +371,19 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 - **Inline form:** a one-row create form of label and input pairs ending in its submit and Cancel buttons. It wraps on narrow widths.
 
 ### Navigation
-- **Sidebar:** Sidebar Stone with a right hairline. From top to bottom it holds the brand (lucide mark in Signal Blue with the bold 15px wordmark), the project switcher (a native select grouped by organization), project views, workspace links, and a footer pinned to the bottom with Security and Sign out.
-- **Nav link:** Graphite text at weight 500 with a 17px lucide icon, 34px tall and 6px radius. Hover applies Hover Strong with Ink text. **Active** is a Paper chip with resting lift, Ink text and a Signal Blue icon.
+- **Sidebar:** Sidebar Mist with a right hairline. From top to bottom it holds the brand (lucide mark in Signal Indigo with the bold 15px wordmark), the project switcher (a native select grouped by organization), project views, workspace links, and a footer pinned to the bottom with Security and Sign out.
+- **Nav link:** Graphite text at weight 500 with a 17px lucide icon, 34px tall and 6px radius. Hover applies Hover Strong with Ink text. **Active** is a Paper chip with resting lift, Ink text and a Signal Indigo icon.
 - **Section title:** 12px/600 Graphite, sentence case. It is a real group label such as "Workspace".
 - **Mobile (900px and below):** a sticky top bar holds a ghost menu button and the brand. The drawer slides in over 200ms `cubic-bezier(0.2, 0, 0, 1)`. Opening it focuses the first control inside. Escape, the backdrop, the close button or following a link closes it, and focus returns to the menu button.
 
 ### Project Tile
-A Paper tile with a 10px radius, Hairline border and resting lift, holding a folder icon and the project name at 600. On hover the border turns Signal Blue, with no lift and no underline.
+A Paper tile with a 10px radius, Hairline border and resting lift, holding a folder icon and the project name at 600. On hover the border turns Signal Indigo, with no lift and no underline.
 
 ### Error Banner
 A 6px-radius box with a Danger Text border and text over a 6% failed-red tint, with an optional Retry button. It uses `role="alert"`. Loading and empty states are plain Graphite sentences that say what is absent and how data arrives. They never show a zero in place of missing data.
 
 ### Code Block
-Stone Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizontal scroll. It is used for copyable CI snippets. An expanded failure message inside a table cell is mono 12.5px with preserved line breaks and no box. A read-only Gherkin block colours keywords, tags, tables, doc strings and comments, plus step values: quoted "values" use `--gk-string` and `<placeholders>` use `--gk-param` on a light tint of `--gk-param-bg`; each meets 4.5:1 on Sidebar Stone in both themes.
+Mist Page fill, Hairline border, 6px radius, 12px padding, 13px mono, and horizontal scroll. It is used for copyable CI snippets. An expanded failure message inside a table cell is mono 12.5px with preserved line breaks and no box. A read-only Gherkin block colours keywords, tags, tables, doc strings and comments, plus step values: quoted "values" use `--gk-string` and `<placeholders>` use `--gk-param` on a light tint of `--gk-param-bg`; each meets 4.5:1 on Sidebar Mist in both themes.
 
 ### Accessibility Plumbing
 - A **skip link** stays hidden until focused, then appears top-left as a Paper chip with the overlay shadow.
