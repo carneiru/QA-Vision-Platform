@@ -263,6 +263,13 @@ Reliability and operations
 71. [ ] Add Docker support
 72. [ ] Integrate with all foundation services
 
+### Execution intelligence and operations (agreed 2026-10-08, in this order)
+Kubernetes stays out until its blueprint trigger fires (first multi-node deployment); Docker Compose on one VM is the production target.
+1. [ ] Suite duration prediction: ingestion `POST /analytics/duration-estimate` (per-test p50 of passed runs, p90 of all, per-environment with fallback, project overhead + parallelism fitted on the last 20 runs); estimate in the Run dialog, live in the selection bar and on suite detail; stored on run requests (test-management migration 008) for "≈ n min left" and "estimated vs took". Later: warn when the estimate exceeds the workflow timeout
+2. [ ] Monitoring: Prometheus, Grafana and Alertmanager as an opt-in profile of the production compose; `/metrics` on every service, Postgres and container exporters, starter dashboards and alerts (service down, 5xx rate, disk)
+3. [ ] Customisable Overview: a widget catalogue over the existing analytics; a project default layout set by owners/admins, a personal layout per user with "reset to project default"
+4. [ ] Test impact analysis: from collected commits' changed files and later failures, suggest which tests to run for a change (history-based; no coverage instrumentation)
+
 ### Phase 6: AI Engine (Original Starting Point)
 73. [ ] Design AI/ML model architecture for test analysis
 74. [ ] Implement test failure pattern recognition
