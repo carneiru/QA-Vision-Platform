@@ -1,4 +1,6 @@
 """POST/GET /projects/{id}/run-requests (run-from-QEOS spec): Play and its state."""
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -53,6 +55,21 @@ def list_run_requests(
 ):
     total, rows = runs.list_requests(db, access.project_id, limit, offset)
     return {"total": total, "items": [runs.out(r) for r in rows]}
+
+
+@router.get("/run-urls")
+def run_urls(
+    since: datetime = Query(...),
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    """The Play requests' GitHub run URLs, for the report's origin filter (ADR-026)."""
+    moment = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
+    if moment < datetime.now(timezone.utc) - timedelta(days=runs.RUN_URLS_MAX_AGE_DAYS):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"since is more than {runs.RUN_URLS_MAX_AGE_DAYS} days ago")
+    urls, truncated = runs.run_urls(db, access.project_id, moment)
+    return {"urls": urls, "truncated": truncated}
 
 
 @router.get("/{request_id}", response_model=RunRequestOut)

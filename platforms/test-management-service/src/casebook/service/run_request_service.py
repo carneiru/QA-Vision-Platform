@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -391,3 +392,21 @@ def stop(db: Session, row: RunRequest, user_id: int) -> RunRequest:
         db.commit()
         raise
     return _stopped(db, row, user_id, at, status="cancelling")
+
+
+MAX_RUN_URLS = 5000
+RUN_URLS_MAX_AGE_DAYS = 500  # a previous report period reaches 491 days back (spec Ruling 5)
+
+
+def run_urls(db: Session, project_id: int, since: datetime) -> tuple:
+    """GitHub run URLs (html_url) of the project's Play requests made since `since`, newest first;
+    (urls, truncated)."""
+    rows = db.execute(
+        select(RunRequest.github_run_url)
+        .where(RunRequest.project_id == project_id, RunRequest.requested_at >= since,
+               RunRequest.github_run_url.is_not(None))
+        .order_by(RunRequest.requested_at.desc(), RunRequest.id.desc())
+        .limit(MAX_RUN_URLS + 1)
+    ).all()
+    urls = [url for (url,) in rows]
+    return urls[:MAX_RUN_URLS], len(urls) > MAX_RUN_URLS
