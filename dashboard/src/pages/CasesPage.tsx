@@ -297,7 +297,7 @@ export default function CasesPage() {
                   )}
                   <td className="wrap-anywhere">
                     {c.source_path && <FileCode size={14} aria-label="Imported" role="img" />}{c.source_path && " "}
-                    <Link to={`${c.number}`}>{c.title}</Link>
+                    <Link className="case-title" to={`${c.number}`}>{c.title}</Link>
                     <Labels labels={c.labels} />
                     <NarrowMeta items={[
                       { label: "Last runs", value: lastRunsSummary(c) },

@@ -57,7 +57,8 @@
   --radius-sm: 6px;
   --radius: 10px;
   --sidebar-width: 240px;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Inter (self-hosted, @fontsource-variable/inter): built for UI text at small sizes; system fonts stay as fallback */
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -413,8 +414,13 @@ label.button:hover { background: var(--hover-strong); }
 .view-tabs > span[aria-current] { font-weight: 600; border-bottom: 2px solid var(--accent); padding-bottom: 2px; }
 .view-tabs > a:not(.button) { color: var(--text-secondary); padding-bottom: 4px; }
 .view-tabs > .button, .view-tabs > .view-tabs-actions { margin-left: auto; }
-.chip-list { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--hover-strong); color: var(--text-secondary); }
+.chip-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+/* Compact tags: the box hugs the text (16px tall), so labels support the title instead of competing with it */
+.chip { display: inline-flex; align-items: center; font-size: 11.5px; line-height: 16px; padding: 0 6px; border-radius: 4px;
+  background: var(--hover-strong); color: var(--text-secondary); white-space: nowrap; }
+/* Test case titles in lists: the row's primary text — semibold, primary colour, accent + underline on hover/focus */
+.case-title { color: var(--text-primary); font-weight: 600; font-size: 14.5px; line-height: 1.4; letter-spacing: -0.005em; }
+.case-title:hover, .case-title:focus-visible { color: var(--accent-text); text-decoration: underline; }
 .gherkin { margin: 0 0 var(--space-3); padding: var(--space-3); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
   font-family: var(--font-mono); font-size: 13px; line-height: 1.6; overflow-x: auto; white-space: pre; }
 .gk-keyword { color: var(--gk-keyword); font-weight: 600; }
