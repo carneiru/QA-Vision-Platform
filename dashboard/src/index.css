@@ -37,6 +37,11 @@
   --status-skipped: #74879a;
   /* Error text on surfaces; the status colour stays the validated chart/dot hue. */
   --danger-text: #c23434;
+  /* Readable status text for pills (the status hues are for marks): 5.02 / 5.55 on white, 4.54 / 5.02 on a hovered row */
+  --passed-text: #15803d;
+  --errored-text: #b2461a;
+  /* Table header band: Sidebar Mist in light; Graphite on it is 5.91:1 */
+  --thead: var(--surface-2);
   /* Gherkin highlighting; each is >= 4.5:1 on --surface-2 */
   --gk-keyword: #0e7490;
   --gk-tag: #8a4b00;
@@ -89,6 +94,9 @@
     --series-1: #22d3ee;
     --series-2: #d95926;
     --danger-text: #f08080;
+    --passed-text: #4ade80; /* 9.98 on --surface-1 */
+    --errored-text: #ec835a; /* 6.59 on --surface-1 */
+    --thead: #0f1820; /* a step lighter than --surface-2, under the --surface-1 card; Graphite on it is 6.95:1 */
     --status-rerun: #e0a000; /* 7.6:1 on --surface-1 */
     --status-rerun-stripe: #8a6200; /* 3.17:1 on --surface-1 */
     --gk-keyword: #67e8f9;
@@ -297,8 +305,14 @@ input.mono { font-family: var(--font-mono); }
    without it that text escapes the scroll clip and widens the whole page. */
 .card:has(table.data) { overflow-x: auto; position: relative; }
 table.data { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-table.data th, table.data td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--grid); overflow-wrap: break-word; vertical-align: top; }
-table.data th { color: var(--text-secondary); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+table.data th, table.data td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--grid); overflow-wrap: break-word; vertical-align: top; }
+/* Dense header band: 11px uppercase Graphite on --thead, kept above the rows while the page scrolls (wide screens, below) */
+table.data thead th { color: var(--text-secondary); background: var(--thead); font-weight: 600; font-size: 11px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; vertical-align: middle; }
+/* 40px rows: room for a 24px control (checkbox, run strip, row link) with 8px above and below */
+table.data tbody td { height: 40px; }
+/* Counts, durations, rates and priority: right-aligned, tabular figures */
+table.data .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.data th.num button.sort-button { flex-direction: row-reverse; }
 table.data tbody tr:last-child td { border-bottom: 0; }
 table.data tbody tr:hover td { background: var(--hover); }
 /* Sortable column header: a text-like button inside the th; the arrow shows the state, aria-sort tells assistive tech */
@@ -347,6 +361,41 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 /* A column whose content is repeated elsewhere in the row: dropped on phones so the rest fits */
 @media (max-width: 640px) { table.data .hide-narrow { display: none; } }
 .badge-failed { color: var(--danger-text); border-color: color-mix(in srgb, var(--status-failed) 40%, transparent); }
+
+/* Sticky table headers (wide screens). A card with a table normally scrolls sideways inside itself, but a scroll box
+   would also capture the sticky header; from 1024px the card stays open and long cell text wraps anywhere instead,
+   so the table fits. The page's scroll-padding then covers the top bar and the header band, so a row reached by
+   keyboard never lands under them (WCAG 2.4.11). */
+@media (min-width: 1024px) {
+  html { scroll-padding-top: calc(var(--topbar-height) + 32px + var(--space-2)); }
+  .card:has(table.data) { overflow-x: visible; }
+  table.data td { overflow-wrap: anywhere; }
+  table.data thead th { position: sticky; top: var(--topbar-height); z-index: 2; }
+}
+
+/* ---- Status pills ---- */
+/* The word in the tone's readable text colour, a hairline tinted with the status hue, and an icon (Never Alone) */
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-secondary); font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; }
+.pill svg { flex: none; }
+.pill-passed, .pill-ready { color: var(--passed-text); border-color: color-mix(in srgb, var(--status-passed) 45%, transparent); }
+.pill-failed { color: var(--danger-text); border-color: color-mix(in srgb, var(--status-failed) 45%, transparent); }
+.pill-errored { color: var(--errored-text); border-color: color-mix(in srgb, var(--status-errored) 45%, transparent); }
+.pill-running { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.pill-queued, .pill-cancelled, .pill-neutral { color: var(--text-secondary); }
+
+/* ---- Filter chips: quick filters, applied filters, "+ Filter", "Clear all" ---- */
+.filter-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 var(--space-3); }
+.fchip { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--text-secondary); font-size: 12.5px; font-weight: 500; line-height: 18px; }
+button.fchip:hover:not(:disabled) { background: var(--hover-strong); color: var(--text-primary); }
+/* Pressed: accent edge, the cyan wash layered on Paper (Link Cyan on it is 4.76:1 light, 9.43 dark) and a tick */
+.fchip.is-on, button.fchip.is-on:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-text); background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--surface-1); }
+.fchip-applied { padding-right: 2px; color: var(--text-primary); }
+/* The remove button is its own 24px target inside the chip */
+button.fchip-remove { min-height: 24px; min-width: 24px; padding: 0; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--text-secondary); }
+button.fchip-remove:hover:not(:disabled) { color: var(--text-primary); }
+.fchip-add { border-style: dashed; }
+button.fchip-clear { min-height: 28px; padding: 3px 8px; font-size: 12.5px; color: var(--accent-text); }
+@media (pointer: coarse) { .fchip, button.fchip-clear { min-height: 44px; } button.fchip-remove { min-width: 40px; min-height: 40px; } }
 
 /* ---- App shell: top bar, icon rail, content ---- */
 .shell {
@@ -731,7 +780,7 @@ input[readonly] { background: var(--surface-2); }
   table.stacked, table.stacked tbody, table.stacked tr, table.stacked td { display: block; width: 100%; }
   table.stacked tr { padding: var(--space-3) 0; border-bottom: 1px solid var(--grid); }
   table.stacked tbody tr:last-child { border-bottom: 0; }
-  table.stacked td { border: 0; padding: var(--space-1) 0; }
+  table.stacked td { border: 0; padding: var(--space-1) 0; height: auto; }
   table.stacked td[data-label]::before { content: attr(data-label); display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
   table.stacked .hide-narrow { display: block; }
   table.stacked td.row-actions { text-align: left; }

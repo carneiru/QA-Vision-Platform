@@ -40,6 +40,14 @@ describe.each([
   test("errored also reaches 3:1 on the page", () => {
     expect(ratio(t("--status-errored"), t("--page"))).toBeGreaterThanOrEqual(3);
   });
+  test.each(["--passed-text", "--errored-text", "--danger-text", "--accent-text", "--text-secondary"])("status pill text %s reaches 4.5:1 on the card surface", (n) => {
+    expect(ratio(t(n), t("--surface-1"))).toBeGreaterThanOrEqual(4.5);
+  });
+  test("table header text reaches 4.5:1 on the header band", () => {
+    // Light aliases the band to --surface-2; dark gives it its own step
+    const band = _name === "light" ? t("--surface-2") : t("--thead");
+    expect(ratio(t("--text-secondary"), band)).toBeGreaterThanOrEqual(4.5);
+  });
 });
 
 describe("layout rules", () => {
