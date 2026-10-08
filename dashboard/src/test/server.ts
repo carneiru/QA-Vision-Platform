@@ -16,6 +16,10 @@ export const server = setupServer(
   http.get("/api/v1/projects/:projectId/run-requests", () => HttpResponse.json({ total: 0, items: [] })),
   // The shell's user menu asks who is signed in; tests about the account override
   http.get("/api/v1/users/me", () => HttpResponse.json({ id: 1, email: "tester@example.com", mfa_enabled: false })),
+  // The Cases KPI tiles (and Overview) read these; tests about them override
+  http.get("/api/v1/projects/:projectId/analytics/trends", () => HttpResponse.json({ tz: "UTC", bucket: "week", days: [] })),
+  http.get("/api/v1/projects/:projectId/analytics/flaky", () => HttpResponse.json([])),
+  http.get("/api/v1/projects/:projectId/analytics/latest-keys", () => HttpResponse.json({ keys: [] })),
   // Names of the people who ran or stopped something
   http.get("/api/v1/organizations/:orgId/members", () => HttpResponse.json([])),
 );

@@ -11,10 +11,9 @@ import ErrorBanner from "../components/ErrorBanner";
 import { SkeletonCard, SkeletonStatus } from "../components/Skeleton";
 import StatusDot from "../components/StatusDot";
 import PageHeader from "../components/PageHeader";
+import { FLAKY_DEFAULTS } from "../lib/flaky";
 
 const MAX_CAUSES = 5;
-// The Flaky view's defaults, so both screens count the same tests
-const FLAKY = { windowDays: 14, minRuns: 5, minFlipRate: 0.3 };
 
 const relative = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
 function ago(iso: string): string {
@@ -73,7 +72,7 @@ function OverviewBody() {
   });
   const flaky = useQuery({
     queryKey: ["flaky", id, "overview"],
-    queryFn: () => getFlaky(id, FLAKY),
+    queryFn: () => getFlaky(id, FLAKY_DEFAULTS),
     enabled: latest !== undefined,
   });
 

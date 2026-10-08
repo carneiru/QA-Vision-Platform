@@ -355,7 +355,12 @@ test("a latest-result filter asks ingestion for keys, then searches with them", 
   let body: Record<string, unknown> | null = null;
   server.use(
     http.get(`${P}/analytics/latest-keys`, ({ request }) => HttpResponse.json({ keys: [new URL(request.url).searchParams.get("status") === "failed" ? "f".repeat(64) : "a".repeat(64)] })),
-    http.post(`${P}/cases/search`, async ({ request }) => { body = (await request.json()) as Record<string, unknown>; return HttpResponse.json({ total: 1, items: [kase(1)] }); }),
+    // The list's search; the Failing KPI tile counts with limit 1
+    http.post(`${P}/cases/search`, async ({ request }) => {
+      const sent = (await request.json()) as Record<string, unknown>;
+      if (sent.limit !== 1) body = sent;
+      return HttpResponse.json({ total: 1, items: [kase(1)] });
+    }),
   );
   renderAt("/projects/42/cases?result=failed&folder=tests%2Ffeatures");
   await waitFor(() => expect(body).not.toBeNull());
@@ -367,7 +372,12 @@ test("never ran asks for any result and excludes those keys", async () => {
   asRole("member"); facets();
   let status = ""; let body: Record<string, unknown> | null = null;
   server.use(
-    http.get(`${P}/analytics/latest-keys`, ({ request }) => { status = new URL(request.url).searchParams.get("status") ?? ""; return HttpResponse.json({ keys: [] }); }),
+    // The Failing KPI tile asks for "failed" keys on its own; this test is about the list's request
+    http.get(`${P}/analytics/latest-keys`, ({ request }) => {
+      const asked = new URL(request.url).searchParams.get("status") ?? "";
+      if (asked !== "failed") status = asked;
+      return HttpResponse.json({ keys: [] });
+    }),
     http.post(`${P}/cases/search`, async ({ request }) => { body = (await request.json()) as Record<string, unknown>; return HttpResponse.json({ total: 0, items: [] }); }),
   );
   renderAt("/projects/42/cases?result=never");
@@ -425,11 +435,14 @@ test("a failing search falls back to the plain list with the unavailable notice"
   await settled();
 });
 
-test("an unknown result value is ignored without asking ingestion", async () => {
+test("an unknown result value is ignored: the list does not ask ingestion (only the Failing tile does, for its count)", async () => {
   asRole("member"); facets();
   let asked = false; let listed = false;
   server.use(
-    http.get(`${P}/analytics/latest-keys`, () => { asked = true; return HttpResponse.json({ keys: [] }); }),
+    http.get(`${P}/analytics/latest-keys`, ({ request }) => {
+      if (new URL(request.url).searchParams.get("status") !== "failed") asked = true;
+      return HttpResponse.json({ keys: [] });
+    }),
     http.get(`${P}/cases`, () => { listed = true; return HttpResponse.json({ total: 0, items: [] }); }),
   );
   renderAt("/projects/42/cases?result=foo");

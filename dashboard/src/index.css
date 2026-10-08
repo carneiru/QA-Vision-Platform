@@ -579,6 +579,32 @@ button.palette-trigger.compact { flex: none; width: 32px; padding: 0; justify-co
   button { transition: none; }
 }
 
+/* ---- KPI tiles (Cases): a coloured inline-start edge (accent neutral, passed good, failed bad), words always beside it ---- */
+.kpi-tiles { list-style: none; margin: 0 0 var(--space-4); padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
+.kpi-tiles > li { min-width: 0; }
+@media (max-width: 1023px) { .kpi-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 359px) { .kpi-tiles { grid-template-columns: minmax(0, 1fr); } }
+.kpi, .kpi-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kpi {
+  position: relative; height: 100%; padding: var(--space-3) var(--space-4); overflow: hidden;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-1); color: var(--text-primary);
+}
+.kpi::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--accent); }
+.kpi-good::before { background: var(--status-passed); }
+.kpi-bad::before { background: var(--status-failed); }
+a.kpi, a.kpi:hover { text-decoration: none; }
+a.kpi { transition: border-color 120ms ease-out; }
+a.kpi:hover { border-color: var(--accent); }
+.kpi-title { font-size: 11px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); }
+.kpi-value { font-size: 24px; font-weight: 650; line-height: 1.25; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.kpi-sub { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-secondary); }
+.kpi-sub.up { color: var(--passed-text); }
+.kpi-sub.down { color: var(--danger-text); }
+.kpi-skeleton { height: 30px; width: 55%; margin-top: 2px; }
+button.kpi-retry { align-self: flex-start; margin-top: var(--space-1); min-height: 28px; padding: 2px var(--space-2); font-size: 12.5px; }
+@media (pointer: coarse) { button.kpi-retry { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { a.kpi { transition: none; } }
+
 /* ---- Overview ---- */
 .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-4); }
 .overview-grid > .card { margin: 0; display: flex; flex-direction: column; }

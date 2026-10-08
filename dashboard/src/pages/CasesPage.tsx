@@ -3,10 +3,11 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Bot, FileCode, Plus, Upload } from "lucide-react";
 import {
-  Case, CaseStatus, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
+  Case, CaseStatus, MAX_SEARCH_KEYS, PRIORITIES, Priority, listCases, listFeatures, listFolders, listLabels, searchCases,
 } from "../api/cases";
 import { getLatestKeys, getRunStrip } from "../api/analytics";
 import { MAX_RUN_CASES } from "../api/runRequests";
+import CasesKpis from "../components/CasesKpis";
 import ErrorBanner from "../components/ErrorBanner";
 import FilterBar from "../components/FilterBar";
 import FilterChips, { revealFilters, type AppliedFilter, type QuickChip } from "../components/FilterChips";
@@ -25,7 +26,6 @@ import PageHeader from "../components/PageHeader";
 import { tableCardClass, useIsWide } from "../lib/useIsWide";
 
 const PAGE = 50;
-const MAX_KEYS = 20000;
 const RESULTS = ["passed", "failed", "skipped", "never"];
 const LEGEND = [["passed", "Passed"], ["failed", "Failed"], ["rerun", "Re-run"], ["skipped", "Skipped"], ["none", "Didn't run"]] as const;
 const KEYS = ["q", "label", "status", "priority", "origin", "folder", "linked", "result", "feature", "ado"] as const;
@@ -144,7 +144,7 @@ export default function CasesPage() {
       } catch {
         return { page: await listCases(id, plain), notice: "unavailable" as const };
       }
-      if (keys.length > MAX_KEYS) return { page: await listCases(id, plain), notice: "too-many" as const };
+      if (keys.length > MAX_SEARCH_KEYS) return { page: await listCases(id, plain), notice: "too-many" as const };
       try {
         return {
           page: await searchCases(id, {
@@ -270,6 +270,7 @@ export default function CasesPage() {
           </>
         ) : undefined}
       />
+      <CasesKpis projectId={id} />
       <RunPanel projectId={id} />
 
       <form onSubmit={apply}>

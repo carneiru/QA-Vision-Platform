@@ -75,6 +75,9 @@ export function listCases(
   return apiFetch(`${base(projectId)}/cases${query}`, init);
 }
 
+/** The most test keys the dashboard sends in one search body; more fall back (or are not counted). */
+export const MAX_SEARCH_KEYS = 20000;
+
 export function searchCases(projectId: number, body: CaseSearchBody): Promise<{ total: number; items: Case[] }> {
   return apiFetch(`${base(projectId)}/cases/search`, { method: "POST", body: JSON.stringify(body) });
 }
