@@ -356,6 +356,9 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 .inline-form .grow input { width: 100%; }
 /* Long user-supplied identifiers (nested GitLab groups) wrap instead of widening the table */
 .wrap-anywhere { overflow-wrap: anywhere; }
+/* One line, cut with an ellipsis so long names never stretch a table; the full text is in title and the accessible name */
+.truncate { display: inline-block; max-width: min(60ch, 100%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.feature-text .truncate { display: block; }
 .row-actions { white-space: nowrap; text-align: right; }
 /* A name cell beside a block of actions: wide enough that short names stay on one line */
 .channel-cell { min-width: 9rem; }

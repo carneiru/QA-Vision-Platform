@@ -108,11 +108,11 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                     </button>
                     <span className="feature-text">
                       {row.path != null ? (
-                        <Link className="feature-name" to={`/projects/${projectId}/cases/feature?path=${encodeURIComponent(row.path)}`}>{label}</Link>
+                        <Link className="feature-name truncate" title={label} to={`/projects/${projectId}/cases/feature?path=${encodeURIComponent(row.path)}`}>{label}</Link>
                       ) : (
-                        <span className="feature-name">{label}</span>
+                        <span className="feature-name truncate" title={label}>{label}</span>
                       )}
-                      {row.folder ? <span className="feature-folder">{row.folder}</span> : null}
+                      {row.folder ? <span className="feature-folder truncate" title={row.folder}>{row.folder}</span> : null}
                       <NarrowMeta items={[
                         { label: "Last runs", value: lastRunsSummary(row) },
                         { label: "Priority", value: row.top_priority },

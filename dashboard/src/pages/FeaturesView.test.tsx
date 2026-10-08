@@ -92,6 +92,21 @@ test("the Cases list opens grouped by feature: one row per .feature file, manual
   expect(seenFeatures[0].get("limit")).toBe("50");
 });
 
+test("long names are cut to one line with an ellipsis; the full text stays in the title and the accessible name", async () => {
+  renderCases();
+  const link = await screen.findByRole("link", { name: "Login" });
+  expect(link).toHaveClass("truncate");
+  expect(link).toHaveAttribute("title", "Login");
+  const folder = within(link.closest("tr")!).getByText("features/auth");
+  expect(folder).toHaveClass("truncate");
+  expect(folder).toHaveAttribute("title", "features/auth");
+  await userEvent.click(within(featureRow("Login")).getByRole("button", { name: "Show scenarios of Login" }));
+  const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
+  const title = within(scenarios).getByRole("link", { name: "Case 2" });
+  expect(title).toHaveClass("case-title", "truncate");
+  expect(title).toHaveAttribute("title", "Case 2");
+});
+
 test("Group by is a pressed-button group stored in the URL; Scenario shows today's list", async () => {
   renderCases();
   await screen.findByRole("link", { name: "Login" });
