@@ -125,7 +125,14 @@ export default function CaseImportPage() {
     apply.reset();
   }
 
-  if (canEdit === undefined) return <p className="muted">Loading…</p>;
+  if (canEdit === undefined) {
+    return (
+      <section>
+        <PageHeader title="Import from Gherkin" />
+        <p className="muted">Loading…</p>
+      </section>
+    );
+  }
   if (!canEdit) {
     return (
       <section>

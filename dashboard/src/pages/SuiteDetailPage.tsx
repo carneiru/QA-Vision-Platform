@@ -78,8 +78,18 @@ export default function SuiteDetailPage() {
     setCases(next);
   }
 
-  if (suite.error != null) return <ErrorBanner error={suite.error} onRetry={() => suite.refetch()} />;
-  if (suite.isPending) return <p className="muted">Loading the suite…</p>;
+  if (suite.error != null || suite.isPending) {
+    return (
+      <section>
+        <PageHeader title="Suite" />
+        {suite.error != null ? (
+          <ErrorBanner error={suite.error} onRetry={() => suite.refetch()} />
+        ) : (
+          <p className="muted">Loading the suite…</p>
+        )}
+      </section>
+    );
+  }
   const inSuite = new Set(cases.map((c) => c.number));
 
   return (

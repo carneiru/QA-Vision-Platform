@@ -204,7 +204,12 @@ function CaseEditor() {
   }
 
   if (number !== null && existing.error != null) {
-    return <ErrorBanner error={existing.error} onRetry={() => existing.refetch()} />;
+    return (
+      <>
+        <PageHeader title={`TC-${number}`} />
+        <ErrorBanner error={existing.error} onRetry={() => existing.refetch()} />
+      </>
+    );
   }
   if (number !== null && existing.isPending) {
     return (

@@ -38,7 +38,18 @@ type SortKey = (typeof SORT_KEYS)[number];
 const DEFAULT_SORT: SortState<SortKey> = { key: "last", dir: "desc" };
 const DAYS = ["7", "30", "90"] as const;
 
+/** The page with its header (direct use and tests). */
 export default function BranchesPage() {
+  return (
+    <>
+      <PageHeader title="Branches" />
+      <BranchesView />
+    </>
+  );
+}
+
+/** The view without its header: the shell loads it lazily under an already rendered PageHeader, so the h1 keeps focus. */
+export function BranchesView() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -100,7 +111,6 @@ export default function BranchesPage() {
 
   return (
     <section>
-      <PageHeader title="Branches" />
       <FilterBar>
         <label>
           Days

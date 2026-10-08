@@ -148,7 +148,7 @@ describe("History", () => {
   test("changes update the URL", async () => {
     spy(`${A}/tests/k1/history`, history);
     renderAt("/projects/42/tests/k1");
-    await screen.findByRole("heading", { name: "n" });
+    await screen.findByText("n");
     await userEvent.selectOptions(screen.getByLabelText("Days"), "7");
     expect(where()).toBe("/projects/42/tests/k1?days=7");
     await userEvent.type(screen.getByLabelText("Branch"), "x");

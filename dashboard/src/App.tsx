@@ -5,6 +5,7 @@ import { bootstrapSession, setOnAuthFailure } from "./api/http";
 import { loginPath } from "./auth/redirect";
 import AppShell from "./components/AppShell";
 import RequireAuth from "./components/RequireAuth";
+import PageHeader from "./components/PageHeader";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
@@ -32,8 +33,9 @@ import ReportPage from "./pages/ReportPage";
 import InvitationAcceptPage from "./pages/InvitationAcceptPage";
 
 // Recharts dominates the bundle; the chart-bearing views load on demand.
-const TrendsPage = lazy(() => import("./pages/TrendsPage"));
-const BranchesPage = lazy(() => import("./pages/BranchesPage"));
+// Each page's header is outside the lazy boundary, so its h1 exists at once and keeps focus while the view loads.
+const TrendsView = lazy(() => import("./pages/TrendsPage").then((m) => ({ default: m.TrendsView })));
+const BranchesView = lazy(() => import("./pages/BranchesPage").then((m) => ({ default: m.BranchesView })));
 
 // Project views set their own title (view + project name) in ProjectLayout
 const TITLES: [string, string][] = [
@@ -113,9 +115,12 @@ export function AppRoutes() {
             <Route
               path="trends"
               element={
-                <Suspense fallback={<p className="muted">Loading trends…</p>}>
-                  <TrendsPage />
-                </Suspense>
+                <>
+                  <PageHeader title="Trends" />
+                  <Suspense fallback={<p className="muted">Loading trends…</p>}>
+                    <TrendsView />
+                  </Suspense>
+                </>
               }
             />
             <Route path="tests" element={<TestsPage />} />
@@ -124,9 +129,12 @@ export function AppRoutes() {
             <Route
               path="branches"
               element={
-                <Suspense fallback={<p className="muted">Loading branches…</p>}>
-                  <BranchesPage />
-                </Suspense>
+                <>
+                  <PageHeader title="Branches" />
+                  <Suspense fallback={<p className="muted">Loading branches…</p>}>
+                    <BranchesView />
+                  </Suspense>
+                </>
               }
             />
             <Route path="runs" element={<RunsPage />} />

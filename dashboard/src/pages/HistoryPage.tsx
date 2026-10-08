@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { formatDuration, formatPassRate, getHistory } from "../api/analytics";
 import ErrorBanner from "../components/ErrorBanner";
+import PageHeader from "../components/PageHeader";
 import NarrowMeta from "../components/NarrowMeta";
 import FilterBar from "../components/FilterBar";
 import StatusDot from "../components/StatusDot";
@@ -39,6 +40,7 @@ export default function HistoryPage() {
       <p>
         <Link className="link-arrow" to=".." relative="path"><ArrowLeft size={14} aria-hidden="true" /> All tests</Link>
       </p>
+      <PageHeader title="Test history" subtitle={data && <><span className="wrap-anywhere">{data.name}</span> · {data.suite} / {data.class_name}</>} />
       <form onSubmit={applyBranch}>
       <FilterBar>
         <label>
@@ -62,8 +64,6 @@ export default function HistoryPage() {
 
       {data && (
         <>
-          <h2>{data.name}</h2>
-          <p className="muted">{data.suite} / {data.class_name}</p>
           <div className="tiles">
             <div className="card">
               <div className="tile-value">{data.summary.runs}</div>

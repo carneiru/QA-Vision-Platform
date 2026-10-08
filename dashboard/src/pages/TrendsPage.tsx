@@ -36,7 +36,18 @@ const DEFAULTS = { days: "30", bucket: "day", branch: "", environment: "" } as c
 const DAYS = ["7", "30", "90"] as const;
 const BUCKETS = ["day", "week", "month"] as const;
 
+/** The page with its header (direct use and tests). */
 export default function TrendsPage() {
+  return (
+    <>
+      <PageHeader title="Trends" />
+      <TrendsView />
+    </>
+  );
+}
+
+/** The view without its header: the shell loads it lazily under an already rendered PageHeader, so the h1 keeps focus. */
+export function TrendsView() {
   const { projectId } = useParams();
   const id = Number(projectId);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -103,7 +114,6 @@ export default function TrendsPage() {
 
   return (
     <section>
-      <PageHeader title="Trends" />
       <ChartPatternDefs />
       <form onSubmit={applyFilters}>
         <FilterBar>
