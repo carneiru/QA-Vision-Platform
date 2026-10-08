@@ -106,6 +106,10 @@ export interface FeatureGroup {
   case_numbers: number[];
   /** True when the raw file is stored (imported since raw storage). */
   has_source: boolean;
+  /** Aggregates over the matching cases; absent from servers that predate them. */
+  linked_count?: number;
+  top_priority?: Priority | null;
+  status_counts?: Partial<Record<CaseStatus, number>>;
 }
 
 export interface FeatureQuery {

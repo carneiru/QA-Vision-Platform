@@ -225,3 +225,64 @@ test("a filter the feature list cannot apply groups the matching cases in the pa
   await userEvent.click(within(featureRow("Pay")).getByRole("button", { name: "Show scenarios of Pay" }));
   expect(await screen.findByRole("link", { name: "Case 4" })).toBeInTheDocument();
 });
+
+const withFeatures = (...items: object[]) =>
+  server.use(http.get(`${P}/features`, () => HttpResponse.json({ total: items.length, items })));
+const STATUSES = { draft: 0, ready: 0, archived: 0 };
+
+test("a feature row shows its highest priority, its statuses and how many scenarios are linked", async () => {
+  withFeatures({ ...LOGIN, case_count: 5, case_numbers: [1, 2, 3, 4, 5], linked_count: 3, top_priority: "high",
+    status_counts: { ...STATUSES, ready: 2, draft: 1, archived: 2 } });
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const row = featureRow("Login");
+  expect(within(row).getByLabelText("Highest priority: high")).toHaveTextContent("high");
+  expect(within(row).getByText("2 ready · 1 draft · 2 archived")).toHaveClass("muted");
+  expect(within(row).queryByText("ready", { selector: ".pill, .status-pill, span" })).not.toBeInTheDocument();
+  expect(within(row).getAllByText("3 of 5 linked").length).toBeGreaterThan(0);
+});
+
+test("a feature whose scenarios share one status shows a single pill, and an all-linked one says so", async () => {
+  withFeatures({ ...LOGIN, linked_count: 2, top_priority: "medium", status_counts: { ...STATUSES, ready: 2 } });
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const row = featureRow("Login");
+  expect(within(row).getByText("Ready")).toBeInTheDocument();
+  expect(within(row).queryByText(/·/)).not.toBeInTheDocument();
+  const all = within(within(row).getAllByRole("cell").at(-1)!).getByText("All linked");
+  expect(all).toHaveClass("linked");
+});
+
+test("a manual group says Manual and shows nothing for a missing priority", async () => {
+  withFeatures({ ...MANUAL, linked_count: 0, top_priority: null, status_counts: { ...STATUSES, draft: 1 } });
+  renderCases();
+  await screen.findByText("No feature (manual)");
+  const row = featureRow("No feature (manual)");
+  expect(within(within(row).getAllByRole("cell").at(-1)!).getByText("Manual")).toHaveClass("muted");
+  expect(within(row).queryByLabelText(/Highest priority/)).not.toBeInTheDocument();
+  expect(within(row).getByText("Draft")).toBeInTheDocument();
+});
+
+test("an older server's feature row leaves the aggregate cells empty", async () => {
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const cells = within(featureRow("Login")).getAllByRole("cell").slice(-3);
+  expect(cells.map((c) => c.textContent)).toEqual(["", "", ""]);
+});
+
+test("the client-side grouping computes the same aggregates from the cases", async () => {
+  server.use(http.get(`${P}/cases`, () => HttpResponse.json({ total: 3, items: [
+    kase(1, { source_path: LOGIN.path, feature_name: "Login", priority: "low", status: "ready", automated_test_key: KEY }),
+    kase(2, { source_path: LOGIN.path, feature_name: "Login", priority: "critical", status: "draft" }),
+    kase(3, { source_path: "features/pay.feature", feature_name: "Pay", status: "ready", automated_test_key: KEY }),
+  ] })));
+  renderCases("/projects/42/cases?origin=imported");
+  await screen.findByRole("link", { name: "Login" });
+  const login = featureRow("Login");
+  expect(within(login).getByLabelText("Highest priority: critical")).toBeInTheDocument();
+  expect(within(login).getByText("1 ready · 1 draft")).toBeInTheDocument();
+  expect(within(login).getAllByText("1 of 2 linked").length).toBeGreaterThan(0);
+  const pay = featureRow("Pay");
+  expect(within(pay).getByText("Ready")).toBeInTheDocument();
+  expect(within(pay).getAllByText("All linked").length).toBeGreaterThan(0);
+});

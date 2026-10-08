@@ -1,18 +1,45 @@
 import { Fragment, type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, CircleX } from "lucide-react";
+import { Bot, ChevronRight, CircleX } from "lucide-react";
 import type { CaseQuery } from "../api/cases";
-import { type FeatureRow, groupCasesQuery } from "../lib/featureQueries";
+import { type FeatureRow, STATUS_ORDER, groupCasesQuery } from "../lib/featureQueries";
 import { CaseRow, type CaseRowData, isRunnable, useRunStrips } from "./CaseTable";
 import ErrorBanner from "./ErrorBanner";
 import NarrowMeta from "./NarrowMeta";
+import { CaseStatusPill } from "./StatusPill";
 
 export const MANUAL_GROUP = "No feature (manual)";
 
 /** A feature row's name: its Feature, else its file name; the manual group has its own label. */
 export const featureLabel = (row: { feature_name: string | null; path: string | null }) =>
   row.path == null ? MANUAL_GROUP : row.feature_name || row.path.slice(row.path.lastIndexOf("/") + 1);
+
+/** The Automated cell as plain text, for the narrow meta line. */
+function automatedText(row: FeatureRow) {
+  const linked = row.linked_count;
+  if (linked == null) return null;
+  return linked === 0 ? "Manual" : linked >= row.case_count ? "All linked" : `${linked} of ${row.case_count} linked`;
+}
+
+/** The group's statuses: one pill when they all agree, else "2 ready · 1 draft" as quiet text. Empty when unknown. */
+function statusCell(row: FeatureRow) {
+  const counts = row.status_counts;
+  if (!counts) return null;
+  const present = STATUS_ORDER.filter((s) => (counts[s] ?? 0) > 0);
+  if (present.length === 0) return null;
+  if (present.length === 1) return <CaseStatusPill status={present[0]} />;
+  return <span className="muted">{present.map((s) => `${counts[s]} ${s}`).join(" · ")}</span>;
+}
+
+/** Linked cases of the group: "All linked", "Manual" or "3 of 5 linked". Empty when unknown. */
+function automatedCell(row: FeatureRow) {
+  const linked = row.linked_count;
+  if (linked == null) return null;
+  if (linked === 0) return <span className="muted">Manual</span>;
+  if (linked >= row.case_count) return <span className="linked"><Bot size={14} aria-hidden="true" /> All linked</span>;
+  return <span>{linked} of {row.case_count} linked</span>;
+}
 
 interface Props {
   projectId: number;
@@ -91,7 +118,11 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                         <span className="feature-name">{label}</span>
                       )}
                       {row.folder ? <span className="feature-folder">{row.folder}</span> : null}
-                      <NarrowMeta items={[{ label: "Last runs", value: failed > 0 ? `${failed} failing` : null }]} />
+                      <NarrowMeta items={[
+                        { label: "Last runs", value: failed > 0 ? `${failed} failing` : null },
+                        { label: "Priority", value: row.top_priority },
+                        { label: "Automated", value: automatedText(row) },
+                      ]} />
                     </span>
                   </div>
                 </td>
@@ -99,8 +130,12 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                 <td className="hide-narrow">
                   {failed > 0 && <span className="failing-count"><CircleX size={14} aria-hidden="true" /> {failed} failing</span>}
                 </td>
-                {/* A feature has no single priority, status or link: those belong to its scenarios */}
-                <td className="hide-narrow" /><td /><td className="hide-narrow" />
+                {/* Aggregates of the group's matching scenarios: its highest priority, its statuses, how many are linked */}
+                <td className="hide-narrow">
+                  {row.top_priority && <span aria-label={`Highest priority: ${row.top_priority}`}>{row.top_priority}</span>}
+                </td>
+                <td>{statusCell(row)}</td>
+                <td className="hide-narrow">{automatedCell(row)}</td>
               </tr>
             </tbody>
             {expanded && (
