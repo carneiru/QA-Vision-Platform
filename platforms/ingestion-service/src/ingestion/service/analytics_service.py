@@ -3,7 +3,7 @@ grouping live in src/ingestion/analytics."""
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from sqlalchemy import case, distinct, func, literal, select
+from sqlalchemy import case, func, literal, select
 from sqlalchemy.orm import Session, aliased
 
 from src.ingestion.analytics.flaky import FlipCount, LatestExecution, MixedCommit
@@ -304,7 +304,7 @@ def latest_keys(db: Session, project_id: int, status: str, branch: Optional[str]
     if branch:
         filters.append(Run.branch == branch)
     if status == "any":
-        rows = db.execute(select(distinct(RunResult.test_key)).join(Run, Run.id == RunResult.run_id).where(*filters))
+        rows = db.execute(select(RunResult.test_key).distinct().join(Run, Run.id == RunResult.run_id).where(*filters))
         return sorted(k for (k,) in rows)
     ranked = (
         select(RunResult.test_key, RunResult.status,
