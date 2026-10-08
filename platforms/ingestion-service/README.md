@@ -50,7 +50,8 @@ can sync cases without a user login. See ADR-024.
 
 - `GET /api/v1/projects/<id>/runs?limit=&offset=` — newest first, with counts. Optional filters,
   combined with AND: `branch`, `status=failing|passing` (failing means at least one failed or
-  errored result), `environment`, `ci_provider`, `commit` (hex prefix of 4+ characters, any
+  errored result), `branch_contains` (case-insensitive substring of the branch, at most 255
+  characters; `%` and `_` match themselves; combines with `branch`), `environment`, `ci_provider`, `commit` (hex prefix of 4+ characters, any
   case), `pr`, `author` (case-insensitive substring; `%` and `_` match themselves), `since`
   (inclusive) and `until` (exclusive) on `started_at`, as ISO 8601 instants.
 - `GET /api/v1/runs/<run_id>?status=failed` — one run with its results.

@@ -13,6 +13,7 @@ from src.ingestion.service.analytics_service import _escape_like
 @dataclass(frozen=True)
 class RunFilters:
     branch: Optional[str] = None
+    branch_contains: Optional[str] = None  # substring, case-insensitive
     # failing: at least one failed or errored result; passing: none
     status: Optional[Literal["failing", "passing"]] = None
     environment: Optional[str] = None
@@ -29,6 +30,8 @@ def list_runs(db: Session, project_id: int, limit: int, offset: int, filters: Ru
     f = filters
     if f.branch is not None:
         query = query.filter(Run.branch == f.branch)
+    if f.branch_contains is not None:
+        query = query.filter(Run.branch.ilike(f"%{_escape_like(f.branch_contains)}%", escape="\\"))
     if f.status == "failing":
         query = query.filter((Run.failed + Run.errored) > 0)
     elif f.status == "passing":

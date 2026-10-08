@@ -10,7 +10,7 @@ from src.ingestion.api.deps import (
 from src.ingestion.api.v1.endpoints.analytics import NO_NUL
 from src.ingestion.models.run import CI_PROVIDERS
 from src.ingestion.schemas.run import (
-    ChangedFileOut, ComponentOut, FailureGroupsOut, ResultOut, RunComparison, RunDetail, RunOut,
+    ChangedFileOut, ComponentOut, FailureGroupsOut, ResultOut, RunComparison, RunDetail, RunOut, RunSummary,
 )
 from src.ingestion.service import run_service
 
@@ -23,6 +23,7 @@ def list_runs(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     branch: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
+    branch_contains: Optional[str] = Query(None, max_length=255, pattern=NO_NUL),
     status_filter: Optional[Literal["failing", "passing"]] = Query(None, alias="status"),
     environment: Optional[str] = Query(None, max_length=100, pattern=NO_NUL),
     ci_provider: Optional[Literal[CI_PROVIDERS]] = Query(None),
@@ -35,10 +36,23 @@ def list_runs(
     access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
 ):
     filters = run_service.RunFilters(
-        branch=branch, status=status_filter, environment=environment, ci_provider=ci_provider,
+        branch=branch, branch_contains=branch_contains, status=status_filter, environment=environment, ci_provider=ci_provider,
         commit=commit, pr=pr, author=author, since=since, until=until,
     )
     return run_service.list_runs(db, access.project_id, limit, offset, filters)
+
+
+@project_router.get("/{run_id}/summary", response_model=RunSummary)
+def get_run_summary(
+    run_id: int,
+    db: Session = Depends(get_db),
+    access: ProjectAccess = Depends(require_project_role(*READ_ROLES)),
+):
+    run = run_service.get_run(db, run_id)
+    # A run of another project is indistinguishable from a missing one
+    if run is None or run.project_id != access.project_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
+    return RunSummary.from_run(run)
 
 
 @router.get("/{run_id}", response_model=RunDetail)

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -33,6 +33,39 @@ class RunOut(BaseModel):
     deletions: Optional[int] = None
     changes_truncated: Optional[bool] = None
     created_at: datetime
+
+
+class RunCounts(BaseModel):
+    passed: int
+    failed: int
+    errored: int
+    skipped: int
+
+
+class RunSummary(BaseModel):
+    """A run's header only: no results, changes or components."""
+
+    id: int
+    project_id: int
+    started_at: datetime
+    finished_at: datetime
+    branch: Optional[str] = None
+    commit_sha: Optional[str] = None
+    environment: Optional[str] = None
+    status: Literal["passing", "failing"]  # failing: at least one failed or errored result
+    counts: RunCounts
+    ci_provider: str
+    ci_run_url: Optional[str] = None
+
+    @classmethod
+    def from_run(cls, run) -> "RunSummary":
+        return cls(
+            id=run.id, project_id=run.project_id, started_at=run.started_at, finished_at=run.finished_at,
+            branch=run.branch, commit_sha=run.commit_sha, environment=run.environment,
+            status="failing" if run.failed + run.errored > 0 else "passing",
+            counts=RunCounts(passed=run.passed, failed=run.failed, errored=run.errored, skipped=run.skipped),
+            ci_provider=run.ci_provider, ci_run_url=run.ci_run_url,
+        )
 
 
 class ResultOut(BaseModel):

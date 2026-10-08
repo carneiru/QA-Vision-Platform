@@ -255,3 +255,113 @@ def test_failure_groups_respect_access(client, auth, project_role, make_run):
     project_role(project_id=3, status_code=404, body={"detail": "Project not found"})
     response = client.get(f"/api/v1/runs/{run.id}/failure-groups", headers=auth())
     assert response.status_code == 404 and response.json()["detail"] == "Run not found"
+
+
+# --- branch_contains (partial branch search) ---
+
+def _branch_ids(client, auth, query):
+    body = client.get(f"/api/v1/projects/1/runs?{query}", headers=auth()).json()
+    return {r["id"] for r in body}
+
+
+def test_branch_contains_matches_prefix_and_substring(client, auth, project_role, make_run):
+    feat = make_run(branch="feature/login-page")
+    other = make_run(branch="bugfix/login-crash")
+    make_run(branch="main")
+    project_role("viewer")
+    assert _branch_ids(client, auth, "branch_contains=feature") == {feat.id}
+    assert _branch_ids(client, auth, "branch_contains=login") == {feat.id, other.id}
+
+
+def test_branch_contains_is_case_insensitive(client, auth, project_role, make_run):
+    run = make_run(branch="Feature/ABC-1")
+    project_role("viewer")
+    assert _branch_ids(client, auth, "branch_contains=feature/abc") == {run.id}
+
+
+def test_branch_contains_escapes_wildcards(client, auth, project_role, make_run):
+    pct = make_run(branch="release/100%")
+    under = make_run(branch="hot_fix")
+    make_run(branch="hotXfix")
+    make_run(branch="release/1000")
+    project_role("viewer")
+    assert _branch_ids(client, auth, "branch_contains=100%25") == {pct.id}
+    assert _branch_ids(client, auth, "branch_contains=hot_fix") == {under.id}
+    assert _branch_ids(client, auth, "branch_contains=%25") == {pct.id}
+    assert _branch_ids(client, auth, "branch_contains=%5C") == set()
+
+
+def test_branch_contains_combines_with_exact_branch(client, auth, project_role, make_run):
+    hit = make_run(branch="feature/x")
+    make_run(branch="feature/y")
+    project_role("viewer")
+    assert _branch_ids(client, auth, "branch=feature/x&branch_contains=feature") == {hit.id}
+    assert _branch_ids(client, auth, "branch=feature/x&branch_contains=nomatch") == set()
+
+
+def test_branch_contains_is_project_isolated(client, auth, project_role, make_run):
+    mine = make_run(branch="feature/a")
+    make_run(project_id=2, branch="feature/b")
+    project_role("viewer")
+    assert _branch_ids(client, auth, "branch_contains=feature") == {mine.id}
+
+
+@pytest.mark.parametrize("value", ["a" * 256, "a%00b"])
+def test_branch_contains_rejects_bad_input(client, auth, project_role, value):
+    project_role("viewer")
+    assert client.get(f"/api/v1/projects/1/runs?branch_contains={value}", headers=auth()).status_code == 422
+
+
+def test_branch_contains_accepts_255_chars(client, auth, project_role):
+    project_role("viewer")
+    assert client.get(f"/api/v1/projects/1/runs?branch_contains={'a' * 255}", headers=auth()).status_code == 200
+
+
+# --- run summary ---
+
+SUMMARY_KEYS = {"id", "project_id", "started_at", "finished_at", "branch", "commit_sha", "environment",
+                "status", "counts", "ci_provider", "ci_run_url"}
+
+
+@pytest.mark.parametrize("role", ALL_ROLES)
+def test_every_role_can_get_a_run_summary(client, auth, project_role, make_run, role):
+    run = make_run()
+    project_role(role)
+    assert client.get(f"/api/v1/projects/1/runs/{run.id}/summary", headers=auth()).status_code == 200
+
+
+def test_summary_shape_has_header_and_counts_only(client, auth, project_role, make_run):
+    run = make_run(branch="main", statuses=("passed", "passed", "failed", "skipped", "errored"),
+                   commit_sha="abc123def", environment="qa", ci_provider="github_actions", ci_run_url="https://ci/1")
+    project_role("viewer")
+    body = client.get(f"/api/v1/projects/1/runs/{run.id}/summary", headers=auth()).json()
+    assert set(body) == SUMMARY_KEYS
+    assert body["id"] == run.id and body["project_id"] == 1
+    assert (body["branch"], body["commit_sha"], body["environment"]) == ("main", "abc123def", "qa")
+    assert (body["ci_provider"], body["ci_run_url"]) == ("github_actions", "https://ci/1")
+    assert body["counts"] == {"passed": 2, "failed": 1, "errored": 1, "skipped": 1}
+    assert body["status"] == "failing"
+    assert "results" not in body
+
+
+def test_summary_status_passing(client, auth, project_role, make_run):
+    run = make_run(statuses=("passed", "skipped"))
+    project_role("viewer")
+    assert client.get(f"/api/v1/projects/1/runs/{run.id}/summary", headers=auth()).json()["status"] == "passing"
+
+
+def test_summary_of_unknown_run_is_404(client, auth, project_role):
+    project_role("viewer")
+    assert client.get("/api/v1/projects/1/runs/999/summary", headers=auth()).status_code == 404
+
+
+def test_summary_of_another_projects_run_is_404(client, auth, project_role, make_run):
+    other = make_run(project_id=2)
+    project_role("viewer")
+    assert client.get(f"/api/v1/projects/1/runs/{other.id}/summary", headers=auth()).status_code == 404
+
+
+def test_summary_for_non_member_is_404(client, auth, project_role, make_run):
+    run = make_run()
+    project_role(status_code=404, body={"detail": "Project not found"})
+    assert client.get(f"/api/v1/projects/1/runs/{run.id}/summary", headers=auth()).status_code == 404
