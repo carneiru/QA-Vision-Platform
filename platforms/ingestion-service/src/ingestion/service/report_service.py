@@ -4,16 +4,16 @@ One scoped-runs query over the previous period plus the period feeds every secti
 SQL; sequences, streaks and signatures are computed in Python over the rows (src/ingestion/analytics).
 The handler never writes."""
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional, Sequence
 
-from sqlalchemy import Integer, String, and_, any_, bindparam, false, func, not_, select, text
+from sqlalchemy import Integer, String, and_, any_, bindparam, case, distinct, false, func, not_, select, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from src.ingestion.analytics.report_period import Period, bucket_starts, iso
-from src.ingestion.analytics.trends import as_utc
+from src.ingestion.analytics.report_period import Period, bucket_index, bucket_starts, iso, local_day
+from src.ingestion.analytics.trends import as_utc, pass_rate
 from src.ingestion.models import Run, RunResult
 
 STATEMENT_TIMEOUT = "20s"  # below the gateway's 30 s proxy_read_timeout
@@ -166,3 +166,168 @@ def limit_statement_time(db: Session) -> None:
 def is_timeout(exc: OperationalError) -> bool:
     orig = getattr(exc, "orig", None)
     return (getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)) == QUERY_CANCELED
+
+
+FAILING = ("failed", "errored")
+TOP = 10
+MAX_FACETS = 50
+
+
+@dataclass
+class Counts:
+    executions: int = 0
+    passed: int = 0
+    failed: int = 0
+    errored: int = 0
+    skipped: int = 0
+    duration_ms: int = 0  # sum of result durations; only filled when test_keys are set
+
+    def add(self, other: "Counts") -> None:
+        self.executions += other.executions
+        self.passed += other.passed
+        self.failed += other.failed
+        self.errored += other.errored
+        self.skipped += other.skipped
+        self.duration_ms += other.duration_ms
+
+    def out(self) -> dict:
+        return {"executions": self.executions, "passed": self.passed, "failed": self.failed,
+                "errored": self.errored, "skipped": self.skipped,
+                "pass_rate": pass_rate(self.passed, self.executions, self.skipped)}
+
+
+def _count(*statuses: str):
+    return func.sum(case((RunResult.status.in_(statuses), 1), else_=0))
+
+
+def run_counts(db: Session, scope: Scope, runs: List[ScopedRun]) -> Dict[int, Counts]:
+    """Per counted run. Without test_keys the run's own counters (computed from its results at upload);
+    with test_keys the results for those keys, which also gives the summed test time."""
+    if scope.keys is None:
+        return {r.id: Counts(r.total, r.passed, r.failed, r.errored, r.skipped) for r in runs}
+    if not runs:
+        return {}
+    rows = db.execute(
+        select(RunResult.run_id, func.count(RunResult.id), _count("passed"), _count("failed"), _count("errored"),
+               _count("skipped"), func.sum(RunResult.duration_ms))
+        .where(in_list(db, RunResult.run_id, [r.id for r in runs], Integer), *key_filter(db, scope))
+        .group_by(RunResult.run_id)
+    ).all()
+    return {run_id: Counts(n, int(p or 0), int(f or 0), int(e or 0), int(s or 0), int(d or 0))
+            for run_id, n, p, f, e, s, d in rows}
+
+
+def _test_figures(db: Session, scope: Scope, ids: list) -> tuple:
+    """(distinct tests executed, distinct tests with a failing execution) over the given runs."""
+    if not ids:
+        return 0, 0
+    tests, failing = db.execute(
+        select(func.count(distinct(RunResult.test_key)),
+               func.count(distinct(case((RunResult.status.in_(FAILING), RunResult.test_key)))))
+        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
+    ).one()
+    return int(tests or 0), int(failing or 0)
+
+
+def _totals(db: Session, scope: Scope, runs: List[ScopedRun], counts: Dict[int, Counts]) -> dict:
+    total = Counts()
+    for r in runs:
+        total.add(counts[r.id])
+    tests, failing = _test_figures(db, scope, [r.id for r in runs])
+    durations = [r.duration_ms for r in runs]
+    return {"runs": len(runs), **total.out(), "tests": tests, "failing_tests": failing,
+            "avg_run_duration_ms": round(sum(durations) / len(durations)) if durations else None}
+
+
+def _bucket_rows(scope: Scope, context: Context, runs, counts, shift_days: int) -> List[dict]:
+    """One entry per bucket of the period. shift_days moves a previous-period run onto the bucket that
+    lies `days` later, so the previous period lines up bucket by bucket (Ruling 2)."""
+    per = [Counts() for _ in context.starts]
+    per_runs = [0] * len(context.starts)
+    zone = scope.period.zone
+    for r in runs:
+        index = bucket_index(local_day(r.started_at, zone) + timedelta(days=shift_days), context.starts, context.bucket)
+        if index is None:
+            continue
+        per[index].add(counts[r.id])
+        per_runs[index] += 1
+    return [{"date": (start - timedelta(days=shift_days)).isoformat(), "runs": per_runs[i], **per[i].out()}
+            for i, start in enumerate(context.starts)]
+
+
+def _test_rows(db: Session, scope: Scope, ids: list, *, slowest: bool) -> List[dict]:
+    """The 10 most failing (only tests with a failure) or slowest tests, ordered as /tests orders them."""
+    if not ids:
+        return []
+    failures = _count(*FAILING)
+    average = func.avg(RunResult.duration_ms)
+    query = (
+        select(RunResult.test_key, func.max(RunResult.suite), func.max(RunResult.class_name),
+               func.max(RunResult.name), func.count(RunResult.id), failures, _count("passed"), _count("skipped"),
+               average)
+        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
+        .group_by(RunResult.test_key)
+    )
+    query = query.order_by(average.desc(), RunResult.test_key) if slowest else \
+        query.having(failures > 0).order_by(failures.desc(), RunResult.test_key)
+    out = []
+    for key, suite, class_name, name, n, failed, passed, skipped, avg in db.execute(query.limit(TOP)).all():
+        row = {"test_key": key, "suite": suite, "class_name": class_name, "name": name, "executions": n}
+        if slowest:
+            row["avg_duration_ms"] = round(float(avg)) if avg is not None else None
+        else:
+            row["failures"] = int(failed)
+            row["pass_rate"] = pass_rate(int(passed), n, int(skipped))
+        out.append(row)
+    return out
+
+
+def _branches(runs: List[ScopedRun], counts: Dict[int, Counts]) -> List[dict]:
+    grouped: Dict[Optional[str], list] = {}
+    for r in runs:
+        grouped.setdefault(r.branch, []).append(r)
+    rows = []
+    for branch, members in grouped.items():
+        total = Counts()
+        for r in members:
+            total.add(counts[r.id])
+        rows.append({"branch": branch, "runs": len(members), "executions": total.executions,
+                     "failures": total.failed + total.errored,
+                     "pass_rate": pass_rate(total.passed, total.executions, total.skipped)})
+    rows.sort(key=lambda b: (-b["runs"], b["branch"] is None, b["branch"] or ""))
+    return rows[:TOP]
+
+
+def _facets(db: Session, scope: Scope) -> dict:
+    """The period's busiest values, ignoring every other filter, so they offer a way out of an empty result."""
+    out = {}
+    for name, column in (("branches", Run.branch), ("environments", Run.environment), ("ci_providers", Run.ci_provider)):
+        rows = db.execute(
+            select(column, func.count(Run.id))
+            .where(Run.project_id == scope.project_id, Run.started_at >= scope.period.start,
+                   Run.started_at < scope.period.end, column.is_not(None))
+            .group_by(column).order_by(func.count(Run.id).desc(), column).limit(MAX_FACETS)
+        ).all()
+        out[name] = [value for value, _ in rows]
+    return out
+
+
+def summary(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) -> dict:
+    counted = [r for r in runs if r.id in context.counted]
+    counts = run_counts(db, scope, counted)
+    current = [r for r in counted if r.current]
+    previous = [r for r in counted if not r.current]
+    current_ids = [r.id for r in current]
+    return {
+        "current": _totals(db, scope, current, counts),
+        "previous": _totals(db, scope, previous, counts) if previous else None,
+        "buckets": _bucket_rows(scope, context, current, counts, 0),
+        "previous_buckets": _bucket_rows(scope, context, previous, counts, scope.period.days),
+        "top_failing": _test_rows(db, scope, current_ids, slowest=False),
+        "slowest": _test_rows(db, scope, current_ids, slowest=True),
+        "branches": _branches(current, counts),
+        "facets": _facets(db, scope),
+    }
+
+
+SECTION_BUILDERS["summary"] = summary
