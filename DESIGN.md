@@ -2,52 +2,52 @@
 name: QEOS
 description: Self-hosted test-results analytics; an authenticated Operate surface for triaging CI and reading suite health.
 colors:
-  page: "#f5f6fb"
+  page: "#f4f7f9"
   surface-1: "#ffffff"
-  surface-2: "#eceefa"
-  hover: "rgba(21, 26, 51, 0.05)"
-  hover-strong: "rgba(79, 70, 229, 0.09)"
-  text-primary: "#151a33"
-  text-secondary: "#4c5470"
-  text-muted: "#7d839f"
-  grid: "#e4e7f2"
-  border: "rgba(21, 26, 51, 0.1)"
-  border-strong: "rgba(21, 26, 51, 0.18)"
-  accent: "#4f46e5"
-  accent-text: "#4338ca"
-  accent-soft: "rgba(79, 70, 229, 0.1)"
-  accent-fill: "#4f46e5"
-  accent-fill-hover: "#4338ca"
-  series-1: "#4f46e5"
+  surface-2: "#eaf0f4"
+  hover: "rgba(15, 27, 38, 0.05)"
+  hover-strong: "rgba(8, 145, 178, 0.09)"
+  text-primary: "#0f1b26"
+  text-secondary: "#4b5d6e"
+  text-muted: "#74879a"
+  grid: "#e2e9ee"
+  border: "rgba(15, 27, 38, 0.1)"
+  border-strong: "rgba(15, 27, 38, 0.18)"
+  accent: "#0891b2"
+  accent-text: "#0e7490"
+  accent-soft: "rgba(8, 145, 178, 0.1)"
+  accent-fill: "#0e7490"
+  accent-fill-hover: "#155e75"
+  series-1: "#0891b2"
   series-2: "#eb6834"
   status-passed: "#0ca30c"
   status-failed: "#d03b3b"
   status-errored: "#c4501f"
-  control-border: "#7a809c"
-  placeholder: "#5f6580"
-  status-skipped: "#7d839f"
+  control-border: "#71879a"
+  placeholder: "#56687a"
+  status-skipped: "#74879a"
   danger-text: "#c23434"
   danger-fill-hover: "#b83131"
   on-fill: "#ffffff"
-  page-dark: "#0b1020"
-  surface-1-dark: "#141c33"
-  surface-2-dark: "#0f1629"
-  hover-dark: "rgba(165, 180, 252, 0.06)"
-  hover-strong-dark: "rgba(129, 140, 248, 0.15)"
-  text-primary-dark: "#eef1fb"
-  text-secondary-dark: "#a9b2cc"
-  grid-dark: "#222b45"
-  border-dark: "rgba(148, 163, 214, 0.14)"
-  border-strong-dark: "rgba(148, 163, 214, 0.24)"
-  accent-dark: "#818cf8"
-  accent-text-dark: "#a5b4fc"
-  accent-soft-dark: "rgba(129, 140, 248, 0.18)"
-  series-1-dark: "#818cf8"
+  page-dark: "#0b1117"
+  surface-1-dark: "#121b24"
+  surface-2-dark: "#0e151d"
+  hover-dark: "rgba(34, 211, 238, 0.05)"
+  hover-strong-dark: "rgba(34, 211, 238, 0.12)"
+  text-primary-dark: "#e6edf3"
+  text-secondary-dark: "#93a3b5"
+  grid-dark: "#1f2a35"
+  border-dark: "rgba(147, 163, 181, 0.14)"
+  border-strong-dark: "rgba(147, 163, 181, 0.24)"
+  accent-dark: "#22d3ee"
+  accent-text-dark: "#67e8f9"
+  accent-soft-dark: "rgba(34, 211, 238, 0.12)"
+  series-1-dark: "#22d3ee"
   series-2-dark: "#d95926"
   danger-text-dark: "#f08080"
   status-errored-dark: "#ec835a"
-  control-border-dark: "#6f7a9c"
-  placeholder-dark: "#a3abc6"
+  control-border-dark: "#5f7488"
+  placeholder-dark: "#93a3b5"
 typography:
   headline:
     fontFamily: "\"Inter Variable\", system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif"
@@ -176,14 +176,14 @@ components:
 
 **Creative North Star: "The Triage Desk"**
 
-QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Cool indigo-tinted neutrals (navy in dark mode) carry the structure, one indigo accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
+QEOS is an internal Operate surface. People open it after a red build or in a weekly review, and every visual decision serves one question: what is broken, what is flaky, what is getting worse. The system is restrained on purpose. Cool blue-grey slate neutrals carry the structure, one cyan accent marks interaction and location, and the four validated status hues are kept for test outcomes only. Since nothing else on screen is saturated, a red dot means a failure.
 
 Density is moderate. The body text is 14px with an 8px-based spacing scale. Cards, tables and tiles sit on a quiet page tone, and a persistent left sidebar holds the project switcher and every view. Light and dark are both first-class and follow the OS (`prefers-color-scheme`). There is no manual toggle. Every text pair is computed against its actual background in both themes and clears WCAG AA (4.5:1). Where a hue fails that test, the system adds a separate text token rather than accepting the miss.
 
 Depth is light and ambient: hairline borders do the structural work, and a faint shadow lifts cards off the page. Motion is short and functional (120ms colour/border transitions, a 200ms drawer slide) and switches off under `prefers-reduced-motion`.
 
 **Key Characteristics:**
-- Midnight Indigo: cool indigo-tinted neutrals, one indigo accent, status hues reserved for status.
+- Cyan Slate: cool blue-grey slate neutrals, one cyan accent, status hues reserved for status.
 - Every readable text pair is at least 4.5:1 in both themes. Each accent and danger hue has a separate role token for text and for fill.
 - Status is never colour alone. A word or label always sits beside the hue.
 - Sidebar shell with project switcher. Under 900px it becomes a focus-managed drawer.
@@ -192,34 +192,34 @@ Depth is light and ambient: hairline borders do the structural work, and a faint
 
 ## Colors
 
-The palette (Midnight Indigo, chosen 2026-10-08) is a cool indigo-tinted neutral — navy surfaces in dark mode — with one interaction indigo, plus a colour-blind-validated status set that never decorates. Dark-theme counterparts carry the `-dark` suffix in the frontmatter. Status hues, `accent-fill` and `on-fill` are the same in both themes.
+The palette (Cyan Slate, chosen 2026-10-08 after Midnight Indigo was rejected for its violet) is a cool blue-grey slate neutral with one interaction cyan, plus a colour-blind-validated status set that never decorates. Dark-theme counterparts carry the `-dark` suffix in the frontmatter. Status hues, `accent-fill` and `on-fill` are the same in both themes.
 
 ### Primary
-- **Signal Indigo** (`accent`): focus rings, text selection, the active nav icon, the brand mark, project-tile hover border (6.3:1 on white; `#818cf8` in dark, 5.7:1 on Paper).
-- **Link Indigo** (`accent-text`): all links and any accent text (7.9:1 on white; the dark value `#a5b4fc` is 8.5:1 on Paper).
-- **Button Indigo** (`accent-fill`, hover `accent-fill-hover`): the fill of primary buttons only. White on it measures 6.3:1 (hover 7.9:1). The same value is kept in dark mode so white text stays legible.
-- **Indigo Wash** (`accent-soft`): a translucent tint of the accent for soft selected states.
+- **Signal Cyan** (`accent`): focus rings, the active nav icon, the brand mark, project-tile hover border; non-text only in light (3.7:1 on white), `#22d3ee` in dark (9.6:1 on Paper). Text selection uses Button Cyan.
+- **Link Cyan** (`accent-text`): all links and any accent text (5.4:1 on white, 4.7:1 on Sidebar Mist; the dark value `#67e8f9` is 12:1 on Paper).
+- **Button Cyan** (`accent-fill`, hover `accent-fill-hover`): the fill of primary buttons and of text selection. White on it measures 5.4:1 (hover 7.3:1). The same value is kept in dark mode so white text stays legible.
+- **Cyan Wash** (`accent-soft`): a translucent tint of the accent for soft selected states.
 
 ### Status (reserved)
-- **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it, and never stands alone as a shape: dots, badges and chart bars also differ by shape or texture (see Status Dot and Badges, Chart Textures). Errored Orange is `#c4501f` in light (4.65:1 on Paper, 4.31:1 on Mist Page) and `#ec835a` in dark (6.40:1 on Paper). Every status colour reaches 3:1 on Paper in both themes; `lib/contrast.test.ts` checks it.
+- **Passed Green** (`status-passed`), **Failed Red** (`status-failed`), **Errored Orange** (`status-errored`), **Skipped Stone** (`status-skipped`): the validated status palette from PRODUCT.md. Use them for status dots, chart series of outcomes and badge icons. A status colour is always followed by its word or a label naming it, and never stands alone as a shape: dots, badges and chart bars also differ by shape or texture (see Status Dot and Badges, Chart Textures). Errored Orange is `#c4501f` in light (4.65:1 on Paper, 4.32:1 on Mist Page) and `#ec835a` in dark (6.59:1 on Paper). Every status colour reaches 3:1 on Paper in both themes; `lib/contrast.test.ts` checks it.
 - **Danger Text** (`danger-text`): error copy, the error banner border and text, and the failed badge label. It exists because the dot red is a chart/dot hue, not a text colour. It measures 4.6:1 on the banner's red tint in light and 6.0:1 in dark.
 - **Danger Fill** (`status-failed`, hover `danger-fill-hover`): the confirm button of a destructive action. White on it measures 4.8:1 in both themes, while red *text* on the dark surface would fail AA.
 
 ### Chart Series
-- **Series Indigo** (`series-1`) and **Series Ember** (`series-2`): the two lines of a comparison chart, such as branch A against branch B. They are for non-status series only.
+- **Series Cyan** (`series-1`) and **Series Ember** (`series-2`): the two lines of a comparison chart, such as branch A against branch B. They are for non-status series only.
 
 ### Neutral
-- **Mist Page** (`page`; navy `#0b1020` in dark): the app background. Code blocks also use it to sit one step below the card surface.
-- **Paper** (`surface-1`; `#141c33` in dark): cards, inputs, buttons, tiles, badges and the active nav item.
+- **Mist Page** (`page`; slate `#0b1117` in dark): the app background. Code blocks also use it to sit one step below the card surface.
+- **Paper** (`surface-1`; `#121b24` in dark): cards, inputs, buttons, tiles, badges and the active nav item.
 - **Sidebar Mist** (`surface-2`): the sidebar and the narrow-screen top bar.
 - **Ink** (`text-primary`): headings, body and values.
-- **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (7.5:1 light, 8.0:1 dark).
+- **Graphite** (`text-secondary`): all readable secondary text, including labels, metadata, table headers, `.muted` copy and inactive nav (6.8:1 light, 6.7:1 dark).
 - **Tick Grey** (`text-muted`): chart axis ticks only. It is below AA for text (about 3.7:1) and must never carry readable copy.
 - **Rule** (`grid`): table row dividers and list separators.
 - **Hairline** (`border`) and **Hairline Strong** (`border-strong`): translucent borders for containers and for buttons.
-- **Control Edge** (`control-border`): the border of inputs, selects, textareas and checkboxes, at least 3:1 against every surface they sit on (WCAG 1.4.11). Light `#7a809c`: 3.89 on Paper, 3.61 on Mist Page, 3.37 on Sidebar Mist. Dark `#6f7a9c`: 3.97 on Paper, 4.23 on Sidebar Mist, 4.45 on Mist Page. Used for form controls only, so the rest of the interface stays light.
-- **Placeholder** (`placeholder`): placeholder text at full opacity, at least 4.5:1 (light `#5f6580`: 5.74 on Paper, 4.97 on Sidebar Mist; dark `#a3abc6`: 7.40 on Paper).
-- **Hover** (`hover`) and **Hover Strong** (`hover-strong`): translucent washes for row hover and button/nav hover; Hover Strong is indigo-tinted and also fills label tags.
+- **Control Edge** (`control-border`): the border of inputs, selects, textareas and checkboxes, at least 3:1 against every surface they sit on (WCAG 1.4.11). Light `#71879a`: 3.73 on Paper, 3.46 on Mist Page, 3.24 on Sidebar Mist. Dark `#5f7488`: 3.59 on Paper, 3.79 on Sidebar Mist, 3.92 on Mist Page. Used for form controls only, so the rest of the interface stays light.
+- **Placeholder** (`placeholder`): placeholder text at full opacity, at least 4.5:1 (light `#56687a`: 5.74 on Paper, 5.00 on Sidebar Mist; dark `#93a3b5`: 6.74 on Paper).
+- **Hover** (`hover`) and **Hover Strong** (`hover-strong`): translucent washes for row hover and button/nav hover; Hover Strong is cyan-tinted and also fills label tags.
 
 ### Named Rules
 **The Reserved Hue Rule.** Green, red, orange and skipped-stone mean test outcomes. They never decorate, brand or highlight anything else. The only non-status uses are destructive confirmation (red fill) and error messaging (danger text), and both mean "something failed or will be destroyed".
@@ -362,7 +362,7 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 ### Inputs / Fields
 - **Style:** Paper fill, Hairline Strong border, 6px radius, 34px height (44px on coarse pointers). Labels stack above the field at 13px/500 in Graphite.
 - **Hover:** the border darkens to Tick Grey.
-- **Focus:** the border turns Signal Indigo, with a 2px accent outline at offset 0.
+- **Focus:** the border turns Signal Cyan, with a 2px accent outline at offset 0.
 - **Filter dropdown:** a filter dropdown with more than 15 options is a searchable list (`FilterSelect`): a search field at the top of the open list, matching anywhere and ignoring accents, with an "x of y" count. Up to 15 options stay a native select.
 - **Folder dropdown:** the folder filter (`FolderSelect`) looks like the other filters; its popup is a dialog with a search box, an "x of y" count and the folder tree. Searching keeps matching folders and their ancestors, Enter picks the first match, Esc and Tab close it, and picking applies at once.
 - **Text field** (`TextField`): label, input, hint and error as one block. The error appears under the field when it is left (not while typing), is linked with `aria-describedby`, sets `aria-invalid`, and is never inside the `<label>`. A password field has a Show/Hide toggle (an eye icon with off-screen text, `aria-pressed`) outside the label. Checkboxes are drawn 18px (24px when they are a row's only target, in a table cell) with the Control Edge border; a label around one is the hit area.
@@ -371,13 +371,13 @@ Rows are separated by Rule lines, with no zebra striping and no vertical lines. 
 - **Inline form:** a one-row create form of label and input pairs ending in its submit and Cancel buttons. It wraps on narrow widths.
 
 ### Navigation
-- **Sidebar:** Sidebar Mist with a right hairline. From top to bottom it holds the brand (lucide mark in Signal Indigo with the bold 15px wordmark), the project switcher (a native select grouped by organization), project views, workspace links, and a footer pinned to the bottom with Security and Sign out.
-- **Nav link:** Graphite text at weight 500 with a 17px lucide icon, 34px tall and 6px radius. Hover applies Hover Strong with Ink text. **Active** is a Paper chip with resting lift, Ink text and a Signal Indigo icon.
+- **Sidebar:** Sidebar Mist with a right hairline. From top to bottom it holds the brand (lucide mark in Signal Cyan with the bold 15px wordmark), the project switcher (a native select grouped by organization), project views, workspace links, and a footer pinned to the bottom with Security and Sign out.
+- **Nav link:** Graphite text at weight 500 with a 17px lucide icon, 34px tall and 6px radius. Hover applies Hover Strong with Ink text. **Active** is a Paper chip with resting lift, Ink text and a Signal Cyan icon.
 - **Section title:** 12px/600 Graphite, sentence case. It is a real group label such as "Workspace".
 - **Mobile (900px and below):** a sticky top bar holds a ghost menu button and the brand. The drawer slides in over 200ms `cubic-bezier(0.2, 0, 0, 1)`. Opening it focuses the first control inside. Escape, the backdrop, the close button or following a link closes it, and focus returns to the menu button.
 
 ### Project Tile
-A Paper tile with a 10px radius, Hairline border and resting lift, holding a folder icon and the project name at 600. On hover the border turns Signal Indigo, with no lift and no underline.
+A Paper tile with a 10px radius, Hairline border and resting lift, holding a folder icon and the project name at 600. On hover the border turns Signal Cyan, with no lift and no underline.
 
 ### Error Banner
 A 6px-radius box with a Danger Text border and text over a 6% failed-red tint, with an optional Retry button. It uses `role="alert"`. Loading and empty states are plain Graphite sentences that say what is absent and how data arrives. They never show a zero in place of missing data.

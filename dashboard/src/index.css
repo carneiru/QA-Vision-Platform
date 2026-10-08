@@ -1,29 +1,29 @@
-/* QEOS — Midnight Indigo. Cool indigo-tinted neutrals (navy in dark mode), one indigo accent,
+/* QEOS — Cyan Slate. Cool blue-grey slate neutrals, one cyan accent,
    status hues reserved for status. Every text pair below is checked >= 4.5:1 and non-text >= 3:1. */
 :root {
   color-scheme: light;
-  --page: #f5f6fb;
+  --page: #f4f7f9;
   --surface-1: #ffffff;
-  --surface-2: #eceefa; /* sidebar */
-  --hover: rgba(21, 26, 51, 0.05);
-  --hover-strong: rgba(79, 70, 229, 0.09);
-  --text-primary: #151a33;
-  --text-secondary: #4c5470;
-  --text-muted: #7d839f; /* chart ticks and non-text outlines (run-strip bar-none): 3.4:1+, never body text */
-  --grid: #e4e7f2;
-  --border: rgba(21, 26, 51, 0.1);
-  --border-strong: rgba(21, 26, 51, 0.18);
-  /* Edge of inputs, selects and checkboxes (WCAG 1.4.11, >= 3:1): 3.89 on white, 3.61 on --page, 3.37 on --surface-2 */
-  --control-border: #7a809c;
-  /* Placeholder text, >= 4.5:1: 5.74 on white, 5.32 on --page, 4.97 on --surface-2 */
-  --placeholder: #5f6580;
-  --accent: #4f46e5;
-  --accent-text: #4338ca; /* links and accent text: 7.9:1 on white */
-  --accent-soft: rgba(79, 70, 229, 0.1);
-  --accent-fill: #4f46e5; /* primary buttons: white on it is 6.3:1 (hover 7.9) */
-  --accent-fill-hover: #4338ca;
+  --surface-2: #eaf0f4; /* sidebar */
+  --hover: rgba(15, 27, 38, 0.05);
+  --hover-strong: rgba(8, 145, 178, 0.09);
+  --text-primary: #0f1b26;
+  --text-secondary: #4b5d6e;
+  --text-muted: #74879a; /* chart ticks and non-text outlines (run-strip bar-none): 3.4:1+, never body text */
+  --grid: #e2e9ee;
+  --border: rgba(15, 27, 38, 0.1);
+  --border-strong: rgba(15, 27, 38, 0.18);
+  /* Edge of inputs, selects and checkboxes (WCAG 1.4.11, >= 3:1): 3.73 on white, 3.46 on --page, 3.24 on --surface-2 */
+  --control-border: #71879a;
+  /* Placeholder text, >= 4.5:1: 5.74 on white, 5.34 on --page, 5.00 on --surface-2 */
+  --placeholder: #56687a;
+  --accent: #0891b2;
+  --accent-text: #0e7490; /* links and accent text: 5.4:1 on white (the #0891b2 accent is 3.7, non-text only) */
+  --accent-soft: rgba(8, 145, 178, 0.1);
+  --accent-fill: #0e7490; /* primary buttons: white on it is 5.4:1 (hover 7.3) */
+  --accent-fill-hover: #155e75;
   --danger-fill-hover: #b83131;
-  --series-1: #4f46e5;
+  --series-1: #0891b2;
   --series-2: #eb6834;
   --status-passed: #0ca30c;
   --status-failed: #d03b3b;
@@ -32,20 +32,20 @@
   --status-rerun-stripe: #5c3f00;
   /* 4.65:1 on white, 4.22 on --page (the old #ec835a was 2.64, under the 3:1 non-text rule) */
   --status-errored: #c4501f;
-  --status-skipped: #7d839f;
+  --status-skipped: #74879a;
   /* Error text on surfaces; the status colour stays the validated chart/dot hue. */
   --danger-text: #c23434;
   /* Gherkin highlighting; each is >= 4.5:1 on --surface-2 */
-  --gk-keyword: #4338ca;
+  --gk-keyword: #0e7490;
   --gk-tag: #8a4b00;
   --gk-table: #0b6b5c;
   --gk-docstring: #7a3d8f;
-  --gk-comment: #5f6580;
+  --gk-comment: #56687a;
   --gk-string: #2f6b1f;
   --gk-param: #a3203f;
   --gk-param-bg: rgba(163, 32, 63, 0.12);
-  --shadow-1: 0 1px 2px rgba(21, 26, 51, 0.04), 0 1px 3px rgba(21, 26, 51, 0.07);
-  --shadow-2: 0 8px 24px rgba(21, 26, 51, 0.12), 0 2px 6px rgba(21, 26, 51, 0.08);
+  --shadow-1: 0 1px 2px rgba(15, 27, 38, 0.04), 0 1px 3px rgba(15, 27, 38, 0.07);
+  --shadow-2: 0 8px 24px rgba(15, 27, 38, 0.12), 0 2px 6px rgba(15, 27, 38, 0.08);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -64,37 +64,37 @@
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --page: #0b1020;
-    --surface-1: #141c33;
-    --surface-2: #0f1629;
-    --hover: rgba(165, 180, 252, 0.06);
-    --hover-strong: rgba(129, 140, 248, 0.15);
-    --text-primary: #eef1fb;
-    --text-secondary: #a9b2cc;
-    --text-muted: #7f89a8;
-    --grid: #222b45;
-    --border: rgba(148, 163, 214, 0.14);
-    --border-strong: rgba(148, 163, 214, 0.24);
-    --control-border: #6f7a9c; /* 3.97 on --surface-1, 4.23 on --surface-2, 4.45 on --page */
-    --placeholder: #a3abc6; /* 7.40 on --surface-1 */
-    --status-errored: #ec835a; /* 6.40 on --surface-1 */
-    --accent: #818cf8;
-    --accent-text: #a5b4fc;
-    --accent-soft: rgba(129, 140, 248, 0.18);
-    --series-1: #818cf8;
+    --page: #0b1117;
+    --surface-1: #121b24;
+    --surface-2: #0e151d;
+    --hover: rgba(34, 211, 238, 0.05);
+    --hover-strong: rgba(34, 211, 238, 0.12);
+    --text-primary: #e6edf3;
+    --text-secondary: #93a3b5;
+    --text-muted: #6f8396;
+    --grid: #1f2a35;
+    --border: rgba(147, 163, 181, 0.14);
+    --border-strong: rgba(147, 163, 181, 0.24);
+    --control-border: #5f7488; /* 3.59 on --surface-1, 3.79 on --surface-2, 3.92 on --page */
+    --placeholder: #93a3b5; /* 6.74 on --surface-1 */
+    --status-errored: #ec835a; /* 6.59 on --surface-1 */
+    --accent: #22d3ee;
+    --accent-text: #67e8f9;
+    --accent-soft: rgba(34, 211, 238, 0.12);
+    --series-1: #22d3ee;
     --series-2: #d95926;
     --danger-text: #f08080;
-    --status-rerun: #e0a000; /* 7.4:1 on --surface-1 */
-    --status-rerun-stripe: #8a6200; /* 3.08:1 on --surface-1 */
-    --gk-keyword: #a5b4fc;
+    --status-rerun: #e0a000; /* 7.6:1 on --surface-1 */
+    --status-rerun-stripe: #8a6200; /* 3.17:1 on --surface-1 */
+    --gk-keyword: #67e8f9;
     --gk-tag: #e0a15c;
     --gk-table: #5cc9b4;
     --gk-docstring: #c79ae0;
-    --gk-comment: #a3abc6;
+    --gk-comment: #93a3b5;
     --gk-string: #9fd98f;
     --gk-param: #ff9db0;
     --gk-param-bg: rgba(255, 157, 176, 0.16);
-    --status-skipped: #7f89a8;
+    --status-skipped: #6f8396;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
@@ -125,7 +125,7 @@ a:hover { text-decoration: underline; }
 p a:not(.link-arrow), li a:not(.link-arrow), a.inline-link { text-decoration: underline; }
 .link-arrow { display: inline-flex; align-items: center; gap: var(--space-1); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
-::selection { background: var(--accent); color: #fff; }
+::selection { background: var(--accent-fill); color: #fff; } /* white on the fill is 5.4:1; on the cyan accent it would be 3.7 */
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 
 /* ---- Controls ---- */
