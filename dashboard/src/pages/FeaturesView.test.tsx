@@ -84,7 +84,8 @@ test("the Cases list opens grouped by feature: one row per .feature file, manual
   expect(link).toHaveAttribute("href", "/projects/42/cases/feature?path=features%2Fauth%2Flogin.feature");
   const row = link.closest("tr")!;
   expect(within(row).getByText("features/auth")).toBeInTheDocument();
-  expect(within(row).getByRole("cell", { name: "2" })).toHaveClass("num");
+  // No scenario-count column: the row carries no numeric cell
+  expect(within(row).getAllByRole("cell").filter((c) => c.classList.contains("num"))).toHaveLength(0);
   expect(screen.getByText("No feature (manual)")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "No feature (manual)" })).not.toBeInTheDocument();
   // Feature view searches in feature names and paths unless told otherwise, and the server is always told
@@ -113,7 +114,7 @@ test("both views use one fixed column layout, so columns keep their place across
   const fixed = (table: HTMLElement) =>
     within(table).getAllByRole("columnheader").map((th) => [...th.classList].find((c) => c.startsWith("col-")) ?? "");
   expect(screen.getByRole("table")).toHaveClass("cases-table");
-  expect(fixed(screen.getByRole("table"))).toEqual(["col-select", "col-title", "col-scenarios", "col-runs", "col-priority", "col-status", "col-automated"]);
+  expect(fixed(screen.getByRole("table"))).toEqual(["col-select", "col-title", "col-runs", "col-priority", "col-status", "col-automated"]);
   await userEvent.click(within(screen.getByRole("group", { name: "Group by" })).getByRole("button", { name: "Scenario" }));
   await screen.findByRole("link", { name: "Case 1" });
   expect(screen.getByRole("table")).toHaveClass("cases-table");
@@ -176,20 +177,19 @@ test("a feature row expands in place to its matching scenarios, in file order", 
   expect(screen.queryByRole("rowgroup", { name: "Scenarios of Login" })).not.toBeInTheDocument();
 });
 
-test("feature and scenario rows share one table: the Scenario view's columns plus Scenarios, filled on feature rows only", async () => {
+test("feature and scenario rows share one table with the Scenario view's columns", async () => {
   renderCases();
   await screen.findByRole("link", { name: "Login" });
   await userEvent.click(within(featureRow("Login")).getByRole("button", { name: "Show scenarios of Login" }));
   const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
   expect(screen.getAllByRole("table")).toHaveLength(1);
   const heads = within(screen.getByRole("table")).getAllByRole("columnheader").map((th) => th.textContent);
-  expect(heads).toEqual(["Select", "Title", "Scenarios", "Last runs", "Priority", "Status", "Automated"]);
+  expect(heads).toEqual(["Select", "Title", "Last runs", "Priority", "Status", "Automated"]);
   const caseRow = within(scenarios).getByRole("link", { name: "Case 2" }).closest("tr")!;
   const cells = within(caseRow).getAllByRole("cell");
   expect(cells).toHaveLength(heads.length);
-  expect(cells[2]).toHaveTextContent("");
-  expect(cells[4]).toHaveTextContent("high");
-  expect(cells[6]).toHaveTextContent("Linked");
+  expect(cells[3]).toHaveTextContent("high");
+  expect(cells[5]).toHaveTextContent("Linked");
   expect(within(featureRow("Login")).getAllByRole("cell")).toHaveLength(heads.length);
 });
 
@@ -234,7 +234,6 @@ test("a filter the feature list cannot apply groups the matching cases in the pa
   }));
   renderCases("/projects/42/cases?origin=imported");
   expect(await screen.findByRole("link", { name: "Login" })).toBeInTheDocument();
-  expect(within(featureRow("Login")).getByRole("cell", { name: "1" })).toHaveClass("num");
   expect(screen.getByRole("link", { name: "Pay" })).toBeInTheDocument();
   expect(seenFeatures).toHaveLength(0);
   expect(seenCases[seenCases.length - 1].get("origin")).toBe("imported");

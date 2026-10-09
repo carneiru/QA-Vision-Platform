@@ -164,13 +164,11 @@ interface RowProps {
   onToggle: (c: CaseRowData) => void;
   lastRuns: (key: string | null) => ReactNode;
   lastRunsSummary: (key: string | null) => string | null;
-  /** Feature view's extra Scenarios column, which a scenario row leaves empty. */
-  scenariosColumn?: boolean;
   className?: string;
 }
 
 /** One scenario row: shared by the Scenario view and a feature's expanded scenarios in the Feature view. */
-export function CaseRow({ projectId, c, selectable, picked, onToggle, lastRuns, lastRunsSummary, scenariosColumn, className }: RowProps) {
+export function CaseRow({ projectId, c, selectable, picked, onToggle, lastRuns, lastRunsSummary, className }: RowProps) {
   return (
     <tr className={className}>
       {selectable && (
@@ -192,7 +190,6 @@ export function CaseRow({ projectId, c, selectable, picked, onToggle, lastRuns, 
           { label: "Automated", value: c.automated_test_key ? "Linked" : "Manual" },
         ]} />
       </td>
-      {scenariosColumn && <td className="num" />}
       <td className="hide-narrow">{lastRuns(c.automated_test_key)}</td>
       <td className="hide-narrow">{c.priority}</td>
       <td><CaseStatusPill status={c.status} /></td>

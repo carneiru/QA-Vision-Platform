@@ -383,7 +383,6 @@ a.run-strip:hover .run-bar { filter: brightness(1.15); }
 /* The Cases list's columns: fixed widths, so neither paging nor switching views moves them; Title takes the rest and its text adapts (ellipsis) */
 table.data.cases-table { table-layout: fixed; }
 .cases-table th.col-select { width: 36px; }
-.cases-table th.col-scenarios { width: 88px; }
 .cases-table th.col-runs { width: 112px; }
 .cases-table th.col-priority { width: 80px; }
 .cases-table th.col-status { width: 112px; }

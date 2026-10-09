@@ -58,8 +58,8 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
   const qc = useQueryClient();
   const { lastRuns, lastRunsSummary } = useFeatureStrips(projectId, rows);
   const idOf = (row: FeatureRow) => row.path ?? "\0manual";
-  // The Scenario view's columns plus Scenarios: Title, Scenarios, Last runs, Priority, Status, Automated
-  const columns = (selectable ? 1 : 0) + 6;
+  // The Scenario view's columns: Title, Last runs, Priority, Status, Automated
+  const columns = (selectable ? 1 : 0) + 5;
 
   function flip(row: FeatureRow) {
     const next = new Set(open);
@@ -78,7 +78,7 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
       <thead>
         <tr>
           {selectable && <th className="select-col col-select"><span className="sr-only">Select</span></th>}
-          <th className="col-title">Title</th><th className="num col-scenarios">Scenarios</th><th className="hide-narrow col-runs">Last runs</th>
+          <th className="col-title">Title</th><th className="hide-narrow col-runs">Last runs</th>
           <th className="hide-narrow col-priority">Priority</th><th className="col-status">Status</th><th className="hide-narrow col-automated">Automated</th>
         </tr>
       </thead>
@@ -121,7 +121,6 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
                     </span>
                   </div>
                 </td>
-                <td className="num">{row.case_count}</td>
                 <td className="hide-narrow">
                   <div className="feature-runs">
                     {lastRuns(row)}
@@ -162,7 +161,7 @@ function GroupCases({ projectId, row, label, selectable, picked, onToggle, filte
           <>
             {cases.data.map((c) => (
               <CaseRow key={c.number} className="scenario-row" projectId={projectId} c={c} selectable={selectable} picked={picked}
-                onToggle={onToggle} lastRuns={lastRuns} lastRunsSummary={lastRunsSummary} scenariosColumn />
+                onToggle={onToggle} lastRuns={lastRuns} lastRunsSummary={lastRunsSummary} />
             ))}
             {row.case_count > cases.data.length && note(
               <span className="muted">
