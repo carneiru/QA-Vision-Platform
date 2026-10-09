@@ -82,6 +82,14 @@ def classify_streaks(sequences: Dict[SequenceKey, List[Outcome]], period_start: 
     }
 
 
+def count_flips(sequences: Dict[SequenceKey, List[Outcome]]) -> Dict[str, int]:
+    """Flips per test, summed over its branches (the tests section's `flips`)."""
+    out: Dict[str, int] = defaultdict(int)
+    for (key, _), seq in sequences.items():
+        out[key] += sum(1 for before, after in zip(seq, seq[1:]) if before.passed != after.passed)
+    return dict(out)
+
+
 def flips_by_bucket(sequences: Dict[SequenceKey, List[Outcome]], period_start: datetime,
                     bucket_of: Callable[[datetime], Optional[int]], bucket_count: int) -> Tuple[List[int], List[Set[str]]]:
     """A flip is an outcome change between consecutive outcomes on one branch, counted in the bucket of the later

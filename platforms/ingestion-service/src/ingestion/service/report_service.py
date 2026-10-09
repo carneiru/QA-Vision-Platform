@@ -13,7 +13,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from src.ingestion.analytics.report_causes import Occurrence, group_causes
-from src.ingestion.analytics.report_streaks import Outcome, build_sequences, classify_streaks, flips_by_bucket
+from src.ingestion.analytics.report_streaks import Outcome, build_sequences, classify_streaks, count_flips, flips_by_bucket
 from src.ingestion.analytics.report_period import Period, bucket_index, bucket_starts, iso, local_day
 from src.ingestion.analytics.signature import headline, signature
 from src.ingestion.analytics.trends import as_utc, pass_rate
@@ -506,3 +506,66 @@ def regressions(db: Session, scope: Scope, runs: List[ScopedRun], context: Conte
 
 
 SECTION_BUILDERS["regressions"] = regressions
+
+
+TESTS_COLUMNS = ["test_key", "executions", "passed", "failed", "errored", "skipped", "flips", "pairs",
+                 "duration_ms_sum", "last_status"]
+TESTS_ROW_CAP = 50_000
+
+
+def _last_status(db: Session, scope: Scope, ids: list) -> Dict[str, str]:
+    """Each test's newest result in the period (run start, run id, then the last attempt), skipped included."""
+    ranked = (
+        select(RunResult.test_key.label("test_key"), RunResult.status.label("status"),
+               func.row_number().over(partition_by=RunResult.test_key,
+                                      order_by=(Run.started_at.desc(), Run.id.desc(), RunResult.id.desc())).label("position"))
+        .join(Run, Run.id == RunResult.run_id)
+        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
+    ).subquery()
+    return dict(db.execute(select(ranked.c.test_key, ranked.c.status).where(ranked.c.position == 1)).all())
+
+
+def _pairs(db: Session, scope: Scope, ids: list) -> Dict[str, int]:
+    """Sum over branches of (non-skipped outcomes - 1): the denominator of a flip rate."""
+    rows = db.execute(
+        select(RunResult.test_key, Run.branch, func.count(distinct(RunResult.run_id)))
+        .join(Run, Run.id == RunResult.run_id)
+        .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped", *key_filter(db, scope))
+        .group_by(RunResult.test_key, Run.branch)
+    ).all()
+    out: Dict[str, int] = {}
+    for key, _, outcomes in rows:
+        out[key] = out.get(key, 0) + max(int(outcomes) - 1, 0)
+    return out
+
+
+def tests_section(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) -> dict:
+    """One row per test executed in scope in the period, columnar (a key in every object would double the payload)."""
+    current = {r.id: r for r in runs if r.current and r.id in context.counted}
+    if not current:
+        return {"columns": TESTS_COLUMNS, "rows": [], "truncated": False}
+    ids = list(current)
+    failures = _count(*FAILING)
+    aggregated = db.execute(
+        select(RunResult.test_key, func.count(RunResult.id), _count("passed"), _count("failed"), _count("errored"),
+               _count("skipped"), func.sum(RunResult.duration_ms))
+        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
+        .group_by(RunResult.test_key)
+        .order_by(failures.desc(), RunResult.test_key)
+        .limit(TESTS_ROW_CAP + 1)
+    ).all()
+    truncated = len(aggregated) > TESTS_ROW_CAP
+    aggregated = aggregated[:TESTS_ROW_CAP]
+    last = _last_status(db, scope, ids)
+    pairs = _pairs(db, scope, ids)
+    # Only a test with a failure can flip: the others have 0, so their sequences are never read
+    failing = sorted(key for key, _, _, failed, errored, _, _ in aggregated if int(failed) + int(errored) > 0)
+    flips = count_flips(build_sequences(_outcomes(db, ids, failing, current)))
+    rows = [[key, n, int(p), int(f), int(e), int(s), flips.get(key, 0), pairs.get(key, 0), int(d or 0), last.get(key)]
+            for key, n, p, f, e, s, d in aggregated]
+    if not truncated:
+        rows.sort(key=lambda row: row[0])
+    return {"columns": TESTS_COLUMNS, "rows": rows, "truncated": truncated}
+
+
+SECTION_BUILDERS["tests"] = tests_section

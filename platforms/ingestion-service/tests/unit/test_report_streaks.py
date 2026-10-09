@@ -77,3 +77,10 @@ def test_flips_land_in_the_later_outcomes_bucket():
     flips, flaky = flips_by_bucket(seqs, PERIOD_START, lambda moment: moment.day - 1, 7)
     assert flips == [0, 1, 0, 1, 0, 0, 0]
     assert flaky[1] == {"t1"} and flaky[3] == {"t1"} and flaky[4] == set()
+
+
+def test_flips_per_test_are_summed_over_branches():
+    from src.ingestion.analytics.report_streaks import count_flips
+    seqs = build_sequences([o("t1", 1, True), o("t1", 2, False), o("t1", 3, True),
+                            o("t1", 1, True, branch="dev"), o("t1", 2, False, branch="dev"), o("t2", 1, True)])
+    assert count_flips(seqs) == {"t1": 3, "t2": 0}
