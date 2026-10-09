@@ -319,7 +319,7 @@ there is one sequence per test. The section's help text recommends the branch fi
     and the help text says so.
 - **Query:**
   - one pass for the candidates, served by the new partial index;
-  - one pass for the sequence (`row_number()` per (test, run) by `id desc` to pick the last attempt);
+  - one pass for the sequence (`lag`/`lead` over each test and branch ordered by start, run, `id`; a run's last attempt is the row whose next row is in another run, kept only when it or a neighbour outcome fails, `_outcomes` in `report_service.py`);
   - the streak and flip logic runs in Python over the ordered rows.
   - At reference size A there are a few thousand candidate rows.
 
