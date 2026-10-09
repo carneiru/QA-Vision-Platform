@@ -85,7 +85,7 @@ export default function FailureCausesSection({ projectId, gate, query, branch, o
       {(r) => {
         const c = r.failure_causes;
         if (!c) return null;
-                const resolved = c.resolved.length > 0 && (
+        const resolved = c.resolved.length > 0 && (
           <>
             <h3 id="report-resolved">Resolved since the previous period</h3>
             <ul className="plain-list" aria-labelledby="report-resolved">

@@ -424,6 +424,11 @@ as the README's Analytics table was. Results go into that table.
   2. Then, a daily per-test rollup. `flaky_daily` would gain `passed`, `skipped` and
      `duration_ms_sum`. A rollup works only for UTC days and branch filters, so the live path
      stays for the other filters.
+  - Measured 2026-10-09 (`scripts/bench_report.py`): the reshaped regressions query brought B to
+    p95 7.9 s, so B meets its target without either step. A covering index was tried at B and the
+    planner ignored it or it ran slower (a sequential scan reads the table in about 0.3 s; the cost
+    is the sort and window). The next step if B misses is therefore the rollup; the covering index
+    stays an option only for a short window over a large mixed table.
 - **ClickHouse is not adopted.** Its adoption trigger in the blueprint is "rollup tables stop
   holding", and it has not fired. Redis is not adopted either: its trigger is a second gateway
   instance.
