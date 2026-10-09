@@ -23,7 +23,7 @@ const headlineOf = (g: { headline: string | null }) => g.headline ?? "(no messag
 export function causesCsv(r: Report): string {
   return toCsv(
     ["signature", "headline", "occurrences", "failed", "errored", "tests", "runs", "status", "previous_occurrences", "first_seen", "last_seen"],
-    r.failure_causes!.groups.map((g) => [g.signature, g.headline, g.occurrences, g.failed, g.errored, g.tests, g.runs, g.status,
+    (r.failure_causes?.groups ?? []).map((g) => [g.signature, g.headline, g.occurrences, g.failed, g.errored, g.tests, g.runs, g.status,
       g.previous_occurrences, g.first_seen, g.last_seen]),
   );
 }
@@ -78,13 +78,14 @@ export default function FailureCausesSection({ projectId, gate, query, branch, o
       height={360}
       onResetFilters={onResetFilters}
       actions={query.data?.failure_causes && query.data.scope.runs > 0 ? (
-        <button type="button" onClick={() => downloadCsv(`report-${projectId}-${query.data!.period.from}-${query.data!.period.to}-causes.csv`, causesCsv(query.data!))}>
+        <button type="button" onClick={() => downloadCsv(`report-${projectId}-${query.data?.period.from}-${query.data?.period.to}-causes.csv`, query.data ? causesCsv(query.data) : "")}>
           <Download size={15} aria-hidden="true" /> Causes CSV
         </button>
       ) : undefined}
     >
       {(r) => {
-        const c = r.failure_causes!;
+        const c = r.failure_causes;
+        if (!c) return null;
         if (c.groups.length === 0) return <p className="muted">No failures in this period.</p>;
         const periodStart = Date.parse(r.period.start);
         const unit = r.bucket;

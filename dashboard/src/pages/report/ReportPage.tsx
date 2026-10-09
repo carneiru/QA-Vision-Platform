@@ -9,7 +9,8 @@ import PageHeader from "../../components/PageHeader";
 import PrintHeader from "./PrintHeader";
 import ReportFilterBar from "./ReportFilterBar";
 import { describeFilters, formatPeriod } from "./describeFilters";
-import FlakySection from "./sections/FlakySection";
+import FailureCausesSection from "./sections/FailureCausesSection";
+import RegressionsSection from "./sections/RegressionsSection";
 import SummarySection from "./sections/SummarySection";
 import { todayIn, useReportFilters } from "./useReportFilters";
 import { useReportRequest, useReportSection } from "./useReportRequest";
@@ -85,14 +86,16 @@ export default function ReportPage() {
   const project = useQuery({ queryKey: ["project", id], queryFn: () => getProject(id) });
   const { gate, caseAreas, runUrls, defaultBranch, effectiveBranch } = useReportRequest(id, filters, tz, { loadCaseAreas: formOpened });
   const summary = useReportSection(id, gate, "summary");
+  const causes = useReportSection(id, gate, "failure_causes");
+  const regressions = useReportSection(id, gate, "regressions");
   usePrintOpensDataTables();
   useEffect(() => {
     if (!zoneRejected && tz !== "UTC" && isZoneError(summary.error)) setZoneRejected(true);
   }, [summary.error, tz, zoneRejected]);
 
   // Every section's request counts (the summary's own status covers the render before its fetch is registered)
-  const fetchingSections = useIsFetching({ queryKey: ["report", id] }) + useIsFetching({ queryKey: ["report-flaky", id] });
-  const busy = summary.fetchStatus === "fetching" || fetchingSections > 0;
+  const fetchingSections = useIsFetching({ queryKey: ["report", id] });
+  const busy = [summary, causes, regressions].some((q) => q.fetchStatus === "fetching") || fetchingSections > 0;
   const announcement = useAnnouncement(gate.state === "ready" ? JSON.stringify(gate.key) : null, busy, summary.isError);
   const applied = describeFilters(filters, defaultBranch, caseAreas.data);
   const generated = summary.data?.generated_at ?? null;
@@ -101,7 +104,7 @@ export default function ReportPage() {
     + (applied.length ? ` ${applied.map((f) => `${f.name}: ${f.value}`).join("; ")}.` : "");
 
   function refresh() {
-    for (const key of [["report", id], ["report-flaky", id], ["case-areas", id], ["run-urls", id]]) {
+    for (const key of [["report", id], ["case-areas", id], ["run-urls", id]]) {
       void qc.invalidateQueries({ queryKey: key });
     }
   }
@@ -142,7 +145,8 @@ export default function ReportPage() {
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <SummarySection projectId={id} gate={gate} query={summary} branch={effectiveBranch} environment={filters.environment}
         onClearFilters={clearAll} onTry={update} />
-      <FlakySection projectId={id} gate={gate} filters={filters} branch={effectiveBranch} today={today} />
+      <FailureCausesSection projectId={id} gate={gate} query={causes} branch={effectiveBranch} onResetFilters={clearAll} />
+      <RegressionsSection projectId={id} gate={gate} query={regressions} branch={effectiveBranch} onResetFilters={clearAll} />
     </div>
   );
 }

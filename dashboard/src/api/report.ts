@@ -69,6 +69,7 @@ export interface Report {
   scope: { runs: number; previous_runs: number; test_keys: number | null };
   summary?: SummarySection;
   failure_causes?: FailureCausesSection;
+  regressions?: RegressionsSection;
 }
 
 export function postReport(projectId: number, body: ReportRequest, init: { signal?: AbortSignal } = {}): Promise<Report> {
@@ -109,4 +110,23 @@ export interface FailureCausesSection {
   groups: CauseGroup[];
   other: { groups: number; occurrences: number };
   resolved: { signature: string; headline: string | null; previous_occurrences: number; last_seen: string }[];
+}
+
+export interface RegressionItem extends ReportTestRef { branch: string | null }
+export interface NewlyFailingItem extends RegressionItem {
+  failing_since: string; failing_since_run_id: number; last_passed_at: string; last_passed_run_id: number;
+  failures: number; headline: string | null;
+}
+export interface FixedItem extends RegressionItem {
+  fixed_at: string; fixed_run_id: number; failing_since: string; failing_since_bounded: boolean; time_to_fix_ms: number;
+}
+export interface LongestFailingItem extends RegressionItem {
+  failing_since: string; failing_since_bounded: boolean; consecutive_failures: number; last_run_id: number; headline: string | null;
+}
+export interface RegressionsSection {
+  newly_failing: { total: number; items: NewlyFailingItem[] };
+  fixed: { total: number; items: FixedItem[] };
+  longest_failing: { total: number; items: LongestFailingItem[] };
+  time_to_fix: { fixes: number; mean_ms: number | null; median_ms: number | null; p90_ms: number | null; bounded: number };
+  flakiness: { date: string; tests_executed: number; flaky_tests: number; flips: number }[];
 }

@@ -60,3 +60,19 @@ export const CAUSES_REPORT: Report = {
     resolved: [{ signature: "ffee", headline: "Error: connect ECONNREFUSED", previous_occurrences: 31, last_seen: "2026-09-02T10:00:00Z" }],
   },
 };
+
+const ref = (name: string) => ({ test_key: name.padEnd(64, "0"), suite: "checkout", class_name: "Cart", name, branch: "main" });
+
+export const REGRESSIONS_REPORT: Report = {
+  ...SUMMARY_REPORT,
+  regressions: {
+    newly_failing: { total: 9, items: [{ ...ref("pays"), failing_since: "2026-10-02T10:00:00Z", failing_since_run_id: 9301,
+      last_passed_at: "2026-09-25T10:00:00Z", last_passed_run_id: 9290, failures: 4, headline: "AssertionError: total" }] },
+    fixed: { total: 5, items: [{ ...ref("ships"), fixed_at: "2026-10-04T10:00:00Z", fixed_run_id: 9400,
+      failing_since: "2026-10-02T10:00:00Z", failing_since_bounded: true, time_to_fix_ms: 172_800_000 }] },
+    longest_failing: { total: 12, items: [{ ...ref("refunds"), failing_since: "2026-09-08T23:00:00Z", failing_since_bounded: true,
+      consecutive_failures: 31, last_run_id: 9433, headline: "Error: refund API down" }] },
+    time_to_fix: { fixes: 23, mean_ms: 151_200_000, median_ms: 86_400_000, p90_ms: 432_000_000, bounded: 2 },
+    flakiness: [{ date: "2026-10-07", tests_executed: 990, flaky_tests: 14, flips: 51 }, { date: "2026-10-08", tests_executed: 0, flaky_tests: 0, flips: 0 }],
+  },
+};

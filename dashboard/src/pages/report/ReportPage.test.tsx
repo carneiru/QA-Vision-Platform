@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -8,8 +8,9 @@ import { delay, http, HttpResponse } from "msw";
 import { server } from "../../test/server";
 import { setAccessToken } from "../../auth/tokens";
 import type { ReportRequest } from "../../api/report";
-import { SUMMARY_REPORT } from "./testFixtures";
-import { addDays, spanDays, todayIn } from "./useReportFilters";
+import { PATTERN } from "../../components/ChartKit";
+import { CAUSES_REPORT, REGRESSIONS_REPORT, SUMMARY_REPORT } from "./testFixtures";
+import { addDays, todayIn } from "./useReportFilters";
 import ReportPage, { ANNOUNCE_DELAY_MS } from "./ReportPage";
 
 const P = "/api/v1/projects/42";
@@ -26,10 +27,8 @@ function serve(over: { report?: (body: ReportRequest) => Response | Promise<Resp
     http.post(`${P}/analytics/report`, async ({ request }) => {
       const body = (await request.json()) as ReportRequest;
       bodies.push(body);
-      return over.report ? over.report(body) : HttpResponse.json(SUMMARY_REPORT);
+      return over.report ? over.report(body) : HttpResponse.json({ ...SUMMARY_REPORT, ...CAUSES_REPORT, ...REGRESSIONS_REPORT });
     }),
-    http.get(`${P}/analytics/flaky`, () => HttpResponse.json([{ test_key: "c".repeat(64), suite: "checkout", class_name: "Cart",
-      name: "coupon", reason: "flips", commits: [], flips: 4, flip_rate: 0.4, runs: 10, last_status: "passed", last_seen: "2026-10-05T10:00:00Z" }])),
     http.get(`${P}/case-areas`, () => HttpResponse.json({ generated_at: "v1", counts: { cases: 1, linked: 1, manual: 0 },
       folders: [], features: ["Booking"], labels: [], suites: [],
       cases: [{ n: 1, t: "Book", k: "c".repeat(64), fo: null, fe: 0, l: [], s: [] }] })),
@@ -66,7 +65,7 @@ test("an area filter sends the linked keys; one with no linked tests sends nothi
   renderPage("?area=feature:Booking");
   await screen.findByRole("group", { name: /^Pass rate/ });
   expect(summaryBodies()[0].test_keys).toEqual(["c".repeat(64)]);
-  expect(within(screen.getByRole("region", { name: /flaky tests/i })).getByText(/coupon/)).toBeInTheDocument();
+  expect(await within(await screen.findByRole("region", { name: "Failure causes" })).findAllByText(/TimeoutError/)).not.toHaveLength(0);
 });
 
 test("an area with no linked tests never calls the report", async () => {
@@ -111,11 +110,12 @@ test("a filter change mid-load aborts the old request, never shows its answer an
     },
   });
   // msw does not pass a client abort on to its handlers here, so the signal the page hands to fetch is watched
-  const signals: { branch: string | null; signal: AbortSignal }[] = [];
+  const signals: { branch: string | null; signal: AbortSignal }[] = [];  // the summary's requests only
   const realFetch = globalThis.fetch;
   const spy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     if (String(input).endsWith("/analytics/report") && init?.signal && typeof init.body === "string") {
-      signals.push({ branch: (JSON.parse(init.body) as ReportRequest).branch, signal: init.signal });
+      const sent = JSON.parse(init.body) as ReportRequest;
+      if (sent.sections[0] === "summary") signals.push({ branch: sent.branch, signal: init.signal });
     }
     return realFetch(input, init);
   });
@@ -160,21 +160,21 @@ test("on paper a data table is printed whole, not clipped to its scroll box", ()
 const liveRegion = () => document.querySelector(".report > p[aria-live='polite']")!;
 const runs = (n: number) => HttpResponse.json({ ...SUMMARY_REPORT, summary: { ...SUMMARY_REPORT.summary!, current: { ...SUMMARY_REPORT.summary!.current, runs: n } } });
 
-test("the update is announced only when every section asked has loaded, Flaky included", async () => {
-  serve({ report: (body) => runs(body.branch === "main" ? 111 : 222) });
-  server.use(http.get(`${P}/analytics/flaky`, async ({ request }) => {
-    if (!new URL(request.url).searchParams.has("branch")) await delay(800);
-    return HttpResponse.json([]);
-  }));
+test("the update is announced only when every section asked has loaded, Regressions included", async () => {
+  serve({
+    report: async (body) => {
+      if (body.sections[0] === "regressions" && body.branch !== "main") await delay(800);
+      return runs(body.branch === "main" ? 111 : 222);
+    },
+  });
   renderPage();
   await screen.findByRole("group", { name: /^Runs 111/ });
   await userEvent.click(await screen.findByRole("button", { name: "Remove filter Branch: main (default)" }));
   expect(await screen.findByRole("group", { name: /^Runs 222/ })).toBeInTheDocument();
   await delay(ANNOUNCE_DELAY_MS + 200);
-  expect(within(screen.getByRole("region", { name: /flaky tests/i })).getByRole("status", { name: /loading flaky tests/i })).toBeInTheDocument();
+  expect(within(screen.getByRole("region", { name: "Regressions and stability" })).getByRole("status", { name: /loading regressions and stability/i })).toBeInTheDocument();
   expect(liveRegion().textContent).toBe("");
-  expect(await screen.findByText("No flaky tests in this period.", {}, { timeout: 2000 })).toBeInTheDocument();
-  await waitFor(() => expect(liveRegion()).toHaveTextContent("Report updated"));
+  await waitFor(() => expect(liveRegion()).toHaveTextContent("Report updated"), { timeout: 2000 });
   expect(screen.getAllByText("Report updated")).toHaveLength(1);
 });
 
@@ -201,24 +201,6 @@ test("a change back to answers already cached announces again; a failed summary 
   expect(liveRegion().textContent).toBe("");
 });
 
-test("Flaky with a custom range covers the last N days up to today, at most 90 (Ruling 6)", async () => {
-  const today = todayIn(TZ);
-  for (const [from, to, n] of [[addDays(today, -20), addDays(today, -10), 21], [addDays(today, -200), addDays(today, -150), 90]] as const) {
-    serve();
-    const windows: (string | null)[] = [];
-    server.use(http.get(`${P}/analytics/flaky`, ({ request }) => {
-      windows.push(new URL(request.url).searchParams.get("window_days"));
-      return HttpResponse.json([]);
-    }));
-    renderPage(`?from=${from}&to=${to}`);
-    const flaky = await screen.findByRole("region", { name: /flaky tests/i });
-    expect(await within(flaky).findByText(new RegExp(`Covers the last ${n} days`))).toBeInTheDocument();
-    await waitFor(() => expect(windows).toEqual([String(n)]));
-    expect(Math.min(90, spanDays(from, today))).toBe(n);
-    cleanup();
-  }
-});
-
 test("a zone the server does not know: asked again in UTC, once, with a dismissible notice", async () => {
   const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
   const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
@@ -241,16 +223,36 @@ test("a zone the server does not know: asked again in UTC, once, with a dismissi
 test("a 422 that is not about the zone is not retried", async () => {
   serve({ report: () => HttpResponse.json({ detail: "span must be at most 90 days" }, { status: 422 }) });
   renderPage();
-  expect(await screen.findByText(/these filters are not valid/i)).toBeInTheDocument();
+  expect(await screen.findAllByText(/these filters are not valid/i)).not.toHaveLength(0);
   expect(summaryBodies()).toHaveLength(1);
   expect(screen.queryByText(/time zone isn't supported/)).not.toBeInTheDocument();
 });
 
-test("Flaky shows Retry when the gate is blocked by a failed lookup", async () => {
+test("every section is its own request, and an area filter sends the same keys to each", async () => {
   serve();
-  server.use(http.get(`${P}/case-areas`, () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
   renderPage("?area=feature:Booking");
-  const flaky = await screen.findByRole("region", { name: /flaky tests/i });
-  expect(await within(flaky).findByRole("button", { name: "Retry" })).toBeInTheDocument();
-  expect(within(flaky).getByText("Cases could not be loaded")).toBeInTheDocument();
+  await screen.findByRole("region", { name: "Regressions and stability" });
+  await vi.waitFor(() => expect(new Set(bodies.map((b) => b.sections[0]))).toEqual(new Set(["summary", "failure_causes", "regressions"])));
+  expect(bodies.every((b) => b.test_keys?.[0] === "c".repeat(64))).toBe(true);
+});
+
+test("the pattern definitions the Failure causes hatches point at are on the page once, with both sections", async () => {
+  serve();
+  renderPage();
+  await within(await screen.findByRole("region", { name: "Failure causes" })).findAllByText(/TimeoutError/);
+  await screen.findByRole("group", { name: "Newly failing 9" });
+  expect(document.querySelectorAll(`pattern#${PATTERN.failed}`)).toHaveLength(1);
+});
+
+test("a zone the server rejects is retried in UTC for every section", async () => {
+  const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+  const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+    return { ...resolved.call(this), timeZone: "Pacific/Kiritimati" };
+  });
+  serve({ report: (body) => (body.tz === "UTC" ? HttpResponse.json({ ...SUMMARY_REPORT, ...CAUSES_REPORT, ...REGRESSIONS_REPORT })
+    : HttpResponse.json({ detail: `Unknown time zone: '${body.tz}'` }, { status: 422 })) });
+  renderPage();
+  expect(await screen.findByRole("group", { name: "Newly failing 9" })).toBeInTheDocument();
+  spy.mockRestore();
+  expect(bodies.filter((b) => b.tz === "UTC").map((b) => b.sections[0]).sort()).toEqual(["failure_causes", "regressions", "summary"]);
 });
