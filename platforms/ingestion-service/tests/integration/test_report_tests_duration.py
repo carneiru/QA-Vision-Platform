@@ -53,13 +53,76 @@ def test_tests_honour_test_keys(client, auth, seeded):
     assert [r[0] for r in section(client, auth, "tests", test_keys=[report_key("t2")])["rows"]] == [report_key("t2")]
 
 
-def test_flips_over_a_long_pass_run_equal_the_full_sequence(client, auth, project_role, report_now, seed_run):
-    """_outcomes drops the passes inside a pass run; the flips must still equal those over every outcome."""
+def _seed_story(seed_run, name, statuses, branch="main", start_day=1):
+    for day, status in enumerate(statuses, start=start_day):
+        seed_run(at(10, day), branch=branch, results=((name, status, 1),))
+
+
+def _flips_by_definition(db):
+    """Ground truth: the last non-skipped attempt per (test, run), per branch in (started_at, run_id) order."""
+    from src.ingestion.models import Run, RunResult
+    last = {}
+    for row, run in (db.query(RunResult, Run).join(Run, Run.id == RunResult.run_id)
+                     .filter(RunResult.status != "skipped").order_by(RunResult.id)):
+        last[(row.test_key, run.branch, run.started_at, run.id)] = row.status == "passed"
+    stories = {}
+    for (key, branch, started, run_id), passed in sorted(last.items(), key=lambda kv: (kv[0][2], kv[0][3])):
+        stories.setdefault((key, branch), []).append(passed)
+    out = {}
+    for (key, _), story in stories.items():
+        out[key] = out.get(key, 0) + sum(1 for a, b in zip(story, story[1:]) if a != b)
+    return out
+
+
+def _flips(client, auth):
+    t = section(client, auth, "tests", to="2026-10-09")
+    return {r[0]: dict(zip(t["columns"], r))["flips"] for r in t["rows"]}
+
+
+def test_flips_when_every_pass_is_isolated(client, auth, project_role, report_now, seed_run):
     project_role()
-    # F, P x4, F, P in the 7-day period: 3 flips over 6 pairs, whatever _outcomes drops
-    statuses = ("failed", "passed", "passed", "passed", "passed", "failed", "passed")
-    for day, status in enumerate(statuses, start=1):
-        seed_run(at(10, day), results=(("t1", status, 1),))
-    t = section(client, auth, "tests")
-    row = dict(zip(t["columns"], t["rows"][0]))
-    assert (row["flips"], row["pairs"], row["executions"]) == (3, 6, 7)
+    _seed_story(seed_run, "a", ("passed", "failed", "passed", "failed", "passed", "failed", "passed"))
+    assert _flips(client, auth)[report_key("a")] == 6
+
+
+def test_flips_with_long_pass_runs_on_both_sides(client, auth, project_role, report_now, seed_run):
+    project_role()
+    _seed_story(seed_run, "b", ("passed", "passed", "failed", "passed", "passed", "passed", "failed", "passed", "passed"))
+    assert _flips(client, auth)[report_key("b")] == 4
+
+
+def test_flips_are_counted_per_branch(client, auth, project_role, report_now, seed_run):
+    project_role()
+    seed_run(at(10, 1), branch="main", results=(("c", "passed", 1),))
+    seed_run(at(10, 2), branch="dev", results=(("c", "passed", 1),))
+    seed_run(at(10, 3), branch="main", results=(("c", "failed", 1),))
+    seed_run(at(10, 4), branch="dev", results=(("c", "passed", 1),))
+    seed_run(at(10, 5), branch="main", results=(("c", "passed", 1),))
+    assert _flips(client, auth)[report_key("c")] == 2   # main P F P; dev P P: never main-next-to-dev
+
+
+def test_flips_with_a_retried_run_whose_last_attempt_passes(client, auth, db, project_role, report_now, seed_run):
+    project_role()
+    seed_run(at(10, 1), results=(("r", "passed", 1),))
+    seed_run(at(10, 2), results=(("r", "failed", 1), ("r", "passed", 1)))   # outcome: passed (P P F F P = 2 flips)
+    seed_run(at(10, 3), results=(("r", "failed", 1),))
+    seed_run(at(10, 4), results=(("r", "passed", 1), ("r", "failed", 1)))   # outcome: failed
+    seed_run(at(10, 5), results=(("r", "passed", 1),))
+    assert _flips(client, auth)[report_key("r")] == 2 == _flips_by_definition(db)[report_key("r")]
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_section_flips_equal_the_flips_over_every_outcome(client, auth, db, project_role, report_now, seed_run, seed):
+    import random
+    rng = random.Random(seed)
+    project_role()
+    for _ in range(25):
+        results = []
+        for name in ("t0", "t1", "t2", "t3"):
+            for _ in range(rng.choice((0, 1, 1, 1, 2))):
+                results.append((name, rng.choices(("passed", "failed", "errored", "skipped"), (60, 20, 5, 15))[0], 1))
+        seed_run(at(10, rng.randint(1, 6), rng.randint(0, 23)), branch=rng.choice(("main", "main", "dev", None)),
+                 results=tuple(results) or (("t0", "passed", 1),))
+    truth = _flips_by_definition(db)
+    got = _flips(client, auth)
+    assert {k: v for k, v in got.items() if v or truth.get(k)} == {k: v for k, v in truth.items() if v}

@@ -513,14 +513,15 @@ TESTS_COLUMNS = ["test_key", "executions", "passed", "failed", "errored", "skipp
 TESTS_ROW_CAP = 50_000
 
 
-def _last_status(db: Session, scope: Scope, ids: list) -> Dict[str, str]:
+def _last_status(db: Session, scope: Scope, ids: list, keys: list) -> Dict[str, str]:
     """Each test's newest result in the period (run start, run id, then the last attempt), skipped included."""
     ranked = (
         select(RunResult.test_key.label("test_key"), RunResult.status.label("status"),
                func.row_number().over(partition_by=RunResult.test_key,
                                       order_by=(Run.started_at.desc(), Run.id.desc(), RunResult.id.desc())).label("position"))
         .join(Run, Run.id == RunResult.run_id)
-        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
+        .where(in_list(db, RunResult.run_id, ids, Integer), in_list(db, RunResult.test_key, keys),
+               *key_filter(db, scope))
     ).subquery()
     return dict(db.execute(select(ranked.c.test_key, ranked.c.status).where(ranked.c.position == 1)).all())
 
@@ -556,7 +557,7 @@ def tests_section(db: Session, scope: Scope, runs: List[ScopedRun], context: Con
     ).all()
     truncated = len(aggregated) > TESTS_ROW_CAP
     aggregated = aggregated[:TESTS_ROW_CAP]
-    last = _last_status(db, scope, ids)
+    last = _last_status(db, scope, ids, [row[0] for row in aggregated])
     pairs = _pairs(db, scope, ids)
     # Only a test with a failure can flip: the others have 0, so their sequences are never read
     failing = sorted(key for key, _, _, failed, errored, _, _ in aggregated if int(failed) + int(errored) > 0)
