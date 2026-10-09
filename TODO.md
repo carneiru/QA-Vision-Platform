@@ -193,7 +193,7 @@ Reliability and operations
 - [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls
 - [x] CSV export — client-side, tests and flaky views (see Dashboard follow-ups)
 - [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
-- [ ] Report regressions at size B is at p95 7.9 s against the 8 s target (README Report timing). If it crosses 8 s: the per-test daily rollup. The covering index the spec lists first did not pay at size B (experimental one dropped, README Report timing, task-20-perf-report.md "Why no covering index"); try it only if production shows a small window over a large mixed table.
+- [ ] Report regressions at size B is at p95 8.4 s against the 8 s target (README Report timing; accepted 2026-10-10, size A is the expected volume). When a real project's 90-day results near size B: first a per-request `SET LOCAL work_mem`, then the per-test daily rollup. The covering index the spec lists first did not pay at size B (experimental one dropped, README Report timing, task-20-perf-report.md "Why no covering index"); try it only if production shows a small window over a large mixed table.
 
 ### Dashboard follow-ups
 - [x] SSO sign-in buttons (Google, Microsoft) in the login page — rendered only when `VITE_*` client ids are baked at build time; manual verification against a real tenant still pending

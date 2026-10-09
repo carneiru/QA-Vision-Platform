@@ -434,8 +434,9 @@ as the README's Analytics table was. Results go into that table.
     Size B, 90 days on every branch: `summary` 2.5 s, `failure_causes` 1.8 s, `tests` 6.8 s and
     `duration` 35 ms meet 8 s; `regressions` misses it at p95 8.4 s (p50 7.7 s), still well under
     the 20 s timeout. Every narrower B filter meets 8 s (`regressions` on main only: 7.5 s).
-    Whether to build the rollup, or first try a per-request `SET LOCAL work_mem` so the sort stays
-    in memory, is a decision still open with the user.
+    Accepted for now (user, 2026-10-10): size A is the expected volume and meets 1 s. Revisit when a
+    project's 90-day result count approaches size B: first a per-request `SET LOCAL work_mem` so the
+    sort stays in memory, then the per-test daily rollup.
 - **ClickHouse is not adopted.** Its adoption trigger in the blueprint is "rollup tables stop
   holding", and it has not fired. Redis is not adopted either: its trigger is a second gateway
   instance.
@@ -810,7 +811,7 @@ No blueprint adoption trigger fires, so the blueprint itself does not change.
 - **Several areas at once,** or OR between filters. There is one area and one suite, and filters
   combine with AND.
 - **Server-side caching, Redis, ClickHouse and materialised report tables.** None of their adoption
-  triggers has fired. A per-test daily rollup is the planned next step if size B misses its target.
+  triggers has fired. A per-test daily rollup is the remedy if a real project's `regressions` misses its target (size B's 8.4 s miss is accepted for now).
 - **Scheduled or emailed reports,** and saved report presets. The URL is the preset. The weekly
   summary job stays as it is.
 - **Comparing two arbitrary periods or two branches side by side.** The previous period is the only
