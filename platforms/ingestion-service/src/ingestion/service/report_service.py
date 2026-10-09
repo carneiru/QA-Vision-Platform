@@ -226,11 +226,13 @@ def _test_figures(db: Session, scope: Scope, ids: list) -> tuple:
     """(distinct tests executed, distinct tests with a failing execution) over the given runs."""
     if not ids:
         return 0, 0
-    tests, failing = db.execute(
-        select(func.count(distinct(RunResult.test_key)),
-               func.count(distinct(case((RunResult.status.in_(FAILING), RunResult.test_key)))))
+    # Grouped, not count(DISTINCT): a hash over the keys instead of sorting every row by a 64-character key
+    per_test = (
+        select(RunResult.test_key, func.max(case((RunResult.status.in_(FAILING), 1), else_=0)).label("failing"))
         .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
-    ).one()
+        .group_by(RunResult.test_key)
+    ).subquery()
+    tests, failing = db.execute(select(func.count(), func.sum(per_test.c.failing))).one()
     return int(tests or 0), int(failing or 0)
 
 
@@ -403,19 +405,23 @@ def _outcomes(db: Session, ids: list, keys: list, by_id: Dict[int, ScopedRun]) -
     followed by a retried run, is kept whatever its neighbours."""
     if not ids or not keys:
         return []
-    attempts = (
-        select(RunResult.run_id, RunResult.test_key, RunResult.status, RunResult.id)
-        .join(Run, Run.id == RunResult.run_id)
-        .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped",
+    keys = list(keys)
+    filters = (in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped",
                in_list(db, RunResult.test_key, keys))
-    )
-    sequence_key = RunResult.test_key
-    if db.get_bind().dialect.name == "postgresql":
-        # The sort partitions on the key's number, not the 64-character key: about a third faster on 4 million rows
-        numbered = (func.unnest(bindparam(None, list(keys), type_=ARRAY(String)))
+    numbered_rows = db.get_bind().dialect.name == "postgresql"
+    if numbered_rows:
+        # The sort partitions on the key's number, not the 64-character key: about a third faster on 4 million rows.
+        # The rows also carry the number, not the key, through the sort (narrower); it maps back to the key below.
+        numbered = (func.unnest(bindparam(None, keys, type_=ARRAY(String)))
                     .table_valued("test_key", with_ordinality="number").render_derived(name="numbered_keys"))
-        attempts = attempts.join(numbered, numbered.c.test_key == RunResult.test_key)
         sequence_key = numbered.c.number
+        attempts = (select(RunResult.run_id, sequence_key.label("test_key"), RunResult.status, RunResult.id)
+                    .join(Run, Run.id == RunResult.run_id)
+                    .join(numbered, numbered.c.test_key == RunResult.test_key).where(*filters))
+    else:
+        sequence_key = RunResult.test_key
+        attempts = (select(RunResult.run_id, RunResult.test_key, RunResult.status, RunResult.id)
+                    .join(Run, Run.id == RunResult.run_id).where(*filters))
     order = {"partition_by": (sequence_key, Run.branch), "order_by": (Run.started_at, RunResult.run_id, RunResult.id)}
     ranked = attempts.add_columns(
         func.lag(RunResult.status).over(**order).label("status_before"),
@@ -436,6 +442,8 @@ def _outcomes(db: Session, ids: list, keys: list, by_id: Dict[int, ScopedRun]) -
     headlines = _headlines(db, [row_id for _, _, status, row_id, after in rows if after is None and status in FAILING])
     out = []
     for run_id, key, status, row_id, _ in rows:
+        if numbered_rows:
+            key = keys[key - 1]  # WITH ORDINALITY counts from 1
         run = by_id[run_id]
         passed = status == "passed"
         out.append(Outcome(key, run.branch, run_id, run.started_at, passed, None if passed else headlines.get(row_id)))
@@ -512,59 +520,103 @@ SECTION_BUILDERS["regressions"] = regressions
 TESTS_COLUMNS = ["test_key", "executions", "passed", "failed", "errored", "skipped", "flips", "pairs",
                  "duration_ms_sum", "last_status"]
 TESTS_ROW_CAP = 50_000
+LAST_STATUS_FIRST_BATCH = 16  # runs; each later batch doubles
 
 
-def _last_status(db: Session, scope: Scope, ids: list, keys: list) -> Dict[str, str]:
-    """Each test's newest result in the period (run start, run id, then the last attempt), skipped included."""
-    ranked = (
-        select(RunResult.test_key.label("test_key"), RunResult.status.label("status"),
-               func.row_number().over(partition_by=RunResult.test_key,
-                                      order_by=(Run.started_at.desc(), Run.id.desc(), RunResult.id.desc())).label("position"))
-        .join(Run, Run.id == RunResult.run_id)
-        .where(in_list(db, RunResult.run_id, ids, Integer), in_list(db, RunResult.test_key, keys),
-               *key_filter(db, scope))
-    ).subquery()
-    return dict(db.execute(select(ranked.c.test_key, ranked.c.status).where(ranked.c.position == 1)).all())
+def _last_status(db: Session, current: Dict[int, ScopedRun], keys: list) -> Dict[str, str]:
+    """Each test's newest result in the period (run start, run id, then the last attempt), skipped included.
 
-
-def _pairs(db: Session, scope: Scope, ids: list) -> Dict[str, int]:
-    """Sum over branches of (non-skipped outcomes - 1): the denominator of a flip rate."""
-    rows = db.execute(
-        select(RunResult.test_key, Run.branch, func.count(distinct(RunResult.run_id)))
-        .join(Run, Run.id == RunResult.run_id)
-        .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped", *key_filter(db, scope))
-        .group_by(RunResult.test_key, Run.branch)
-    ).all()
-    out: Dict[str, int] = {}
-    for key, _, outcomes in rows:
-        out[key] = out.get(key, 0) + max(int(outcomes) - 1, 0)
+    The runs are read newest first in doubling batches, each asked only for the tests not found yet: no window
+    over every result of the period (a sort of millions of rows), and usually only the newest runs are read. The
+    keys come from the scoped rows, so the test_keys filter needs no repeating."""
+    newest = sorted(current.values(), key=lambda r: (r.started_at, r.id), reverse=True)
+    wanted = set(keys)
+    out: Dict[str, str] = {}
+    start, size = 0, LAST_STATUS_FIRST_BATCH
+    while wanted and start < len(newest):
+        rank = {r.id: position for position, r in enumerate(newest[start:start + size])}  # 0 is the newest
+        start, size = start + size, size * 2
+        best: Dict[str, tuple] = {}
+        for key, run_id, row_id, status in db.execute(
+            select(RunResult.test_key, RunResult.run_id, RunResult.id, RunResult.status)
+            .where(in_list(db, RunResult.run_id, list(rank), Integer), in_list(db, RunResult.test_key, sorted(wanted)))
+        ).all():
+            order = (rank[run_id], -row_id)
+            if key not in best or order < best[key][0]:
+                best[key] = (order, status)
+        for key, (_, status) in best.items():
+            out[key] = status
+        wanted -= best.keys()
     return out
 
 
+def _per_branch(db: Session, scope: Scope, ids: list) -> list:
+    """Per (test, branch): executions, the four counts and the summed duration, in one pass over the period."""
+    return db.execute(
+        select(RunResult.test_key, Run.branch, func.count(RunResult.id), _count("passed"), _count("failed"),
+               _count("errored"), _count("skipped"), func.sum(RunResult.duration_ms))
+        .join(Run, Run.id == RunResult.run_id)
+        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
+        .group_by(RunResult.test_key, Run.branch)
+    ).all()
+
+
+def _repeated_attempts(db: Session, scope: Scope, ids: list) -> Dict[tuple, int]:
+    """Per (test, branch): the non-skipped rows beyond the first of a test in one run (retries), so that
+    non-skipped rows minus these is the number of runs with an outcome. First the runs with a repeated test (per
+    run, rows against distinct tests: a small sort per run, by byte order since only equality matters), then
+    the extra rows in those runs only."""
+    key = RunResult.test_key.collate("C") if db.get_bind().dialect.name == "postgresql" else RunResult.test_key
+    retried = db.execute(
+        select(RunResult.run_id)
+        .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped", *key_filter(db, scope))
+        .group_by(RunResult.run_id)
+        .having(func.count(RunResult.id) > func.count(distinct(key)))
+    ).scalars().all()
+    if not retried:
+        return {}
+    rows = db.execute(
+        select(RunResult.test_key, Run.branch, func.count(RunResult.id) - func.count(distinct(RunResult.run_id)))
+        .join(Run, Run.id == RunResult.run_id)
+        .where(in_list(db, RunResult.run_id, list(retried), Integer), RunResult.status != "skipped",
+               *key_filter(db, scope))
+        .group_by(RunResult.test_key, Run.branch)
+    ).all()
+    return {(test, branch): int(extra) for test, branch, extra in rows if extra}
+
+
 def tests_section(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) -> dict:
-    """One row per test executed in scope in the period, columnar (a key in every object would double the payload)."""
+    """One row per test executed in scope in the period, columnar (a key in every object would double the payload).
+
+    `pairs` is the sum over branches of (non-skipped outcomes - 1): the denominator of a flip rate. The counts
+    come per (test, branch) in one pass; outcomes are the non-skipped rows less the repeated attempts. No
+    count(DISTINCT) over the period: it sorts every row by a 64-character key."""
     current = {r.id: r for r in runs if r.current and r.id in context.counted}
     if not current:
         return {"columns": TESTS_COLUMNS, "rows": [], "truncated": False}
     ids = list(current)
-    failures = _count(*FAILING)
-    aggregated = db.execute(
-        select(RunResult.test_key, func.count(RunResult.id), _count("passed"), _count("failed"), _count("errored"),
-               _count("skipped"), func.sum(RunResult.duration_ms))
-        .where(in_list(db, RunResult.run_id, ids, Integer), *key_filter(db, scope))
-        .group_by(RunResult.test_key)
-        .order_by(failures.desc(), RunResult.test_key)
-        .limit(TESTS_ROW_CAP + 1)
-    ).all()
-    truncated = len(aggregated) > TESTS_ROW_CAP
-    aggregated = aggregated[:TESTS_ROW_CAP]
-    last = _last_status(db, scope, ids, [row[0] for row in aggregated])
-    pairs = _pairs(db, scope, ids)
+    totals: Dict[str, List[int]] = {}       # executions, passed, failed, errored, skipped, duration
+    outcomes: Dict[tuple, int] = {}
+    for key, branch, n, p, f, e, s, d in _per_branch(db, scope, ids):
+        row = totals.setdefault(key, [0, 0, 0, 0, 0, 0])
+        for i, value in enumerate((n, p, f, e, s, d)):
+            row[i] += int(value or 0)
+        outcomes[(key, branch)] = int(n) - int(s or 0)
+    for sequence, extra in _repeated_attempts(db, scope, ids).items():
+        outcomes[sequence] -= extra
+    pairs: Dict[str, int] = {}
+    for (key, _), count in outcomes.items():
+        pairs[key] = pairs.get(key, 0) + max(count - 1, 0)
+    # Most failing first, then by key (lower-case hex: byte order is the database's order)
+    ordered = sorted(totals.items(), key=lambda item: (-(item[1][2] + item[1][3]), item[0]))
+    truncated = len(ordered) > TESTS_ROW_CAP
+    ordered = ordered[:TESTS_ROW_CAP]
+    last = _last_status(db, current, [key for key, _ in ordered])
     # Only a test with a failure can flip: the others have 0, so their sequences are never read
-    failing = sorted(key for key, _, _, failed, errored, _, _ in aggregated if int(failed) + int(errored) > 0)
+    failing = sorted(key for key, (_, _, failed, errored, _, _) in ordered if failed + errored > 0)
     flips = count_flips(build_sequences(_outcomes(db, ids, failing, current)))
-    rows = [[key, n, int(p), int(f), int(e), int(s), flips.get(key, 0), pairs.get(key, 0), int(d or 0), last.get(key)]
-            for key, n, p, f, e, s, d in aggregated]
+    rows = [[key, n, p, f, e, s, flips.get(key, 0), pairs.get(key, 0), d, last.get(key)]
+            for key, (n, p, f, e, s, d) in ordered]
     if not truncated:
         rows.sort(key=lambda row: row[0])
     return {"columns": TESTS_COLUMNS, "rows": rows, "truncated": truncated}

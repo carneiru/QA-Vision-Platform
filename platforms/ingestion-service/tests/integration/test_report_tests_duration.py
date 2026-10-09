@@ -128,6 +128,60 @@ def test_section_flips_equal_the_flips_over_every_outcome(client, auth, db, proj
     assert {k: v for k, v in got.items() if v or truth.get(k)} == {k: v for k, v in truth.items() if v}
 
 
+def _rows_by_definition(db):
+    """Ground truth for every column but flips, row by row: counts over every result, pairs as non-skipped runs
+    per (test, branch) less one, and the newest result by (run start, run id, result id)."""
+    from src.ingestion.models import Run, RunResult
+    out, runs, newest = {}, {}, {}
+    for row, run in db.query(RunResult, Run).join(Run, Run.id == RunResult.run_id):
+        t = out.setdefault(row.test_key, {"executions": 0, "passed": 0, "failed": 0, "errored": 0, "skipped": 0,
+                                          "duration_ms_sum": 0})
+        t["executions"] += 1
+        t[row.status] += 1
+        t["duration_ms_sum"] += row.duration_ms
+        if row.status != "skipped":
+            runs.setdefault((row.test_key, run.branch), set()).add(run.id)
+        order = (run.started_at, run.id, row.id)
+        if row.test_key not in newest or order > newest[row.test_key][0]:
+            newest[row.test_key] = (order, row.status)
+    for key, t in out.items():
+        t["pairs"] = sum(max(len(ids) - 1, 0) for (k, _), ids in runs.items() if k == key)
+        t["last_status"] = newest[key][1]
+    return out
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_every_column_equals_the_row_by_row_figures(client, auth, db, project_role, report_now, seed_run, seed):
+    """Over more runs than the first two last-status batches (16 + 32), with retries, skips and a null branch."""
+    import random
+    rng = random.Random(seed)
+    project_role()
+    names = [f"t{i}" for i in range(8)]
+    for number in range(70):
+        results = []
+        for name in names[:2] if number < 3 else names[2:]:  # t0, t1 run only in the oldest runs
+            for _ in range(rng.choice((0, 1, 1, 1, 2))):
+                results.append((name, rng.choices(("passed", "failed", "errored", "skipped"), (60, 20, 5, 15))[0],
+                                rng.randint(1, 500)))
+        seed_run(at(10, 1 + number // 12, number % 12 + 6), branch=rng.choice(("main", "main", "dev", None)),
+                 results=tuple(results) or (("t2", "skipped", 0),))
+    t = section(client, auth, "tests", to="2026-10-09")
+    got = {r[0]: {c: v for c, v in zip(t["columns"], r) if c not in ("test_key", "flips")} for r in t["rows"]}
+    assert got == _rows_by_definition(db)
+    assert t["truncated"] is False and [r[0] for r in t["rows"]] == sorted(got)
+
+
+def test_last_status_reaches_a_test_seen_only_in_the_oldest_run(client, auth, project_role, report_now, seed_run):
+    project_role()
+    seed_run(at(10, 1, 6), results=(("old", "errored", 1), ("new", "passed", 1)))
+    for number in range(60):
+        seed_run(at(10, 2 + number // 12, number % 12 + 6), results=(("new", "failed" if number % 2 else "passed", 1),))
+    t = section(client, auth, "tests", to="2026-10-09")
+    rows = {r[0]: dict(zip(t["columns"], r)) for r in t["rows"]}
+    assert rows[report_key("old")]["last_status"] == "errored"
+    assert rows[report_key("new")]["last_status"] == "failed"
+
+
 def test_duration_is_run_wall_time_without_keys(client, auth, seeded):
     d = section(client, auth, "duration")
     assert d["basis"] == "run_wall_time" and len(d["buckets"]) == 7
