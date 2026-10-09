@@ -279,6 +279,8 @@ input.mono { font-family: var(--font-mono); }
 .report-section-actions button { display: inline-flex; align-items: center; gap: var(--space-2); }
 .report-empty { display: flex; flex-direction: column; gap: var(--space-3); align-items: flex-start; }
 .report-empty .button-row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.print-only { display: none; }
+.report-notice { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); margin: 0 0 var(--space-3); background: var(--surface-2); }
 @media print {
   .rail, .topbar, .backdrop, .skip-link, .no-print { display: none !important; }
   body, .shell, .shell-main, .page { background: #fff !important; color: #000 !important; }
@@ -287,6 +289,11 @@ input.mono { font-family: var(--font-mono); }
   table.data tr { break-inside: avoid; }
   table.data tbody tr:hover td { background: none !important; }
   .report-section h2 { break-after: avoid; }
+  .print-only { display: block !important; }
+  .report-print-header { margin: 0 0 12px; font-size: 12px; }
+  .report-print-header ul { margin: 4px 0; padding-left: 18px; }
+  .report-section figure, .report-section table.data thead { break-inside: avoid; }
+  table.data thead { display: table-header-group; }
 }
 .hold-line { display: flex; gap: var(--space-2); align-items: flex-start; margin: 0; }
 .hold-line svg { flex-shrink: 0; margin-top: 3px; color: var(--text-secondary); }

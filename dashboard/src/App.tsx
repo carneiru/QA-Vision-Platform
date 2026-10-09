@@ -30,7 +30,7 @@ import RunDetailPage from "./pages/RunDetailPage";
 import OrganizationPage from "./pages/OrganizationPage";
 import ProjectSettingsPage from "./pages/ProjectSettingsPage";
 import OverviewPage from "./pages/OverviewPage";
-import ReportPage from "./pages/ReportPage";
+import ReportPage from "./pages/report/ReportPage";
 import InvitationAcceptPage from "./pages/InvitationAcceptPage";
 
 // Recharts dominates the bundle; the chart-bearing views load on demand.
