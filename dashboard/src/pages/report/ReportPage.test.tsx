@@ -256,3 +256,18 @@ test("a zone the server rejects is retried in UTC for every section", async () =
   spy.mockRestore();
   expect(bodies.filter((b) => b.tz === "UTC").map((b) => b.sections[0]).sort()).toEqual(["failure_causes", "regressions", "summary"]);
 });
+
+test("a failed Regressions section after a filter change is not announced as updated", async () => {
+  serve({
+    report: (body) => (body.sections[0] === "regressions" && body.branch !== "main"
+      ? HttpResponse.json({ detail: { code: "report_timeout", message: "This report took too long." } }, { status: 503 })
+      : runs(body.branch === "main" ? 111 : 222)),
+  });
+  renderPage();
+  await screen.findByRole("group", { name: /^Runs 111/ });
+  await userEvent.click(await screen.findByRole("button", { name: "Remove filter Branch: main (default)" }));
+  expect(await screen.findByRole("group", { name: /^Runs 222/ })).toBeInTheDocument();
+  expect(await within(screen.getByRole("region", { name: "Regressions and stability" })).findByRole("button", { name: "Retry" })).toBeInTheDocument();
+  await delay(ANNOUNCE_DELAY_MS + 300);
+  expect(liveRegion().textContent).toBe("");
+});

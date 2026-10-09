@@ -5,7 +5,6 @@ import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Too
 import { type CauseGroup, type Report, testLabel } from "../../../api/report";
 import { DataTableDisclosure, PATTERN } from "../../../components/ChartKit";
 import StatusPill from "../../../components/StatusPill";
-import { formatPointLabel } from "../../../lib/chartFormat";
 import { downloadCsv, toCsv } from "../../../lib/csv";
 import ReportSection, { type SectionQuery } from "../ReportSection";
 import type { Gate } from "../useReportRequest";
@@ -86,12 +85,25 @@ export default function FailureCausesSection({ projectId, gate, query, branch, o
       {(r) => {
         const c = r.failure_causes;
         if (!c) return null;
-        if (c.groups.length === 0) return <p className="muted">No failures in this period.</p>;
+                const resolved = c.resolved.length > 0 && (
+          <>
+            <h3 id="report-resolved">Resolved since the previous period</h3>
+            <ul className="plain-list" aria-labelledby="report-resolved">
+              {c.resolved.map((x) => (
+                <li key={x.signature}>
+                  <span className="wrap-anywhere">{headlineOf(x)}</span>
+                  <span className="muted"> · {number.format(x.previous_occurrences)} before, last seen {day.format(new Date(x.last_seen))}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        );
+        if (c.groups.length === 0) return <><p className="muted">No failures in this period.</p>{resolved}</>;
         const periodStart = Date.parse(r.period.start);
         const unit = r.bucket;
         const chart = c.groups.slice(0, TOP_IN_CHART).map((g) => ({
           label: `${g.status === "new" ? "New · " : ""}${truncate(headlineOf(g), 80)}`,
-          occurrences: g.occurrences, status: g.status,
+          signature: g.signature, occurrences: g.occurrences, status: g.status,
         }));
         const largest = c.groups[0];
         const caption = `${number.format(c.failures)} failures from ${number.format(c.groups_total)} causes; the largest is `
@@ -112,7 +124,7 @@ export default function FailureCausesSection({ projectId, gate, query, branch, o
                   <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 }} />
                   <Bar dataKey="occurrences" name="Occurrences" stroke="var(--surface-1)">
                     {chart.map((d) => (
-                      <Cell key={d.label} fill={d.status === "new" ? `url(#${PATTERN.failed})` : "var(--status-failed)"} />
+                      <Cell key={d.signature} fill={d.status === "new" ? `url(#${PATTERN.failed})` : "var(--status-failed)"} />
                     ))}
                     <LabelList dataKey="occurrences" position="right" fill="var(--text-secondary)" fontSize={12} />
                   </Bar>
@@ -182,19 +194,7 @@ export default function FailureCausesSection({ projectId, gate, query, branch, o
             {c.other.groups > 0 && (
               <p className="muted report-note">And {number.format(c.other.groups)} more causes with {number.format(c.other.occurrences)} failures.</p>
             )}
-            {c.resolved.length > 0 && (
-              <>
-                <h3 id="report-resolved">Resolved since the previous period</h3>
-                <ul className="plain-list" aria-labelledby="report-resolved">
-                  {c.resolved.map((x) => (
-                    <li key={x.signature}>
-                      <span className="wrap-anywhere">{headlineOf(x)}</span>
-                      <span className="muted"> · {number.format(x.previous_occurrences)} before, last seen {formatPointLabel(x.last_seen.slice(0, 10), "day")}</span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+            {resolved}
           </>
         );
       }}

@@ -58,3 +58,34 @@ test("CSV columns and headline truncation", () => {
   expect(truncate("x".repeat(100), 80)).toHaveLength(80);
   expect(truncate("short", 80)).toBe("short");
 });
+
+test("with no failures the resolved list still shows", () => {
+  const fc = CAUSES_REPORT.failure_causes!;
+  show({ ...CAUSES_REPORT, failure_causes: { ...fc, groups: [], groups_total: 0, failures: 0, other: { groups: 0, occurrences: 0 } } });
+  expect(screen.getByText(/no failures in this period/i)).toBeInTheDocument();
+  expect(within(screen.getByRole("list", { name: /resolved since the previous period/i })).getByText(/ECONNREFUSED/)).toBeInTheDocument();
+});
+
+test("no failures and nothing resolved shows only the message", () => {
+  const fc = CAUSES_REPORT.failure_causes!;
+  show({ ...CAUSES_REPORT, failure_causes: { ...fc, groups: [], groups_total: 0, failures: 0, other: { groups: 0, occurrences: 0 }, resolved: [] } });
+  expect(screen.getByText(/no failures in this period/i)).toBeInTheDocument();
+  expect(screen.queryByRole("list", { name: /resolved/i })).not.toBeInTheDocument();
+});
+
+test("the resolved last seen date uses the same formatting as the other dates", () => {
+  show();
+  const expected = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date("2026-09-02T10:00:00Z"));
+  expect(within(screen.getByRole("list", { name: /resolved since the previous period/i })).getByText(new RegExp(`last seen ${expected}`))).toBeInTheDocument();
+});
+
+test("causes sharing a truncated headline render without duplicate key warnings", () => {
+  const fc = CAUSES_REPORT.failure_causes!;
+  const base = fc.groups[0];
+  const long = "x".repeat(100);
+  const err = vi.spyOn(console, "error").mockImplementation(() => {});
+  show({ ...CAUSES_REPORT, failure_causes: { ...fc, groups: [{ ...base, signature: "s1", headline: `${long}a` }, { ...base, signature: "s2", headline: `${long}b` }] } });
+  const dup = err.mock.calls.some((c) => String(c[0]).includes("same key"));
+  err.mockRestore();
+  expect(dup).toBe(false);
+});

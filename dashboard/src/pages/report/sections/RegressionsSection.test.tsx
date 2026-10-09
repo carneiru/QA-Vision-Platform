@@ -61,3 +61,16 @@ test("spans and CSVs", () => {
   expect(fixedCsv(REGRESSIONS_REPORT).split("\r\n")[0]).toBe("suite,class_name,name,test_key,branch,fixed_at,failing_since,failing_since_bounded,time_to_fix_ms");
   expect(longestCsv(REGRESSIONS_REPORT).split("\r\n")).toHaveLength(2);
 });
+
+test("an empty list says so instead of a header-only table", () => {
+  const g = REGRESSIONS_REPORT.regressions!;
+  render(
+    <MemoryRouter>
+      <RegressionsSection projectId={42} gate={READY} branch="main" onResetFilters={vi.fn()}
+        query={{ data: { ...REGRESSIONS_REPORT, regressions: { ...g, newly_failing: { total: 0, items: [] }, fixed: { ...g.fixed, total: 0, items: [] },
+          longest_failing: { ...g.longest_failing, total: 0, items: [] } } }, error: null, isPending: false, refetch: vi.fn() }} />
+    </MemoryRouter>,
+  );
+  expect(screen.getAllByText("None in this period.")).toHaveLength(3);
+  expect(screen.queryByRole("table", { name: /newly failing/i })).not.toBeInTheDocument();
+});

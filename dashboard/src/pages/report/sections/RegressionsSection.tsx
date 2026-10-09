@@ -142,6 +142,7 @@ export default function RegressionsSection({ projectId, gate, query, branch, onR
             </DataTableDisclosure>
 
             <h3>Newly failing</h3>
+            {g.newly_failing.items.length === 0 ? <p className="muted">None in this period.</p> : (
             <table className="data">
               <caption className="sr-only">Newly failing tests</caption>
               <thead><tr><th scope="col">Test</th><th scope="col">Branch</th><th scope="col">Failing since</th>
@@ -157,9 +158,11 @@ export default function RegressionsSection({ projectId, gate, query, branch, onR
                 </tr>
               ))}</tbody>
             </table>
+            )}
             {more(g.newly_failing.total, g.newly_failing.items.length)}
 
             <h3>Fixed</h3>
+            {g.fixed.items.length === 0 ? <p className="muted">None in this period.</p> : (
             <table className="data">
               <caption className="sr-only">Fixed tests</caption>
               <thead><tr><th scope="col">Test</th><th scope="col">Branch</th><th scope="col">Fixed at</th>
@@ -174,9 +177,11 @@ export default function RegressionsSection({ projectId, gate, query, branch, onR
                 </tr>
               ))}</tbody>
             </table>
+            )}
             {more(g.fixed.total, g.fixed.items.length)}
 
             <h3>Longest failing</h3>
+            {g.longest_failing.items.length === 0 ? <p className="muted">None in this period.</p> : (
             <table className="data">
               <caption className="sr-only">Longest failing tests</caption>
               <thead><tr><th scope="col">Test</th><th scope="col">Branch</th><th scope="col">Failing since</th>
@@ -191,6 +196,7 @@ export default function RegressionsSection({ projectId, gate, query, branch, onR
                 </tr>
               ))}</tbody>
             </table>
+            )}
             {more(g.longest_failing.total, g.longest_failing.items.length)}
           </>
         );

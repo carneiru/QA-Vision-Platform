@@ -21,7 +21,7 @@ import { useReportRequest, useReportSection } from "./useReportRequest";
 export const ANNOUNCE_DELAY_MS = 150;
 
 /** "Report updated", once, when every section asked after a filter change has settled (spec: Filter bar). The first
- *  load is not announced, nor is a change whose summary failed (its error banner says so). */
+ *  load is not announced, nor is a change where any requested section failed (its error banner says so). */
 export function useAnnouncement(signature: string | null, busy: boolean, failed = false): string {
   const [message, setMessage] = useState("");
   const last = useRef<string | null>(null);
@@ -96,7 +96,7 @@ export default function ReportPage() {
   // Every section's request counts (the summary's own status covers the render before its fetch is registered)
   const fetchingSections = useIsFetching({ queryKey: ["report", id] });
   const busy = [summary, causes, regressions].some((q) => q.fetchStatus === "fetching") || fetchingSections > 0;
-  const announcement = useAnnouncement(gate.state === "ready" ? JSON.stringify(gate.key) : null, busy, summary.isError);
+  const announcement = useAnnouncement(gate.state === "ready" ? JSON.stringify(gate.key) : null, busy, [summary, causes, regressions].some((q) => q.isError));
   const applied = describeFilters(filters, defaultBranch, caseAreas.data);
   const generated = summary.data?.generated_at ?? null;
   const subtitle = `${project.data?.name ?? "Project"}: quality report. ${formatPeriod(filters.from, filters.to)} (${filters.days} days), ${tz}.`
