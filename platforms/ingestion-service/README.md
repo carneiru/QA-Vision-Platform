@@ -237,6 +237,14 @@ timeout; a timeout is 503 `{"detail": {"code": "report_timeout", ...}}`. Nothing
   outcomes next to one on the same branch (a pass between two passes starts, ends and flips nothing), and fetches
   a headline only for a sequence's last outcome when it fails; the streaks, fixes and flips are the same as over the
   full sequence.
+- `tests`: one row per test executed in scope in the period, columnar (`columns` + `rows`): executions, the four
+  counts, `flips` and `pairs` summed over branches (flips only computed for tests with a failure), summed duration
+  and the last status. At most 50,000 rows (then `truncated`, most failing first). The dashboard groups these rows by
+  the cases' feature, folder, label or suite (ADR-026).
+- `duration`: per bucket the runs and average, p50, p90 and maximum, and the previous period's figures. Without
+  test keys the basis is `run_wall_time` (`test_runs.duration_ms`); with them `test_time`, the summed duration of
+  the selected tests per run. The `summary` KPI `avg_run_duration_ms` stays wall time (`test_runs.duration_ms`)
+  even with test keys; only this section switches basis.
 - Migration 016 adds `ix_test_results_failing` on `(run_id, test_key)` (partial, failing rows only), built
   `CONCURRENTLY` on PostgreSQL so uploads are not blocked. Failure causes and the regression candidates read through it.
 
@@ -257,22 +265,22 @@ Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million re
 
 Regenerate with `docker compose exec -T ingestion-service python - < scripts/analytics_benchmark.py` in a throwaway stack.
 
-Report sections (`scripts/bench_report.py`, 90-day period plus 90 days of look-back, PostgreSQL 15 in Docker on a Windows 11 developer machine; p95 of 20 runs per row, after `VACUUM ANALYZE`; the database also held about 45,000 unrelated results). Seeded totals cover the 180 days, so each size holds about half of them per 90 days:
+Report sections (`scripts/bench_report.py`, 90-day period plus 90 days of look-back, PostgreSQL 15 in Docker on a Windows 11 developer machine; p95 of 20 runs per row, after `VACUUM ANALYZE`). Seeded totals cover the 180 days, so each size holds about half of them per 90 days. Measured 2026-10-09 after the Phase 3 query reshaping; the machine was noisier than for the Phase 2 figures (regressions at size B was 7.9 s then with the same window, 10 to 12 s now):
 
-| Size | Filters | summary | failure_causes | regressions |
-|---|---|---|---|---|
-| A (~100k results per 90 days; 3,060 runs x 67 over 180 days) | every branch | 366 ms | 259 ms | 681 ms |
-| A | main only | 250 ms | 131 ms | 500 ms |
-| A | 300 test keys | 269 ms | 134 ms | 452 ms |
-| A | origin qeos, 2,000 seeded run URLs | 133 ms | 75 ms | 274 ms |
-| A | 30 days, every branch | 122 ms | 75 ms | 228 ms |
-| B (~2M results per 90 days; 3,960 runs x 1,000 over 180 days) | every branch | 4,431 ms | 1,832 ms | 7,889 ms |
-| B | main only | 3,650 ms | 1,384 ms | 5,790 ms |
-| B | 300 test keys | 3,648 ms | 1,361 ms | 6,330 ms |
-| B | origin qeos, 2,000 seeded run URLs | 1,252 ms | 602 ms | 3,038 ms |
-| B | 30 days, every branch | 1,822 ms | 946 ms | 4,087 ms |
+| Size | Filters | summary | failure_causes | regressions | tests | duration |
+|---|---|---|---|---|---|---|
+| A (~100k results per 90 days; 3,060 runs x 67 over 180 days) | every branch | 614 ms | 129 ms | 846 ms | 779 ms | 53 ms |
+| A | main only | 507 ms | 106 ms | 587 ms | 394 ms | 24 ms |
+| A | 300 test keys | 229 ms | 131 ms | 419 ms | 271 ms | 135 ms |
+| A | origin qeos, 2,000 seeded run URLs | 130 ms | 76 ms | 331 ms | 186 ms | 17 ms |
+| A | 30 days, every branch | 90 ms | 74 ms | 236 ms | 178 ms | 12 ms |
+| B (~2M results per 90 days; 3,960 runs x 1,000 over 180 days) | every branch | 3,228 ms | 2,145 ms | **12,154 ms** | **8,484 ms** | 37 ms |
+| B | main only | 2,489 ms | 1,633 ms | 6,322 ms | 5,349 ms | 33 ms |
+| B | 300 test keys | 3,790 ms | 1,559 ms | 5,326 ms | 4,329 ms | 1,537 ms |
+| B | origin qeos, 2,000 seeded run URLs | 1,477 ms | 960 ms | 3,819 ms | 2,944 ms | 17 ms |
+| B | 30 days, every branch | 1,145 ms | 931 ms | **10,254 ms** (p50 4,921) | 2,720 ms | 74 ms |
 
-Every section meets its target (p95 1 s at size A, 8 s at size B), `regressions` at size B with little room (it was 29.5 s before its outcome query was reshaped). Its cost is one sort and window over the non-skipped results of the tests that failed in scope (3.9 million rows at size B), keeping only the rows that can change a result: about 455k rows reach Python at size B. If that grows, the next remedy is a daily per-test rollup; a covering index did not pay at size B (a sequential scan takes 0.3 s and the planner ignored the experimental one), and is worth trying only where the window is a small part of a large table (task-20-perf-report.md). The `tests` and `duration` columns arrive with Phase 3.
+Every section meets its size A target (p95 1 s). At size B every section but two meets 8 s: `regressions` (p50 10.0 s) and `tests` (p50 6.7 s, p95 8.5 s) over 90 days on every branch, both under the 20 s statement timeout. Both pay for the same thing: one sort and window over the non-skipped results of every test that failed in scope (about 2 million rows for `tests`, the period; 3.9 million for `regressions`, with the look-back). The rest of `tests` no longer sorts every row of the period: the last status reads the newest runs first in doubling batches, and `pairs` counts non-skipped rows per (test, branch) less repeated attempts, instead of `count(DISTINCT run_id)`. `summary` counts distinct tests through a grouped subquery (3.2 s at B; 5.0 to 9.3 s on the same day before the change). A covering index `(run_id) INCLUDE (test_key, status, duration_ms)` was built on the size B data and EXPLAINed: PostgreSQL used it for none of these queries (the costs are sorts and hashes, not the scan), so it was not added. The next remedy is a daily per-test rollup of outcomes, a design decision still open.
 
 The flaky window goes up to 90 days. Flip counting recombines from the `flaky_daily` rollups the `analytics-rollup` job keeps current (backfill on start, then yesterday + today every 6 hours); a project the job has not visited yet falls back to the live scan with identical results (equivalence is pinned by `tests/unit/test_flaky_rollup.py`). Confirmed same-commit detection stays on the live failure-driven pass at every window — it rides the `(test_key, run_id)` index and dominates the remaining 90-day cost. The data is deliberately hard: failures are spread randomly, so nearly every test is a candidate.
 
