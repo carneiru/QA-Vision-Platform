@@ -5,16 +5,22 @@
 
 Seeds project 900002 (no such project exists in project-service) over 180 days -- the 90-day period plus its
 90-day look-back -- times each section through report_service.build_report under the same 20 s statement
-timeout as the endpoint, prints p50 and p95, then deletes everything it seeded. Run it in a throwaway stack.
+timeout as the endpoint, prints p50 and p95 of REPEAT runs, then deletes everything it seeded and vacuums.
+Anything left by an aborted earlier run is deleted first. Run it in a throwaway stack.
 
     A: about 100,000 results per 90 days (about 1,500 runs, 1,000 tests): the expected size. Target p95 <= 1 s.
+       Seeds 3,060 runs x 67 results over the 180 days.
     B: the README benchmark, 2 million results per 90 days. Target <= 8 s each, never the 20 s timeout.
+       Seeds 3,960 runs x 1,000 results over the 180 days.
+
+SECTIONS (comma-separated, default summary,failure_causes,regressions) picks the sections; an unknown one stops
+the script before seeding.
 """
 import os
 import random
 import statistics
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -31,7 +37,8 @@ PROJECT = 900002
 DAYS = 180
 TESTS = 1000
 RUNS_PER_DAY, TESTS_PER_RUN = (17, 67) if SIZE == "A" else (22, 1000)
-REPEAT = 5 if SIZE == "A" else 3
+REPEAT = 20  # p95 is then the 19th of 20 samples, not the slowest
+SECTIONS = os.environ.get("SECTIONS", "summary,failure_causes,regressions").split(",")
 STATUSES = ("passed", "failed", "errored", "skipped")
 WEIGHTS = (95, 3, 1, 1)
 MESSAGES = ["TimeoutError: locator('#pay-button') after {} ms", "AssertionError: expected {} got {}",
@@ -41,6 +48,25 @@ random.seed(11)
 keys = [test_key("bench", f"Class{i // 50}", f"test_{i}") for i in range(TESTS)]
 now = datetime.now(timezone.utc)
 db = SessionLocal()
+
+
+def clean() -> None:
+    """Delete everything seeded for PROJECT, then VACUUM ANALYZE so the next size does not run on a bloated table."""
+    db.rollback()
+    run_ids = select(Run.id).where(Run.project_id == PROJECT)
+    db.execute(delete(RunResult).where(RunResult.run_id.in_(run_ids)))
+    db.execute(delete(Run).where(Run.project_id == PROJECT))
+    db.execute(delete(ApiKey).where(ApiKey.project_id == PROJECT))
+    db.commit()
+    vacuum()
+
+
+def vacuum() -> None:
+    """VACUUM cannot run in a transaction. After a bulk load it also sets the visibility map, as autovacuum
+    would on a live table, so index-only scans are measured as they behave in production."""
+    with db.get_bind().connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        connection.execute(text("VACUUM (ANALYZE, PARALLEL 0) test_runs"))  # no DSM: Docker's 64 MB /dev/shm
+        connection.execute(text("VACUUM (ANALYZE, PARALLEL 0) test_results"))
 
 
 def seed() -> None:
@@ -71,9 +97,7 @@ def seed() -> None:
                 for t, s in zip(chosen, statuses)
             ])
         db.commit()
-    db.execute(text("ANALYZE test_runs"))
-    db.execute(text("ANALYZE test_results"))
-    db.commit()
+    vacuum()
     print(f"size {SIZE}: seeded {DAYS * RUNS_PER_DAY} runs x {TESTS_PER_RUN} results in {time.perf_counter() - started:.0f} s")
 
 
@@ -100,25 +124,23 @@ def timed(label: str, s: report_service.Scope, section: str) -> None:
     print(f"{label:<44} {section:<15} p50 {statistics.median(samples):>8.0f} ms   p95 {p95:>8.0f} ms", flush=True)
 
 
+missing = [name for name in SECTIONS if name not in report_service.SECTION_BUILDERS]
+if missing:
+    raise SystemExit(f"unknown report sections: {', '.join(missing)}")
+
 try:
+    clean()
     seed()
-    sections = [name for name in ("summary", "failure_causes", "regressions", "tests", "duration")
-                if name in report_service.SECTION_BUILDERS]
+    seeded_urls = db.execute(select(Run.ci_run_url).where(Run.project_id == PROJECT).order_by(Run.id)).scalars().all()
     for label, s in [
         ("90 days, every branch", scope(90)),
         ("90 days, main", scope(90, branch="main")),
         ("90 days, 300 test keys", scope(90, test_keys=keys[:300])),
-        ("90 days, origin qeos (2,000 URLs)", scope(90, origin="qeos",
-                                                    urls=[f"https://github.com/acme/obt/actions/runs/{i}" for i in range(2000)])),
+        ("90 days, origin qeos (2,000 URLs)", scope(90, origin="qeos", urls=random.sample(seeded_urls, 2000))),
         ("30 days, every branch", scope(30)),
     ]:
-        for section in sections:
+        for section in SECTIONS:
             timed(label, s, section)
 finally:
-    db.rollback()
-    run_ids = select(Run.id).where(Run.project_id == PROJECT)
-    db.execute(delete(RunResult).where(RunResult.run_id.in_(run_ids)))
-    db.execute(delete(Run).where(Run.project_id == PROJECT))
-    db.execute(delete(ApiKey).where(ApiKey.project_id == PROJECT))
-    db.commit()
+    clean()
     db.close()
