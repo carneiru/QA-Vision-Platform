@@ -1,5 +1,5 @@
 """Regressions and stability (spec: Section regressions). Pure: the service hands over each test's last-attempt,
-non-skipped outcome per run; the story of a test is told per branch."""
+non-skipped outcomes per run, only those next to a failure; the story of a test is told per branch."""
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
@@ -17,7 +17,7 @@ class Outcome:
     run_id: int
     started_at: datetime
     passed: bool
-    headline: Optional[str]  # a failing outcome's message headline
+    headline: Optional[str]  # only on the last failing outcome of a sequence; None elsewhere
 
 
 def build_sequences(outcomes: Iterable[Outcome]) -> Dict[SequenceKey, List[Outcome]]:

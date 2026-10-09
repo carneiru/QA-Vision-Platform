@@ -193,6 +193,7 @@ Reliability and operations
 - [x] Mute / acknowledge a flaky test — muted_tests table, mute/unmute endpoints, dashboard controls
 - [x] CSV export — client-side, tests and flaky views (see Dashboard follow-ups)
 - [x] Dashboard UI — login, project picker, trends, tests, history, flaky (`dashboard/`)
+- [ ] Report regressions at size B is at p95 7.9 s against the 8 s target (README Report timing). If it crosses 8 s: first the covering index on test_results (spec §Performance targets), then the per-test daily rollup.
 
 ### Dashboard follow-ups
 - [x] SSO sign-in buttons (Google, Microsoft) in the login page — rendered only when `VITE_*` client ids are baked at build time; manual verification against a real tenant still pending

@@ -224,6 +224,22 @@ failing and slowest tests, the 10 busiest branches, and facets (the period's 50 
 environments and CI providers, ignoring the other filters). Each request runs under a 20 s statement
 timeout; a timeout is 503 `{"detail": {"code": "report_timeout", ...}}`. Nothing is cached server-side.
 
+- `failure_causes`: the failing rows (failed or errored) of both periods grouped by the run view's signature (first
+  line, ids and numbers replaced, SHA-1 to 12 characters; `none` without a message). The 50 biggest groups (ties:
+  newer `last_seen`, then signature, `none` last) with `status` `new` or `recurring` against the previous period,
+  `first_seen` over both periods, per-bucket counts, up to 10 tests each, `other` for the rest, and up to 20
+  `resolved` signatures (present in the previous period only). Quarantined occurrences are flagged and still count.
+- `regressions`: each test's last non-skipped attempt per run, as a sequence per (test, branch), for tests with a
+  failing execution in either period: `newly_failing` and `fixed` (100 each), `longest_failing` (50; a streak older
+  than the look-back is `failing_since_bounded`), `time_to_fix` (mean, median, p90; `bounded` counts lower bounds),
+  and per bucket `flakiness`: the tests executed, flaky tests and flips ("Instability (flips)", not the Flaky page's
+  same-commit rule). Each list also reports its `total`. The outcome query reads only the failing outcomes and the
+  outcomes next to one on the same branch (a pass between two passes starts, ends and flips nothing), and fetches
+  a headline only for a sequence's last outcome when it fails; the streaks, fixes and flips are the same as over the
+  full sequence.
+- Migration 016 adds `ix_test_results_failing` on `(run_id, test_key)` (partial, failing rows only), built
+  `CONCURRENTLY` on PostgreSQL so uploads are not blocked. Failure causes and the regression candidates read through it.
+
 Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million results over 90 days, two runs per commit like CI shards), PostgreSQL 15 in Docker:
 
 | Query | Time |
