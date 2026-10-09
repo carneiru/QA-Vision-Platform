@@ -52,7 +52,7 @@ Every project role reads. Owner, admin and member edit. A project the caller can
 | `POST` | `/run-requests` | owner, admin or member; `{case_numbers: [1..200]}` or `{suite_id}`; 201 with the request (also when it is `failed_to_start`); 412 no target; 409 `run_active`; 422 names the cases that cannot run (manual, archived, unknown, or with no scenario name yet: re-import). A whole suite skips its manual cases instead (`skipped_manual` in the response; 422 when none is automated) |
 | `POST` / `GET` | `/run-requests` (estimate) | `POST` also takes optional `estimate_ms` and `estimate_upper_ms` (integers 0–86 400 000, else 422; migration 008), which the dashboard got from ingestion's `POST /analytics/duration-estimate`; they are stored as sent (null when left out) and returned on every run-request read. Test Management never calls ingestion (ADR-022) |
 | `GET` | `/run-requests?limit=&offset=` | `{total, items}`, newest first; an active request is refreshed from GitHub when last checked over 5 s ago; `refreshing` says whether to keep polling |
-| `GET` | `/run-requests/run-urls?since=` | `{urls, truncated}`: the non-null `github_run_url` of requests made since `since` (ISO datetime, at most 500 days back), newest first, at most 5,000; every project role |
+| `GET` | `/run-requests/run-urls?since=` | `{urls, truncated}`: the non-null `github_run_url` of requests made since `since` (ISO datetime; required, a naive datetime is treated as UTC; at most 500 days back), newest first, at most 5,000; every project role |
 | `GET` | `/run-requests/{id}` | the same refresh rule |
 | `POST` | `/run-requests/{id}/stop` | owner, admin or member; cancels on GitHub (`cancelling`, `stopped_by`); 409 `run_finished` |
 

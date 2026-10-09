@@ -211,7 +211,7 @@ dashboard sends them in parallel. Body (`extra` fields are a 422):
 | `from`, `to` | ISO dates in `tz`; `from` ≤ `to`; at most 90 days; `to` ≤ today + 1; `from` ≥ today − 400 days |
 | `tz` | IANA zone, default `UTC` |
 | `branch`, `environment` | exact match; empty means no filter (≤ 255 / ≤ 100 characters) |
-| `ci_provider` | one of the upload's providers |
+| `ci_provider` | one of `CI_PROVIDERS` (`models/run.py`): `github_actions`, `gitlab_ci`, `jenkins`, `azure_pipelines`, `other`, `local`; anything else is a 422 |
 | `origin`, `requested_run_urls` | `any` (default), `ci` or `qeos`; the URLs (≤ 5,000, from test-management's `run-urls`) are required with `ci`/`qeos`; a run is `qeos` when it is GitHub Actions and its `ci_run_url` matches one, case-insensitively (ADR-026) |
 | `test_keys` | optional, 1–20,000 keys (64 hex); runs then count only when they have a result for one |
 | `sections` | 1–5 of `summary`, `failure_causes`, `regressions`, `tests`, `duration` |

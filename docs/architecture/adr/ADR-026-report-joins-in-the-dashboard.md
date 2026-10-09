@@ -31,6 +31,6 @@ from ordinary CI runs, and no upload carries that fact.
 - **Ingestion calling test-management for areas.** Breaks ADR-022 and couples the services' uptime.
 
 ## Consequences
-- Up to 1.4 MB request bodies on the report; within the gateway's 10 MB cap.
+- Request bodies on the report can be large. The 1.4 MB figure counts only the keys (20,000 x about 65 bytes). With 5,000 Play URLs at about 70 characters each, a typical body is about 1.75 MB, within the gateway's 10 MB `client_max_body_size`. The worst case (5,000 URLs at the full 2,048 characters, about 10 MB, plus the keys) exceeds that cap, and the gateway answers 413.
 - The report's area filters only see automated tests linked to a case; the Coverage section (phase
   3) counts the others.
