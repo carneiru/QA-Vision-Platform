@@ -55,6 +55,27 @@ body_lacks() {
   fi
 }
 
+# body_matches NAME REGEX -- the last response body matches the extended regular expression
+body_matches() {
+  if grep -qE -- "$2" "$TMP/body" 2>/dev/null; then
+    pass "$1"
+  else
+    fail "$1: body was $(head -c 300 "$TMP/body" 2>/dev/null)"
+  fi
+}
+# list_has NAME LIST REGEX -- the named list of a regressions body (up to the next list) matches REGEX
+list_has() {
+  local next
+  case "$2" in
+    newly_failing) next=fixed ;; fixed) next=longest_failing ;; *) next=time_to_fix ;;
+  esac
+  if sed -n "s/.*\"$2\":\(.*\)\"$next\":.*/\1/p" "$TMP/body" | grep -qE -- "$3"; then
+    pass "$1"
+  else
+    fail "$1: body was $(head -c 300 "$TMP/body" 2>/dev/null)"
+  fi
+}
+
 # A valid access token for a user id that is a member of nothing, signed with the stack's key
 TOKEN="$(docker compose exec -T auth-service python -c '
 import datetime, os, jwt
@@ -261,6 +282,21 @@ check "analytics history of that test" 200 GET \
   "$BASE/api/v1/projects/$PROJECT_ID/analytics/tests/${FAILS_KEY:-0}/history" "${AUTH[@]}"
 body_has "... with its executions" '"executions":[{'
 check "analytics flaky" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/flaky" "${AUTH[@]}"
+# ---- two runs on one branch for the report's tests, duration and regressions sections ----
+# Run A: report-flaky fails, report-breaks passes. Run B: report-flaky fails and is retried and passes (a
+# repeated test in one run), report-breaks fails. So report-flaky is fixed in B and report-breaks newly fails in B.
+at() { date -u -d "$1 seconds" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v"$1"S +%Y-%m-%dT%H:%M:%SZ; }
+REPORT_RUN_A="{\"run\":{\"ci_provider\":\"local\",\"branch\":\"smoke-report\",\"started_at\":\"$(at -90)\",\"finished_at\":\"$(at -70)\"},\"results\":[{\"name\":\"report-flaky\",\"status\":\"failed\",\"duration_ms\":100,\"message\":\"first\"},{\"name\":\"report-breaks\",\"status\":\"passed\",\"duration_ms\":10}]}"
+REPORT_RUN_B="{\"run\":{\"ci_provider\":\"local\",\"branch\":\"smoke-report\",\"started_at\":\"$(at -60)\",\"finished_at\":\"$(at -35)\"},\"results\":[{\"name\":\"report-flaky\",\"status\":\"failed\",\"duration_ms\":100,\"message\":\"again\"},{\"name\":\"report-flaky\",\"status\":\"passed\",\"duration_ms\":150},{\"name\":\"report-breaks\",\"status\":\"failed\",\"duration_ms\":20,\"message\":\"broke\"}]}"
+check "upload report run A" 201 POST "$BASE/api/v1/collect/runs" \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$REPORT_RUN_A"
+check "upload report run B (with a retried test)" 201 POST "$BASE/api/v1/collect/runs" \
+  -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" -d "$REPORT_RUN_B"
+REPORT_RUN_B_ID="$(grep -o '"id":[0-9]*' "$TMP/body" | head -1 | cut -d: -f2)"
+check "analytics tests finds report-flaky" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/tests?search=report-flaky" "${AUTH[@]}"
+FLAKY_KEY="$(sed -n 's/.*"test_key":"\([0-9a-f]\{64\}\)".*/\1/p' "$TMP/body" | head -1)"
+check "analytics tests finds report-breaks" 200 GET "$BASE/api/v1/projects/$PROJECT_ID/analytics/tests?search=report-breaks" "${AUTH[@]}"
+BREAKS_KEY="$(sed -n 's/.*"test_key":"\([0-9a-f]\{64\}\)".*/\1/p' "$TMP/body" | head -1)"
 # ---- report on PostgreSQL: one array parameter for keys and URLs, SET LOCAL statement_timeout, gzip ----
 TODAY="$(date -u +%Y-%m-%d)"
 FROM="$(date -u -d '-29 days' +%Y-%m-%d 2>/dev/null || date -u -v-29d +%Y-%m-%d)"
@@ -278,6 +314,36 @@ body_has "... answers with a scope" '"scope":{"runs":'
 check "analytics report regressions (outcome window on PostgreSQL)" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
   -H "Content-Type: application/json" -d "{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"regressions\"]}"
 body_has "... with its lists" '"newly_failing":{'
+list_has "... report-breaks newly fails in run B (ordinal mapped back to its key)" newly_failing \
+  "\"test_key\":\"${BREAKS_KEY:-none}\",\"branch\":\"smoke-report\",\"failing_since\":\"[^\"]*\",\"failing_since_run_id\":${REPORT_RUN_B_ID:-0},"
+list_has "... report-flaky is fixed in run B (its retry's last attempt passed)" fixed \
+  "\"test_key\":\"${FLAKY_KEY:-none}\",\"branch\":\"smoke-report\",\"fixed_at\":\"[^\"]*\",\"fixed_run_id\":${REPORT_RUN_B_ID:-0},"
+list_has "... the uploaded failing test is still failing" longest_failing "\"test_key\":\"${FAILS_KEY:-none}\""
+body_matches "... the flips are counted" '"flips":[1-9]'
+# tests on PostgreSQL: _per_branch, _repeated_attempts (COLLATE "C"), batched _last_status (ANY arrays), _outcomes
+# row: [test_key, executions, passed, failed, errored, skipped, flips, pairs, duration_ms_sum, last_status]
+check "analytics report tests (per-branch counts, retries, last status on PostgreSQL)" 200 POST \
+  "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" -H "Content-Type: application/json" \
+  -d "{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"tests\"]}"
+body_has "... columnar" '"columns":["test_key","executions","passed","failed","errored","skipped","flips","pairs","duration_ms_sum","last_status"]'
+body_matches "... the uploaded failing test: 1 run, failed 1, last status failed" \
+  "\[\"${FAILS_KEY:-none}\",1,0,1,0,0,0,0,[0-9]+,\"failed\"\]"
+body_has "... report-flaky: 3 executions, retry not counted as an outcome (pairs 1), 1 flip, last status passed" \
+  "[\"${FLAKY_KEY:-none}\",3,1,2,0,0,1,1,350,\"passed\"]"
+body_has "... report-breaks: failed 1, 1 flip, last status failed" \
+  "[\"${BREAKS_KEY:-none}\",2,1,1,0,0,1,1,30,\"failed\"]"
+body_has "... not truncated" '"truncated":false'
+# duration: run wall time without test_keys; with them, per run the summed time in those tests
+check "analytics report duration (run wall time)" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" \
+  "${AUTH[@]}" -H "Content-Type: application/json" \
+  -d "{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"duration\"]}"
+body_has "... basis is run wall time" '"basis":"run_wall_time"'
+body_has "... the longest run is run B (25 s)" '"max_ms":25000'
+check "analytics report duration (test time for report-flaky)" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" \
+  "${AUTH[@]}" -H "Content-Type: application/json" \
+  -d "{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"duration\"],\"test_keys\":[\"${FLAKY_KEY:-none}\"]}"
+body_has "... basis is test time" '"basis":"test_time"'
+body_has "... run B's time in report-flaky is both attempts (100 + 150 ms)" '"max_ms":250'
 check "a report over 90 days is refused" 422 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
   -H "Content-Type: application/json" -d '{"from":"2026-01-01","to":"2026-06-01","sections":["summary"]}'
 INDEXDEF="$(docker compose exec -T postgres psql -U postgres -d ingestion_db -tAc \
