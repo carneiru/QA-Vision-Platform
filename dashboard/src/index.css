@@ -620,6 +620,15 @@ a.kpi:hover { border-color: var(--accent); }
 .kpi-sub { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text-secondary); }
 .kpi-sub.up { color: var(--passed-text); }
 .kpi-sub.down { color: var(--danger-text); }
+/* Report delta tiles: the colour follows the verdict, not the direction (failures up is worse) */
+.kpi-sub.delta-better { color: var(--passed-text); }
+.kpi-sub.delta-worse { color: var(--danger-text); }
+.kpi-sub .delta-verdict { font-weight: 600; }
+.report-section h3 { margin: var(--space-5) 0 var(--space-2); font-size: 15px; }
+/* Six tiles read as 3 + 3 on wide screens */
+.report-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1023px) { .report-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 359px) { .report-tiles { grid-template-columns: minmax(0, 1fr); } }
 .kpi-skeleton { height: 30px; width: 55%; margin-top: 2px; }
 button.kpi-retry { align-self: flex-start; margin-top: var(--space-1); min-height: 28px; padding: 2px var(--space-2); font-size: 12.5px; }
 @media (pointer: coarse) { button.kpi-retry { min-height: 44px; } }
