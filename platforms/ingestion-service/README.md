@@ -241,22 +241,22 @@ Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million re
 
 Regenerate with `docker compose exec -T ingestion-service python - < scripts/analytics_benchmark.py` in a throwaway stack.
 
-Report sections (`scripts/bench_report.py`, 90-day period plus 90 days of look-back, PostgreSQL 15 in Docker on a Windows 11 developer machine; p95 of 5 runs at size A, 3 at size B; the database also held about 45,000 unrelated results):
+Report sections (`scripts/bench_report.py`, 90-day period plus 90 days of look-back, PostgreSQL 15 in Docker on a Windows 11 developer machine; p95 of 20 runs per row, after `VACUUM ANALYZE`; the database also held about 45,000 unrelated results). Seeded totals cover the 180 days, so each size holds about half of them per 90 days:
 
 | Size | Filters | summary | failure_causes | regressions |
 |---|---|---|---|---|
-| A (~100k results / 90 days, 3,060 runs x 67) | every branch | 414 ms | 149 ms | 1,668 ms |
-| A | main only | 248 ms | 94 ms | 991 ms |
-| A | 300 test keys | 356 ms | 133 ms | 801 ms |
-| A | origin qeos, 2,000 URLs | 55 ms | 70 ms | 128 ms |
-| A | 30 days, every branch | 152 ms | 86 ms | 678 ms |
-| B (~2M results / 90 days, 3,960 runs x 1,000) | every branch | 4,957 ms | 1,825 ms | 29,544 ms |
-| B | main only | 5,496 ms | 1,177 ms | 13,775 ms |
-| B | 300 test keys | 3,521 ms | 1,176 ms | 8,936 ms |
-| B | origin qeos, 2,000 URLs | 395 ms | 120 ms | 1,310 ms |
-| B | 30 days, every branch | 1,834 ms | 858 ms | 6,927 ms |
+| A (~100k results per 90 days; 3,060 runs x 67 over 180 days) | every branch | 366 ms | 259 ms | 681 ms |
+| A | main only | 250 ms | 131 ms | 500 ms |
+| A | 300 test keys | 269 ms | 134 ms | 452 ms |
+| A | origin qeos, 2,000 seeded run URLs | 133 ms | 75 ms | 274 ms |
+| A | 30 days, every branch | 122 ms | 75 ms | 228 ms |
+| B (~2M results per 90 days; 3,960 runs x 1,000 over 180 days) | every branch | 4,431 ms | 1,832 ms | 7,889 ms |
+| B | main only | 3,650 ms | 1,384 ms | 5,790 ms |
+| B | 300 test keys | 3,648 ms | 1,361 ms | 6,330 ms |
+| B | origin qeos, 2,000 seeded run URLs | 1,252 ms | 602 ms | 3,038 ms |
+| B | 30 days, every branch | 1,822 ms | 946 ms | 4,087 ms |
 
-`regressions` exceeds the targets (1 s at size A, 8 s at size B) on every branch; at size B it is slower than the 20 s statement timeout because the timeout applies per statement, not per request. Its cost is the outcomes query, which loads one row per candidate test per run over the look-back window. The `tests` and `duration` columns arrive with Phase 3.
+Every section meets its target (p95 1 s at size A, 8 s at size B), `regressions` at size B with little room (it was 29.5 s before its outcome query was reshaped). Its cost is one sort of every non-skipped result of the tests that failed in scope, about 4 million rows at size B. If that grows, the spec's remedies are a covering index (it pays when the window is a small part of a large table, not here, where a sequential scan takes 0.3 s) and then a daily per-test rollup. The `tests` and `duration` columns arrive with Phase 3.
 
 The flaky window goes up to 90 days. Flip counting recombines from the `flaky_daily` rollups the `analytics-rollup` job keeps current (backfill on start, then yesterday + today every 6 hours); a project the job has not visited yet falls back to the live scan with identical results (equivalence is pinned by `tests/unit/test_flaky_rollup.py`). Confirmed same-commit detection stays on the live failure-driven pass at every window — it rides the `(test_key, run_id)` index and dominates the remaining 90-day cost. The data is deliberately hard: failures are spread randomly, so nearly every test is a candidate.
 
