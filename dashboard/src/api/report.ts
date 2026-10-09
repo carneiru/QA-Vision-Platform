@@ -68,6 +68,7 @@ export interface Report {
   generated_at: string;
   scope: { runs: number; previous_runs: number; test_keys: number | null };
   summary?: SummarySection;
+  failure_causes?: FailureCausesSection;
 }
 
 export function postReport(projectId: number, body: ReportRequest, init: { signal?: AbortSignal } = {}): Promise<Report> {
@@ -78,4 +79,34 @@ export function postReport(projectId: number, body: ReportRequest, init: { signa
 
 export function testLabel(r: { suite: string; class_name: string; name: string }): string {
   return [r.suite, r.class_name, r.name].filter(Boolean).join(" › ");
+}
+
+export interface CauseTest extends ReportTestRef { occurrences: number; last_run_id: number }
+
+export interface CauseGroup {
+  signature: string;
+  headline: string | null;
+  occurrences: number;
+  failed: number;
+  errored: number;
+  quarantined: number;
+  tests: number;
+  runs: number;
+  status: "new" | "recurring";
+  previous_occurrences: number;
+  first_seen: string;
+  first_seen_run_id: number;
+  last_seen: string;
+  last_seen_run_id: number;
+  /** One count per bucket, aligned with summary.buckets */
+  buckets: number[];
+  top_tests: CauseTest[];
+}
+
+export interface FailureCausesSection {
+  failures: number;
+  groups_total: number;
+  groups: CauseGroup[];
+  other: { groups: number; occurrences: number };
+  resolved: { signature: string; headline: string | null; previous_occurrences: number; last_seen: string }[];
 }

@@ -1,4 +1,4 @@
-import type { Report, ReportBucket, ReportTotals } from "../../api/report";
+import type { CauseGroup, Report, ReportBucket, ReportTotals } from "../../api/report";
 
 const bucket = (date: string, over: Partial<ReportBucket> = {}): ReportBucket => ({
   date, runs: 14, executions: 3301, passed: 3200, failed: 70, errored: 3, skipped: 28, pass_rate: 0.9776, ...over,
@@ -37,3 +37,26 @@ export function emptyReport(): Report {
     summary: { ...SUMMARY_REPORT.summary!, current: totals({ runs: 0, executions: 0, pass_rate: null }), previous: null },
   };
 }
+
+const cause = (over: Partial<CauseGroup>): CauseGroup => ({
+  signature: "9f2c1ab04e7d", headline: "TimeoutError: locator('#pay-button') after 30000 ms", occurrences: 412, failed: 400,
+  errored: 12, quarantined: 0, tests: 18, runs: 66, status: "new", previous_occurrences: 0,
+  first_seen: "2026-09-14T08:12:00Z", first_seen_run_id: 9012, last_seen: "2026-10-08T09:40:00Z", last_seen_run_id: 9433,
+  buckets: [0, 41], top_tests: [{ test_key: "a".repeat(64), suite: "checkout", class_name: "Cart", name: "pays", occurrences: 40, last_run_id: 9433 }],
+  ...over,
+});
+
+export const CAUSES_REPORT: Report = {
+  ...SUMMARY_REPORT,
+  failure_causes: {
+    failures: 2124, groups_total: 37,
+    groups: [
+      cause({}),
+      cause({ signature: "11aa22bb33cc", headline: "AssertionError: expected 3 got 4", occurrences: 90, status: "recurring",
+        previous_occurrences: 31, first_seen: "2026-08-12T10:00:00Z", buckets: [3, 2] }),
+      cause({ signature: "none", headline: null, occurrences: 5, status: "recurring", previous_occurrences: 2 }),
+    ],
+    other: { groups: 34, occurrences: 1617 },
+    resolved: [{ signature: "ffee", headline: "Error: connect ECONNREFUSED", previous_occurrences: 31, last_seen: "2026-09-02T10:00:00Z" }],
+  },
+};
