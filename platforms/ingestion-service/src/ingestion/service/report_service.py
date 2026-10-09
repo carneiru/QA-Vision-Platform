@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from src.ingestion.analytics.report_causes import Occurrence, group_causes
+from src.ingestion.analytics.report_streaks import Outcome, build_sequences, classify_streaks, flips_by_bucket
 from src.ingestion.analytics.report_period import Period, bucket_index, bucket_starts, iso, local_day
 from src.ingestion.analytics.signature import headline, signature
 from src.ingestion.analytics.trends import as_utc, pass_rate
@@ -368,3 +369,97 @@ def failure_causes(db: Session, scope: Scope, runs: List[ScopedRun], context: Co
 
 
 SECTION_BUILDERS["failure_causes"] = failure_causes
+
+
+MAX_NEWLY = 100
+MAX_FIXED = 100
+MAX_LONGEST = 50
+
+
+def _candidates(db: Session, scope: Scope, ids: list) -> Dict[str, tuple]:
+    """Tests with at least one failing execution in scope (previous period plus period): a test that never
+    failed cannot regress, be fixed or flip. The partial index serves this read."""
+    rows = db.execute(
+        select(RunResult.test_key, func.max(RunResult.suite), func.max(RunResult.class_name), func.max(RunResult.name))
+        .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status.in_(FAILING), *key_filter(db, scope))
+        .group_by(RunResult.test_key)
+    ).all()
+    return {key: (suite, class_name, name) for key, suite, class_name, name in rows}
+
+
+def _outcomes(db: Session, ids: list, keys: list, by_id: Dict[int, ScopedRun]) -> List[Outcome]:
+    """Each test's outcome in each run: its last attempt (highest id) among non-skipped rows."""
+    if not ids or not keys:
+        return []
+    ranked = (
+        select(RunResult.run_id.label("run_id"), RunResult.test_key.label("test_key"), RunResult.status.label("status"),
+               func.substr(RunResult.message, 1, MESSAGE_PREFIX).label("message"),
+               func.row_number().over(partition_by=(RunResult.test_key, RunResult.run_id),
+                                      order_by=RunResult.id.desc()).label("attempt"))
+        .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped",
+               in_list(db, RunResult.test_key, keys))
+    ).subquery()
+    rows = db.execute(select(ranked.c.run_id, ranked.c.test_key, ranked.c.status, ranked.c.message)
+                      .where(ranked.c.attempt == 1)).all()
+    out = []
+    for run_id, key, status, message in rows:
+        run = by_id[run_id]
+        passed = status == "passed"
+        out.append(Outcome(key, run.branch, run_id, run.started_at, passed, None if passed else headline(message)))
+    return out
+
+
+def _tests_executed(db: Session, scope: Scope, counted: List[ScopedRun], context: Context) -> List[int]:
+    """Distinct tests with a non-skipped result per bucket of the period: one count per bucket."""
+    per_bucket: List[list] = [[] for _ in context.starts]
+    for run in counted:
+        index = _bucket_of(scope, context, run)
+        if index is not None:
+            per_bucket[index].append(run.id)
+    out = []
+    for ids in per_bucket:
+        if not ids:
+            out.append(0)
+            continue
+        out.append(int(db.execute(
+            select(func.count(distinct(RunResult.test_key)))
+            .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped", *key_filter(db, scope))
+        ).scalar() or 0))
+    return out
+
+
+def _serialise(item: dict, identity: Dict[str, tuple]) -> dict:
+    suite, class_name, name = identity[item["test_key"]]
+    out = {k: (iso(v) if isinstance(v, datetime) else v) for k, v in item.items()}
+    out.update(suite=suite, class_name=class_name, name=name)
+    return out
+
+
+def regressions(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) -> dict:
+    counted = [r for r in runs if r.id in context.counted]
+    by_id = {r.id: r for r in counted}
+    ids = list(by_id)
+    identity = _candidates(db, scope, ids) if ids else {}
+    sequences = build_sequences(_outcomes(db, ids, sorted(identity), by_id))
+    lists = classify_streaks(sequences, scope.period.start, scope.previous.start)
+
+    def capped(name: str, cap: int) -> dict:
+        items = lists[name]
+        return {"total": len(items), "items": [_serialise(i, identity) for i in items[:cap]]}
+
+    zone = scope.period.zone
+    flips, flaky = flips_by_bucket(
+        sequences, scope.period.start,
+        lambda moment: bucket_index(local_day(moment, zone), context.starts, context.bucket), len(context.starts))
+    executed = _tests_executed(db, scope, counted, context)
+    return {
+        "newly_failing": capped("newly_failing", MAX_NEWLY),
+        "fixed": capped("fixed", MAX_FIXED),
+        "longest_failing": capped("longest_failing", MAX_LONGEST),
+        "time_to_fix": lists["time_to_fix"],
+        "flakiness": [{"date": start.isoformat(), "tests_executed": executed[i], "flaky_tests": len(flaky[i]),
+                       "flips": flips[i]} for i, start in enumerate(context.starts)],
+    }
+
+
+SECTION_BUILDERS["regressions"] = regressions
