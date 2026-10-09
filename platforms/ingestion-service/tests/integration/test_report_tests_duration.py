@@ -126,3 +126,24 @@ def test_section_flips_equal_the_flips_over_every_outcome(client, auth, db, proj
     truth = _flips_by_definition(db)
     got = _flips(client, auth)
     assert {k: v for k, v in got.items() if v or truth.get(k)} == {k: v for k, v in truth.items() if v}
+
+
+def test_duration_is_run_wall_time_without_keys(client, auth, seeded):
+    d = section(client, auth, "duration")
+    assert d["basis"] == "run_wall_time" and len(d["buckets"]) == 7
+    by_day = {b["date"]: b for b in d["buckets"]}
+    assert by_day["2026-10-03"] == {"date": "2026-10-03", "runs": 2, "avg_ms": 2500, "p50_ms": 2500, "p90_ms": 2900, "max_ms": 3000}
+    assert by_day["2026-10-01"] == {"date": "2026-10-01", "runs": 0, "avg_ms": None, "p50_ms": None, "p90_ms": None, "max_ms": None}
+    assert d["previous"] == {"runs": 1, "avg_ms": 5000, "p50_ms": 5000, "p90_ms": 5000}
+
+
+def test_duration_with_keys_is_time_in_those_tests(client, auth, seeded):
+    d = section(client, auth, "duration", test_keys=[report_key("t1")])
+    assert d["basis"] == "test_time"
+    by_day = {b["date"]: b for b in d["buckets"]}
+    assert (by_day["2026-10-03"]["runs"], by_day["2026-10-03"]["max_ms"]) == (2, 120)    # 120 on main, 90 on dev
+    assert d["previous"]["avg_ms"] == 5
+
+
+def test_duration_previous_is_null_without_runs(client, auth, seeded):
+    assert section(client, auth, "duration", branch="dev")["previous"] is None

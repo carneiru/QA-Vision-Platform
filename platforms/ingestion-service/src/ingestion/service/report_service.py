@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from src.ingestion.analytics.report_causes import Occurrence, group_causes
+from src.ingestion.analytics.report_stats import mean, percentile
 from src.ingestion.analytics.report_streaks import Outcome, build_sequences, classify_streaks, count_flips, flips_by_bucket
 from src.ingestion.analytics.report_period import Period, bucket_index, bucket_starts, iso, local_day
 from src.ingestion.analytics.signature import headline, signature
@@ -570,3 +571,34 @@ def tests_section(db: Session, scope: Scope, runs: List[ScopedRun], context: Con
 
 
 SECTION_BUILDERS["tests"] = tests_section
+
+
+def duration_section(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) -> dict:
+    """Without test_keys: each run's wall time. With them: per run, the summed duration of the in-scope results --
+    time in the selected tests, not wall time, since shards and workers run in parallel."""
+    counted = [r for r in runs if r.id in context.counted]
+    sums = run_counts(db, scope, counted) if scope.keys is not None else None
+
+    def value(run: ScopedRun) -> int:
+        return sums[run.id].duration_ms if sums is not None else run.duration_ms
+
+    per_bucket: List[List[int]] = [[] for _ in context.starts]
+    previous: List[int] = []
+    for run in counted:
+        if not run.current:
+            previous.append(value(run))
+            continue
+        index = _bucket_of(scope, context, run)
+        if index is not None:
+            per_bucket[index].append(value(run))
+    return {
+        "basis": "run_wall_time" if scope.keys is None else "test_time",
+        "buckets": [{"date": start.isoformat(), "runs": len(v), "avg_ms": mean(v), "p50_ms": percentile(v, 0.5),
+                     "p90_ms": percentile(v, 0.9), "max_ms": max(v) if v else None}
+                    for start, v in zip(context.starts, per_bucket)],
+        "previous": {"runs": len(previous), "avg_ms": mean(previous), "p50_ms": percentile(previous, 0.5),
+                     "p90_ms": percentile(previous, 0.9)} if previous else None,
+    }
+
+
+SECTION_BUILDERS["duration"] = duration_section
