@@ -411,6 +411,15 @@ A row (`FilterChips`, a `group` named "Quick filters") between a list's filter f
 - **Announcing:** on Runs a filter change is announced in the existing status line once its runs arrive ("12 runs", "50+ runs"); new runs arriving take precedence. The other lists have no results-count region, so none is added.
 - **Behaviour:** chips write the URL (a history entry each, so Back and Forward step through them) and reset paging. The row wraps on narrow screens; Tab moves through the chips and Space or Enter toggles one. Under `pointer: coarse` chips are 44px tall.
 
+### Report Filter Bar
+The Report page's filters live in the URL (`period` or `from`/`to`, `branch`, `env`, `ci`, `origin`, `area=kind:value`, `suite`), so a report can be bookmarked and shared and Back undoes a change. One row of `FilterChips`: the period presets (7, 30, 90 days, and "Custom…", which reads "Custom: 9 Sep – 8 Oct 2026" when pressed), a chip per filter in force, "+ Filter" and "Clear all" (which keeps the period). The branch starts on the project's default branch and shows it ("Branch: main (default)"); removing that chip means every branch ("Branch: all branches"). The form is a disclosure, closed until "+ Filter" opens it: dates and text fields apply with Apply; selects apply at once. Area is two steps (Feature, Folder or Label, then the value: a searchable `FilterSelect`, or `FolderSelect` for folders). Area and suite chips carry a tooltip: only automated tests linked to a case are counted. A link with invalid parameters loses them and says so in a dismissible notice. A polite live region says "Report updated" once every section asked after a change, Flaky included, has settled; it is cleared first and written again 150 ms later, so a screen reader reads the same words twice in a row.
+
+### Delta Tiles
+The Report's KPI tiles (`DeltaTile`) are KPI Tiles with a change against the previous period of the same length: a lucide arrow (or a dash) and the words ("up 1.2 pts vs previous 30 days"), then the verdict "better" or "worse" in 600 weight. The colour follows the verdict, not the direction: Passed Text for better, Danger Text for worse, Graphite for neutral metrics (runs, executions). Pass rate moves in points, counts and durations in percent. The tile's accessible name is the whole sentence. Without previous data the sub-line says "No data in the previous period".
+
+### Print Header
+A `.print-only` block under the Report's title: the period with its days and time zone, the period the deltas compare with, every filter as "Name: value", and when the report was generated. On paper the filter bar and every button are hidden (`.no-print`), each chart and table header avoids a page break, table headers repeat, and every "Show data table" disclosure opens on `beforeprint` and closes again after; the opened tables print whole (their on-screen height cap and scrolling are lifted).
+
 ### Inputs / Fields
 - **Style:** Paper fill, Hairline Strong border, 6px radius, 34px height (44px on coarse pointers). Labels stack above the field at 13px/500 in Graphite.
 - **Hover:** the border darkens to Tick Grey.

@@ -193,12 +193,36 @@ Read-only, under `/api/v1/projects/{project_id}/analytics/`, for every role that
 | `GET /latest-keys?status=any&branch=` | `{"keys": [...]}`: the `test_key`s whose latest result has that status (`passed`, `failed` including errored, `skipped`, or `any` for at least one result). Latest is the most recent run (`started_at`, then run id); `branch` narrows it. Test Management uses it for the "result" filter on All Cases |
 | `POST /run-strip` | `{"runs": [{...}], "statuses": {key: [status\|null, ...]}}`: each test's status (passed, failed, rerun, skipped, or null) in the project's last `limit` runs (1–20, default 10). Request body: `{test_keys: 1–200 × 64-hex, limit?, branch?}`; unknown body fields are rejected with 422. The `statuses` keys are the lowercased, deduplicated request keys. Statuses: single result → `passed/failed/skipped`; multiple rows → `rerun`; errored → `failed`; no row → `null`. Runs are sorted oldest to newest |
 | `POST /duration-estimate` | `{estimate_ms, upper_ms, tests_with_history, tests_without_history, environment_used, model: {overhead_ms, factor, runs, fitted}}`: how long a Play of these tests should take. Body: `{test_keys: 1–200 × 64-hex (lowercased, deduplicated), environment?}` (unknown fields 422). Over the last 30 days, per test: typical = median of its passed executions (else of its non-skipped ones), upper = p90 of every non-skipped execution (never below typical). With an `environment`, a test with at least 3 non-skipped executions there uses only those (`environment_used` counts them). The project's last 20 runs with a result (every branch) fit `wall ≈ overhead + factor × serial` by least squares from 5 runs (factor clamped to 0.05–1, overhead to 0–30 min); otherwise, or on a negative slope, overhead 0 and factor = median wall ÷ serial (1 with no runs). `estimate_ms` = overhead + factor × Σ typical, `upper_ms` likewise with Σ upper; both `null` when no test has history. Test Management stores them on the run request the dashboard creates. Known limit: a retried test counts each attempt as a separate execution |
+| `POST /report` | The Report page's sections in one filtered, previous-period-compared request; see "Report" below (ADR-026) |
 
 - `pass_rate` = passed ÷ (total − skipped); errored counts as not passed; `null` when nothing ran.
 - An empty filter (`?branch=`) means no filter; `tz` must be a zone name from the IANA list.
 - **Flaky, confirmed (`same_commit`):** the test both passed and failed (or errored) on the same commit **in the same environment**, with the pass and the fail in two different runs of that commit. Set `QEOS_ENVIRONMENT` (or `--environment`) per CI matrix leg: legs that do not set it share one environment, so a failure specific to one leg shows as confirmed.
 - **Flaky, suspected (`flips`):** for other tests, the share of consecutive executions on a branch whose outcome (pass vs failed/errored) changed, over at least `min_runs` executions; skipped results are ignored.
 - Computed on request; migration 003 adds the indexes the queries use.
+
+### Report
+
+`POST /api/v1/projects/{project_id}/analytics/report`, every project role. One request per section; the
+dashboard sends them in parallel. Body (`extra` fields are a 422):
+
+| Field | Rule |
+|---|---|
+| `from`, `to` | ISO dates in `tz`; `from` ≤ `to`; at most 90 days; `to` ≤ today + 1; `from` ≥ today − 400 days |
+| `tz` | IANA zone, default `UTC` |
+| `branch`, `environment` | exact match; empty means no filter (≤ 255 / ≤ 100 characters) |
+| `ci_provider` | one of the upload's providers |
+| `origin`, `requested_run_urls` | `any` (default), `ci` or `qeos`; the URLs (≤ 5,000, from test-management's `run-urls`) are required with `ci`/`qeos`; a run is `qeos` when it is GitHub Actions and its `ci_run_url` matches one, case-insensitively (ADR-026) |
+| `test_keys` | optional, 1–20,000 keys (64 hex); runs then count only when they have a result for one |
+| `sections` | 1–5 of `summary`, `failure_causes`, `regressions`, `tests`, `duration` |
+| `bucket` | `auto` (day up to 31 days, else Monday weeks), `day`, `week` |
+
+The response carries `period`, `previous_period` (the same number of days just before), `tz`, `bucket`,
+`generated_at`, `scope` and the asked sections. `summary`: current and previous totals (`previous` is null
+without runs), buckets and `previous_buckets` (the previous period aligned bucket by bucket), the 10 most
+failing and slowest tests, the 10 busiest branches, and facets (the period's 50 busiest branches,
+environments and CI providers, ignoring the other filters). Each request runs under a 20 s statement
+timeout; a timeout is 503 `{"detail": {"code": "report_timeout", ...}}`. Nothing is cached server-side.
 
 Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million results over 90 days, two runs per commit like CI shards), PostgreSQL 15 in Docker:
 
