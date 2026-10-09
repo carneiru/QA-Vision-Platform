@@ -12,9 +12,12 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from src.ingestion.analytics.report_causes import Occurrence, group_causes
 from src.ingestion.analytics.report_period import Period, bucket_index, bucket_starts, iso, local_day
+from src.ingestion.analytics.signature import headline, signature
 from src.ingestion.analytics.trends import as_utc, pass_rate
 from src.ingestion.models import Run, RunResult
+from src.ingestion.service.analytics_service import muted_keys
 
 STATEMENT_TIMEOUT = "20s"  # below the gateway's 30 s proxy_read_timeout
 REPORT_TIMEOUT_MESSAGE = "This report took too long. Narrow the period or the filters."
@@ -331,3 +334,37 @@ def summary(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) 
 
 
 SECTION_BUILDERS["summary"] = summary
+
+
+MESSAGE_PREFIX = 2000  # only the first line names a cause; this bounds memory on long stack traces
+
+
+def _bucket_of(scope: Scope, context: Context, run: ScopedRun) -> Optional[int]:
+    if not run.current:
+        return None
+    return bucket_index(local_day(run.started_at, scope.period.zone), context.starts, context.bucket)
+
+
+def failure_causes(db: Session, scope: Scope, runs: List[ScopedRun], context: Context) -> dict:
+    """The failing rows of the in-scope runs of both periods (through ix_test_results_failing), grouped by
+    signature in Python, as the run view does."""
+    by_id = {r.id: r for r in runs if r.id in context.counted}
+    if not by_id:
+        return group_causes([], len(context.starts))
+    rows = db.execute(
+        select(RunResult.run_id, RunResult.test_key, RunResult.suite, RunResult.class_name, RunResult.name,
+               RunResult.status, func.substr(RunResult.message, 1, MESSAGE_PREFIX))
+        .where(in_list(db, RunResult.run_id, list(by_id), Integer), RunResult.status.in_(FAILING),
+               *key_filter(db, scope))
+    ).all()
+    muted = {key.lower() for key in muted_keys(db, scope.project_id)}
+    occurrences = []
+    for run_id, key, suite, class_name, name, status, message in rows:
+        run = by_id[run_id]
+        occurrences.append(Occurrence(signature(message), headline(message), key, suite, class_name, name, status,
+                                      run_id, run.started_at, run.current, key.lower() in muted,
+                                      _bucket_of(scope, context, run)))
+    return group_causes(occurrences, len(context.starts))
+
+
+SECTION_BUILDERS["failure_causes"] = failure_causes
