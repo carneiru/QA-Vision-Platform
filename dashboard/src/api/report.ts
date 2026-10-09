@@ -60,6 +60,18 @@ export interface SummarySection {
   facets: { branches: string[]; environments: string[]; ci_providers: string[] };
 }
 
+/** Columnar per-test numbers (spec: Section tests); `reportScope.decodeTests` reads them by column name. */
+export interface TestsSection { columns: string[]; rows: (string | number | null)[][]; truncated: boolean }
+
+export interface DurationBucket {
+  date: string; runs: number; avg_ms: number | null; p50_ms: number | null; p90_ms: number | null; max_ms: number | null;
+}
+export interface DurationSection {
+  basis: "run_wall_time" | "test_time";
+  buckets: DurationBucket[];
+  previous: { runs: number; avg_ms: number | null; p50_ms: number | null; p90_ms: number | null } | null;
+}
+
 export interface Report {
   period: ReportPeriod;
   previous_period: ReportPeriod;
@@ -70,6 +82,8 @@ export interface Report {
   summary?: SummarySection;
   failure_causes?: FailureCausesSection;
   regressions?: RegressionsSection;
+  tests?: TestsSection;
+  duration?: DurationSection;
 }
 
 export function postReport(projectId: number, body: ReportRequest, init: { signal?: AbortSignal } = {}): Promise<Report> {
