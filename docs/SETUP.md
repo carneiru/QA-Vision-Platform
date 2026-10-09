@@ -721,8 +721,15 @@ is open, your machine is reachable from the internet.
    address like `https://random-words.trycloudflare.com`.
 2. Set that address as `QEOS_URL` in the CI system. No `--ca-file` is needed: the tunnel
    presents a public certificate.
-3. Limits: the address **changes every time the tunnel restarts**, so update `QEOS_URL` each
-   time. Results sent while the tunnel or the laptop is down are lost; builds stay green.
+3. Limits: the address **changes every time the tunnel restarts** (a new random name; the old
+   one stops resolving), so update `QEOS_URL` in every repository that uses it, each time.
+   While the tunnel runs, its current address is at `http://127.0.0.1:20241/quicktunnel`
+   (`{"hostname": "..."}`). To read it and update a GitHub repository in one go:
+   ```bash
+   gh variable set QEOS_URL -R <owner>/<repo> --body "https://$(curl -s http://127.0.0.1:20241/quicktunnel | sed 's/.*"hostname":"\([^"]*\)".*/\1/')"
+   ```
+   A named tunnel (`cloudflared tunnel create`, with a DNS route on a domain in Cloudflare)
+   keeps one hostname, so `QEOS_URL` is set once. Results sent while the tunnel or the laptop is down are lost; builds stay green.
    Links in notifications still point to `https://localhost:8443`. For anything lasting, go to
    [production](#6-production).
 
@@ -796,43 +803,117 @@ Invalid tags are skipped with a warning. A case keeps at most 20 labels, each ma
 
 #### 4.2.3 Keeping cases in sync from CI (`import-features`)
 
-Add a second step after the upload, with the same `QEOS_URL` and `QEOS_API_KEY`:
-```
+**How the sync works.** QEOS never fetches `.feature` files. It keeps no read access to your
+repositories: the repository card in Settings is checked anonymously, so a private repository
+shows **Not found or private**, and that is expected. Instead the repository **sends** its files
+by running `qeos-collector import-features` in its own CI. CI already knows when the files
+change, the same command works on every CI system, and the only secret is the project API key
+(ADR-023, ADR-024). The cost: **each repository needs a workflow file, and it stays there.** If
+you delete it, the sync stops.
+
+**What one run does.**
+- It trades the API key for a 5-minute token that can only import cases into the key's
+  project. Changes are recorded as made by CI.
+- It reads the `.feature` files that match the pattern, with paths relative to the working
+  directory, and sends them all.
+- It is a **full** sync by default: new scenarios become cases, changed ones are updated, and
+  the cases of deleted files are archived. `--no-full` compares only the files given and never
+  archives anything.
+- A full sync that would archive more than half of the imported cases is refused (exit 1, 409
+  `mass_archive`) unless you pass `--allow-mass-archive`.
+- `--dry-run` prints the plan and changes nothing. `--strict` exits 1 when a file fails to parse.
+
+**Which branch it syncs from.** Only the repository's **default branch** (`main` or `master`).
+The collector reads it from the GitHub Actions event (`repository.default_branch`), GitLab's
+`CI_DEFAULT_BRANCH`, or the clone's `origin/HEAD`. On any other branch it prints
+`skipped: on <branch>; cases sync from <default>` and exits 0, so the same step can run on
+every build. Where the default branch cannot be read (Azure Pipelines, most Jenkins agents) it
+falls back to `master`: set `QEOS_IMPORT_BRANCH` (or pass `--branch`) to name the branch
+yourself. On Jenkins the agent must also know the current branch (`GIT_BRANCH`); otherwise the
+command cannot tell and imports anyway, so guard the stage with
+`when { branch '<default branch>' }`. Run locally, outside CI, there is no branch check.
+
+**Paths must match the report.** A case links to its results through a key built from the
+Feature name, the file path and the scenario name. The paths the sync sends must be the paths
+your Cucumber report records, normally relative to the repository root
+(`tests/features/...`). So run the command from the repository root, and do not mix it with a
+dashboard import whose paths carry another prefix (for example the name of the folder you
+picked, such as `MyRepo/tests/features/...`).
+
+##### Set it up on GitHub Actions
+
+1. In the repository: **Settings → Secrets and variables → Actions**.
+   - **Variables** tab: `QEOS_URL`, the QEOS address (no trailing `/`, no spaces).
+   - **Secrets** tab: `QEOS_API_KEY`, a key from the QEOS project the cases belong to
+     ([4.1.1](#411-api-keys)).
+
+   Put them at repository level. Values set on an **Environment** reach a job only when the job
+   names that environment.
+2. Commit this file as `.github/workflows/qeos-sync-cases.yml` on the default branch:
+   ```yaml
+   name: QEOS sync test cases
+
+   on:
+     push:
+       paths: ["tests/features/**"]
+     workflow_dispatch:
+       inputs:
+         first_sync:
+           description: "First sync only: allow archiving the old dashboard-imported cases"
+           type: boolean
+           default: false
+
+   jobs:
+     sync:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v4
+         - uses: actions/setup-python@v5
+           with: { python-version: "3.12" }
+         - run: pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.1#subdirectory=collector"
+         - run: qeos-collector import-features "tests/features/**/*.feature" ${{ inputs.first_sync && '--allow-mass-archive' || '' }}
+           env:
+             QEOS_URL: ${{ vars.QEOS_URL }}
+             QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
+   ```
+   Change the pattern and `paths:` if your features live elsewhere.
+3. Run it once by hand: **Actions → QEOS sync test cases → Run workflow**. Tick `first_sync`
+   only if the project already has imported cases under other paths (see below).
+
+**When it runs.**
+- **Automatically, on every push that changes a file under `tests/features/`**, on any branch.
+  On the default branch it syncs. On another branch the job starts, prints `skipped`, and ends
+  green in a few seconds. Merging a pull request is a push to the default branch, so a merge
+  syncs. A push that changes no file under `tests/features/` does not start the workflow.
+- **By hand**, from the Actions tab (**Run workflow**), for the first sync or to resync at any
+  time.
+- **Never on a schedule, and never from QEOS.** Editing a case in QEOS does not change the
+  repository, and a changed file does nothing until it is pushed.
+
+**First sync after a dashboard import.** If the cases were first imported from the dashboard
+with other paths, the first full sync sees all of them as deleted and is refused with 409
+`mass_archive`. Run the workflow by hand once with `first_sync` ticked. It archives the old
+cases and creates them again under the right paths. **They get new TC numbers**: suite
+membership and status or priority edits on the old cases do not carry over, and archived
+numbers are never reused. Leave `first_sync` off from then on; a push never sets it.
+
+##### Other CI systems and the command line
+
+The same command works anywhere, with `QEOS_URL` and `QEOS_API_KEY` in the step's environment.
+The snippets under Settings → **Wire up your CI** include it for GitLab, Azure Pipelines,
+Jenkins and the CLI.
+
+To run it once from your own machine, from the **repository root** (the folder that contains
+`tests/`):
+```powershell
+$env:QEOS_URL = "https://qeos.example.com"
+$env:QEOS_API_KEY = "<project API key>"
+qeos-collector import-features "tests/features/**/*.feature" --dry-run
 qeos-collector import-features "tests/features/**/*.feature"
 ```
-- The API key is traded for a 5-minute token that can only import cases into that project.
-  Changes are recorded as made by CI.
-- **It runs only on the sync branch, which is the repository's default branch** (`main` or
-  `master`, read from GitHub Actions, GitLab CI or the clone's `origin/HEAD`). On any other branch
-  it prints `skipped: …` and exits 0, so the same step can run on every build. Where the default
-  branch cannot be read (Azure Pipelines, most Jenkins agents) it is `master`: set
-  `QEOS_IMPORT_BRANCH` (or pass `--branch`) to sync from another branch.
-- It is a **full** sync by default (cases of deleted files are archived). `--no-full` compares
-  only the given files. A full import that would archive more than half of the imported cases
-  is refused (exit 1, 409) unless you pass `--allow-mass-archive`.
-- `--dry-run` prints the plan; `--strict` fails on parse errors. Paths are taken relative to
-  the working directory, so run it from the repository root.
-- On Jenkins, the agent must know the branch (`GIT_BRANCH`). Otherwise the command cannot tell
-  the branch and imports anyway. Guard the stage with `when { branch '<default branch>' }`.
-
-GitHub Actions example (a separate workflow, or a step in the suite workflow):
-```yaml
-on:
-  push:
-    branches: [main]
-jobs:
-  import-features:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.1#subdirectory=collector"
-      - run: qeos-collector import-features "tests/features/**/*.feature"
-        env:
-          QEOS_URL: ${{ vars.QEOS_URL }}
-          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
-```
+(bash: `export QEOS_URL=...` and `export QEOS_API_KEY=...`.) `QEOS_URL` can also go in
+`.qeos.yml` (`url: ...`); the key cannot: it is read from `QEOS_API_KEY` only. Against the local
+stack on `https://localhost:8443`, add `--ca-file qeos-ca.crt` ([4.1.3](#413-collector-cli-any-machine)).
 
 #### 4.2.4 Finding cases: folders, features, labels, filters and chips
 
@@ -869,7 +950,11 @@ other filters when a project has more than 20,000 tests.
 |---|---|
 | Imported cases never get a "Last runs" strip | The import paths do not match the runner's report paths. Re-import with the right **Path prefix**, and upload Cucumber JSON. |
 | CI step always prints `skipped: on main; cases sync from master` | The CI does not expose the default branch (Azure Pipelines, Jenkins). Set `QEOS_IMPORT_BRANCH=main`. |
-| CI import exits 1 with 409 `mass_archive` | The patterns found too few files (wrong glob or wrong working directory). Fix the pattern, or pass `--allow-mass-archive` if the deletion is intended. |
+| CI import exits 1 with 409 `mass_archive` | The first sync after a dashboard import with other paths: run the workflow once with `first_sync`. Otherwise the pattern found too few files (wrong glob or wrong working directory): fix it. |
+| `qeos: no platform URL: pass --url, set QEOS_URL, or add url to .qeos.yml` | Locally: set `QEOS_URL` in the shell. In GitHub Actions: the step has no `env:` with `QEOS_URL: ${{ vars.QEOS_URL }}`, or the value is under **Secrets** or an Environment instead of the repository's **Variables**. |
+| `qeos: no .feature files match tests/features/**/*.feature` | Not run from the repository root. `cd` to the folder that contains `tests/`. |
+| `cannot reach the platform ([Errno -2] Name or service not known)` | `QEOS_URL` names a host that no longer exists, usually an old quick-tunnel address ([4.1.9](#419-hosted-ci-against-a-local-stack-tunnel)). |
+| The repository shows **Not found or private** in Settings | Expected for a private repository: the check is anonymous. Uploads and the sync do not depend on it. |
 | 413 on import | Raise `IMPORT_MAX_*` and `GATEWAY_IMPORT_MAX_BODY` together. |
 
 ---
@@ -1232,30 +1317,11 @@ workflow that runs the suite (scheduled, per area, nightly…):
 Use `actions/checkout` with `fetch-depth: 2` if you want the changed files on each run. If
 several jobs run in parallel shards, each uploads its own run, and that is expected.
 
-**Step 4. Keep cases in sync.** A workflow that runs on pushes to the default branch and only
-touches `.feature` files:
-```yaml
-name: QEOS case sync
-on:
-  push:
-    branches: [main]
-    paths: ["tests/features/**/*.feature"]
-  workflow_dispatch:
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
-      - run: pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@collector-v0.4.1#subdirectory=collector"
-      - run: qeos-collector import-features "tests/features/**/*.feature"
-        env:
-          QEOS_URL: ${{ vars.QEOS_URL }}
-          QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
-```
-Run it once by hand (Actions → QEOS case sync → Run workflow) for the first import, or import
-once from the dashboard with **Path prefix** set so that paths start with `tests/features/`.
+**Step 4. Keep cases in sync.** Commit `.github/workflows/qeos-sync-cases.yml` from
+[4.2.3](#423-keeping-cases-in-sync-from-ci-import-features) on the default branch and keep it
+there: every push that changes `tests/features/**` syncs the cases. Run it once by hand
+(Actions → QEOS sync test cases → Run workflow) for the first import, with `first_sync` ticked
+if the cases were already imported from the dashboard under other paths.
 
 **Step 5. Play and Stop.** Add `qeos-run.yml` and `qeos-run.mjs` on the default branch and adapt
 the setup step, as in [4.3](#43-run-from-qeos-play-and-stop) steps 2–4. Create the fine-grained
