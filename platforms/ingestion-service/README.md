@@ -241,6 +241,23 @@ Measured on a throwaway stack with 1,980 runs × 1,000 tests (about 2 million re
 
 Regenerate with `docker compose exec -T ingestion-service python - < scripts/analytics_benchmark.py` in a throwaway stack.
 
+Report sections (`scripts/bench_report.py`, 90-day period plus 90 days of look-back, PostgreSQL 15 in Docker on a Windows 11 developer machine; p95 of 5 runs at size A, 3 at size B; the database also held about 45,000 unrelated results):
+
+| Size | Filters | summary | failure_causes | regressions |
+|---|---|---|---|---|
+| A (~100k results / 90 days, 3,060 runs x 67) | every branch | 414 ms | 149 ms | 1,668 ms |
+| A | main only | 248 ms | 94 ms | 991 ms |
+| A | 300 test keys | 356 ms | 133 ms | 801 ms |
+| A | origin qeos, 2,000 URLs | 55 ms | 70 ms | 128 ms |
+| A | 30 days, every branch | 152 ms | 86 ms | 678 ms |
+| B (~2M results / 90 days, 3,960 runs x 1,000) | every branch | 4,957 ms | 1,825 ms | 29,544 ms |
+| B | main only | 5,496 ms | 1,177 ms | 13,775 ms |
+| B | 300 test keys | 3,521 ms | 1,176 ms | 8,936 ms |
+| B | origin qeos, 2,000 URLs | 395 ms | 120 ms | 1,310 ms |
+| B | 30 days, every branch | 1,834 ms | 858 ms | 6,927 ms |
+
+`regressions` exceeds the targets (1 s at size A, 8 s at size B) on every branch; at size B it is slower than the 20 s statement timeout because the timeout applies per statement, not per request. Its cost is the outcomes query, which loads one row per candidate test per run over the look-back window. The `tests` and `duration` columns arrive with Phase 3.
+
 The flaky window goes up to 90 days. Flip counting recombines from the `flaky_daily` rollups the `analytics-rollup` job keeps current (backfill on start, then yesterday + today every 6 hours); a project the job has not visited yet falls back to the live scan with identical results (equivalence is pinned by `tests/unit/test_flaky_rollup.py`). Confirmed same-commit detection stays on the live failure-driven pass at every window — it rides the `(test_key, run_id)` index and dominates the remaining 90-day cost. The data is deliberately hard: failures are spread randomly, so nearly every test is a candidate.
 
 ## Operations
