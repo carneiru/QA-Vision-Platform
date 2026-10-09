@@ -424,11 +424,18 @@ as the README's Analytics table was. Results go into that table.
   2. Then, a daily per-test rollup. `flaky_daily` would gain `passed`, `skipped` and
      `duration_ms_sum`. A rollup works only for UTC days and branch filters, so the live path
      stays for the other filters.
-  - Measured 2026-10-09 (`scripts/bench_report.py`): the reshaped regressions query brought B to
-    p95 7.9 s, so B meets its target without either step. A covering index was tried at B and the
+  - Measured 2026-10-09 (`scripts/bench_report.py`, Phase 2): the reshaped regressions query
+    brought B to p95 7.9 s. A covering index was tried at B and the
     planner ignored it or it ran slower (a sequential scan reads the table in about 0.3 s; the cost
     is the sort and window). The next step if B misses is therefore the rollup; the covering index
     stays an option only for a short window over a large mixed table.
+  - Measured again 2026-10-09 to 10 after Phase 3, with all five sections, on a quiet host (no
+    other test run or build; the README table has every row). Size A: every section meets p95 1 s.
+    Size B, 90 days on every branch: `summary` 2.5 s, `failure_causes` 1.8 s, `tests` 6.8 s and
+    `duration` 35 ms meet 8 s; `regressions` misses it at p95 8.4 s (p50 7.7 s), still well under
+    the 20 s timeout. Every narrower B filter meets 8 s (`regressions` on main only: 7.5 s).
+    Whether to build the rollup, or first try a per-request `SET LOCAL work_mem` so the sort stays
+    in memory, is a decision still open with the user.
 - **ClickHouse is not adopted.** Its adoption trigger in the blueprint is "rollup tables stop
   holding", and it has not fired. Redis is not adopted either: its trigger is a second gateway
   instance.
