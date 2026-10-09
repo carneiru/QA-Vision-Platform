@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional, Sequence
 
-from sqlalchemy import Integer, String, and_, any_, bindparam, case, distinct, false, func, not_, select, text
+from sqlalchemy import Integer, String, and_, any_, bindparam, case, distinct, false, func, not_, or_, select, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
@@ -388,25 +388,67 @@ def _candidates(db: Session, scope: Scope, ids: list) -> Dict[str, tuple]:
 
 
 def _outcomes(db: Session, ids: list, keys: list, by_id: Dict[int, ScopedRun]) -> List[Outcome]:
-    """Each test's outcome in each run: its last attempt (highest id) among non-skipped rows."""
+    """The outcomes that streaks and flips depend on, per test and branch.
+
+    A test's outcome in a run is its last attempt (highest id) among non-skipped rows. Only the failing outcomes
+    and the outcomes right before and right after one on the same branch are returned: a pass between two passes
+    starts, ends and flips nothing, so every streak, fix, time to fix and flip is the same as over the full
+    sequence, from about a tenth of the rows. Only a sequence's last outcome, when it fails, gets its headline (the
+    only one the section shows); the ranking never reads `message`.
+
+    One sort and one window over the attempts in sequence order (run start, run, then attempt): a row is its run's
+    outcome when the next row belongs to another run, and the row before a run's first attempt is the previous
+    outcome. Only across a retried run is the next row not the next outcome, so an outcome that was retried, or is
+    followed by a retried run, is kept whatever its neighbours."""
     if not ids or not keys:
         return []
-    ranked = (
-        select(RunResult.run_id.label("run_id"), RunResult.test_key.label("test_key"), RunResult.status.label("status"),
-               func.substr(RunResult.message, 1, MESSAGE_PREFIX).label("message"),
-               func.row_number().over(partition_by=(RunResult.test_key, RunResult.run_id),
-                                      order_by=RunResult.id.desc()).label("attempt"))
+    attempts = (
+        select(RunResult.run_id, RunResult.test_key, RunResult.status, RunResult.id)
+        .join(Run, Run.id == RunResult.run_id)
         .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped",
                in_list(db, RunResult.test_key, keys))
+    )
+    sequence_key = RunResult.test_key
+    if db.get_bind().dialect.name == "postgresql":
+        # The sort partitions on the key's number, not the 64-character key: about a third faster on 4 million rows
+        numbered = (func.unnest(bindparam(None, list(keys), type_=ARRAY(String)))
+                    .table_valued("test_key", with_ordinality="number").render_derived(name="numbered_keys"))
+        attempts = attempts.join(numbered, numbered.c.test_key == RunResult.test_key)
+        sequence_key = numbered.c.number
+    order = {"partition_by": (sequence_key, Run.branch), "order_by": (Run.started_at, RunResult.run_id, RunResult.id)}
+    ranked = attempts.add_columns(
+        func.lag(RunResult.status).over(**order).label("status_before"),
+        func.lead(RunResult.status).over(**order).label("status_after"),
+        func.lag(RunResult.run_id).over(**order).label("run_before"),
+        func.lead(RunResult.run_id).over(**order).label("run_after"),
+        func.lead(RunResult.run_id, 2).over(**order).label("run_after_2"),
     ).subquery()
-    rows = db.execute(select(ranked.c.run_id, ranked.c.test_key, ranked.c.status, ranked.c.message)
-                      .where(ranked.c.attempt == 1)).all()
+    c = ranked.c
+    rows = db.execute(
+        select(c.run_id, c.test_key, c.status, c.id, c.run_after)
+        .where(or_(c.run_after.is_(None), c.run_after != c.run_id),           # the run's last attempt
+               or_(c.status.in_(FAILING), c.status_before.in_(FAILING), c.status_after.in_(FAILING),
+                   c.run_before == c.run_id,     # this run was retried: the row before is not the previous outcome
+                   c.run_after == c.run_after_2))  # the next run was: the row after is not the next outcome
+    ).all()
+    # A failing outcome with nothing after it ends its sequence: its headline is shown
+    headlines = _headlines(db, [row_id for _, _, status, row_id, after in rows if after is None and status in FAILING])
     out = []
-    for run_id, key, status, message in rows:
+    for run_id, key, status, row_id, _ in rows:
         run = by_id[run_id]
         passed = status == "passed"
-        out.append(Outcome(key, run.branch, run_id, run.started_at, passed, None if passed else headline(message)))
+        out.append(Outcome(key, run.branch, run_id, run.started_at, passed, None if passed else headlines.get(row_id)))
     return out
+
+
+def _headlines(db: Session, result_ids: list) -> Dict[int, Optional[str]]:
+    if not result_ids:
+        return {}
+    rows = db.execute(
+        select(RunResult.id, func.substr(RunResult.message, 1, MESSAGE_PREFIX))
+        .where(in_list(db, RunResult.id, result_ids, Integer))
+    ).all()
+    return {result_id: headline(message) for result_id, message in rows}
 
 
 def _tests_executed(db: Session, scope: Scope, counted: List[ScopedRun], context: Context) -> List[int]:
@@ -421,10 +463,11 @@ def _tests_executed(db: Session, scope: Scope, counted: List[ScopedRun], context
         if not ids:
             out.append(0)
             continue
-        out.append(int(db.execute(
-            select(func.count(distinct(RunResult.test_key)))
+        executed = (
+            select(RunResult.test_key).distinct()   # hashed; count(DISTINCT) would sort every row of the bucket
             .where(in_list(db, RunResult.run_id, ids, Integer), RunResult.status != "skipped", *key_filter(db, scope))
-        ).scalar() or 0))
+        ).subquery()
+        out.append(int(db.execute(select(func.count()).select_from(executed)).scalar() or 0))
     return out
 
 

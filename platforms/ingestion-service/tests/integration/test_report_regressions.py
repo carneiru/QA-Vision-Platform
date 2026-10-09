@@ -83,3 +83,55 @@ def test_the_last_attempt_is_the_outcome(client, auth, project_role, report_now,
     assert [i["name"] for i in r["newly_failing"]["items"]] == ["b"]
     assert r["newly_failing"]["items"][0]["headline"] == "Boom: b"
     assert [i["name"] for i in r["longest_failing"]["items"]] == ["b"]
+
+
+def test_a_skipped_last_row_leaves_the_failed_attempt_as_the_outcome(client, auth, project_role, report_now, seed_run):
+    """Failed, then skipped, in one run: skipped rows are no outcome, so the failed row is."""
+    project_role()
+    seed_run(at(9, 30), results=(("c", "passed", 1),))
+    seed_run(at(10, 2), results=(("c", "failed", 1, "Boom: c"), ("c", "skipped", 0)))
+    r = regressions(client, auth)
+    assert [(i["name"], i["failures"], i["headline"]) for i in r["newly_failing"]["items"]] == [("c", 1, "Boom: c")]
+    assert r["flakiness"][1]["flips"] == 1
+
+
+def _every_outcome(db, ids, keys, by_id):
+    """The definition, row by row: every test's last non-skipped attempt in every run, each with its headline."""
+    from src.ingestion.analytics.report_streaks import Outcome
+    from src.ingestion.analytics.signature import headline
+    from src.ingestion.models import RunResult
+    last = {}
+    for row in db.query(RunResult).filter(RunResult.run_id.in_(ids), RunResult.test_key.in_(keys),
+                                          RunResult.status != "skipped").order_by(RunResult.id):
+        last[(row.run_id, row.test_key)] = row
+    out = []
+    for (run_id, key), row in last.items():
+        passed = row.status == "passed"
+        run = by_id[run_id]
+        out.append(Outcome(key, run.branch, run_id, run.started_at, passed, None if passed else headline(row.message)))
+    return out
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_the_section_equals_the_one_over_every_outcome(client, auth, project_role, report_now, seed_run, monkeypatch,
+                                                       seed):
+    """_outcomes fetches only the outcomes next to a failure; on random histories with retries, skips, absent tests
+    and a null branch the section must equal the one built from every outcome."""
+    import random
+    from datetime import timedelta
+    from src.ingestion.service import report_service
+    project_role()
+    rng = random.Random(seed)
+    for _ in range(30):
+        started = at(9, 24) + timedelta(minutes=rng.randrange(14 * 24 * 60))
+        results = []
+        for name in ("t0", "t1", "t2", "t3", "t4", "t5"):
+            for _ in range(rng.choice((0, 1, 1, 1, 1, 2))):  # absent, once, or a retry
+                status = rng.choices(("passed", "failed", "errored", "skipped"), (60, 20, 5, 15))[0]
+                results.append((name, status, 1, f"E{rng.randint(1, 3)}: {name}\nat line {rng.randint(1, 9)}"))
+        seed_run(started, branch=rng.choice(("main", "main", "dev", None)), results=tuple(results) or (("t0", "passed", 1),))
+    for body in ({}, {"branch": "main"}, {"tz": "Europe/Lisbon"}):
+        reshaped = regressions(client, auth, **body)
+        with monkeypatch.context() as patch:
+            patch.setattr(report_service, "_outcomes", _every_outcome)
+            assert regressions(client, auth, **body) == reshaped

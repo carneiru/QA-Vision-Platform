@@ -274,6 +274,10 @@ QEOS_BODY="{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"
 check "analytics report origin=qeos with run URLs (lower(ci_run_url) = ANY)" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
   -H "Content-Type: application/json" -d "$QEOS_BODY"
 body_has "... answers with a scope" '"scope":{"runs":'
+# regressions on PostgreSQL: the outcome window numbers the keys with unnest(array) WITH ORDINALITY
+check "analytics report regressions (outcome window on PostgreSQL)" 200 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
+  -H "Content-Type: application/json" -d "{\"from\":\"$FROM\",\"to\":\"$TODAY\",\"tz\":\"UTC\",\"sections\":[\"regressions\"]}"
+body_has "... with its lists" '"newly_failing":{'
 check "a report over 90 days is refused" 422 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
   -H "Content-Type: application/json" -d '{"from":"2026-01-01","to":"2026-06-01","sections":["summary"]}'
 INDEXDEF="$(docker compose exec -T postgres psql -U postgres -d ingestion_db -tAc \
