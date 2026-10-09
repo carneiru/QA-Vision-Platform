@@ -164,3 +164,23 @@ def test_failing_index_downgrade_drops_it(tmp_path):
         assert "ix_test_results_failing" not in {ix["name"] for ix in inspect(engine).get_indexes("test_results")}
     finally:
         engine.dispose()
+
+
+def test_failing_index_postgres_path_is_rerunnable(monkeypatch):
+    """Migration 016 on PostgreSQL builds CONCURRENTLY; a re-upgrade after a failed build must not stop on an
+    existing (possibly invalid) index, so create is IF NOT EXISTS and drop IF EXISTS."""
+    import importlib.util
+    from unittest.mock import MagicMock
+
+    spec = importlib.util.spec_from_file_location("m016", SERVICE_ROOT / "alembic" / "versions" / "016_report_indexes.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    fake = MagicMock()
+    fake.get_bind.return_value.dialect.name = "postgresql"
+    monkeypatch.setattr(module, "op", fake)
+    module.upgrade()
+    assert fake.create_index.call_args.kwargs["postgresql_concurrently"] is True
+    assert fake.create_index.call_args.kwargs["if_not_exists"] is True
+    module.downgrade()
+    assert fake.drop_index.call_args.kwargs["postgresql_concurrently"] is True
+    assert fake.drop_index.call_args.kwargs["if_exists"] is True

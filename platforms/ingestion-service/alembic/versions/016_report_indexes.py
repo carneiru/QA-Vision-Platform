@@ -29,7 +29,7 @@ def upgrade() -> None:
     where = {"postgresql_where": sa.text(FAILING), "sqlite_where": sa.text(FAILING)}
     if _postgres():
         with op.get_context().autocommit_block():
-            op.create_index(NAME, "test_results", ["run_id", "test_key"], postgresql_concurrently=True, **where)
+            op.create_index(NAME, "test_results", ["run_id", "test_key"], postgresql_concurrently=True, if_not_exists=True, **where)
     else:
         op.create_index(NAME, "test_results", ["run_id", "test_key"], **where)
 
@@ -37,6 +37,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     if _postgres():
         with op.get_context().autocommit_block():
-            op.drop_index(NAME, table_name="test_results", postgresql_concurrently=True)
+            op.drop_index(NAME, table_name="test_results", postgresql_concurrently=True, if_exists=True)
     else:
         op.drop_index(NAME, table_name="test_results")
