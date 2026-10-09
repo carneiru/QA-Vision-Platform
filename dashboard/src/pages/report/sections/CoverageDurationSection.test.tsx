@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import type { Report } from "../../../api/report";
 import { parseReportFilters } from "../useReportFilters";
@@ -83,4 +84,35 @@ test("sections 3 and 5 each have their own grouping control, with distinct ids",
   const ids = groups.map((g) => g.getAttribute("aria-labelledby"));
   expect(new Set(ids).size).toBe(2);
   ids.forEach((id) => expect(document.querySelectorAll(`[id="${id}"]`)).toHaveLength(1));
+});
+
+test("each chart has a legend that tells the series apart and can hide one", async () => {
+  show();
+  const coverage = screen.getByRole("list", { name: /coverage chart/i });
+  expect(within(coverage).getByRole("button", { name: "Linked (automated)" })).toHaveAttribute("aria-pressed", "true");
+  expect(within(coverage).getByRole("button", { name: "Manual (striped)" })).toBeInTheDocument();
+  const duration = screen.getByRole("list", { name: /duration chart/i });
+  expect(within(duration).getByRole("button", { name: "Average" })).toBeInTheDocument();
+  await userEvent.click(within(duration).getByRole("button", { name: "p90 (dashed)" }));
+  expect(within(duration).getByRole("button", { name: "p90 (dashed)" })).toHaveAttribute("aria-pressed", "false");
+});
+
+test("a previous period without an average is not compared in the caption", () => {
+  show({ ...TESTS_REPORT, duration: { ...TESTS_REPORT.duration!, previous: { runs: 0, avg_ms: null, p50_ms: null, p90_ms: null } } });
+  expect(screen.getByText(/the longest is/)).not.toHaveTextContent(/against/);
+  expect(screen.getByText(/the longest is/)).toHaveTextContent(/the longest is .* at /);
+});
+
+test("Retry asks again only for the request that failed", async () => {
+  const tests = { ...q, data: TESTS_REPORT, refetch: vi.fn() };
+  const duration = { ...q, data: undefined, error: new Error("boom"), refetch: vi.fn() };
+  render(
+    <MemoryRouter>
+      <CoverageDurationSection projectId={42} gate={READY} testsQuery={tests} durationQuery={duration}
+        caseAreas={areas} filters={filters()} onResetFilters={vi.fn()} />
+    </MemoryRouter>,
+  );
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(duration.refetch).toHaveBeenCalledTimes(1);
+  expect(tests.refetch).not.toHaveBeenCalled();
 });

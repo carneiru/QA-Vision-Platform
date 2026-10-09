@@ -1,10 +1,11 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatDuration } from "../../../api/analytics";
 import type { CaseArea, CaseAreas } from "../../../api/cases";
 import type { Report } from "../../../api/report";
-import { DataTableDisclosure, PATTERN } from "../../../components/ChartKit";
+import { DataTableDisclosure, type LegendSeries, PATTERN, SeriesLegend } from "../../../components/ChartKit";
 import NarrowMeta from "../../../components/NarrowMeta";
 import { formatPointLabel, formatTick } from "../../../lib/chartFormat";
 import { downloadCsv, toCsv } from "../../../lib/csv";
@@ -20,6 +21,14 @@ const number = new Intl.NumberFormat();
 const NEVER_RUN_SHOWN = 200;
 const LARGEST_GROUPS = 15;
 const axisTick = { fill: "var(--text-secondary)", fontSize: 12 } as const;
+const COVERAGE_LEGEND: LegendSeries[] = [
+  { key: "linked", label: "Linked (automated)", paint: "var(--series-1)" },
+  { key: "manual", label: "Manual (striped)", paint: `url(#${PATTERN.manual})` },
+];
+const DURATION_LEGEND: LegendSeries[] = [
+  { key: "avg", label: "Average", paint: "var(--series-1)", line: { marker: true } },
+  { key: "p90", label: "p90 (dashed)", paint: "var(--series-2)", line: { dash: "5 4", marker: true } },
+];
 const tooltipStyle = { background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 } as const;
 
 export function coverageGroups(areas: CaseAreas, grouping: Grouping, depth: number): { label: string; linked: number; manual: number }[] {
@@ -63,15 +72,27 @@ interface Props {
 /** Section 5 (spec: Section 5: Coverage and duration). */
 export default function CoverageDurationSection({ projectId, gate, testsQuery, durationQuery, caseAreas, filters, onResetFilters }: Props) {
   const { grouping, depth } = useGrouping(caseAreas.data);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (key: string) => setHidden((h) => {
+    const next = new Set(h);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   const sectionGate: Gate = caseAreas.error != null
     ? { state: "blocked", message: caseAreasMessage(caseAreas.error), error: caseAreas.error, retry: () => void caseAreas.refetch() }
     : !caseAreas.data && gate.state === "ready" ? { state: "wait" } : gate;
   // One frame over both requests: an error or loading in either shows here
+  // Retry asks again only for the request that failed (both when neither is marked failed)
   const query: SectionQuery = {
     data: testsQuery.data && durationQuery.data ? { ...testsQuery.data, duration: durationQuery.data.duration } : undefined,
     error: testsQuery.error ?? durationQuery.error,
     isPending: testsQuery.isPending || durationQuery.isPending,
-    refetch: () => { void testsQuery.refetch(); void durationQuery.refetch(); },
+    refetch: () => {
+      const bothOk = testsQuery.error == null && durationQuery.error == null;
+      if (bothOk || testsQuery.error != null) void testsQuery.refetch();
+      if (bothOk || durationQuery.error != null) void durationQuery.refetch();
+    },
   };
   const file = (r: Report, part: string) => `report-${projectId}-${r.period.from}-${r.period.to}-${part}.csv`;
 
@@ -98,7 +119,7 @@ export default function CoverageDurationSection({ projectId, gate, testsQuery, d
         const longest = d ? [...d.buckets].filter((b) => b.avg_ms !== null).sort((a, b) => (b.avg_ms ?? 0) - (a.avg_ms ?? 0))[0] : undefined;
         const durationCaption = longest && d
           ? `Average ${title.toLowerCase()} per ${unit}; the longest is ${formatPointLabel(longest.date, unit)} at ${formatDuration(longest.avg_ms)}`
-            + (d.previous ? `, against ${formatDuration(d.previous.avg_ms)} on average in the previous period.` : ".")
+            + (d.previous?.avg_ms != null ? `, against ${formatDuration(d.previous.avg_ms)} on average in the previous period.` : ".")
           : "No runs to time in this period.";
         return (
           <>
@@ -110,6 +131,7 @@ export default function CoverageDurationSection({ projectId, gate, testsQuery, d
             </ul>
 
             <h3 id="report-coverage-chart">Linked and manual cases by {grouping === "folder" ? "folder" : "feature"}</h3>
+            <SeriesLegend series={COVERAGE_LEGEND} hidden={hidden} onToggle={toggle} label="Show or hide a series in the coverage chart" />
             <figure className="chart-figure" aria-labelledby="report-coverage-chart">
               <figcaption className="sr-only">{`${number.format(areas.counts.linked)} linked and ${number.format(areas.counts.manual)} manual cases; the largest group is ${coverage[0]?.label ?? "none"}.`}</figcaption>
               <ResponsiveContainer width="100%" height={Math.max(160, coverage.length * 28)}>
@@ -118,8 +140,8 @@ export default function CoverageDurationSection({ projectId, gate, testsQuery, d
                   <XAxis type="number" allowDecimals={false} stroke="var(--text-muted)" tick={axisTick} />
                   <YAxis type="category" dataKey="label" width={200} stroke="var(--text-muted)" tick={axisTick} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="linked" name="Linked (automated)" stackId="c" fill="var(--series-1)" stroke="var(--surface-1)" />
-                  <Bar dataKey="manual" name="Manual (striped)" stackId="c" fill={`url(#${PATTERN.manual})`} stroke="var(--surface-1)" />
+                  <Bar dataKey="linked" name="Linked (automated)" stackId="c" hide={hidden.has("linked")} fill="var(--series-1)" stroke="var(--surface-1)" />
+                  <Bar dataKey="manual" name="Manual (striped)" stackId="c" hide={hidden.has("manual")} fill={`url(#${PATTERN.manual})`} stroke="var(--surface-1)" />
                 </BarChart>
               </ResponsiveContainer>
             </figure>
@@ -171,6 +193,7 @@ export default function CoverageDurationSection({ projectId, gate, testsQuery, d
                     ? "Test filters are on, so this is the time spent in the selected tests in each run, not the whole run."
                     : "The wall-clock time of each run, from its start to its end."}
                 </p>
+                <SeriesLegend series={DURATION_LEGEND} hidden={hidden} onToggle={toggle} label="Show or hide a series in the duration chart" />
                 <figure className="chart-figure" aria-labelledby="report-duration">
                   <figcaption className="sr-only">{durationCaption}</figcaption>
                   <ResponsiveContainer width="100%" height={240}>
@@ -183,8 +206,8 @@ export default function CoverageDurationSection({ projectId, gate, testsQuery, d
                         <ReferenceLine y={d.previous.avg_ms} stroke="var(--text-muted)" strokeDasharray="2 4"
                           label={{ value: "Previous average", fill: "var(--text-secondary)", fontSize: 12, position: "insideTopRight" }} />
                       )}
-                      <Line dataKey="avg_ms" name="Average" stroke="var(--series-1)" strokeWidth={2} dot={{ r: 2.5, fill: "var(--series-1)", stroke: "var(--surface-1)" }} connectNulls={false} />
-                      <Line dataKey="p90_ms" name="p90" stroke="var(--series-2)" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 2.5, fill: "var(--series-2)", stroke: "var(--surface-1)" }} connectNulls={false} />
+                      <Line dataKey="avg_ms" name="Average" hide={hidden.has("avg")} stroke="var(--series-1)" strokeWidth={2} dot={{ r: 2.5, fill: "var(--series-1)", stroke: "var(--surface-1)" }} connectNulls={false} />
+                      <Line dataKey="p90_ms" name="p90" hide={hidden.has("p90")} stroke="var(--series-2)" strokeWidth={2} strokeDasharray="5 4" dot={{ r: 2.5, fill: "var(--series-2)", stroke: "var(--surface-1)" }} connectNulls={false} />
                     </LineChart>
                   </ResponsiveContainer>
                 </figure>

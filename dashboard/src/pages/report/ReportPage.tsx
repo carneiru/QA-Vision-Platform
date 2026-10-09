@@ -144,7 +144,6 @@ export default function ReportPage() {
         caseAreas={{ data: caseAreas.data, error: caseAreas.error, isPending: caseAreas.isFetching, refetch: caseAreas.refetch }}
         runUrls={{ error: runUrls.error, refetch: runUrls.refetch }}
         facets={summary.data?.summary?.facets}
-        onFormOpen={() => undefined}
       />
       <p className="sr-only" role="status" aria-live="polite">{announcement}</p>
       <SummarySection projectId={id} gate={gate} query={summary} branch={effectiveBranch} environment={filters.environment}

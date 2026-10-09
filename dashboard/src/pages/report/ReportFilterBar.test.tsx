@@ -26,7 +26,7 @@ function Harness({ caseAreas = ok, runUrlsError = null }: { caseAreas?: AreasPro
     <>
       <ReportFilterBar filters={filters} update={update} clearAll={clearAll} today={todayIn("UTC")} defaultBranch="main"
         caseAreas={caseAreas} runUrls={{ error: runUrlsError, refetch: vi.fn() }}
-        facets={{ branches: ["main", "release/2.4"], environments: ["staging"] }} onFormOpen={vi.fn()} />
+        facets={{ branches: ["main", "release/2.4"], environments: ["staging"] }} />
       <output data-testid="search">{location.search}</output>
     </>
   );

@@ -27,13 +27,11 @@ interface Props {
   runUrls: { error: unknown; refetch: () => unknown };
   /** The period's busiest values (summary.facets), offered in the branch and environment lists */
   facets?: { branches: string[]; environments: string[] };
-  /** The first opening of the form loads case-areas (spec: Requests per phase) */
-  onFormOpen: () => void;
 }
 
 /** One row above the sections (spec: Filter bar): period chips, a chip per filter in force, "+ Filter" and
  *  "Clear all"; the form sits in a disclosure that "+ Filter" opens. */
-export default function ReportFilterBar({ filters, update, clearAll, today, defaultBranch, caseAreas, runUrls, facets, onFormOpen }: Props) {
+export default function ReportFilterBar({ filters, update, clearAll, today, defaultBranch, caseAreas, runUrls, facets }: Props) {
   const uid = useId();
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const fromRef = useRef<HTMLInputElement>(null);
@@ -130,9 +128,7 @@ export default function ReportFilterBar({ filters, update, clearAll, today, defa
         className="more-filters"
         open={open}
         onToggle={(e) => {
-          const now = (e.currentTarget as HTMLDetailsElement).open;
-          setOpen(now);
-          if (now) onFormOpen();
+          setOpen((e.currentTarget as HTMLDetailsElement).open);
         }}
       >
         <summary><ChevronRight size={14} aria-hidden="true" className="chevron" /> Filters{active > 0 && ` (${active} active)`}</summary>
