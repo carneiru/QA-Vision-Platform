@@ -137,3 +137,30 @@ def test_key_prefix_downgrade_restores_12(tmp_path):
         assert columns["key_prefix"]["type"].length == 12
     finally:
         engine.dispose()
+
+
+def test_failing_results_index_is_partial(migrated_engine):
+    """Migration 016: failure causes and regression candidates read only failing rows (spec: Indexes)."""
+    columns = {ix["name"]: ix["column_names"] for ix in inspect(migrated_engine).get_indexes("test_results")}
+    assert columns["ix_test_results_failing"] == ["run_id", "test_key"]
+    with migrated_engine.connect() as conn:
+        sql = conn.execute(text("SELECT sql FROM sqlite_master WHERE name = 'ix_test_results_failing'")).scalar()
+    assert "WHERE" in sql.upper() and "'failed'" in sql and "'errored'" in sql
+
+
+def test_model_declares_the_failing_index():
+    assert "ix_test_results_failing" in {ix.name for ix in Base.metadata.tables["test_results"].indexes}
+
+
+def test_failing_index_downgrade_drops_it(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'downgrade_016.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "015")
+    engine = create_engine(url)
+    try:
+        assert "ix_test_results_failing" not in {ix["name"] for ix in inspect(engine).get_indexes("test_results")}
+    finally:
+        engine.dispose()

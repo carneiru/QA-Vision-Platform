@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false,
+    Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, false, text,
 )
 from sqlalchemy.sql import func
 
@@ -82,4 +82,8 @@ class RunResult(Base):
     __table_args__ = (
         CheckConstraint("status IN ('passed','failed','skipped','errored')", name="chk_test_results_status"),
         Index("ix_test_results_test_key_run", "test_key", "run_id"),
+        # Migration 016: the report reads only failing rows for causes and regression candidates
+        Index("ix_test_results_failing", "run_id", "test_key",
+              postgresql_where=text("status IN ('failed','errored')"),
+              sqlite_where=text("status IN ('failed','errored')")),
     )

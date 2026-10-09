@@ -276,6 +276,12 @@ check "analytics report origin=qeos with run URLs (lower(ci_run_url) = ANY)" 200
 body_has "... answers with a scope" '"scope":{"runs":'
 check "a report over 90 days is refused" 422 POST "$BASE/api/v1/projects/$PROJECT_ID/analytics/report" "${AUTH[@]}" \
   -H "Content-Type: application/json" -d '{"from":"2026-01-01","to":"2026-06-01","sections":["summary"]}'
+INDEXDEF="$(docker compose exec -T postgres psql -U postgres -d ingestion_db -tAc \
+  "SELECT indexdef FROM pg_indexes WHERE indexname = 'ix_test_results_failing'" | tr -d '\r')"
+case "$INDEXDEF" in
+  *WHERE*failed*errored*) pass "ix_test_results_failing is partial on PostgreSQL" ;;
+  *) fail "ix_test_results_failing missing or not partial: $INDEXDEF" ;;
+esac
 # gzip is not server-wide (BREACH): a large JSON response elsewhere and the login response stay plain
 check "trends over 90 days (a large response outside the two gzip locations)" 200 GET \
   "$BASE/api/v1/projects/$PROJECT_ID/analytics/trends?days=90" "${AUTH[@]}" -H "Accept-Encoding: gzip"
