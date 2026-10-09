@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer, RefreshCw, X } from "lucide-react";
+import { ApiError } from "../../api/http";
 import { getProject } from "../../api/orgs";
 import { ChartPatternDefs } from "../../components/ChartKit";
 import PageHeader from "../../components/PageHeader";
@@ -63,10 +64,20 @@ function usePrintOpensDataTables() {
   }, []);
 }
 
+/** The server's tz 422s: "Unknown time zone: 'X'" from _zone(), or a field error on tz (e.g. longer than 64). */
+export function isZoneError(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 422 && /^(unknown time zone|tz:)/i.test(error.detail);
+}
+
 export default function ReportPage() {
   const { projectId } = useParams();
   const id = Number(projectId);
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  // A zone the server's list lacks answers every section with a 422 that Reset filters cannot fix: the page then
+  // moves to UTC (dates and the request use the same zone, so the period stays consistent) and says so
+  const [zoneRejected, setZoneRejected] = useState(false);
+  const [zoneNoticeDismissed, setZoneNoticeDismissed] = useState(false);
+  const tz = zoneRejected ? "UTC" : browserTz;
   const today = todayIn(tz);
   const qc = useQueryClient();
   const { filters, update, clearAll, notice, dismissNotice } = useReportFilters(tz);
@@ -75,6 +86,9 @@ export default function ReportPage() {
   const { gate, caseAreas, runUrls, defaultBranch, effectiveBranch } = useReportRequest(id, filters, tz, { loadCaseAreas: formOpened });
   const summary = useReportSection(id, gate, "summary");
   usePrintOpensDataTables();
+  useEffect(() => {
+    if (!zoneRejected && tz !== "UTC" && isZoneError(summary.error)) setZoneRejected(true);
+  }, [summary.error, tz, zoneRejected]);
 
   // Every section's request counts (the summary's own status covers the render before its fetch is registered)
   const fetchingSections = useIsFetching({ queryKey: ["report", id] }) + useIsFetching({ queryKey: ["report-flaky", id] });
@@ -110,6 +124,12 @@ export default function ReportPage() {
         <div className="report-notice no-print" role="status">
           <span>Some filters in the link were not valid and were removed</span>
           <button type="button" className="ghost" aria-label="Dismiss the notice" onClick={dismissNotice}><X size={14} aria-hidden="true" /></button>
+        </div>
+      )}
+      {zoneRejected && !zoneNoticeDismissed && (
+        <div className="report-notice no-print" role="status">
+          <span>Your time zone isn't supported by the server; dates use UTC.</span>
+          <button type="button" className="ghost" aria-label="Dismiss the time zone notice" onClick={() => setZoneNoticeDismissed(true)}><X size={14} aria-hidden="true" /></button>
         </div>
       )}
       <ReportFilterBar

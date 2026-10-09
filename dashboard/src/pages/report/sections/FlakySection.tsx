@@ -34,7 +34,12 @@ export default function FlakySection({ projectId, gate, filters, branch, today }
   const rows = (flaky.data ?? []).filter((r) => !keys || keys.has(r.test_key.toLowerCase())).slice(0, TOP);
 
   let body;
-  if (gate.state === "blocked") body = <p className="muted">{gate.message}</p>;
+  if (gate.state === "blocked") {
+    // Same as ReportSection: a lookup that failed can be retried; "no tests in this area" cannot
+    body = gate.error != null
+      ? <><p>{gate.message}</p><ErrorBanner error={gate.error} onRetry={gate.retry} /></>
+      : <p className="muted">{gate.message}</p>;
+  }
   else if (flaky.error != null) body = <ErrorBanner error={flaky.error} onRetry={() => void flaky.refetch()} />;
   else if (gate.state === "wait" || flaky.isPending) {
     body = <SkeletonStatus label="Loading flaky tests…"><span className="skeleton skeleton-block" style={{ height: 160 }} aria-hidden="true" /></SkeletonStatus>;

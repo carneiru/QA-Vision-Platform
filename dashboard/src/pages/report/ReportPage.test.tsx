@@ -218,3 +218,39 @@ test("Flaky with a custom range covers the last N days up to today, at most 90 (
     cleanup();
   }
 });
+
+test("a zone the server does not know: asked again in UTC, once, with a dismissible notice", async () => {
+  const resolved = Intl.DateTimeFormat.prototype.resolvedOptions;
+  const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
+    return { ...resolved.call(this), timeZone: "Pacific/Kiritimati" };
+  });
+  serve({ report: (body) => (body.tz === "UTC" ? HttpResponse.json(SUMMARY_REPORT)
+    : HttpResponse.json({ detail: `Unknown time zone: '${body.tz}'` }, { status: 422 })) });
+  renderPage();
+  expect(await screen.findByRole("group", { name: /^Pass rate 97\.8%/ })).toBeInTheDocument();
+  spy.mockRestore();
+  expect(summaryBodies().map((b) => b.tz)).toEqual(["Pacific/Kiritimati", "UTC"]);
+  const today = todayIn("UTC");
+  expect(summaryBodies()[1]).toMatchObject({ to: today, from: addDays(today, -29) });
+  expect(screen.getByText("Your time zone isn't supported by the server; dates use UTC.")).toBeInTheDocument();
+  expect(screen.queryByText(/these filters are not valid/i)).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Dismiss the time zone notice" }));
+  expect(screen.queryByText(/isn't supported by the server/)).not.toBeInTheDocument();
+});
+
+test("a 422 that is not about the zone is not retried", async () => {
+  serve({ report: () => HttpResponse.json({ detail: "span must be at most 90 days" }, { status: 422 }) });
+  renderPage();
+  expect(await screen.findByText(/these filters are not valid/i)).toBeInTheDocument();
+  expect(summaryBodies()).toHaveLength(1);
+  expect(screen.queryByText(/time zone isn't supported/)).not.toBeInTheDocument();
+});
+
+test("Flaky shows Retry when the gate is blocked by a failed lookup", async () => {
+  serve();
+  server.use(http.get(`${P}/case-areas`, () => HttpResponse.json({ detail: "boom" }, { status: 500 })));
+  renderPage("?area=feature:Booking");
+  const flaky = await screen.findByRole("region", { name: /flaky tests/i });
+  expect(await within(flaky).findByRole("button", { name: "Retry" })).toBeInTheDocument();
+  expect(within(flaky).getByText("Cases could not be loaded")).toBeInTheDocument();
+});
