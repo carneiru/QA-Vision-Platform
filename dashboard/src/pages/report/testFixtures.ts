@@ -1,3 +1,4 @@
+import type { CaseAreas } from "../../api/cases";
 import type { CauseGroup, Report, ReportBucket, ReportTotals } from "../../api/report";
 
 const bucket = (date: string, over: Partial<ReportBucket> = {}): ReportBucket => ({
@@ -74,5 +75,35 @@ export const REGRESSIONS_REPORT: Report = {
       consecutive_failures: 31, last_run_id: 9433, headline: "Error: refund API down" }] },
     time_to_fix: { fixes: 23, mean_ms: 151_200_000, median_ms: 86_400_000, p90_ms: 432_000_000, bounded: 2 },
     flakiness: [{ date: "2026-10-07", tests_executed: 990, flaky_tests: 14, flips: 51 }, { date: "2026-10-08", tests_executed: 0, flaky_tests: 0, flips: 0 }],
+  },
+};
+
+const key = (n: number) => n.toString(16).padStart(64, "0");
+
+export const AREAS_FIXTURE: CaseAreas = {
+  generatedAt: "v1", counts: { cases: 4, linked: 3, manual: 1 },
+  folders: ["features/booking", "features/payments"], features: ["Booking", "Payments"], labels: ["smoke"],
+  suites: [{ id: 12, name: "Regression" }],
+  cases: [
+    { number: 1, title: "Book one-way", testKey: key(1), folder: "features/booking", feature: "Booking", labels: ["smoke"], suiteIds: [12] },
+    { number: 2, title: "Pay by card", testKey: key(2), folder: "features/payments", feature: "Payments", labels: [], suiteIds: [12] },
+    { number: 3, title: "Refund", testKey: key(3), folder: "features/payments", feature: "Payments", labels: [], suiteIds: [] },
+    { number: 4, title: "Manual check", testKey: null, folder: null, feature: null, labels: [], suiteIds: [] },
+  ],
+};
+
+export const TESTS_REPORT: Report = {
+  ...SUMMARY_REPORT,
+  tests: {
+    columns: ["test_key", "executions", "passed", "failed", "errored", "skipped", "flips", "pairs", "duration_ms_sum", "last_status"],
+    rows: [[key(1), 30, 30, 0, 0, 0, 0, 29, 90000, "passed"], [key(2), 20, 10, 10, 0, 0, 8, 19, 400000, "failed"],
+           [key(9), 5, 5, 0, 0, 0, 0, 4, 1000, "passed"]],
+    truncated: false,
+  },
+  duration: {
+    basis: "run_wall_time",
+    buckets: [{ date: "2026-10-07", runs: 41, avg_ms: 702000, p50_ms: 650000, p90_ms: 1100000, max_ms: 1500000 },
+              { date: "2026-10-08", runs: 0, avg_ms: null, p50_ms: null, p90_ms: null, max_ms: null }],
+    previous: { runs: 398, avg_ms: 690000, p50_ms: 640000, p90_ms: 1050000 },
   },
 };
