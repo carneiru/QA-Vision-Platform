@@ -89,3 +89,10 @@ test("a response without the tests section renders nothing instead of throwing",
   expect(screen.getByRole("heading", { name: "By area" })).toBeInTheDocument();
   expect(screen.queryByRole("table", { name: /by area/i })).not.toBeInTheDocument();
 });
+
+test("with no area of 10 executions the chart is replaced by a short message", () => {
+  const few = { ...TESTS_REPORT, tests: { ...TESTS_REPORT.tests!, rows: [TESTS_REPORT.tests!.rows[2]] } };
+  show("", undefined, few);
+  expect(screen.getAllByText("No area has 10 or more executions in this period.").length).toBeGreaterThan(0);
+  expect(document.querySelector("figure.chart-figure")).toBeNull();
+});

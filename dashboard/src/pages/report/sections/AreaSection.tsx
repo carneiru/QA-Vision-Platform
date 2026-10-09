@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -36,11 +36,12 @@ export function areasCsv(groups: AreaStats[], noCase: AreaStats | null): string 
 /** The grouping control shared by Sections 3 and 5: a segmented group of pressed buttons, plus a depth for folders. */
 export function GroupingControl({ areas }: { areas?: CaseAreas }) {
   const { grouping, depth, deepest, setGrouping, setDepth } = useGrouping(areas);
+  const labelId = useId();
   return (
     <div className="report-grouping no-print">
       <div className="segmented-field">
-        <span id="report-group-by" className="segmented-label">Group by</span>
-        <div role="group" aria-labelledby="report-group-by" className="segmented">
+        <span id={labelId} className="segmented-label">Group by</span>
+        <div role="group" aria-labelledby={labelId} className="segmented">
           {GROUPINGS.map((g) => (
             <button key={g} type="button" aria-pressed={grouping === g} onClick={() => setGrouping(g)}>{NAMES[g]}</button>
           ))}
@@ -112,27 +113,31 @@ export default function AreaSection({ projectId, gate, query, caseAreas, onReset
                 {" "}Never-run and unlinked counts are hidden because the list was cut at 50,000 tests.
               </p>
             )}
-            <figure className="chart-figure" aria-labelledby="report-areas">
-              <figcaption className="sr-only">{caption}</figcaption>
-              <ResponsiveContainer width="100%" height={Math.max(160, chart.length * 28)}>
-                <BarChart data={chart} layout="vertical" margin={{ left: 8, right: 64 }} accessibilityLayer>
-                  <CartesianGrid stroke="var(--grid)" horizontal={false} />
-                  <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} stroke="var(--text-muted)" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
-                  <YAxis type="category" dataKey="label" width={200} stroke="var(--text-muted)" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 }} />
-                  <Bar dataKey="rate" name="Pass rate (%)" fill="var(--series-1)" radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="failures" position="right" fill="var(--text-secondary)" fontSize={12}
-                      formatter={(v: number) => `${number.format(v)} failures`} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </figure>
-            <DataTableDisclosure name="pass rate of the worst areas">
-              <table className="data">
-                <thead><tr><th scope="col">Area</th><th scope="col" className="num">Pass rate</th><th scope="col" className="num">Failures</th></tr></thead>
-                <tbody>{worst.map((g) => <tr key={g.key}><td>{g.label}</td><td className="num">{formatPassRate(g.passRate)}</td><td className="num">{number.format(g.failures)}</td></tr>)}</tbody>
-              </table>
-            </DataTableDisclosure>
+            {worst.length === 0 ? <p className="muted">{caption}</p> : (
+              <>
+                <figure className="chart-figure" aria-labelledby="report-areas">
+                  <figcaption className="sr-only">{caption}</figcaption>
+                  <ResponsiveContainer width="100%" height={Math.max(160, chart.length * 28)}>
+                    <BarChart data={chart} layout="vertical" margin={{ left: 8, right: 64 }} accessibilityLayer>
+                      <CartesianGrid stroke="var(--grid)" horizontal={false} />
+                      <XAxis type="number" domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} stroke="var(--text-muted)" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
+                      <YAxis type="category" dataKey="label" width={200} stroke="var(--text-muted)" tick={{ fill: "var(--text-secondary)", fontSize: 12 }} />
+                      <Tooltip contentStyle={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: 6 }} />
+                      <Bar dataKey="rate" name="Pass rate (%)" fill="var(--series-1)" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="failures" position="right" fill="var(--text-secondary)" fontSize={12}
+                          formatter={(v: number) => `${number.format(v)} failures`} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </figure>
+                <DataTableDisclosure name="pass rate of the worst areas">
+                  <table className="data">
+                    <thead><tr><th scope="col">Area</th><th scope="col" className="num">Pass rate</th><th scope="col" className="num">Failures</th></tr></thead>
+                    <tbody>{worst.map((g) => <tr key={g.key}><td>{g.label}</td><td className="num">{formatPassRate(g.passRate)}</td><td className="num">{number.format(g.failures)}</td></tr>)}</tbody>
+                  </table>
+                </DataTableDisclosure>
+              </>
+            )}
             <div className="button-row no-print">
               <button type="button" onClick={() => downloadCsv(`report-${projectId}-${r.period.from}-${r.period.to}-areas.csv`, areasCsv(groups, noCase))}>
                 <Download size={15} aria-hidden="true" /> Areas CSV

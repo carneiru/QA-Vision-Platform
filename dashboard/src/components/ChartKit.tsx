@@ -14,6 +14,8 @@ export const PATTERN = {
   failed: "qeos-pat-failed",
   errored: "qeos-pat-errored",
   skipped: "qeos-pat-skipped",
+  /** Cases with no linked test (Report: Coverage) */
+  manual: "qeos-pat-manual",
 } as const;
 
 /** The textures for the stacked status bars: stripes for failed, dots for errored, lines for skipped, solid for passed.
@@ -34,6 +36,10 @@ export function ChartPatternDefs() {
         <pattern id={PATTERN.skipped} width="6" height="6" patternUnits="userSpaceOnUse">
           <rect width="6" height="6" fill="var(--status-skipped)" />
           <rect y="2.5" width="6" height="1" fill="var(--surface-1)" />
+        </pattern>
+        <pattern id={PATTERN.manual} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <rect width="6" height="6" fill="var(--series-2)" />
+          <rect width="2" height="6" fill="var(--surface-1)" />
         </pattern>
       </defs>
     </svg>

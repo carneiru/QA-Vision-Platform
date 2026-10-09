@@ -9,7 +9,7 @@ import { server } from "../../test/server";
 import { setAccessToken } from "../../auth/tokens";
 import type { ReportRequest } from "../../api/report";
 import { PATTERN } from "../../components/ChartKit";
-import { CAUSES_REPORT, REGRESSIONS_REPORT, SUMMARY_REPORT } from "./testFixtures";
+import { CAUSES_REPORT, REGRESSIONS_REPORT, SUMMARY_REPORT, TESTS_REPORT } from "./testFixtures";
 import { addDays, todayIn } from "./useReportFilters";
 import ReportPage, { ANNOUNCE_DELAY_MS } from "./ReportPage";
 
@@ -27,11 +27,18 @@ function serve(over: { report?: (body: ReportRequest) => Response | Promise<Resp
     http.post(`${P}/analytics/report`, async ({ request }) => {
       const body = (await request.json()) as ReportRequest;
       bodies.push(body);
-      return over.report ? over.report(body) : HttpResponse.json({ ...SUMMARY_REPORT, ...CAUSES_REPORT, ...REGRESSIONS_REPORT });
+      return over.report ? over.report(body) : HttpResponse.json({ ...SUMMARY_REPORT, ...CAUSES_REPORT, ...REGRESSIONS_REPORT, ...TESTS_REPORT });
     }),
-    http.get(`${P}/case-areas`, () => HttpResponse.json({ generated_at: "v1", counts: { cases: 1, linked: 1, manual: 0 },
-      folders: [], features: ["Booking"], labels: [], suites: [],
-      cases: [{ n: 1, t: "Book", k: "c".repeat(64), fo: null, fe: 0, l: [], s: [] }] })),
+    http.get(`${P}/case-areas`, () => HttpResponse.json({
+      generated_at: "v1", counts: { cases: 3, linked: 2, manual: 1 },
+      folders: ["features/booking", "features/payments"], features: ["Booking", "Payments"], labels: ["smoke"],
+      suites: [{ id: 12, name: "Regression" }],
+      cases: [
+        { n: 1, t: "Book one-way", k: "c".repeat(64), fo: 0, fe: 0, l: [0], s: [0] },
+        { n: 2, t: "Pay by card", k: "d".repeat(64), fo: 1, fe: 1, l: [], s: [0] },
+        { n: 4, t: "Manual check", k: null, fo: null, fe: null, l: [], s: [] },
+      ],
+    })),
     http.get(`${P}/run-requests/run-urls`, () => HttpResponse.json({ urls: ["https://github.com/a/b/actions/runs/7"], truncated: false })),
   );
 }
@@ -232,7 +239,7 @@ test("every section is its own request, and an area filter sends the same keys t
   serve();
   renderPage("?area=feature:Booking");
   await screen.findByRole("region", { name: "Regressions and stability" });
-  await vi.waitFor(() => expect(new Set(bodies.map((b) => b.sections[0]))).toEqual(new Set(["summary", "failure_causes", "regressions"])));
+  await vi.waitFor(() => expect(new Set(bodies.map((b) => b.sections[0]))).toEqual(new Set(["summary", "failure_causes", "regressions", "tests", "duration"])));
   expect(bodies.every((b) => b.test_keys?.[0] === "c".repeat(64))).toBe(true);
 });
 
@@ -249,12 +256,12 @@ test("a zone the server rejects is retried in UTC for every section", async () =
   const spy = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockImplementation(function (this: Intl.DateTimeFormat) {
     return { ...resolved.call(this), timeZone: "Pacific/Kiritimati" };
   });
-  serve({ report: (body) => (body.tz === "UTC" ? HttpResponse.json({ ...SUMMARY_REPORT, ...CAUSES_REPORT, ...REGRESSIONS_REPORT })
+  serve({ report: (body) => (body.tz === "UTC" ? HttpResponse.json({ ...SUMMARY_REPORT, ...CAUSES_REPORT, ...REGRESSIONS_REPORT, ...TESTS_REPORT })
     : HttpResponse.json({ detail: `Unknown time zone: '${body.tz}'` }, { status: 422 })) });
   renderPage();
   expect(await screen.findByRole("group", { name: "Newly failing 9" })).toBeInTheDocument();
   spy.mockRestore();
-  expect(bodies.filter((b) => b.tz === "UTC").map((b) => b.sections[0]).sort()).toEqual(["failure_causes", "regressions", "summary"]);
+  expect(bodies.filter((b) => b.tz === "UTC").map((b) => b.sections[0]).sort()).toEqual(["duration", "failure_causes", "regressions", "summary", "tests"]);
 });
 
 test("a failed Regressions section after a filter change is not announced as updated", async () => {
@@ -268,6 +275,33 @@ test("a failed Regressions section after a filter change is not announced as upd
   await userEvent.click(await screen.findByRole("button", { name: "Remove filter Branch: main (default)" }));
   expect(await screen.findByRole("group", { name: /^Runs 222/ })).toBeInTheDocument();
   expect(await within(screen.getByRole("region", { name: "Regressions and stability" })).findByRole("button", { name: "Retry" })).toBeInTheDocument();
+  await delay(ANNOUNCE_DELAY_MS + 300);
+  expect(liveRegion().textContent).toBe("");
+});
+
+test("case-areas failing: sections 3 and 5 show the error, the others still load", async () => {
+  serve();
+  server.use(http.get(`${P}/case-areas`, () => HttpResponse.json({ detail: "down" }, { status: 500 })));
+  renderPage();
+  expect(await screen.findByRole("group", { name: /^Pass rate/ })).toBeInTheDocument();
+  expect(await within(screen.getByRole("region", { name: "By area" })).findByText("Cases could not be loaded")).toBeInTheDocument();
+  expect(within(screen.getByRole("region", { name: "Coverage and duration" })).getByText("Cases could not be loaded")).toBeInTheDocument();
+});
+
+test("By area and Coverage load with the page, and a failed Duration section is not announced as updated", async () => {
+  serve({
+    report: (body) => (body.sections[0] === "duration" && body.branch !== "main"
+      ? HttpResponse.json({ detail: { code: "report_timeout", message: "This report took too long." } }, { status: 503 })
+      : HttpResponse.json({ ...SUMMARY_REPORT, ...TESTS_REPORT,
+          summary: { ...SUMMARY_REPORT.summary!, current: { ...SUMMARY_REPORT.summary!.current, runs: body.branch === "main" ? 111 : 222 } } })),
+  });
+  renderPage();
+  await screen.findByRole("group", { name: /^Runs 111/ });
+  expect(await within(screen.getByRole("region", { name: "By area" })).findByRole("table", { name: /by area/i })).toBeInTheDocument();
+  expect(await within(screen.getByRole("region", { name: "Coverage and duration" })).findByRole("group", { name: "Active cases 3" })).toBeInTheDocument();
+  await userEvent.click(await screen.findByRole("button", { name: "Remove filter Branch: main (default)" }));
+  expect(await screen.findByRole("group", { name: /^Runs 222/ })).toBeInTheDocument();
+  expect(await within(screen.getByRole("region", { name: "Coverage and duration" })).findByRole("button", { name: "Retry" })).toBeInTheDocument();
   await delay(ANNOUNCE_DELAY_MS + 300);
   expect(liveRegion().textContent).toBe("");
 });
