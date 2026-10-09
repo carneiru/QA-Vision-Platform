@@ -13,7 +13,7 @@ Anything left by an aborted earlier run is deleted first. Run it in a throwaway 
     B: the README benchmark, 2 million results per 90 days. Target <= 8 s each, never the 20 s timeout.
        Seeds 3,960 runs x 1,000 results over the 180 days.
 
-SECTIONS (comma-separated, default summary,failure_causes,regressions) picks the sections; an unknown one stops
+SECTIONS (comma-separated, default every registered section) picks the sections; an unknown one stops
 the script before seeding.
 """
 import os
@@ -38,7 +38,7 @@ DAYS = 180
 TESTS = 1000
 RUNS_PER_DAY, TESTS_PER_RUN = (17, 67) if SIZE == "A" else (22, 1000)
 REPEAT = 20  # p95 is then the 19th of 20 samples, not the slowest
-SECTIONS = os.environ.get("SECTIONS", "summary,failure_causes,regressions").split(",")
+SECTIONS = os.environ.get("SECTIONS", ",".join(report_service.SECTION_BUILDERS)).split(",")
 STATUSES = ("passed", "failed", "errored", "skipped")
 WEIGHTS = (95, 3, 1, 1)
 MESSAGES = ["TimeoutError: locator('#pay-button') after {} ms", "AssertionError: expected {} got {}",
