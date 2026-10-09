@@ -217,9 +217,9 @@ export default function RunDetailPage() {
                 </tbody>
               </table>
               {ordered.length > PAGE && (
-                <div className="filters">
-                  <button disabled={start === 0} onClick={() => setOffset(Math.max(0, start - PAGE))}>Previous</button>
+                <div className="pager">
                   <span className="muted">{`Rows ${start + 1}–${start + shown.length} of ${ordered.length}`}</span>
+                  <button disabled={start === 0} onClick={() => setOffset(Math.max(0, start - PAGE))}>Previous</button>
                   <button disabled={start + PAGE >= ordered.length} onClick={() => setOffset(start + PAGE)}>Next</button>
                 </div>
               )}

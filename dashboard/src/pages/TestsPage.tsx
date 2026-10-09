@@ -125,7 +125,7 @@ export default function TestsPage() {
         </p>
       )}
       {query.data && rows.length === 0 && offset > 0 && (
-        <div className="filters">
+        <div className="pager">
           <button onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
         </div>
       )}
@@ -174,11 +174,11 @@ export default function TestsPage() {
           {!(sort.key in SERVER_SORT) && (
             <p className="muted live-note">Sorted within these {rows.length} rows; the pages follow failures.</p>
           )}
-          <div className="filters">
+          <div className="pager">
+            <span className="muted">Rows {offset + 1}–{offset + rows.length}</span>
             <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
               Previous
             </button>
-            <span className="muted">Rows {offset + 1}–{offset + rows.length}</span>
             <button disabled={!hasMore} onClick={() => setOffset(offset + PAGE)}>
               Next
             </button>

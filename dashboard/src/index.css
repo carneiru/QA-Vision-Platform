@@ -193,7 +193,7 @@ button.ghost { background: transparent; border-color: transparent; }
 .card > :last-child { margin-bottom: 0; }
 .card label, .filters label { display: flex; flex-direction: column; gap: var(--space-1); font-size: 13px; font-weight: 500; color: var(--text-secondary); }
 .page-narrow .card label { margin-bottom: var(--space-3); }
-.page-narrow .card input { width: 100%; }
+.page-narrow .card input:not([type="checkbox"], [type="radio"], [type="file"]) { width: 100%; }
 .page-narrow .card button.primary { width: 100%; justify-content: center; min-height: 38px; margin-top: var(--space-1); }
 .page-narrow .card > p.muted:last-child { margin-top: var(--space-4); text-align: center; }
 .page-narrow h1 { margin-bottom: var(--space-4); }
@@ -203,6 +203,10 @@ button.ghost { background: transparent; border-color: transparent; }
 .tile-value { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
 .tile-label { font-size: 13px; color: var(--text-secondary); }
 .filters { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: end; margin: 0 0 var(--space-4); }
+/* Paging under a table: the count, then Previous and Next as one pair. Centred on the button line,
+   and the buttons stay put when the count changes width from page to page */
+.pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2) var(--space-3); margin: var(--space-3) 0 0; }
+.pager .muted { margin-right: auto; font-variant-numeric: tabular-nums; }
 /* Checkbox + text on one line, inside cards that otherwise stack label over field */
 .card label.check, label.check { flex-direction: row; align-items: center; gap: var(--space-2); font-size: 14px; font-weight: 400; color: var(--text-primary); min-height: 28px; cursor: pointer; }
 /* Drawn checkbox: a 3:1 edge (the native one is about 1.5:1 in dark mode) and a fixed size that ignores the 34px/44px input min-height */
@@ -218,8 +222,10 @@ fieldset.check-group > legend { padding: 0; margin-bottom: var(--space-1); font-
 .form-stack label.check { margin-bottom: 0; }
 /* Up to four actions per channel: they wrap inside the cell instead of pushing past the card */
 table.notify-table td.row-actions { white-space: normal; }
-table.notify-table td.row-actions > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+table.notify-table td.row-actions > div { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--space-2); }
 table.notify-table td.row-actions > div > * + * { margin-left: 0; }
+/* The Remove question takes its own line, so the other actions keep their size instead of stretching to its height */
+table.notify-table td.row-actions .confirm { flex-basis: 100%; }
 .sends-cell label.check { font-size: 13px; min-height: 24px; }
 .live-note { margin: 0 0 var(--space-2); font-size: 13px; }
 .live-note:empty { margin: 0; }
@@ -251,7 +257,8 @@ input[aria-invalid="true"] { border-color: var(--danger-text); }
 .field-link { display: block; width: fit-content; margin: calc(-1 * var(--space-2)) 0 var(--space-3) auto; font-size: 13px; padding-block: 2px; }
 /* Vertical form inside a wide card (Security): fields stack, inputs keep a readable width */
 .form-stack label { margin-bottom: var(--space-3); }
-.form-stack input { width: 100%; max-width: 360px; }
+/* Text-like fields fill the column; checkboxes, radios and the hidden file inputs keep their own size */
+.form-stack input:not([type="checkbox"], [type="radio"], [type="file"]) { width: 100%; max-width: 360px; }
 .form-stack textarea { width: 100%; max-width: 560px; resize: vertical; font: inherit; }
 .form-stack .field-hint { font-weight: 400; font-size: 12.5px; max-width: 560px; }
 .form-stack select { width: 100%; max-width: 360px; }

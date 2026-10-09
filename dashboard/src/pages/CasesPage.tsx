@@ -377,16 +377,16 @@ export default function CasesPage() {
             <CaseTable projectId={id} cases={data?.items ?? []} selectable={!!canEdit} picked={picked} onToggle={toggle} onToggleAll={toggleAll} />
           )}
           {group === "scenario" && data && (
-            <div className="filters">
-              <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - CASES_PAGE))}>Previous</button>
+            <div className="pager">
               <span className="muted">{offset + 1}–{offset + data.items.length} of {data.total}</span>
+              <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - CASES_PAGE))}>Previous</button>
               <button disabled={offset + CASES_PAGE >= data.total} onClick={() => setOffset(offset + CASES_PAGE)}>Next</button>
             </div>
           )}
           {grouped && features.data && (
-            <div className="filters">
-              <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - FEATURES_PAGE))}>Previous</button>
+            <div className="pager">
               <span className="muted">{offset + 1}–{offset + features.data.items.length} of {features.data.total} features</span>
+              <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - FEATURES_PAGE))}>Previous</button>
               <button disabled={offset + FEATURES_PAGE >= features.data.total} onClick={() => setOffset(offset + FEATURES_PAGE)}>Next</button>
             </div>
           )}

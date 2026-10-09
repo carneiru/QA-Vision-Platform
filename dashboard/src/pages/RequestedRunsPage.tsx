@@ -100,9 +100,9 @@ export default function RequestedRunsPage() {
               })}
             </tbody>
           </table>
-          <div className="filters">
-            <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
+          <div className="pager">
             <span className="muted">{offset + 1}–{offset + items.length} of {list.data?.total}</span>
+            <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
             <button disabled={offset + PAGE >= (list.data?.total ?? 0)} onClick={() => setOffset(offset + PAGE)}>Next</button>
           </div>
         </div>

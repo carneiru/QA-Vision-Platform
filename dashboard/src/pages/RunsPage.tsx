@@ -276,7 +276,7 @@ export default function RunsPage() {
         )
       )}
       {query.data && rows.length === 0 && offset > 0 && (
-        <div className="filters">
+        <div className="pager">
           <button onClick={() => setOffset(Math.max(0, offset - PAGE))}>Previous</button>
         </div>
       )}
@@ -330,11 +330,11 @@ export default function RunsPage() {
               ))}
             </tbody>
           </table>
-          <div className="filters">
+          <div className="pager">
+            <span className="muted">Rows {offset + 1}–{offset + rows.length}</span>
             <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE))}>
               Previous
             </button>
-            <span className="muted">Rows {offset + 1}–{offset + rows.length}</span>
             <button disabled={rows.length < PAGE} onClick={() => setOffset(offset + PAGE)}>
               Next
             </button>
