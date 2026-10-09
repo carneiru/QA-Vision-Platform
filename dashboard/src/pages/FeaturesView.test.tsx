@@ -184,7 +184,8 @@ test("feature and scenario rows share one table with the Scenario view's columns
   const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
   expect(screen.getAllByRole("table")).toHaveLength(1);
   const heads = within(screen.getByRole("table")).getAllByRole("columnheader").map((th) => th.textContent);
-  expect(heads).toEqual(["Select", "Title", "Last runs", "Priority", "Status", "Automated"]);
+  // The first header cell holds the "Select every scenario on this page" box
+  expect(heads).toEqual(["", "Title", "Last runs", "Priority", "Status", "Automated"]);
   const caseRow = within(scenarios).getByRole("link", { name: "Case 2" }).closest("tr")!;
   const cells = within(caseRow).getAllByRole("cell");
   expect(cells).toHaveLength(heads.length);
@@ -219,6 +220,27 @@ test("checking a feature selects its runnable scenarios; the box is tri-state", 
   await userEvent.click(box);
   expect(await screen.findByRole("button", { name: "Run selected (2)" })).toBeInTheDocument();
   await userEvent.click(box);
+  expect(screen.queryByRole("button", { name: /Run selected/ })).not.toBeInTheDocument();
+});
+
+test("the header box selects every runnable scenario of the features on the page, and is tri-state", async () => {
+  renderCases();
+  await screen.findByRole("link", { name: "Login" });
+  const all = screen.getByRole("checkbox", { name: "Select every scenario on this page" }) as HTMLInputElement;
+  await userEvent.click(all);
+  expect(await screen.findByRole("button", { name: "Run selected (2)" })).toBeInTheDocument();
+  expect(all).toBeChecked();
+  expect(within(featureRow("Login")).getByRole("checkbox", { name: "Select every scenario of Login" })).toBeChecked();
+  // One scenario off: the header shows a partial selection
+  await userEvent.click(within(featureRow("Login")).getByRole("button", { name: "Show scenarios of Login" }));
+  const scenarios = await screen.findByRole("rowgroup", { name: "Scenarios of Login" });
+  await userEvent.click(within(scenarios).getByRole("checkbox", { name: "Select TC-1 Case 1" }));
+  expect(all).not.toBeChecked();
+  expect(all.indeterminate).toBe(true);
+  // Checking it again completes the selection; unchecking clears it
+  await userEvent.click(all);
+  expect(await screen.findByRole("button", { name: "Run selected (2)" })).toBeInTheDocument();
+  await userEvent.click(all);
   expect(screen.queryByRole("button", { name: /Run selected/ })).not.toBeInTheDocument();
 });
 

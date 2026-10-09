@@ -73,11 +73,29 @@ export default function FeatureList({ projectId, rows, selectable, picked, onTog
     onToggleAll(on, cases.filter(isRunnable));
   }
 
+  // The header box covers every feature on the page; the manual group has nothing to run
+  const features = rows.filter((row) => row.path != null);
+  const numbers = features.flatMap((row) => row.case_numbers);
+  const shownAll = numbers.filter((n) => picked.has(n)).length;
+  async function pickAll(on: boolean) {
+    const groups = await Promise.all(features.map((row) => qc.fetchQuery(groupCasesQuery(projectId, row, filters))));
+    onToggleAll(on, groups.flat().filter(isRunnable));
+  }
+
   return (
     <table className="data cases-table feature-list">
       <thead>
         <tr>
-          {selectable && <th className="select-col col-select"><span className="sr-only">Select</span></th>}
+          {selectable && (
+            <th className="select-col col-select">
+              {features.length > 0 ? (
+                <input type="checkbox" aria-label="Select every scenario on this page"
+                  checked={shownAll > 0 && shownAll === numbers.length}
+                  ref={(el) => { if (el) el.indeterminate = shownAll > 0 && shownAll < numbers.length; }}
+                  onChange={(e) => void pickAll(e.target.checked)} />
+              ) : <span className="sr-only">Select</span>}
+            </th>
+          )}
           <th className="col-title">Title</th><th className="hide-narrow col-runs">Last runs</th>
           <th className="hide-narrow col-priority">Priority</th><th className="col-status">Status</th><th className="hide-narrow col-automated">Automated</th>
         </tr>
