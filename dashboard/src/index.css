@@ -972,3 +972,10 @@ button.password-toggle { flex: none; justify-content: center; min-width: 34px; p
 .run-selection-estimate { color: var(--text-secondary); font-size: 13px; font-variant-numeric: tabular-nums; }
 .page-meta { margin: var(--space-1) 0 0; font-size: 13px; line-height: 1.45; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .run-estimate-detail { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* Report filter bar */
+.report-filter-bar { margin: 0 0 var(--space-4); }
+.report-filter-form { align-items: flex-end; }
+.report-filter-form .filter-help { flex: 1 1 100%; margin: 0; font-size: 12.5px; }
+.report-filter-form .field-error { flex: 1 1 100%; margin: 0; color: var(--danger-text); }
+.report-filter-form .check-label { flex-direction: row; align-items: center; gap: var(--space-2); }

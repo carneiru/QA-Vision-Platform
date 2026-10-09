@@ -13,6 +13,8 @@ export interface AppliedFilter {
   key: string;
   name: string;
   value: string;
+  /** A tooltip on the chip, e.g. what the filter leaves out */
+  title?: string;
 }
 
 interface Props {
@@ -74,7 +76,7 @@ export default function FilterChips({ quick = [], values, applied, onChange, onC
         );
       })}
       {removable.map((f) => (
-        <span key={f.key} className="fchip fchip-applied">
+        <span key={f.key} className="fchip fchip-applied" title={f.title}>
           <span>{`${f.name}: ${f.value}`}</span>
           <button type="button" className="fchip-remove" aria-label={`Remove filter ${f.name}: ${f.value}`} onClick={(e) => {
               pending.current = { key: f.key, index: chipIndex(e.currentTarget) };
