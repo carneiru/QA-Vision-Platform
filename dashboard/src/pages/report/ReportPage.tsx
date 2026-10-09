@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Printer, RefreshCw, X } from "lucide-react";
 import { getProject } from "../../api/orgs";
 import { ChartPatternDefs } from "../../components/ChartKit";
@@ -13,9 +13,14 @@ import SummarySection from "./sections/SummarySection";
 import { todayIn, useReportFilters } from "./useReportFilters";
 import { useReportRequest, useReportSection } from "./useReportRequest";
 
+/** How long the cleared live region stays empty before "Report updated" is written, so the same words written again
+ *  are a change a screen reader reads, and so a section that starts fetching just after the filters change (a
+ *  child's query starts in its effect) can still mark the page busy first. */
+export const ANNOUNCE_DELAY_MS = 150;
+
 /** "Report updated", once, when every section asked after a filter change has settled (spec: Filter bar). The first
- *  load is not announced. */
-export function useAnnouncement(signature: string | null, busy: boolean): string {
+ *  load is not announced, nor is a change whose summary failed (its error banner says so). */
+export function useAnnouncement(signature: string | null, busy: boolean, failed = false): string {
   const [message, setMessage] = useState("");
   const last = useRef<string | null>(null);
   const waiting = useRef(false);
@@ -28,11 +33,13 @@ export function useAnnouncement(signature: string | null, busy: boolean): string
     last.current = signature;
   }, [signature]);
   useEffect(() => {
-    if (waiting.current && !busy) {
+    if (!waiting.current || busy) return;
+    const timer = window.setTimeout(() => {
       waiting.current = false;
-      setMessage("Report updated");
-    }
-  }, [busy, signature]);
+      if (!failed) setMessage("Report updated");
+    }, ANNOUNCE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [busy, signature, failed]);
   return message;
 }
 
@@ -69,8 +76,10 @@ export default function ReportPage() {
   const summary = useReportSection(id, gate, "summary");
   usePrintOpensDataTables();
 
-  const busy = summary.fetchStatus === "fetching";
-  const announcement = useAnnouncement(gate.state === "ready" ? JSON.stringify(gate.key) : null, busy);
+  // Every section's request counts (the summary's own status covers the render before its fetch is registered)
+  const fetchingSections = useIsFetching({ queryKey: ["report", id] }) + useIsFetching({ queryKey: ["report-flaky", id] });
+  const busy = summary.fetchStatus === "fetching" || fetchingSections > 0;
+  const announcement = useAnnouncement(gate.state === "ready" ? JSON.stringify(gate.key) : null, busy, summary.isError);
   const applied = describeFilters(filters, defaultBranch, caseAreas.data);
   const generated = summary.data?.generated_at ?? null;
   const subtitle = `${project.data?.name ?? "Project"}: quality report. ${formatPeriod(filters.from, filters.to)} (${filters.days} days), ${tz}.`

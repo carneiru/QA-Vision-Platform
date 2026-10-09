@@ -1,4 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -7,8 +9,8 @@ import { server } from "../../test/server";
 import { setAccessToken } from "../../auth/tokens";
 import type { ReportRequest } from "../../api/report";
 import { SUMMARY_REPORT } from "./testFixtures";
-import { addDays, todayIn } from "./useReportFilters";
-import ReportPage from "./ReportPage";
+import { addDays, spanDays, todayIn } from "./useReportFilters";
+import ReportPage, { ANNOUNCE_DELAY_MS } from "./ReportPage";
 
 const P = "/api/v1/projects/42";
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -139,9 +141,80 @@ test("print: Save as PDF prints; the print header lists the period and every fil
   expect(header).toHaveTextContent("Branch: main (default)");
   expect(header).toHaveTextContent("Environment: staging");
   expect(header).toHaveTextContent(/compared with/i);
+  const tables = document.querySelectorAll("details.chart-data");
+  expect(tables.length).toBeGreaterThan(0);
   window.dispatchEvent(new Event("beforeprint"));
-  document.querySelectorAll("details.chart-data").forEach((d) => expect(d).toHaveAttribute("open"));
+  tables.forEach((d) => expect(d).toHaveAttribute("open"));
   window.dispatchEvent(new Event("afterprint"));
-  document.querySelectorAll("details.chart-data").forEach((d) => expect(d).not.toHaveAttribute("open"));
+  tables.forEach((d) => expect(d).not.toHaveAttribute("open"));
   print.mockRestore();
+});
+
+test("on paper a data table is printed whole, not clipped to its scroll box", () => {
+  const css = readFileSync(resolve(__dirname, "../../index.css"), "utf8");
+  const print = css.slice(css.indexOf("@media print {"));
+  const block = print.slice(0, print.indexOf("\n}\n"));
+  expect(block).toMatch(/\.chart-data-body \{ max-height: none !important; overflow: visible !important; \}/);
+});
+
+const liveRegion = () => document.querySelector(".report > p[aria-live='polite']")!;
+const runs = (n: number) => HttpResponse.json({ ...SUMMARY_REPORT, summary: { ...SUMMARY_REPORT.summary!, current: { ...SUMMARY_REPORT.summary!.current, runs: n } } });
+
+test("the update is announced only when every section asked has loaded, Flaky included", async () => {
+  serve({ report: (body) => runs(body.branch === "main" ? 111 : 222) });
+  server.use(http.get(`${P}/analytics/flaky`, async ({ request }) => {
+    if (!new URL(request.url).searchParams.has("branch")) await delay(800);
+    return HttpResponse.json([]);
+  }));
+  renderPage();
+  await screen.findByRole("group", { name: /^Runs 111/ });
+  await userEvent.click(await screen.findByRole("button", { name: "Remove filter Branch: main (default)" }));
+  expect(await screen.findByRole("group", { name: /^Runs 222/ })).toBeInTheDocument();
+  await delay(ANNOUNCE_DELAY_MS + 200);
+  expect(within(screen.getByRole("region", { name: /flaky tests/i })).getByRole("status", { name: /loading flaky tests/i })).toBeInTheDocument();
+  expect(liveRegion().textContent).toBe("");
+  expect(await screen.findByText("No flaky tests in this period.", {}, { timeout: 2000 })).toBeInTheDocument();
+  await waitFor(() => expect(liveRegion()).toHaveTextContent("Report updated"));
+  expect(screen.getAllByText("Report updated")).toHaveLength(1);
+});
+
+test("a change back to answers already cached announces again; a failed summary is not announced", async () => {
+  let fail = false;
+  serve({ report: (body) => (fail ? HttpResponse.json({ detail: "boom" }, { status: 500 }) : runs(body.branch === "main" ? 111 : 222)) });
+  renderPage();
+  await screen.findByRole("group", { name: /^Runs 111/ });
+  const seen: string[] = [];
+  const observer = new MutationObserver(() => seen.push(liveRegion().textContent ?? ""));
+  observer.observe(liveRegion(), { childList: true, characterData: true, subtree: true });
+  await userEvent.click(screen.getByRole("button", { name: "Remove filter Branch: main (default)" }));
+  await waitFor(() => expect(liveRegion()).toHaveTextContent("Report updated"));
+  // Back to main: both answers come from the cache, so nothing is fetched, yet the text must change to be read again
+  await userEvent.click(screen.getByRole("button", { name: "Remove filter Branch: all branches" }));
+  await screen.findByRole("group", { name: /^Runs 111/ });
+  await waitFor(() => expect(seen.filter((t) => t === "Report updated")).toHaveLength(2));
+  expect(seen.filter((t, i) => t !== seen[i - 1])).toEqual(["Report updated", "", "Report updated"]);
+  observer.disconnect();
+  fail = true;
+  await userEvent.click(screen.getByRole("button", { name: "7 days" }));
+  expect(await within(screen.getByRole("region", { name: "Summary" })).findByRole("button", { name: "Retry" })).toBeInTheDocument();
+  await delay(300);
+  expect(liveRegion().textContent).toBe("");
+});
+
+test("Flaky with a custom range covers the last N days up to today, at most 90 (Ruling 6)", async () => {
+  const today = todayIn(TZ);
+  for (const [from, to, n] of [[addDays(today, -20), addDays(today, -10), 21], [addDays(today, -200), addDays(today, -150), 90]] as const) {
+    serve();
+    const windows: (string | null)[] = [];
+    server.use(http.get(`${P}/analytics/flaky`, ({ request }) => {
+      windows.push(new URL(request.url).searchParams.get("window_days"));
+      return HttpResponse.json([]);
+    }));
+    renderPage(`?from=${from}&to=${to}`);
+    const flaky = await screen.findByRole("region", { name: /flaky tests/i });
+    expect(await within(flaky).findByText(new RegExp(`Covers the last ${n} days`))).toBeInTheDocument();
+    await waitFor(() => expect(windows).toEqual([String(n)]));
+    expect(Math.min(90, spanDays(from, today))).toBe(n);
+    cleanup();
+  }
 });

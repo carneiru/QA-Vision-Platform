@@ -24,7 +24,8 @@ export default function FlakySection({ projectId, gate, filters, branch, today }
   const windowDays = Math.min(90, spanDays(filters.from, today));
   const flaky = useQuery({
     queryKey: ["report-flaky", projectId, windowDays, branch],
-    queryFn: () => getFlaky(projectId, { windowDays, minRuns: FLAKY_MIN_RUNS, minFlipRate: FLAKY_MIN_FLIP_RATE, branch: branch ?? undefined }),
+    queryFn: ({ signal }) => getFlaky(projectId,
+      { windowDays, minRuns: FLAKY_MIN_RUNS, minFlipRate: FLAKY_MIN_FLIP_RATE, branch: branch ?? undefined }, { signal }),
     enabled: gate.state === "ready",
     staleTime: REPORT_STALE_MS,
     retry: false,

@@ -196,6 +196,7 @@ export function getBranches(
 export function getFlaky(
   projectId: number,
   opts: { windowDays: number; minRuns: number; minFlipRate: number; branch?: string; includeMuted?: boolean },
+  init: { signal?: AbortSignal } = {},
 ): Promise<FlakyRow[]> {
   const q = buildQuery({
     window_days: opts.windowDays,
@@ -204,7 +205,7 @@ export function getFlaky(
     branch: opts.branch,
     include_muted: opts.includeMuted ? "true" : undefined,
   });
-  return apiFetch(`/api/v1/projects/${projectId}/analytics/flaky${q}`);
+  return apiFetch(`/api/v1/projects/${projectId}/analytics/flaky${q}`, { signal: init.signal });
 }
 
 export function formatPassRate(rate: number | null): string {
