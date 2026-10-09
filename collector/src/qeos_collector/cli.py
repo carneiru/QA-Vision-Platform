@@ -125,10 +125,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="sync the repository's Gherkin .feature files into QEOS test cases",
         description="Read the .feature files matching PATTERN (default: features in .qeos.yml, else "
         "**/*.feature) and import them as test cases. Runs only on the sync branch (default: "
-        "$QEOS_IMPORT_BRANCH, else master). The API key is read from QEOS_API_KEY only.",
+        "$QEOS_IMPORT_BRANCH, else the repository's default branch). The API key is read from QEOS_API_KEY only.",
     )
     import_features.add_argument("patterns", nargs="*", metavar="PATTERN")
-    import_features.add_argument("--branch", help="the branch cases sync from (default: $QEOS_IMPORT_BRANCH, else master)")
+    import_features.add_argument("--branch", help="the branch cases sync from (default: $QEOS_IMPORT_BRANCH, else the repository's default branch)")
     import_features.add_argument("--no-full", action="store_true",
                                  help="compare only the given files; never archive cases of other files")
     import_features.add_argument("--allow-mass-archive", action="store_true",

@@ -47,7 +47,7 @@ function ciSnippets(origin: string): Record<string, { label: string; code: strin
   env:
     QEOS_API_KEY: \${{ secrets.QEOS_API_KEY }}
 
-- name: Sync test cases from .feature files   # runs on master only (QEOS_IMPORT_BRANCH to change)
+- name: Sync test cases from .feature files   # runs on the default branch only (QEOS_IMPORT_BRANCH to change)
   run: |
     pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
     qeos-collector import-features "tests/features/**/*.feature"
@@ -66,7 +66,7 @@ qeos-collector-upload:
     QEOS_URL: ${origin}
     QEOS_PATTERNS: "reports/**/*.xml"
 
-# syncs test cases from .feature files; runs on master only (set QEOS_IMPORT_BRANCH to change)
+# syncs test cases from .feature files; runs on the default branch only (set QEOS_IMPORT_BRANCH to change)
 qeos-import-features:
   image: python:3.12
   script:
@@ -89,7 +89,7 @@ qeos-import-features:
     QEOS_API_KEY: $(QEOS_API_KEY)   # secret variables reach scripts only when mapped here
     # a secret still named QAV_API_KEY (before the QEOS rename)? map it instead: QEOS_API_KEY: $(QAV_API_KEY)
 
-# syncs test cases from .feature files; runs on master only (set QEOS_IMPORT_BRANCH to change)
+# syncs test cases from .feature files; runs on the default branch only (set QEOS_IMPORT_BRANCH to change)
 - script: |
     pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
     qeos-collector import-features "tests/features/**/*.feature"
@@ -104,7 +104,7 @@ qeos-import-features:
 withCredentials([string(credentialsId: 'qeos-api-key', variable: 'QEOS_API_KEY')]) {
   withEnv(['QEOS_URL=${origin}']) {
     qeosCollectorUpload(patterns: 'reports/**/*.xml', ref: '${COLLECTOR_REF}')
-    // syncs test cases from .feature files; runs on master only (set QEOS_IMPORT_BRANCH to change)
+    // syncs test cases from .feature files; runs on the default branch only (set QEOS_IMPORT_BRANCH to change)
     // reuses the .qeos-venv that qeosCollectorUpload creates, so keep it after the upload step
     sh '''
       .qeos-venv/bin/python -m qeos_collector import-features "tests/features/**/*.feature"
@@ -119,11 +119,11 @@ withCredentials([string(credentialsId: 'qeos-api-key', variable: 'QEOS_API_KEY')
 # The local stack uses a self-signed certificate; from the QA-Vision-Platform folder:
 docker compose cp gateway:/etc/nginx/certs/tls.crt qeos-ca.crt
 QEOS_URL=${origin} QEOS_API_KEY=<your key> qeos-collector upload "reports/**/*.xml" --ca-file qeos-ca.crt
-# syncs test cases from .feature files; runs on master only (set QEOS_IMPORT_BRANCH to change)
+# syncs test cases from .feature files; runs on the default branch only (set QEOS_IMPORT_BRANCH to change)
 QEOS_URL=${origin} QEOS_API_KEY=<your key> qeos-collector import-features "tests/features/**/*.feature" --ca-file qeos-ca.crt`
         : `pip install "qeos-collector @ git+https://github.com/carneiru/QA-Vision-Platform@${COLLECTOR_REF}#subdirectory=collector"
 QEOS_URL=${origin} QEOS_API_KEY=<your key> qeos-collector upload "reports/**/*.xml"
-# syncs test cases from .feature files; runs on master only (set QEOS_IMPORT_BRANCH to change)
+# syncs test cases from .feature files; runs on the default branch only (set QEOS_IMPORT_BRANCH to change)
 QEOS_URL=${origin} QEOS_API_KEY=<your key> qeos-collector import-features "tests/features/**/*.feature"`,
     },
   };

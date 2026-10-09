@@ -802,16 +802,18 @@ qeos-collector import-features "tests/features/**/*.feature"
 ```
 - The API key is traded for a 5-minute token that can only import cases into that project.
   Changes are recorded as made by CI.
-- **It runs only on the sync branch, which is `master` by default.** On any other branch it
-  prints `skipped: …` and exits 0, so the same step can run on every build. **If your default
-  branch is `main`**, set `QEOS_IMPORT_BRANCH=main` (or pass `--branch main`).
+- **It runs only on the sync branch, which is the repository's default branch** (`main` or
+  `master`, read from GitHub Actions, GitLab CI or the clone's `origin/HEAD`). On any other branch
+  it prints `skipped: …` and exits 0, so the same step can run on every build. Where the default
+  branch cannot be read (Azure Pipelines, most Jenkins agents) it is `master`: set
+  `QEOS_IMPORT_BRANCH` (or pass `--branch`) to sync from another branch.
 - It is a **full** sync by default (cases of deleted files are archived). `--no-full` compares
   only the given files. A full import that would archive more than half of the imported cases
   is refused (exit 1, 409) unless you pass `--allow-mass-archive`.
 - `--dry-run` prints the plan; `--strict` fails on parse errors. Paths are taken relative to
   the working directory, so run it from the repository root.
 - On Jenkins, the agent must know the branch (`GIT_BRANCH`). Otherwise the command cannot tell
-  the branch and imports anyway. Guard the stage with `when { branch 'master' }`.
+  the branch and imports anyway. Guard the stage with `when { branch '<default branch>' }`.
 
 GitHub Actions example (a separate workflow, or a step in the suite workflow):
 ```yaml
@@ -830,7 +832,6 @@ jobs:
         env:
           QEOS_URL: ${{ vars.QEOS_URL }}
           QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
-          QEOS_IMPORT_BRANCH: main
 ```
 
 #### 4.2.4 Finding cases: folders, features, labels, filters and chips
@@ -867,7 +868,7 @@ other filters when a project has more than 20,000 tests.
 | Symptom | Fix |
 |---|---|
 | Imported cases never get a "Last runs" strip | The import paths do not match the runner's report paths. Re-import with the right **Path prefix**, and upload Cucumber JSON. |
-| CI step always prints `skipped: on main; cases sync from master` | Set `QEOS_IMPORT_BRANCH=main`. |
+| CI step always prints `skipped: on main; cases sync from master` | The CI does not expose the default branch (Azure Pipelines, Jenkins). Set `QEOS_IMPORT_BRANCH=main`. |
 | CI import exits 1 with 409 `mass_archive` | The patterns found too few files (wrong glob or wrong working directory). Fix the pattern, or pass `--allow-mass-archive` if the deletion is intended. |
 | 413 on import | Raise `IMPORT_MAX_*` and `GATEWAY_IMPORT_MAX_BODY` together. |
 
@@ -1252,7 +1253,6 @@ jobs:
         env:
           QEOS_URL: ${{ vars.QEOS_URL }}
           QEOS_API_KEY: ${{ secrets.QEOS_API_KEY }}
-          QEOS_IMPORT_BRANCH: main
 ```
 Run it once by hand (Actions → QEOS case sync → Run workflow) for the first import, or import
 once from the dashboard with **Path prefix** set so that paths start with `tests/features/`.
@@ -1421,7 +1421,7 @@ One `ERROR: role "postgres" already exists` during the restore is expected.
 | Run arrives without branch or commit | CI not detected: pass `--branch` / `--commit`, or check out with git history. |
 | No changed files on runs | Check out at least 2 commits (`fetch-depth: 2`), or `--no-changes` is set. |
 | Every failing test shows as "confirmed flaky" | The matrix legs share one environment. Set `QEOS_ENVIRONMENT` per leg. |
-| `import-features` always "skipped" | The default sync branch is `master`. Set `QEOS_IMPORT_BRANCH`. |
+| `import-features` always "skipped" | The sync branch is the default branch, or `master` where the CI does not expose it. Set `QEOS_IMPORT_BRANCH`. |
 | Imported cases never link to results | Import paths differ from report paths (fix **Path prefix**), or the upload is JUnit instead of Cucumber JSON. |
 | Play disabled | No `TM_SECRETS_KEY` on the server, no Run from QEOS target in Settings, an expired token, or a run is already active. The reason is shown next to the button. |
 | Play: `failed_to_start` | The workflow's `if:` branch guard does not match, or the workflow is missing on the default branch or the configured branch. |

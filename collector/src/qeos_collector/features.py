@@ -8,6 +8,7 @@ import glob
 import http.client
 import json
 import os
+import subprocess
 from typing import Callable, Dict, List, Mapping, Optional
 
 from qeos_collector.ci import detect
@@ -131,6 +132,30 @@ def report(result: dict, say: Callable[[str], None], dry_run: bool) -> None:
         say(f"  {len(result['warnings'])} warnings (skipped scenarios or tags)")
 
 
+def default_branch(env: Mapping[str, str], cwd: str, run: Callable = subprocess.run) -> str:
+    """The repository's default branch: GitHub's event payload, GitLab's CI_DEFAULT_BRANCH, then
+    the clone's origin/HEAD; master when none of them says."""
+    event_path = env.get("GITHUB_EVENT_PATH") if env.get("GITHUB_ACTIONS") == "true" else None
+    if event_path:
+        try:
+            with open(event_path, encoding="utf-8") as fh:
+                branch = json.load(fh).get("repository", {}).get("default_branch")
+            if isinstance(branch, str) and branch:
+                return branch
+        except (OSError, ValueError, AttributeError):
+            pass
+    if env.get("GITLAB_CI") == "true" and env.get("CI_DEFAULT_BRANCH"):
+        return env["CI_DEFAULT_BRANCH"]
+    try:
+        head = run(["git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], cwd=cwd,
+                   capture_output=True, text=True, check=True, timeout=30).stdout.strip()
+        if head.startswith("origin/") and len(head) > len("origin/"):
+            return head[len("origin/"):]
+    except (OSError, subprocess.SubprocessError):  # no git, not a clone, or no origin/HEAD
+        pass
+    return DEFAULT_BRANCH
+
+
 def run(args, env: Mapping[str, str], api_key: str, say: Callable[[str], None], cwd: str) -> int:
     config = load_config(cwd)
     url: Optional[str] = args.url or env.get("QEOS_URL") or config.get("url")
@@ -138,7 +163,7 @@ def run(args, env: Mapping[str, str], api_key: str, say: Callable[[str], None], 
         raise ConfigError("no platform URL: pass --url, set QEOS_URL, or add url to .qeos.yml")
     if not api_key:
         raise ConfigError("QEOS_API_KEY is not set")
-    sync_branch = args.branch or env.get("QEOS_IMPORT_BRANCH") or DEFAULT_BRANCH
+    sync_branch = args.branch or env.get("QEOS_IMPORT_BRANCH") or default_branch(env, cwd)
     current = detect(env).branch
     if current and current != sync_branch:
         say(f"skipped: on {current}; cases sync from {sync_branch}")

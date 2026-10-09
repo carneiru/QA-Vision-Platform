@@ -100,9 +100,9 @@ post {
 }
 ```
 
-`import-features` skips itself when the branch is not the sync branch (`master`, or `QEOS_IMPORT_BRANCH`).
+`import-features` skips itself when the branch is not the sync branch (the repository's default branch, or `QEOS_IMPORT_BRANCH`).
 If the agent provides no branch (a pipeline without SCM, `GIT_BRANCH` unset) the command cannot tell and
-runs. Guard the stage with `when { branch 'master' }` or make sure `GIT_BRANCH` is set; the server's
+runs. Guard the stage with `when { branch '<default branch>' }` or make sure `GIT_BRANCH` is set; the server's
 mass-archive guard is the backstop.
 
 ### Azure Pipelines
@@ -184,7 +184,10 @@ qeos-collector import-features "features/**/*.feature" --dry-run
 ```
 
 - **Branch rule.** It runs only on the sync branch: `--branch`, else `$QEOS_IMPORT_BRANCH`, else
-  `master`. On any other detected branch it prints `skipped: on <branch>; cases sync from <name>`
+  the repository's default branch. The default branch comes from the GitHub Actions event payload
+  (`repository.default_branch`), GitLab's `CI_DEFAULT_BRANCH`, or the clone's `origin/HEAD`, and is
+  `master` when none of them says (Azure Pipelines and most Jenkins agents: set
+  `QEOS_IMPORT_BRANCH`). On any other detected branch it prints `skipped: on <branch>; cases sync from <name>`
   and exits 0, so the same pipeline step can run on every build.
 - **Full by default.** The import is a full sync: cases of deleted `.feature` files are archived.
   `--no-full` compares only the files given and never archives anything.

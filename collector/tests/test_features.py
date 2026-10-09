@@ -1,5 +1,6 @@
 """qeos-collector import-features (ADR-024)."""
 import json
+import subprocess
 
 import pytest
 
@@ -75,6 +76,57 @@ def test_the_sync_branch_can_be_named(platform, repo):
     ci = {"GITHUB_ACTIONS": "true", "GITHUB_REF_NAME": "main"}
     assert main(["import-features", "--branch", "main"], env(platform, **ci)) == 0
     assert len(platform.requests) == 2
+
+
+def github_event(tmp_path, default_branch):
+    path = tmp_path / "event.json"
+    path.write_text(json.dumps({"repository": {"default_branch": default_branch}}), encoding="utf-8")
+    return {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_PATH": str(path)}
+
+
+def test_github_default_branch_is_the_sync_branch(platform, repo, tmp_path_factory):
+    platform.reply(200, GRANT)
+    platform.reply(200, RESULT)
+    ci = {**github_event(tmp_path_factory.mktemp("event"), "main"), "GITHUB_REF_NAME": "main"}
+    assert main(["import-features"], env(platform, **ci)) == 0
+    assert len(platform.requests) == 2
+
+
+def test_github_master_skips_when_the_default_branch_is_main(platform, repo, capsys, tmp_path_factory):
+    ci = {**github_event(tmp_path_factory.mktemp("event"), "main"), "GITHUB_REF_NAME": "master"}
+    assert main(["import-features"], env(platform, **ci)) == 0
+    assert platform.requests == []
+    assert "skipped: on master; cases sync from main" in capsys.readouterr().err
+
+
+def test_an_unreadable_github_event_falls_back_to_master(platform, repo, capsys):
+    ci = {"GITHUB_ACTIONS": "true", "GITHUB_EVENT_PATH": str(repo / "missing.json"), "GITHUB_REF_NAME": "main"}
+    assert main(["import-features"], env(platform, **ci)) == 0
+    assert "skipped: on main; cases sync from master" in capsys.readouterr().err
+
+
+def test_gitlab_default_branch_is_the_sync_branch(platform, repo):
+    platform.reply(200, GRANT)
+    platform.reply(200, RESULT)
+    ci = {"GITLAB_CI": "true", "CI_COMMIT_REF_NAME": "main", "CI_DEFAULT_BRANCH": "main"}
+    assert main(["import-features"], env(platform, **ci)) == 0
+    assert len(platform.requests) == 2
+
+
+def test_the_named_sync_branch_beats_the_default_branch(platform, repo, capsys):
+    ci = {"GITLAB_CI": "true", "CI_COMMIT_REF_NAME": "main", "CI_DEFAULT_BRANCH": "main",
+          "QEOS_IMPORT_BRANCH": "release"}
+    assert main(["import-features"], env(platform, **ci)) == 0
+    assert "skipped: on main; cases sync from release" in capsys.readouterr().err
+
+
+def test_the_clone_origin_head_names_the_default_branch(platform, repo, capsys):
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"],
+                   cwd=repo, check=True)
+    ci = {"JENKINS_URL": "https://ci", "GIT_BRANCH": "origin/master"}
+    assert main(["import-features"], env(platform, **ci)) == 0
+    assert "skipped: on master; cases sync from trunk" in capsys.readouterr().err
 
 
 def test_dry_run_asks_for_a_plan_and_prints_it(platform, repo, capsys):
