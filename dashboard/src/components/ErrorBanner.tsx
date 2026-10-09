@@ -10,7 +10,7 @@ export default function ErrorBanner({ error, onRetry }: { error: unknown; onRetr
   return (
     <div className="error-banner" role="alert">
       <span>{detail}</span>
-      {onRetry && <button onClick={onRetry}>Retry</button>}
+      {onRetry && <button type="button" onClick={onRetry}>Retry</button>}
     </div>
   );
 }

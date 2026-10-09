@@ -39,7 +39,8 @@ export default function ReportFilterBar({ filters, update, clearAll, today, defa
   const fromRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState({ from: "", to: "", branch: "", allBranches: false, environment: "" });
-  const [rangeError, setRangeError] = useState<string | null>(null);
+  const [rangeError, setRangeError] = useState<{ message: string; fields: ("from" | "to")[] } | null>(null);
+  const errorId = `${uid}-range-error`;
   const [areaKind, setAreaKind] = useState<AreaKind | "">(filters.area?.kind ?? "");
   const areas = caseAreas.data;
 
@@ -50,6 +51,7 @@ export default function ReportFilterBar({ filters, update, clearAll, today, defa
       branch: filters.branch === ALL_BRANCHES ? "" : filters.branch, allBranches: filters.branch === ALL_BRANCHES,
       environment: filters.environment,
     });
+    setRangeError(null);
   }, [filters.preset, filters.from, filters.to, filters.branch, filters.environment]);
   // A filter in the URL picks its kind; clearing the value keeps the chosen kind, so the second step stays open
   useEffect(() => {
@@ -91,11 +93,13 @@ export default function ReportFilterBar({ filters, update, clearAll, today, defa
       env: draft.environment.trim(),
     };
     if (draft.from || draft.to) {
-      const problem = !draft.from || !draft.to ? "Give both From and To"
-        : draft.from > draft.to ? "From must be on or before To"
-        : spanDays(draft.from, draft.to) > MAX_SPAN_DAYS ? `The period can be at most ${MAX_SPAN_DAYS} days`
-        : draft.to > today ? "To cannot be after today"
-        : draft.from < addDays(today, -MAX_AGE_DAYS) ? `From can be at most ${MAX_AGE_DAYS} days ago`
+      const both: ("from" | "to")[] = ["from", "to"];
+      const problem: { message: string; fields: ("from" | "to")[] } | null =
+        !draft.from || !draft.to ? { message: "Give both From and To", fields: [draft.from ? "to" : "from"] }
+        : draft.from > draft.to ? { message: "From must be on or before To", fields: both }
+        : spanDays(draft.from, draft.to) > MAX_SPAN_DAYS ? { message: `The period can be at most ${MAX_SPAN_DAYS} days`, fields: both }
+        : draft.to > today ? { message: "To cannot be after today", fields: ["to"] }
+        : draft.from < addDays(today, -MAX_AGE_DAYS) ? { message: `From can be at most ${MAX_AGE_DAYS} days ago`, fields: ["from"] }
         : null;
       if (problem) {
         setRangeError(problem);
@@ -135,11 +139,13 @@ export default function ReportFilterBar({ filters, update, clearAll, today, defa
         <form className="filters report-filter-form" onSubmit={apply} noValidate>
           <label>From
             <input ref={fromRef} type="date" value={draft.from} min={addDays(today, -MAX_AGE_DAYS)} max={today}
-              onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))} />
+              aria-invalid={rangeError?.fields.includes("from") || undefined} aria-describedby={rangeError?.fields.includes("from") ? errorId : undefined}
+              onChange={(e) => { setRangeError(null); setDraft((d) => ({ ...d, from: e.target.value })); }} />
           </label>
           <label>To
             <input type="date" value={draft.to} min={addDays(today, -MAX_AGE_DAYS)} max={today}
-              onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))} />
+              aria-invalid={rangeError?.fields.includes("to") || undefined} aria-describedby={rangeError?.fields.includes("to") ? errorId : undefined}
+              onChange={(e) => { setRangeError(null); setDraft((d) => ({ ...d, to: e.target.value })); }} />
           </label>
           <label>Branch
             <input list={`${uid}-branches`} value={draft.branch} maxLength={255} disabled={draft.allBranches}
@@ -157,7 +163,7 @@ export default function ReportFilterBar({ filters, update, clearAll, today, defa
           </label>
           <datalist id={`${uid}-envs`}>{facets?.environments.map((v) => <option key={v} value={v} />)}</datalist>
           <button type="submit" className="primary">Apply</button>
-          {rangeError && <p className="field-error" role="alert">{rangeError}</p>}
+          {rangeError && <p id={errorId} className="field-error" role="alert">{rangeError.message}</p>}
 
           <FilterSelect label="CI provider" value={filters.ci} onChange={(v) => update({ ci: v })}
             options={Object.entries(CI_LABELS).map(([value, label]) => ({ value, label }))} />

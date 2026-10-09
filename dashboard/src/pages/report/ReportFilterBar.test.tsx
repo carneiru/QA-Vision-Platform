@@ -5,7 +5,7 @@ import type { CaseAreas } from "../../api/cases";
 import { ApiError } from "../../api/http";
 import ReportFilterBar from "./ReportFilterBar";
 import { describeFilters, formatPeriod } from "./describeFilters";
-import { parseReportFilters, todayIn, useReportFilters } from "./useReportFilters";
+import { addDays, parseReportFilters, todayIn, useReportFilters } from "./useReportFilters";
 
 const AREAS: CaseAreas = {
   generatedAt: "v1", counts: { cases: 2, linked: 2, manual: 0 },
@@ -115,4 +115,53 @@ test("describeFilters and formatPeriod", () => {
   expect(describeFilters(f, "main").map((a) => `${a.name}: ${a.value}`)).toEqual(["Branch: all branches", "CI: GitHub Actions"]);
   expect(formatPeriod("2026-09-09", "2026-10-08")).toBe("9 Sep – 8 Oct 2026");
   expect(formatPeriod("2025-12-20", "2026-01-05")).toBe("20 Dec 2025 – 5 Jan 2026");
+});
+
+async function applyRange(from: string, to: string) {
+  await userEvent.click(screen.getByRole("button", { name: "+ Filter" }));
+  if (from) await userEvent.type(screen.getByLabelText("From"), from);
+  if (to) await userEvent.type(screen.getByLabelText("To"), to);
+  await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+}
+
+test.each([
+  ["only one date", (t: string) => [t, ""], "Give both From and To", ["To"]],
+  ["span over 90 days", (t: string) => [addDays(t, -100), t], "The period can be at most 90 days", ["From", "To"]],
+  ["to after today", (t: string) => [t, addDays(t, 1)], "To cannot be after today", ["To"]],
+  ["from older than 400 days", (t: string) => [addDays(t, -420), addDays(t, -410)], "From can be at most 400 days ago", ["From"]],
+])("range check: %s", async (_name, dates, message, invalid) => {
+  renderAt();
+  const [from, to] = dates(todayIn("UTC"));
+  await applyRange(from, to);
+  const alert = screen.getByRole("alert");
+  expect(alert).toHaveTextContent(message);
+  for (const label of ["From", "To"]) {
+    const input = screen.getByLabelText(label);
+    if (invalid.includes(label)) {
+      expect(input).toHaveAttribute("aria-invalid", "true");
+      expect(input).toHaveAttribute("aria-describedby", alert.id);
+    } else {
+      expect(input).not.toHaveAttribute("aria-invalid");
+    }
+  }
+  expect(search()).toBe("");
+});
+
+test("the range error goes away when a date is edited", async () => {
+  renderAt();
+  await applyRange("2026-01-02", "2026-01-01");
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  await userEvent.clear(screen.getByLabelText("From"));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("From")).not.toHaveAttribute("aria-invalid");
+});
+
+test("Retry inside the form does not submit it", async () => {
+  const refetch = vi.fn();
+  renderAt("", { caseAreas: { data: undefined, error: new ApiError(500, "down"), isPending: false, refetch } });
+  await userEvent.click(screen.getByRole("button", { name: "+ Filter" }));
+  await userEvent.type(screen.getByLabelText("Environment"), "staging");
+  await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(refetch).toHaveBeenCalledTimes(1);
+  expect(search()).toBe("");
 });
