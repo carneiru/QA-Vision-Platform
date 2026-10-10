@@ -87,7 +87,7 @@ In each repository that reports to QEOS:
 - variable or env `QEOS_URL`: `https://qeos.example.com`
 
 The **Settings → Wire up your CI** card shows the ready-to-paste snippet for GitHub
-Actions, GitLab CI, Jenkins or the plain CLI, with this address filled in. No `--ca-file`
+Actions, GitLab CI, Azure Pipelines, Jenkins or the plain CLI, with this address filled in. No `--ca-file`
 is needed: the certificate is a real one.
 
 ## 7. Backups

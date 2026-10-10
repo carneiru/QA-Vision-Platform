@@ -8,27 +8,34 @@ Design: `docs/superpowers/specs/2026-09-28-api-gateway-design.md`.
 | Path | Service |
 |---|---|
 | `/api/v1/organizations/{id}/projects…` | project-service |
+| `/api/v1/projects/{id}/cases…`, `…/case-labels…`, `…/case-folders…`, `…/case-features…`, `…/case-areas`, `…/features…`, `…/suites…`, `…/ci-target…`, `…/run-requests…` | test-management-service |
 | `/api/v1/projects/{id}/api-keys…`, `…/runs…`, `…/analytics…`, `…/masking-patterns…`, `…/export`, `…/notification-channels…` | ingestion-service |
 | `/api/v1/runs…`, `/api/v1/collect…` | ingestion-service |
 | `/api/v1/projects…` | project-service |
 | `/api/v1/organizations…`, `/api/v1/invitations…` | organization-service |
 | `/api/v1/auth…`, `/api/v1/users…`, `/api/v1/sso…` | auth-service |
 | `/health` | the gateway itself |
-| `/health/auth`, `/health/organizations`, `/health/projects`, `/health/ingestion` | that service's `/health` |
-| anything else | `404 {"detail":"Not Found"}` |
+| `/health/auth`, `/health/organizations`, `/health/projects`, `/health/ingestion`, `/health/test-management` | that service's `/health` |
+| any other `/api/…` path | `404 {"detail":"Not Found"}` |
+| anything else | the dashboard (its own NGINX falls back to `index.html`; ADR-017) |
 
-The first row is a regex location: NGINX checks regex locations before prefix ones, which is
-what takes `/organizations/{id}/projects` away from organization-service.
+The first three rows are regex locations: NGINX checks regex locations before prefix ones, which
+is what takes `/organizations/{id}/projects` away from organization-service and the
+`/projects/{id}/…` paths away from project-service. `/metrics` and `/internal` are never routed:
+they fall through to the dashboard.
 
 ## Limits
 
-- Per client IP: 20 requests/s (burst 40) on every `/api/v1` route; additionally 5 requests/s
-  (burst 10) on `login`, `mfa/verify`, `register`, `forgot-password`, `reset-password`,
-  `change-password`, `resend-verification`.
+- Per client IP: 20 requests/s (burst 40) on every `/api/v1` route and the dashboard; additionally
+  5 requests/s (burst 10) on `login`, `mfa/verify`, `register`, `forgot-password`, `reset-password`,
+  `change-password`, `resend-verification` and every `/api/v1/sso` route.
   Over the limit: `429 {"detail":"Too Many Requests"}` with `Retry-After: 1`. Health routes are
   never limited.
 - `/api/v1/collect` has its own limit instead: 10 requests/s per IP (burst 20).
-- Request bodies up to 10 MB; upstream connect timeout 3 s, read timeout 30 s.
+- Request bodies up to 10 MB, except the Gherkin import (`/projects/{id}/cases/import`):
+  `GATEWAY_IMPORT_MAX_BODY`, default 25 MB. Upstream connect timeout 3 s, read timeout 30 s.
+- Responses are gzipped only on `/projects/{id}/analytics/report` and `/projects/{id}/case-areas`,
+  never server-wide (compressing responses that carry secrets opens BREACH).
 - NGINX's own errors (404, 413, 429, 502, 504) are JSON; the services' errors pass through.
 
 ## TLS

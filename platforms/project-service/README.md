@@ -42,6 +42,12 @@ nothing of the project. Every `GET /projects/{id}` shows `legal_hold: {since, by
 `null` when there is no hold. The hold is stored in its own columns, not in `settings`: settings
 are editable by members, and a hold must record who placed it, when and why.
 
+## Settings
+
+`PATCH /api/v1/projects/{id}/settings` merge-patches: a key replaces, `null` reverts to the default,
+an unknown key is a 422. Keys: `result_retention_days` (1–365, default 90), `default_environment`,
+`notify_on_failure`.
+
 ## Internal API
 
 `GET /internal/v1/projects/retention` lists every project — deleted ones too — with its effective
@@ -56,6 +62,8 @@ are editable by members, and a hold must record who placed it, when and why.
   and these credentials are accepted nowhere else.
 - With `INTERNAL_API_PASSWORD` unset the endpoint answers 503 — it is never open by default.
 - The gateway does not route `/internal`, and the endpoint is not in the OpenAPI schema.
+
+Prometheus metrics are served at `/metrics`; the gateway does not route it either.
 
 ## Running locally
 
@@ -82,9 +90,9 @@ docker compose exec project-service alembic upgrade head  # first run, and after
 - Response codes reveal whether a project id exists: a non-member gets 404 without organization-service
   being contacted, while a member gets 404/503 only after it answers. Project ids are sequential and no
   project data is exposed, so this is not treated as an information leak.
-- Each request holds its database connection open while it waits on organization-service (up to 3s) and,
-  when adding or re-verifying a repository, on the provider too (up to 3s more).
-- Any database integrity error on project create or rename is reported as a name/slug conflict (409).
+- A request waits on organization-service (up to 3s) and, when adding or re-verifying a repository, on the
+  provider too (up to 3s more). Its database transaction is closed before each outbound call, so a slow
+  upstream does not hold a pooled connection.
 
 ## Tests
 
