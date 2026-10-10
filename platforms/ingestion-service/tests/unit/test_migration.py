@@ -184,3 +184,25 @@ def test_failing_index_postgres_path_is_rerunnable(monkeypatch):
     module.downgrade()
     assert fake.drop_index.call_args.kwargs["postgresql_concurrently"] is True
     assert fake.drop_index.call_args.kwargs["if_exists"] is True
+
+
+def test_job_heartbeats_table(migrated_engine):
+    """Migration 017 (monitoring spec §3)."""
+    inspector = inspect(migrated_engine)
+    assert {col["name"] for col in inspector.get_columns("job_heartbeats")} == {
+        "job", "last_success_at", "last_error_at", "last_error"}
+    assert inspector.get_pk_constraint("job_heartbeats")["constrained_columns"] == ["job"]
+
+
+def test_job_heartbeats_downgrade_drops_it(tmp_path):
+    url = f"sqlite:///{(tmp_path / 'downgrade_017.db').as_posix()}"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(SERVICE_ROOT / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", url)
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "016")
+    engine = create_engine(url)
+    try:
+        assert "job_heartbeats" not in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
