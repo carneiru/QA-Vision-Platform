@@ -61,3 +61,10 @@ def test_a_failing_database_never_stops_the_job(capsys):
     heartbeat.record_error(broken, "rollup", "x", NOW)
     err = capsys.readouterr().err
     assert '"event": "heartbeat_failed"' in err and '"job": "rollup"' in err
+
+
+def test_a_naive_now_is_stored_as_utc(db, session_factory):
+    heartbeat.record_success(session_factory, "rollup", datetime(2026, 10, 10, 12, 0))
+    heartbeat.record_error(session_factory, "rollup", "x", datetime(2026, 10, 10, 13, 0))
+    hb = row(db, "rollup")
+    assert aware(hb.last_success_at) == NOW and aware(hb.last_error_at) == NOW + timedelta(hours=1)
