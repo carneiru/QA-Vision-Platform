@@ -18,11 +18,14 @@ Two confirmed audiences, served equally:
 
 ## Product Purpose
 
-QEOS ingests test results from any CI (JUnit XML via the `qeos-collector`
-agent), stores them per project, and turns them into analytics: daily trends,
-per-test statistics and history, and flaky-test detection. Success: a team
-answers "what is broken, what is flaky, what is getting worse" from one place
-instead of scrolling CI logs.
+QEOS ingests test results from any CI (JUnit XML, Cucumber and Playwright
+JSON and more via the `qeos-collector` agent), stores them per project, and
+turns them into analytics: trends, per-test statistics and history, run
+comparison, failures grouped by cause, flaky-test detection with quarantine,
+and a filterable, printable Report per period. It also keeps a test-case
+catalogue in sync with the team's Gherkin features and starts runs in the
+team's own GitHub Actions. Success: a team answers "what is broken, what is
+flaky, what is getting worse" from one place instead of scrolling CI logs.
 
 ## Positioning
 
@@ -36,23 +39,28 @@ yet.
 
 ## Operating Context
 
-- Results arrive from CI (GitHub Actions, GitLab CI, Jenkins) via the
-  collector; engineers open the dashboard after a red build or when a flaky
-  ticket lands; managers open it in weekly reviews.
-- Microservices behind one NGINX gateway: auth-service (JWT, Google and
-  Microsoft SSO), organization-service (orgs, members, roles),
-  project-service, ingestion-service (runs, results, analytics API),
-  `dashboard/` (React SPA, in progress on `feat/dashboard-ui`).
+- Results arrive from CI (GitHub Actions, GitLab CI, Azure Pipelines,
+  Jenkins) via the collector; engineers open the dashboard after a red build,
+  a failure notification (Slack, Teams, email) or when a flaky ticket lands;
+  managers open it in weekly reviews or read the weekly summary.
+- Microservices behind one NGINX gateway: auth-service (JWT, MFA, Google and
+  Microsoft SSO), organization-service (orgs, members, roles, invitations),
+  project-service (projects, repositories, settings), ingestion-service (runs,
+  results, analytics, report, notifications), test-management-service (cases,
+  suites, Gherkin sync, runs from QEOS), `dashboard/` (React SPA).
 - Everything is deployed as containers from the repository-root
-  docker-compose; same-origin API at `/api/v1/*`.
+  docker-compose (production: one VM behind a Caddy TLS edge); same-origin
+  API at `/api/v1/*`.
 
 ## Capabilities and Constraints
 
-- Analytics API (read-only): daily trends in any IANA time zone; per-test
-  list, history; flaky detection with `window_days` capped at 30 for
-  performance (10.8 s at 90 days on 2M results — documented ruling).
+- Analytics API (read-only apart from quarantine): trends by day, week or
+  month in any IANA time zone; per-test list, history; flaky detection with
+  `window_days` up to 90, served from daily rollups (3.9 s at 90 days on ~2M
+  results, against 11.3 s live — see the ingestion README).
 - Access model: organization membership grants project access; roles are
-  owner/admin/member.
+  owner/admin/member/viewer/billing_manager (viewers and billing managers
+  read only).
 - `test_key` values contain `/`, `::`, spaces — always URL-encoded.
 - `pass_rate` is a 0..1 fraction or null; null renders as "—".
 - Internal tool: every dashboard surface is an authenticated Operate
@@ -82,5 +90,6 @@ yet.
 
 - WCAG AA: chart and table contrast meets AA; status is never conveyed by
   color alone (labels/legends always present); colorblind-validated status
-  palette (passed #0ca30c, failed #d03b3b, errored #ec835a, skipped #898781).
+  palette (passed #0ca30c, failed #d03b3b, errored #c4501f light / #ec835a
+  dark, skipped #74879a light / #6f8396 dark; DESIGN.md holds the tokens).
 - Dark and light mode are both first-class, following the OS preference.

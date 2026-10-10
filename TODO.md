@@ -94,7 +94,7 @@
 - [x] CI: full-stack smoke test through the gateway
 
 ### Gateway follow-ups
-- [ ] Monitoring dashboards (Prometheus/Grafana) — *Phase 1, "Basic monitoring stack"*
+- [ ] Monitoring dashboards (Prometheus/Grafana) — *Phase 1, "Basic monitoring stack"*. In progress: see "Execution intelligence and operations" item 2
 - [x] Single-VM production deployment package — `deploy/` (ADR-019): Caddy TLS edge with Let's Encrypt as the only published service, gateway real-IP rate limits trusting only Caddy's fixed address, restart policies, `init-env.sh` strong secrets, daily `backup.sh` with restore verified, installation guide. Waiting on a VM + domain
 - [ ] Kubernetes ingress; real certificates — *Phase 1 infra, when a cluster exists*
 - [x] Service-to-service auth so organization-service can check users in auth-service — auth-service gained `GET /internal/v1/users/{id}` (HTTP Basic, same INTERNAL_API_PASSWORD pattern as project-service's retention API); the superuser `AUTH_SERVICE_TOKEN` is gone from config, compose and docs
@@ -241,7 +241,7 @@ Reliability and operations
 ### Phase 4: Test Management
 51. [x] Design test case and test suite data models (spec `docs/superpowers/specs/2026-10-06-test-management-design.md`)
 52. [~] Implement test case creation, versioning, and organization: creation, labels, priority, status and archive done; versioning open
-53. [ ] Create test execution tracking and result storage
+53. [x] Create test execution tracking and result storage: run requests (Play and Stop, ADR-025) are tracked in test-management; results stay in ingestion and reach a case through its automated-test link
 54. [x] Develop test suite management and execution ordering (static, ordered suites)
 55. [~] Implement test case linking and dependencies: link to the automated test done; dependencies open
 56. [x] Create API endpoints for test management (`platforms/test-management-service`)
@@ -252,22 +252,24 @@ Reliability and operations
 61. [x] Integrate with Auth, Organization, and Project services (JWT + project roles)
 
 ### Phase 5: Analytics & Reporting
-62. [ ] Design analytics data models and metrics collection
-63. [ ] Implement test execution analytics and trends
-64. [ ] Create defect analysis and reporting capabilities
-65. [ ] Develop dashboard and visualization framework
+Delivered by ingestion-service's analytics API, the Report (ADR-026) and the dashboard; the
+item-level record is "Analytics API (Phase 3, step 1)" and "Dashboard follow-ups" above.
+62. [x] Design analytics data models and metrics collection (flaky_daily rollups, report indexes; `/metrics` on every service)
+63. [x] Implement test execution analytics and trends
+64. [x] Create defect analysis and reporting capabilities: failures by cause, run compare, the Report (failure causes, regressions, by area, coverage, duration)
+65. [x] Develop dashboard and visualization framework (`dashboard/`)
 66. [x] Implement scheduled report generation and delivery: weekly summary on notification channels (see below)
-67. [ ] Create API endpoints for analytics and reporting
-68. [ ] Implement integration with all previous services
-69. [ ] Write comprehensive test suite
-70. [ ] Create API documentation
-71. [ ] Add Docker support
-72. [ ] Integrate with all foundation services
+67. [x] Create API endpoints for analytics and reporting
+68. [x] Implement integration with all previous services (project roles; the dashboard joins test-management's case areas)
+69. [x] Write comprehensive test suite
+70. [x] Create API documentation (`platforms/ingestion-service/README.md`)
+71. [x] Add Docker support
+72. [x] Integrate with all foundation services
 
 ### Execution intelligence and operations (agreed 2026-10-08, in this order)
 Kubernetes stays out until its blueprint trigger fires (first multi-node deployment); Docker Compose on one VM is the production target.
-1. [ ] Suite duration prediction: ingestion `POST /analytics/duration-estimate` (per-test p50 of passed runs, p90 of all, per-environment with fallback, project overhead + parallelism fitted on the last 20 runs); estimate in the Run dialog, live in the selection bar and on suite detail; stored on run requests (test-management migration 008) for "≈ n min left" and "estimated vs took". Later: warn when the estimate exceeds the workflow timeout
-2. [ ] Monitoring: Prometheus, Grafana and Alertmanager as an opt-in profile of the production compose; `/metrics` on every service, Postgres and container exporters, starter dashboards and alerts (service down, 5xx rate, disk)
+1. [x] Suite duration prediction (done 2026-10-08): ingestion `POST /analytics/duration-estimate` (per-test p50 of passed runs, p90 of all, per-environment with fallback, project overhead + parallelism fitted on the last 20 runs); estimate in the Run dialog, live in the selection bar and on suite detail; stored on run requests (test-management migration 008) for "≈ n min left" and "estimated vs took". Later: warn when the estimate exceeds the workflow timeout
+2. [~] Monitoring: Prometheus, Grafana and Alertmanager as an opt-in profile of the production compose; `/metrics` on every service, Postgres and container exporters, starter dashboards and alerts (service down, 5xx rate, disk). In progress: spec `docs/superpowers/specs/2026-10-10-monitoring-design.md`, plan `docs/superpowers/plans/2026-10-10-monitoring.md`; `/metrics` with blueprint names on every service so far
 3. [ ] Customisable Overview: a widget catalogue over the existing analytics; a project default layout set by owners/admins, a personal layout per user with "reset to project default"
 4. [ ] Test impact analysis: from collected commits' changed files and later failures, suggest which tests to run for a change (history-based; no coverage instrumentation)
 - [ ] Report origin marker (ADR-026 fallback): a Play workflow input → collector field → ingestion `test_runs.origin` column and a backfill. Only if the URL match proves unreliable.
@@ -414,10 +416,10 @@ after the one before it is proven:
 
 ### H. Platform prerequisites for v2
 These are not features, but groups B, C, D, E and G cannot ship without them:
-- [ ] Frontend application (React/TypeScript, per the roadmap tech stack)
+- [x] Frontend application (React/TypeScript, per the roadmap tech stack): `dashboard/`
 - [ ] GitHub App integration — scoped repo access, workflow dispatch, secrets API — instead of personal access tokens
 - [ ] Artifact storage for screenshots, videos and traces (S3-compatible; MinIO for local development)
-- [ ] Job queue for runs and AI requests (Redis is already in the stack)
+- [ ] Job queue for runs and AI requests (Redis is not in the stack: it waits on its blueprint trigger)
 - [ ] Secrets management (Vault or cloud equivalent) — brought forward from "prepare for" to required
 - [ ] Permissions per action: who may run tests, edit config, manage secrets, accept AI changes
 
@@ -425,13 +427,7 @@ These are not features, but groups B, C, D, E and G cannot ship without them:
 All architectural specifications and design documents from the initial brainstorming phase have been completed and serve as the foundation for implementation phases.
 
 ## Current Status
-**Phase 1 (Authentication Service) is complete and ready for use.** The service provides:
-- Secure user authentication with email/password
-- JWT-based session management with refresh token rotation
-- Foundational SSO capabilities (Google implemented, framework ready for others)
-- Password reset and change (links are logged when SMTP is not configured)
-- Comprehensive user management with role-based access
-- Full test coverage and API documentation
-- Dockerized deployment ready
-
-**Ready to begin Phase 2: Organization Service** which will build upon the Authentication service to provide multi-tenant organization and team management capabilities.
+Updated 2026-10-11. Phases 1–3 are delivered, test management (Phase 4) is in use, and the Report,
+notifications, Run from QEOS and the single-VM production package have shipped. Monitoring is in
+progress (item 2 under "Execution intelligence and operations"). What runs today: README.md and
+TECHNICAL_SPECIFICATION.md; next steps: IMPLEMENTATION_PLAN.md §2.

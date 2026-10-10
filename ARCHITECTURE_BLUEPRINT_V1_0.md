@@ -1,18 +1,20 @@
 # QEOS Architecture Blueprint v1.0
 
-> **IMPLEMENTATION STATUS — read this first (updated 2026-10-02).**
+> **IMPLEMENTATION STATUS — read this first (updated 2026-10-11).**
 > This blueprint describes the TARGET architecture (QEOS). Unless a section is
 > listed as CURRENT below, treat its content as aspirational — not what runs today.
 >
 > | Area | Status today |
 > |---|---|
-> | Services | CURRENT: auth, organization, project, ingestion (`platforms/`), NGINX gateway, React dashboard (`dashboard/`), collector agent (`collector/`), retention + analytics-rollup jobs |
+> | Services | CURRENT: auth, organization, project, ingestion, test-management (`platforms/`), NGINX gateway, React dashboard (`dashboard/`), collector agent (`collector/`, plus `collector-action/` and `collector-jenkins/`), retention + analytics-rollup + weekly-summary jobs |
 > | Data layer | CURRENT: PostgreSQL 15 only (one DB per service). Kafka, MongoDB, Neo4j, Qdrant, ClickHouse, Redis, MinIO, Elasticsearch: TARGET, none deployed |
 > | Events / CDC / QIP backbone (sect. 6, 8, 12) | TARGET. All cross-service communication today is synchronous HTTP via the gateway |
-> | Deployment (sect. 9, 18, 22) | CURRENT: docker-compose (maturity L0). Kubernetes/Istio/Vault/ArgoCD: TARGET |
-> | Security (sect. 10) | CURRENT: JWT + rotation + replay detection, httpOnly refresh cookie, TOTP MFA, Google/Microsoft SSO (tenant allowlist), scoped API keys, gateway rate zones, PII masking, retention. OPA/ABAC/SPIFFE/Vault: TARGET |
-> | Analytics | CURRENT: ingestion-service analytics API (trends incl. weekly/monthly, tests, history, flaky with daily rollups, branches) on PostgreSQL — fulfils the role sect. 8's "QIP Analytics Service" targets |
-> | Capability map (sect. 3) | ~1.5 of 10 capabilities realized (Platform Foundation; analytics sliver) |
+> | Deployment (sect. 9, 18, 22) | CURRENT: docker-compose (maturity L0); production package for one VM behind a Caddy TLS edge (`deploy/`, ADR-019). Kubernetes/Istio/Vault/ArgoCD: TARGET |
+> | Security (sect. 10) | CURRENT: JWT + rotation + replay detection, httpOnly refresh cookie, email verification, password reset/change, TOTP MFA, Google/Microsoft SSO (tenant allowlist), org roles, per-project API keys, gateway rate zones, built-in + per-project masking, retention, legal hold, export, GitHub tokens encrypted at rest. OPA/ABAC/SPIFFE/Vault/audit log: TARGET |
+> | Analytics | CURRENT: ingestion-service analytics API (trends incl. weekly/monthly, tests, history, flaky with daily rollups and quarantine, branches, run compare, failures by cause) and the Report (summary, failure causes, regressions, by area, coverage, duration; ADR-026) on PostgreSQL — fulfils the role sect. 8's "QIP Analytics Service" targets. No AI/ML |
+> | Test management / execution | CURRENT: test-management-service (ADR-022): cases, suites, Gherkin import and sync (ADR-023, ADR-024); runs started in the customer's GitHub Actions (ADR-025). Environment orchestration, artifacts: TARGET |
+> | Observability (sect. 11) | IN PROGRESS: `/metrics` with sect. 11.2 names on every service; Prometheus/Alertmanager/Grafana profile per `docs/superpowers/plans/2026-10-10-monitoring.md`, not built yet |
+> | Capability map (sect. 3) | Platform Foundation largely realized (no billing); partial: Execution Platform (test management, runs via customer CI), QIP (analytics and report, no AI), Collaboration (dashboards, report, notifications), Integrations (CI collector, GitHub Actions dispatch, Slack/Teams/email). Automation, Marketplace, AI Runtime: not started |
 > | `execution/`, `automation/`, `marketplace/`, `collaboration/`, `intelligence/`, `platforms/qip-service` | UNWIRED PROTOTYPES: not in docker-compose, CI, gateway routing or migrations. See ARCHITECTURE_EVOLUTION.md |
 >
 > **Adoption triggers** — a TARGET piece is pulled in only when its trigger fires:

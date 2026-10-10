@@ -1,6 +1,6 @@
 # QEOS — Implementation Plan
 
-Updated 2026-10-02. Single forward plan, reconciled with TODO.md (the live
+Updated 2026-10-11. Single forward plan, reconciled with TODO.md (the live
 per-item record) and ARCHITECTURE_BLUEPRINT_V1_0.md (the target; its
 Implementation Status banner carries the adoption triggers referenced here).
 The previous version of this file was a day-one snapshot that still named
@@ -10,9 +10,11 @@ paths and phases long since superseded.
 
 | Phase | Delivered |
 |---|---|
-| 1. Platform foundation | auth-service (JWT rotation + replay detection, email-verified registration, Google/Microsoft SSO with tenant allowlist, TOTP MFA + recovery codes, httpOnly refresh cookie), organization-service (orgs/members/roles/invitations), project-service (projects/settings/internal retention API), NGINX gateway (rate zones, TLS, JSON errors, request IDs), compose stack, CI with full-stack smoke |
-| 2. Ingestion | ingestion-service collect API (API keys, idempotency+replay, PII masking, retention job), qeos-collector (JUnit incl. Surefire rerun attempts, CI detection, git code-change data, retrying multi-part uploads) |
-| 3. Analytics + UI | Analytics API (trends day/week/month, tests, history, flaky ≤90 d via daily rollups + rollup job, branches, mute/unmute), React dashboard (login/MFA/SSO, picker, all analytics views, runs browser incl. changed files, CSV export, account security), 20/20 design audit |
+| 1. Platform foundation | auth-service (JWT rotation + replay detection, email-verified registration, password reset and change, Google/Microsoft SSO with tenant allowlist, TOTP MFA + recovery codes, httpOnly refresh cookie), organization-service (orgs/members/roles/invitations), project-service (projects/settings/repositories/legal hold/internal retention API), NGINX gateway (rate zones, TLS, JSON errors, request IDs, SPA catch-all), compose stack, CI with full-stack smoke |
+| 2. Ingestion | ingestion-service collect API (API keys, idempotency+replay, built-in and per-project masking, retention job, export), qeos-collector (JUnit incl. Surefire rerun attempts, Cucumber/Playwright JSON, TRX/NUnit/xUnit/TestNG, CI detection, git code-change data, retrying multi-part uploads, spool, `--gate`), GitHub Action, Jenkins library, GitLab/Azure templates, zipapp and GHCR image per release |
+| 3. Analytics + UI | Analytics API (trends day/week/month, tests, history, flaky ≤90 d via daily rollups + rollup job, branches, quarantine, run compare, failures by cause), the Report (summary, failure causes, regressions/instability, by area, coverage, duration; ADR-026), notifications (Slack/Teams/webhook/email, weekly summary), React dashboard (login/MFA/SSO, picker, organization admin, all analytics views, runs browser incl. changed files, report, CSV export, account security, command palette), 20/20 design audit |
+| 4. Test management (started on product pull) | test-management-service (ADR-022): cases, suites, Feature view, Gherkin import from the browser and sync from the default branch (ADR-023, ADR-024); Run from QEOS through the customer's GitHub Actions with a duration estimate (ADR-025) |
+| Deployment | single-VM production package (`deploy/`, ADR-019: Compose + Caddy TLS edge, generated secrets, daily backups) |
 
 Benchmarked: flaky 90 d 3.9 s (rollups) vs 11.3 s live on ~2M results; full
 numbers in platforms/ingestion-service/README.md.
@@ -27,18 +29,23 @@ numbers in platforms/ingestion-service/README.md.
    correlated-EXISTS pass measures 1.6 s at 90 d and beats an aggregate-join
    rewrite (3.8 s, identical result sets). The confirmed pass is a minority
    of the 90-day total; revisit only if real data shows otherwise.
-4. Collector distribution (a product slice of its own — full list in
-   TODO.md "Collector — nice to have"): tag `collector-v0.1.0`; PyPI trusted
-   publishing (`pip install qeos-collector`); ready-made GitHub Action and
-   GitLab component; Jenkins shared-library step; zipapp/Docker builds;
-   then formats (Cucumber JSON, Playwright JSON, TestNG/NUnit/xUnit/TRX) and
-   reliability (`qeos-collector check`, keep-and-retry failed uploads,
-   partial streaming).
+4. ~~Collector distribution~~ — mostly done (full list in TODO.md
+   "Collector — nice to have"): release tags `collector-v0.1.0`…`v0.4.1`
+   with zipapp and GHCR image (PyPI trusted publishing is in the release
+   workflow, switched on by `PYPI_PUBLISH`); GitHub Action, Jenkins library, GitLab/Azure templates; Cucumber
+   JSON, Playwright JSON, TestNG/NUnit/xUnit/TRX; `qeos-collector check`;
+   keep-and-retry failed uploads (`--spool`). Open: partial streaming.
 5. Phase 2 exit proof: agents on 3 CI platforms in real projects; 10k real
    executions ingested.
 6. ~~Components under test~~ — done 2026-10-02: runs may record which
    repo/versions they exercised (`--component NAME@SHA`); dormant data for
    Phase 6 cross-repo correlation (ADR-018).
+7. Monitoring — in progress: Prometheus, Alertmanager and Grafana as an
+   opt-in compose profile (spec `docs/superpowers/specs/2026-10-10-monitoring-design.md`,
+   plan `docs/superpowers/plans/2026-10-10-monitoring.md`). So far `/metrics`
+   with blueprint names on every service.
+8. Then, in the order agreed 2026-10-08 (TODO.md "Execution intelligence and
+   operations"): customisable Overview, test impact analysis.
 
 ## 3. Blocked on external input
 
@@ -55,8 +62,8 @@ numbers in platforms/ingestion-service/README.md.
 | Redis shared rate limits / cache | second gateway instance |
 | ClickHouse analytics warehouse | rollups stop holding at ~10× data |
 | Artifact storage (MinIO) | artifacts feature starts (screenshots/videos/traces) |
-| Kubernetes + real certs + monitoring stack (Prometheus server/Grafana) | first multi-node deployment |
-| ~~Test Management service (blueprint capability)~~ | started 2026-10-06 on product pull (ADR-022): cases, suites, link to automated tests. Gherkin import done (ADR-023). Next slices: `qeos-collector import-features`, versioning, dynamic suites, ticket links |
+| Kubernetes + real certs | first multi-node deployment (the monitoring stack does not wait for it: it is in progress as a compose profile, §2) |
+| ~~Test Management service (blueprint capability)~~ | started 2026-10-06 on product pull (ADR-022): cases, suites, link to automated tests, Gherkin import (ADR-023) and sync (`qeos-collector import-features`, ADR-024), Run from QEOS (ADR-025). Next slices: versioning, dynamic suites, ticket links |
 | Workspaces: group QA projects with the product repos they test (Phase 4) | product pull, after Phase 2 exit; components-under-test data (ADR-018) is already being captured |
 | GitHub App "connect repository" (commits/PRs of product repos via API + webhooks) | cross-repo correlation work begins (Phase 6); ingestion stays push-based regardless |
 | Phase 6 AI engine, QIP services, vector/graph stores | AI work begins; revive or replace the `intelligence/` prototype deliberately — failure↔product-commit correlation feeds on run components (ADR-018) |
