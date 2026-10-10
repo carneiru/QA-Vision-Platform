@@ -65,6 +65,8 @@ def collect_run(
     if created:
         metrics.RUNS.inc()
         metrics.RESULTS.inc(run.total)
+        for name in ("passed", "failed", "errored", "skipped"):
+            metrics.EXECUTIONS.labels(status=name).inc(getattr(run, name))
         if run.failed + run.errored:
             # After the response: the collector never waits on Slack or Teams
             background.add_task(notification_service.notify_run, sessionmaker(bind=db.get_bind()), run.id)

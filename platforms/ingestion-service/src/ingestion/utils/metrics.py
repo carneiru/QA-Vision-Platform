@@ -1,6 +1,6 @@
-"""Prometheus metrics, on their own registry so /metrics shows only what this service defines.
-Served inside the Docker network; the gateway does not route /metrics."""
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Counter, Histogram, generate_latest
+"""Prometheus metrics, on their own registry: install_metrics (qeos_shared.metrics) serves it at /metrics
+together with the request metrics. Served inside the Docker network; the gateway does not route /metrics."""
+from prometheus_client import CollectorRegistry, Counter, Histogram
 
 REGISTRY = CollectorRegistry()
 
@@ -16,12 +16,16 @@ REDACTIONS = Counter(
     registry=REGISTRY,
 )
 
-# Pre-create each reason's series so it is visible (at 0) before the first rejection
+# Blueprint §11.2: one execution is one stored test_results row
+EXECUTIONS = Counter("test_executions", "Test results stored, by status", ["status"], registry=REGISTRY)
+# Job heartbeats are read from the database on each scrape (utils/job_metrics.py); a failed read
+# leaves the job series out and counts here, so a database blip never makes ingestion look down
+HEARTBEAT_READ_ERRORS = Counter(
+    "job_heartbeat_read_errors", "Scrapes that could not read job_heartbeats", registry=REGISTRY,
+)
+
+# Pre-create each label's series so it is visible (at 0) before the first event
 for _reason in ("auth", "validation", "conflict"):
     REJECTED.labels(reason=_reason)
-
-CONTENT_TYPE = CONTENT_TYPE_LATEST
-
-
-def render() -> bytes:
-    return generate_latest(REGISTRY)
+for _status in ("passed", "failed", "errored", "skipped"):
+    EXECUTIONS.labels(status=_status)

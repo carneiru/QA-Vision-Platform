@@ -1,6 +1,7 @@
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
+from qeos_shared.metrics import install_metrics
 from starlette.middleware.cors import CORSMiddleware
 
 from src.ingestion.api.v1.api import api_router
@@ -23,6 +24,9 @@ if settings.BACKEND_CORS_ORIGINS:
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Ingestion's own registry, so the qav_* metrics keep their names on the same page (spec §3)
+install_metrics(app, service="ingestion", registry=metrics.REGISTRY)
+
 
 @app.exception_handler(RequestValidationError)
 async def count_rejected_uploads(request: Request, exc: RequestValidationError):
@@ -36,7 +40,3 @@ async def count_rejected_uploads(request: Request, exc: RequestValidationError):
 def health_check():
     return {"status": "healthy"}
 
-
-@app.get("/metrics")
-def metrics_endpoint():
-    return Response(content=metrics.render(), media_type=metrics.CONTENT_TYPE)
