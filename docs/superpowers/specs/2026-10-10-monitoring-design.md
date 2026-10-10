@@ -54,16 +54,27 @@ each service one call: `install_metrics(app, service="project", registry=None)`,
 middleware and `GET /metrics` on the service's registry. Ingestion passes its existing registry, so
 its `qav_*` metrics stay as they are (renaming would break any dashboard built on them).
 
+Names and labels follow blueprint §11.2 (no prefix; `service` added so one Prometheus tells the
+services apart):
+
 | Metric | Type | Labels |
 |---|---|---|
-| `qeos_http_requests_total` | counter | `service`, `method`, `route`, `status` (the exact code) |
-| `qeos_http_request_duration_seconds` | histogram | `service`, `method`, `route`; buckets 0.01 … 30 s, so report calls near the 20 s statement timeout are visible |
-| `qeos_http_requests_in_flight` | gauge | `service` |
-| `qeos_build_info` | gauge, always 1 | `service`, `version`, `commit` |
+| `api_requests_total` | counter | `service`, `endpoint`, `method`, `status_code` (the exact code) |
+| `http_requests_duration_seconds` | histogram | `service`, `endpoint`, `method`; buckets 0.01 … 30 s, so report calls near the 20 s statement timeout are visible (the blueprint's spelling, "requests") |
+| `http_requests_in_flight` | gauge | `service` |
+| `build_info` | gauge, always 1 | `service`, `version`, `commit` |
+| `process_cpu_seconds_total`, `process_resident_memory_bytes`, `process_open_fds` | prometheus_client's `ProcessCollector` on each service's registry | — |
+
+Business metrics from blueprint §11.2:
+- ingestion: `test_executions_total{status}`, one per stored result, `status` one of `passed`,
+  `failed`, `errored`, `skipped` (all four pre-created);
+- test-management: `test_case_creation_total{type}`, `type="manual"` for a case a person creates
+  through the UI or API and `type="api"` for Gherkin import and sync (both pre-created). The
+  blueprint's `"generated"` arrives with the AI engine.
 
 Rules:
-- `route` is the matched route template (e.g. `/api/v1/projects/{project_id}/cases/{number}`),
-  never the raw path; a request that matches no route is `route="unmatched"`, so scanners cannot
+- `endpoint` is the matched route template (e.g. `/api/v1/projects/{project_id}/cases/{number}`),
+  never the raw path; a request that matches no route is `endpoint="unmatched"`, so scanners cannot
   create series. `/metrics` and `/health` are not counted.
 - No metric carries a user, organisation, project, test or case identifier.
 - `/metrics` stays inside the Docker network; the gateway keeps not routing it (a smoke check pins
@@ -79,9 +90,9 @@ last_error text)`. After each pass a job upserts its row: success time, or error
 error text (first line, at most 500 characters, no secrets).
 
 Ingestion's `/metrics` reads the three rows on each scrape and exposes
-`qeos_job_last_success_timestamp_seconds{job}` and `qeos_job_last_error_timestamp_seconds{job}`. If
+`job_last_success_timestamp_seconds{job}` and `job_last_error_timestamp_seconds{job}`. If
 the read fails, `/metrics` still answers: the job series are left out and
-`qeos_job_heartbeat_read_errors_total` goes up, so a database blip cannot make ingestion look down.
+`job_heartbeat_read_errors_total` goes up, so a database blip cannot make ingestion look down.
 
 ### Uploads
 
@@ -149,6 +160,13 @@ Delivery (`monitoring/alertmanager/alertmanager.yml.template`, rendered from `.e
 - An external dead-man's switch (e.g. a hosted heartbeat receiving `Watchdog`) is documented as an
   option, not built.
 
+### Database metric names
+
+postgres-exporter publishes `pg_*` names. Prometheus recording rules (`monitoring/prometheus/recording.yml`)
+publish the blueprint's names, and dashboards and alerts use those:
+`postgresql_database_size_bytes{datname}` from `pg_database_size_bytes`, and
+`postgresql_connections{state}` from `pg_stat_activity_count`. promtool tests cover them.
+
 ## 6. Dashboards
 
 Provisioned read-only from `monitoring/grafana/dashboards/` with the Prometheus data source from
@@ -175,9 +193,9 @@ Provisioned read-only from `monitoring/grafana/dashboards/` with the Prometheus 
 
 ## 8. Testing
 
-- `qeos_shared.metrics`: pytest for route templating, `unmatched`, exact status codes, `/metrics`
+- `qeos_shared.metrics`: pytest for endpoint templating, `unmatched`, exact status codes, process metrics, `/metrics`
   and `/health` not counted, in-flight gauge returns to 0, build info.
-- Each service: a test that `/metrics` answers and carries `qeos_http_requests_total`.
+- Each service: a test that `/metrics` answers and carries `api_requests_total`; ingestion `test_executions_total`, test-management `test_case_creation_total`.
 - Heartbeats: migration test (017 up/down); each job upserts on success and on error; `/metrics`
   survives a failing heartbeat read.
 - Auth: `grafana-session` (403 for non-superusers and when disabled; cookie attributes), the
@@ -203,7 +221,19 @@ Each phase ships on its own.
    item), smoke checks, a new ADR (Prometheus stack as a profile, cookie handoff, heartbeat table,
    rejected approaches), blueprint §11 updated to what was built, TODO #1 and #2 checked off.
 
-## 10. Out of scope
+## 10. Blueprint §11: what this builds and what stays target
+
+Built: Prometheus collection, the §11.2 metric types and names listed above, about 2 weeks raw
+retention (§11.2: "2 weeks raw"), Alertmanager with inhibition, routing and silencing, Grafana.
+
+Stays TARGET (each behind its blueprint trigger, recorded in the ADR and the §11 status note):
+Kubernetes service discovery and Prometheus federation (trigger: first multi-node deployment);
+downsampling and the 3-month / 3-year retention tiers; the logs pillar (Loki, JSON logs carrying
+`traceId`); the tracing pillar (OpenTelemetry, Tempo/Jaeger); the `role` label on
+`api_requests_total` (needs a per-request organisation-role lookup); metrics for components that do
+not exist yet (Kafka, MongoDB, Redis, Elasticsearch, workflows, knowledge items).
+
+## 11. Out of scope
 
 Logs (Loki), tracing, profiling, multi-VM federation, per-organisation monitoring views, an
 external dead-man's switch, SLO dashboards. Kubernetes stays out until its blueprint trigger fires.
