@@ -10,7 +10,7 @@ keep_days="${QEOS_BACKUP_KEEP_DAYS:-${QAV_BACKUP_KEEP_DAYS:-14}}"
 mkdir -p "$dir"
 
 file="$dir/qeos-$(date -u +%Y%m%dT%H%MZ).sql.gz"
-# pg_dumpall: all four service databases plus roles, consistent per database
+# pg_dumpall: all five service databases plus roles, consistent per database
 docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml \
   exec -T postgres pg_dumpall -U postgres | gzip > "$file.partial"
 mv "$file.partial" "$file"  # a half-written dump never looks like a good one
