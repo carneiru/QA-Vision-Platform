@@ -17,11 +17,11 @@ from src.ingestion.utils import metrics
 
 
 def test_request_metrics_share_the_page_with_the_qav_metrics(client):
+    labels = {"service": "ingestion", "endpoint": "unmatched", "method": "GET", "status_code": "404"}
+    before = metrics.REGISTRY.get_sample_value("api_requests_total", labels) or 0.0
     client.get("/api/v1/no-such-route/42")
     text = client.get("/metrics").text
-    line = next(ln for ln in text.splitlines() if ln.startswith("api_requests_total{"))
-    for label in ('service="ingestion"', 'endpoint="unmatched"', 'method="GET"', 'status_code="404"'):
-        assert label in line
+    assert metrics.REGISTRY.get_sample_value("api_requests_total", labels) == before + 1
     assert "qav_ingest_runs_total" in text and "build_info" in text
 
 
