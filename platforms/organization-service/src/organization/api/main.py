@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from qeos_shared.metrics import install_metrics
 from starlette.middleware.cors import CORSMiddleware
 from src.organization.api.v1.api import api_router
 from src.organization.core.config import settings
@@ -18,6 +19,7 @@ if settings.BACKEND_CORS_ORIGINS:
     )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+install_metrics(app, service="organization")
 
 
 @app.get("/health")

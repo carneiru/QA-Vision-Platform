@@ -2,10 +2,12 @@ from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from qeos_shared.metrics import install_metrics
 from starlette.middleware.cors import CORSMiddleware
 
 from src.casebook.api.v1.api import api_router
 from src.casebook.core.config import settings
+from src.casebook.utils import metrics
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -31,6 +33,7 @@ def validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
 
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+install_metrics(app, service="test-management", registry=metrics.REGISTRY)
 
 
 @app.get("/health")

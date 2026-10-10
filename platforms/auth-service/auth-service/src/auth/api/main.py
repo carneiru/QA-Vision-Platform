@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from qeos_shared.metrics import install_metrics
 from starlette.middleware.cors import CORSMiddleware
 from src.auth.api.v1.api import api_router
 from src.auth.api.v1.endpoints import internal
@@ -32,6 +33,7 @@ if settings.BACKEND_CORS_ORIGINS:
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(internal.router, prefix="/internal/v1", include_in_schema=False)
+install_metrics(app, service="auth")
 
 @app.get("/health")
 def health_check():

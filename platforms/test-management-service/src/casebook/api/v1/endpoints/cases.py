@@ -8,6 +8,7 @@ from src.casebook.schemas.case import (
     CaseCreate, CaseList, CaseOut, CaseSearch, CaseUpdate, FeatureCount, FolderCount, LabelCount, Priority, Status,
 )
 from src.casebook.service import case_service
+from src.casebook.utils import metrics
 
 router = APIRouter()         # mounted at /projects/{project_id}/cases
 labels_router = APIRouter()  # mounted at /projects/{project_id}/case-labels
@@ -70,6 +71,7 @@ def create_case(
     access: ProjectAccess = Depends(require_project_role(*EDIT_ROLES)),
 ):
     row = case_service.create_case(db, access.project_id, access.user_id, payload.model_dump())
+    metrics.CASES_CREATED.labels(type="manual").inc()
     return case_service.out(row)
 
 

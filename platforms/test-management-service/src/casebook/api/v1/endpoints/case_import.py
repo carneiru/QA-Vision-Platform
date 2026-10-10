@@ -7,6 +7,7 @@ from src.casebook.core.config import settings
 from src.casebook.gherkin_import.plan import is_mass_archive
 from src.casebook.schemas.case_import import ImportRequest, ImportResult
 from src.casebook.service import import_service
+from src.casebook.utils import metrics
 
 router = APIRouter()  # mounted at /projects/{project_id}/cases, before cases.router
 
@@ -69,4 +70,5 @@ def import_cases(
     except import_service.ImportConflict:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail={"code": "import_conflict", "message": "Another import is running; try again"})
+    metrics.CASES_CREATED.labels(type="api").inc(summary["created"])
     return _out(plan, payload.full)
