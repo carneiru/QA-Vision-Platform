@@ -196,3 +196,10 @@ def test_a_mounted_sub_app_shares_one_bounded_endpoint_label(svc):
         client.get("/sub/b/6")
     assert requests(registry, method="GET", endpoint="/sub/{path}", status_code="200") == 3
     assert "/sub/b/5" not in generate_latest(registry).decode()
+
+
+def test_a_registry_cannot_be_reused_for_another_service():
+    registry = CollectorRegistry()
+    make_app(registry=registry)
+    with pytest.raises(ValueError, match="registry already serves service 'svc'"):
+        install_metrics(FastAPI(), service="other", registry=registry)

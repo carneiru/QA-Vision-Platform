@@ -23,7 +23,8 @@ shares the single endpoint label "/sub/{path}", whatever the inner path.
 Call install_metrics before adding any catch-all mount or route: /metrics is registered when it is
 called, and an earlier catch-all would answer /metrics instead.
 
-Calling it again with the same registry (a second app) is allowed and reuses the same metrics.
+Calling it again with the same registry and service (a second app) reuses the same metrics; a
+different service on that registry raises ValueError.
 
 One uvicorn worker per service is assumed. With several workers each process keeps its own
 counters and a scrape sees only one of them: switch to prometheus_client's multi-process mode
@@ -140,6 +141,8 @@ def install_metrics(
     its own so its qav_* metrics stay on the same page). Call once per app, at import time."""
     registry = registry if registry is not None else CollectorRegistry()
     metrics = _INSTALLED.get(registry)
+    if metrics is not None and metrics.service != service:
+        raise ValueError(f"registry already serves service '{metrics.service}'")
     if metrics is None:
         ProcessCollector(registry=registry)
         metrics = _Metrics(

@@ -4,10 +4,10 @@ Configuration and database wiring shared by QEOS services.
 
 ## What's here
 
-- `BaseServiceSettings` â€” the settings every service needs: app metadata, `API_V1_STR`,
+- `BaseServiceSettings` — the settings every service needs: app metadata, `API_V1_STR`,
   Postgres connection components, `SECRET_KEY`/`ALGORITHM`, CORS origins, and a
   `database_url` property that always returns a `str` and escapes the user and password.
-- `make_session_factory(url)` / `make_get_db(factory)` â€” the engine, sessionmaker and
+- `make_session_factory(url)` / `make_get_db(factory)` — the engine, sessionmaker and
   FastAPI dependency each service would otherwise rewrite.
 - `install_metrics(app, service="...", registry=None)` (`qeos_shared.metrics`) — request metrics named
   after blueprint §11.2 (`api_requests_total`, `http_requests_duration_seconds`,
@@ -20,7 +20,7 @@ Configuration and database wiring shared by QEOS services.
   mapped classes; sharing one instance would put separate services' models into a single
   `Base.metadata`. Each service keeps its own `db/base.py`.
 - **Logging and exception modules.** No service configures logging or defines a custom
-  exception hierarchy today, so there is nothing to consolidate â€” only new abstraction to
+  exception hierarchy today, so there is nothing to consolidate — only new abstraction to
   invent against zero real usage.
 
 ## Using it
@@ -53,7 +53,7 @@ get_db = make_get_db(SessionLocal)
 ## Dockerfiles
 
 Mirror the repo layout inside the image so the relative path in `requirements.txt`
-resolves there too â€” see either service's Dockerfile for the pattern. The build context
+resolves there too — see either service's Dockerfile for the pattern. The build context
 must be the repository root.
 
 ## Tests
