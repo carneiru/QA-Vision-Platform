@@ -51,6 +51,10 @@ def test_an_empty_error_is_an_empty_string():
     ("failed SECRET_KEY=s3cret", "s3cret"),
     ("failed passphrase=s3cret", "s3cret"),
     ('failed passphrase: "s3 cret"', "cret"),
+    ('failed {"passphrase": "s3cret"}', "s3cret"),
+    ('failed Bearer "s3crettok"', "s3crettok"),
+    ("x" * 70 + "password=s3cret", "s3cret"),
+    ("x" * 485 + "password=s3cret1234567890", "s3cret"),
 ])
 def test_no_secret_survives(text, secret):
     assert secret not in short_error(text)
@@ -68,10 +72,23 @@ def test_a_multi_line_traceback_is_one_line_without_the_secret():
 @pytest.mark.parametrize("secret", ["pw123XYZ456", "p@ss/w0rd!!"])
 def test_a_secret_straddling_character_500_leaves_no_part(secret):
     for offset in (488, 494, 500, 506):
-        text = "x" * (offset - len(" password=")) + " password=" + secret + " tail"
+        text = "x" * (offset - len("password=")) + "password=" + secret + " tail"
         out = short_error(text)
         assert len(out) <= MAX_ERROR
         assert secret[:4] not in out and secret not in out
     text = "x" * 480 + " postgresql://u:" + secret + "@db/x tail"
     out = short_error(text)
     assert secret[:4] not in out and len(out) <= MAX_ERROR
+
+
+def test_a_10000_character_input_is_fast_and_leaks_nothing():
+    import time
+
+    for text in ("http://" * 1400 + " password=s3cret",
+                 "password=s3cret " + "x" * 10000,
+                 "a://" * 2500 + "u:s3cret",
+                 "x" * 9980 + " token=s3cret"):
+        started = time.monotonic()
+        out = short_error(text)
+        assert time.monotonic() - started < 2
+        assert "s3cret" not in out and len(out) <= MAX_ERROR

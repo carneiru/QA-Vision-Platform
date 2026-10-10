@@ -22,19 +22,22 @@ MAX_ERROR = 500
 # Userinfo of scheme://userinfo@host up to the LAST "@" before whitespace or a quote, so a
 # password holding "@" or "/" is removed whole.
 _URL_CREDENTIALS = re.compile(r"""(?<=://)[^\s"']*@""")
-# Two cases utils/redaction.py does not mask: passphrase=..., and a bare "Bearer <token>" with no
-# Authorization header in front
-_PASSPHRASE = re.compile(r"""(?i)(passphrase[  ]{0,5}[=:][  ]{0,5})("[^"]*"|'[^']*'|\S+)""")
+# Guards after redact() for what utils/redaction.py misses: passphrase, a key glued to a long word,
+# and a bare "Bearer <token>" with no Authorization header in front
+_SECRET_GUARD = re.compile(
+    r"""(?i)((?:password|passwd|pwd|secret|token|api_?key|passphrase)["']?[ \t]{0,5}[=:][ \t]{0,5})("[^"]*"|'[^']*'|[^\s"']+)"""
+)
 
-_BEARER = re.compile(r"""(?i)\b(bearer\s+)[^\s"']+""")
+_BEARER = re.compile(r"""(?i)\b(bearer\s+)("[^"]*"|'[^']*'|[^\s"']+)""")
+SCAN_LIMIT = 4096  # the first line is cut here before any regex runs
 
 
 def short_error(text: str) -> str:
     lines = str(text).strip().splitlines()
-    first = lines[0] if lines else ""
+    first = lines[0][:SCAN_LIMIT] if lines else ""
     first = _URL_CREDENTIALS.sub("***@", first)
     first = redact(first)[0]  # the platform's tested masking: Authorization, JSON pairs, tokens, ...
-    first = _PASSPHRASE.sub(r"\1***", first)
+    first = _SECRET_GUARD.sub(r"\1***", first)  # glued keys, passphrase, quoted keys
     first = _BEARER.sub(r"\1***", first)
     return first[:MAX_ERROR]
 
