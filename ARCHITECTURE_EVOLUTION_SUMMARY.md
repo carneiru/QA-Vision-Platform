@@ -1,5 +1,7 @@
 # QEOS Architecture Evolution - Executive Summary
 
+Snapshot of 2026-09-17; current state: README.md, TECHNICAL_SPECIFICATION.md, the blueprint banner.
+
 **Note (2026-09-17):** This document previously marked most Phase 1 services "✅ Complete." An audit that session found 11 of 15 sampled services (including Organization/Project/User/Team/Billing) were unmodified, single-commit copies of `auth-service` — same `User`/`Session`/`OAuthAccount` models, same `auth.py`/`sso.py` endpoints, zero domain logic — not real implementations. Statuses below have been corrected to reflect actual code state, verified by reading the source, not by trusting prior status markers in this file.
 
 ## Key Accomplishments - Phase 0: Foundation (Completed)

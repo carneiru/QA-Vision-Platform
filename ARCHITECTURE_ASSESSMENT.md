@@ -1,5 +1,7 @@
 # QEOS Architecture Assessment
 
+Snapshot of 2026-07-17; current state: README.md, TECHNICAL_SPECIFICATION.md, the blueprint banner.
+
 ## Executive Summary
 
 This document presents a comprehensive assessment of QEOS's current state and provides a roadmap for evolving it into an AI-native Quality Engineering Operating System, as specified in the architectural principles.

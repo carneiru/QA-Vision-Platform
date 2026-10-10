@@ -1,5 +1,7 @@
 # Gaps Assessment
 
+Snapshot of 2026-10-02; current state: README.md, TECHNICAL_SPECIFICATION.md, the blueprint banner.
+
 Updated 2026-10-02 against the running system (the previous version predated
 the gateway, CI and benchmarks and listed them as absent).
 

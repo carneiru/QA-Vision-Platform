@@ -1,5 +1,7 @@
 # QEOS Architecture Evolution
 
+Snapshot of 2026-10-02; current state: README.md, TECHNICAL_SPECIFICATION.md, the blueprint banner.
+
 ## 1. Purpose
 This document describes the evolution of QEOS from its initial AI Engine-focused architecture to an AI-native Quality Engineering Operating System. It captures the strategic decisions, migration approach, and progress toward a business capability-driven architecture that aligns with enterprise standards while preserving existing investments.
 
