@@ -92,6 +92,7 @@ def test_an_unhandled_exception_counts_as_500(svc):
     client, registry = svc
     assert client.get("/boom").status_code == 500
     assert requests(registry, method="GET", endpoint="/boom", status_code="500") == 1
+    assert registry.get_sample_value("http_requests_in_flight", {"service": "svc"}) == 0.0
 
 
 def test_health_and_metrics_are_not_counted(svc):
@@ -163,3 +164,35 @@ def test_process_metrics_are_exposed(svc):
     text = client.get("/metrics").text
     for name in ("process_cpu_seconds_total", "process_resident_memory_bytes", "process_open_fds"):
         assert name in text
+
+
+def test_installing_twice_on_one_registry_reuses_the_metrics():
+    registry = CollectorRegistry()
+    app1, r1 = make_app(registry=registry)
+    app2, r2 = make_app(registry=registry)
+    assert r1 is r2 is registry
+    with TestClient(app1) as c1, TestClient(app2) as c2:
+        c1.get("/api/v1/projects/7/cases/3")
+        c2.get("/api/v1/projects/8/cases/4")
+    assert requests(registry, method="GET", endpoint=CASE, status_code="200") == 2
+
+
+def test_a_mounted_sub_app_shares_one_bounded_endpoint_label(svc):
+    sub = FastAPI()
+
+    @sub.get("/a")
+    def a():
+        return {}
+
+    @sub.get("/b/{x}")
+    def b(x: int):
+        return {}
+
+    app, registry = make_app()
+    app.mount("/sub", sub)
+    with TestClient(app) as client:
+        client.get("/sub/a")
+        client.get("/sub/b/5")
+        client.get("/sub/b/6")
+    assert requests(registry, method="GET", endpoint="/sub/{path}", status_code="200") == 3
+    assert "/sub/b/5" not in generate_latest(registry).decode()

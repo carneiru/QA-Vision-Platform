@@ -17,12 +17,21 @@ organisation, project, test or case identifier, and a scanner cannot create seri
 /metrics is served inside the Docker network only: the gateway does not route it (its catch-all
 serves the dashboard SPA).
 
+A sub-app added with `app.mount("/sub", other)` is one route to the parent: every request under it
+shares the single endpoint label "/sub/{path}", whatever the inner path.
+
+Call install_metrics before adding any catch-all mount or route: /metrics is registered when it is
+called, and an earlier catch-all would answer /metrics instead.
+
+Calling it again with the same registry (a second app) is allowed and reuses the same metrics.
+
 One uvicorn worker per service is assumed. With several workers each process keeps its own
 counters and a scrape sees only one of them: switch to prometheus_client's multi-process mode
 (PROMETHEUS_MULTIPROC_DIR) before adding workers.
 """
 import os
 import time
+import weakref
 from typing import Optional
 
 from fastapi import FastAPI
@@ -62,6 +71,10 @@ class _Metrics:
                            registry=registry)
         build_info.labels(service, version, commit).set(1)
         self.in_flight.labels(service)  # visible at 0 before the first request
+
+
+# Metric set per registry, so installing twice on one registry reuses it instead of raising
+_INSTALLED: "weakref.WeakKeyDictionary[CollectorRegistry, _Metrics]" = weakref.WeakKeyDictionary()
 
 
 def _template(route) -> str:
@@ -126,13 +139,16 @@ def install_metrics(
     """Instrument `app` and serve `GET /metrics` from `registry` (a new one when None; ingestion passes
     its own so its qav_* metrics stay on the same page). Call once per app, at import time."""
     registry = registry if registry is not None else CollectorRegistry()
-    ProcessCollector(registry=registry)
-    metrics = _Metrics(
-        registry,
-        service,
-        version or os.environ.get("QEOS_VERSION") or "dev",
-        commit or os.environ.get("QEOS_COMMIT") or "unknown",
-    )
+    metrics = _INSTALLED.get(registry)
+    if metrics is None:
+        ProcessCollector(registry=registry)
+        metrics = _Metrics(
+            registry,
+            service,
+            version or os.environ.get("QEOS_VERSION") or "dev",
+            commit or os.environ.get("QEOS_COMMIT") or "unknown",
+        )
+        _INSTALLED[registry] = metrics
     app.add_middleware(MetricsMiddleware, metrics=metrics, fastapi_app=app)
 
     def metrics_endpoint() -> Response:
