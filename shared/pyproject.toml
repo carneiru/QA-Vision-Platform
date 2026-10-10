@@ -11,6 +11,8 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.2",
     "sqlalchemy>=2.1,<2.2",
+    # qeos_shared.metrics; each service pins the exact version in its requirements.txt
+    "prometheus-client>=0.20",
 ]
 
 # Declared explicitly rather than left to auto-discovery: with tests/ sitting beside

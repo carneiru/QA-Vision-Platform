@@ -9,6 +9,10 @@ Configuration and database wiring shared by QEOS services.
   `database_url` property that always returns a `str` and escapes the user and password.
 - `make_session_factory(url)` / `make_get_db(factory)` â€” the engine, sessionmaker and
   FastAPI dependency each service would otherwise rewrite.
+- `install_metrics(app, service="...", registry=None)` (`qeos_shared.metrics`) — request metrics named
+  after blueprint §11.2 (`api_requests_total`, `http_requests_duration_seconds`,
+  `http_requests_in_flight`, `build_info`), the process collector, and `GET /metrics`. Labels carry the
+  route template, never the raw path. One uvicorn worker is assumed (see the module docstring).
 
 ## What's deliberately not here
 
