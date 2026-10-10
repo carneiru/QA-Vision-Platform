@@ -1,215 +1,96 @@
 # QEOS
 
-**Quality Engineering OS**
+**Quality Engineering OS** — one place for a team's automated test results, test cases and test
+runs: CI uploads results, QEOS shows trends, flaky tests, failure causes and regressions, keeps the
+test-case catalogue in sync with your Gherkin features, and starts runs in your own CI.
 
-A comprehensive quality assurance and analytics platform with AI-powered test analysis capabilities.
+The target architecture is [`ARCHITECTURE_BLUEPRINT_V1_0.md`](ARCHITECTURE_BLUEPRINT_V1_0.md) (its
+banner says what is built and what waits for an adoption trigger); the item-level record is
+[`TODO.md`](TODO.md).
 
-## Overview
+## What it does today
 
-QEOS is a microservices-based platform designed to provide end-to-end quality assurance workflow management, test analytics, and AI-driven insights. The platform consists of several independent services that communicate via well-defined APIs.
+- **Accounts and access** — email/password with verification, password reset and change, MFA
+  (TOTP), Google and Microsoft (Entra ID, tenant allowlist) sign-in; organisations with
+  owner / admin / member / viewer roles and invitations; projects with repositories and settings.
+- **CI results** — the [`qeos-collector`](collector/README.md) uploads JUnit/Cucumber results from
+  any CI (GitHub Action in [`collector-action/`](collector-action/action.yml), Jenkins library in
+  [`collector-jenkins/`](collector-jenkins/README.md)) with a per-project API key; secrets and
+  personal data in failure messages are masked before storage.
+- **Analytics** — runs, tests and their history, trends (daily/weekly/monthly), branches, run
+  comparison, flaky tests (same-commit detection, quarantine) on daily rollups.
+- **Report** — a filterable, printable report per period: summary with deltas, failure causes
+  (new / recurring / resolved), regressions and instability (flips), results by feature, folder,
+  label or suite, coverage (never-run cases, tests without a case) and duration; CSV export.
+- **Test cases** — a case catalogue with suites, a Feature view grouped by `.feature` file, Gherkin
+  import from the browser and sync from the repository's default branch, links to automated tests.
+- **Run from QEOS** — start a selection, a case or a suite in your GitHub Actions workflow, with a
+  duration estimate before, during and after the run.
+- **Operations** — Slack, Teams and email notifications (failed runs, weekly summary), data
+  retention and legal hold, full export, `/metrics` in Prometheus format on every service (the
+  opt-in monitoring stack — Prometheus, Alertmanager, Grafana — is being added; see
+  [`docs/superpowers/specs/2026-10-10-monitoring-design.md`](docs/superpowers/specs/2026-10-10-monitoring-design.md)).
 
-## Current Implementation: Authentication Service (Phase 1)
+## What runs
 
-The first phase of the platform implements a robust authentication service with the following features:
+| Component | Path | Role |
+|---|---|---|
+| Gateway | [`gateway/`](gateway/README.md) | NGINX: TLS, routing, rate limits, serves the dashboard |
+| Dashboard | `dashboard/` | React 19 + TypeScript single-page app |
+| auth-service | `platforms/auth-service/auth-service/` | Users, sign-in, tokens, SSO, MFA |
+| organization-service | `platforms/organization-service/` | Organisations, members, invitations |
+| project-service | `platforms/project-service/` | Projects, repositories, settings |
+| ingestion-service | [`platforms/ingestion-service/`](platforms/ingestion-service/README.md) | Uploads, runs, analytics, report; jobs: retention, rollup, weekly summary |
+| test-management-service | [`platforms/test-management-service/`](platforms/test-management-service/README.md) | Test cases, suites, Gherkin import/sync, run requests |
+| PostgreSQL 15 | — | One server, one database per service |
+| `shared/` | `shared/qeos_shared/` | Settings, DB session, mail and metrics helpers used by every service |
 
-### Features
-- **Email/Password Authentication** - Secure user registration and login with bcrypt password hashing
-- **Token Management** - JWT access tokens (default 60 minutes) and opaque refresh tokens stored in the database (30 days), rotated on use with replay detection
-- **Refresh Token Rotation** - The presented refresh token is revoked and replaced on each use
-- **Google and Microsoft SSO** - ID tokens verified against each provider's JWKS; Microsoft (Entra ID) sign-in is limited to an allowlist of tenants. GitHub returns 501; it was previously a mock that accepted any input.
-- **Role-Based Access Control** - Superuser-only endpoints for user listing
-- **Multi-tenancy Support** - The user model carries a nullable `tenant_id`; authoritative membership lives in organization-service
-- **API** - RESTful endpoints with auto-generated OpenAPI documentation
-- **Tests** - 30 unit and integration tests covering authentication, SSO verification and cross-user isolation
-- **Dockerized Deployment** - Docker Compose setup with PostgreSQL
+Services are Python 3.11 / FastAPI / SQLAlchemy / Alembic and never call each other for page data:
+the dashboard joins (ADR-022). Decisions are recorded in
+[`docs/architecture/adr/`](docs/architecture/adr/INDEX.md).
 
-### Technology Stack
-- **Language**: Python 3.9
-- **Framework**: FastAPI
-- **Database**: PostgreSQL with SQLAlchemy ORM
-- **Migrations**: Alembic
-- **Authentication**: PyJWT (including `PyJWKClient` for Google's signing keys), passlib[bcrypt]
-- **SSO**: Google and Microsoft ID token verification via PyJWT. Authlib and python-jose are in `requirements.txt` but unused.
-- **Validation**: Pydantic
-- **Containerization**: Docker & Docker Compose
-- **Testing**: Pytest
+`execution/`, `automation/`, `marketplace/`, `collaboration/`, `intelligence/` and
+`platforms/qip-service` are unwired prototypes: not in compose, CI or the gateway.
 
-## Getting Started
-
-### Prerequisites
-- Python 3.9+
-- PostgreSQL
-- Docker and Docker Compose (optional but recommended)
-- Git
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd QA-Vision-Platform
-   ```
-
-2. **Environment Configuration**
-   ```bash
-   cp platforms/auth-service/auth-service/.env.example platforms/auth-service/auth-service/.env
-   # Edit .env with your configuration values
-   ```
-
-3. **Install Dependencies (Development)**
-   ```bash
-   cd platforms/auth-service/auth-service
-   pip install -r requirements.txt
-   ```
-
-4. **Database Setup**
-   ```bash
-   # Apply migrations
-   alembic upgrade head
-   ```
-
-5. **Run the Service**
-   ```bash
-   # Development mode
-   uvicorn src.auth.api.main:app --reload
-
-   # Or using Docker Compose (SECRET_KEY is required and must match organization-service's)
-   export SECRET_KEY=<a long random value>
-   docker compose up --build
-   ```
-
-### Environment Variables
-
-The application uses environment variables for configuration. Copy the `.env.example` file to `.env` and adjust the values as needed.
-
-The `.env.example` file contains the following variables:
-
-- **Application**: `APP_NAME`, `APP_VERSION`, `DEBUG`
-- **API**: `API_V1_STR`
-- **Security**: `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`, `ALGORITHM`
-- **Database**: `POSTGRES_SERVER`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` (or `DATABASE_URL` for direct connection string)
-- **Redis**: `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB` (optional, for token blacklisting)
-- **SMTP**: `SMTP_TLS`, `SMTP_PORT`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAILS_FROM_EMAIL`, `EMAILS_FROM_NAME` (for email notifications)
-- **SSO Providers**: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `SAML_SETTINGS`
-- **CORS**: `BACKEND_CORS_ORIGINS` (list of allowed origins)
-
-### API Documentation
-
-Once the service is running, visit:
-- **Swagger UI**: `http://localhost:8000/api/v1/docs`
-- **ReDoc**: `http://localhost:8000/api/v1/redoc`
-
-### Running Tests
-```bash
-# From the auth service directory
-pytest
-```
-
-## Running the platform
-
-Everything — auth, organization, project and ingestion services, one PostgreSQL, and the gateway — from the
-repository root:
+## Run it locally
 
 ```bash
-export SECRET_KEY=<a long random value>        # required by EVERY docker compose command here
-export INTERNAL_API_PASSWORD=<a long random value, URL-safe, e.g. openssl rand -hex 32>   # required too
+cp .env.example .env            # then set SECRET_KEY and INTERNAL_API_PASSWORD (long random values)
 docker compose up -d --build --wait gateway
 curl -k https://localhost:8443/health          # {"status":"healthy"}
 ```
 
-- All API calls go through `https://localhost:8443/api/v1/...` (see `gateway/README.md` for the
-  routes). The certificate is self-signed: use `curl -k`, or trust
-  `docker compose cp gateway:/etc/nginx/certs/tls.crt ./qeos-localhost.crt` once.
-- Databases are created and migrated automatically on every `up`.
-- Inspect a database: `docker compose exec postgres psql -U postgres -d project_db`.
-- Stop: `docker compose down`. Wipe all data: `docker compose down --volumes`.
-- Ports: `GATEWAY_HTTPS_PORT` (default 8443) and `GATEWAY_HTTP_PORT` (default 8080) — set
-  either if the port is already taken on your machine. Easiest: `cp .env.example .env` and
-  uncomment the override there (compose reads `.env` automatically; it is git-ignored).
+Open `https://localhost:8443` (self-signed certificate). Databases are created and migrated on
+every `up`. Stop with `docker compose down`; wipe data with `docker compose down --volumes`.
 
-Each service's own `docker-compose.yml` under `platforms/` still works for developing it alone.
+**Complete setup guide** — every `.env` variable, first account and roles, MFA, SSO, email, then
+each feature with what to configure (CI uploads, test cases and Gherkin sync, Run from QEOS,
+analytics, notifications, masking, retention), wiring a real repository, upgrades and
+troubleshooting: [`docs/SETUP.md`](docs/SETUP.md).
 
-**Complete setup guide** — from zero to a running platform (every `.env` variable, first account,
-roles, MFA, SSO, email), then each feature with exactly what to configure (CI uploads, test cases
-and Gherkin sync, Run from QEOS, analytics, notifications, masking, retention), wiring a real test
-repository end to end, upgrades and troubleshooting: [`docs/SETUP.md`](docs/SETUP.md).
+**Production on one VM** — the same stack behind a Caddy TLS edge with Let's Encrypt, generated
+secrets and daily backups: [`deploy/README.md`](deploy/README.md).
 
-**Production on a VM:** see [`deploy/README.md`](deploy/README.md) — the same stack behind a
-Caddy TLS edge with a Let's Encrypt certificate, strong generated secrets and daily backups.
+## Tests
 
-## Project Structure
+| What | Command |
+|---|---|
+| A Python service | `cd platforms/<service> && SECRET_KEY=test .venv/Scripts/python -m pytest -q` (auth: `platforms/auth-service/auth-service`) |
+| Shared package | `cd shared && SECRET_KEY=test ../platforms/organization-service/.venv/Scripts/python -m pytest tests -q` |
+| Dashboard | `cd dashboard && npm run lint && npm run typecheck && npx vitest run && npm run build` |
+| Whole stack (Docker) | `bash scripts/smoke_gateway.sh` after `docker compose up` |
 
-Services are grouped by domain at the repository root. Only the four under
-`platforms/` are implemented; the other domain directories hold scaffolding
-generated from the auth-service template and are not running services yet.
+CI (`.github/workflows/ci.yml`) runs every service suite, the dashboard checks, container smoke
+tests and the full-stack gateway smoke on each push.
 
-```
-QA-Vision-Platform/
-├── shared/                         # qeos-shared: settings + DB session wiring used by services
-├── gateway/                        # NGINX gateway: routing, rate limits, TLS
-├── collector/                      # qeos-collector: uploads JUnit results from CI (see collector/README.md)
-├── platforms/
-│   ├── auth-service/auth-service/  # Authentication (implemented)
-│   │   ├── src/auth/
-│   │   │   ├── api/                # FastAPI endpoints
-│   │   │   ├── db/                 # Session and declarative base
-│   │   │   ├── models/             # SQLAlchemy models
-│   │   │   ├── schemas/            # Pydantic validation models
-│   │   │   ├── service/            # Business logic layer
-│   │   │   ├── utils/              # Password and token helpers
-│   │   │   └── config.py           # Settings
-│   │   ├── tests/                  # Test suite
-│   │   ├── alembic/                # Database migrations
-│   │   └── requirements.txt
-│   ├── organization-service/       # Organizations, members, invitations (implemented)
-│   ├── project-service/            # Projects, repositories, settings (implemented)
-│   └── ingestion-service/          # Test results from CI: API keys, uploads, runs (implemented)
-├── intelligence/                   # Planned: AI analysis services
-├── execution/                      # Planned: test execution services
-├── integrations/                   # Planned: third-party connectors
-├── collaboration/                  # Planned
-├── administration/                 # Planned
-├── automation/                     # Planned
-├── marketplace/                    # Planned
-└── docs/                           # Architecture, specs and implementation plans
-```
+## Security notes
 
-## Security Features
-- Passwords hashed with bcrypt
-- Access tokens signed with HS256; refresh tokens are opaque and revocable server-side
-- Refresh token rotation on every use, with expiry enforced at verification
-- Google ID tokens verified by signature, audience, issuer, expiry and verified-email claim
-- SQL injection prevention via the ORM
-- Input validation via Pydantic models
-- CORS configuration
-- Environment-based configuration (no hardcoded secrets)
-
-Not present, despite earlier claims here: brute-force protection or account
-lockout (no failed-attempt tracking exists), Redis token blacklisting (the URL
-is configurable and unused). Password reset (emailed single-use link, 30 minutes, stored as a
-SHA-256 hash) and password change both revoke every refresh session.
-Access tokens are not revocable — logging out revokes the refresh token, but an
-already-issued access token remains valid until it expires.
-
-## Future Phases
-
-The QEOS platform is planned to be implemented in multiple phases:
-
-1. **Phase 1: Foundation Services** (Current) - Auth, Organization, Project services
-2. **Phase 2: Test Management** - Test case management, execution tracking
-3. **Phase 3: Defect Tracking** - Bug reporting and management
-4. **Phase 4: Test Execution** - Test runner integrations and scheduling
-5. **Phase 5: Analytics & Reporting** - Dashboards, metrics, trend analysis
-6. **Phase 6: AI Engine** - Predictive analytics, test optimization, failure analysis
+Passwords hashed with bcrypt; short-lived JWT access tokens and rotating, revocable refresh tokens
+in an httpOnly cookie; MFA; SSO ID tokens verified against the providers' keys; rate limits at the
+gateway (sign-in endpoints stricter); per-project API keys for uploads; masking of secrets and
+personal data in stored results; `/metrics` and internal endpoints are never routed publicly.
+Access tokens are not revocable before they expire. See [`SECURITY.md`](SECURITY.md).
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Contributing
-
-Please read CONTRIBUTING.md for details on our code of conduct and the process for submitting pull requests.
-
-## Support
-
-For questions and support, please open an issue in the repository.
+MIT, as stated since the first commit; the LICENSE file itself is not in the repository yet.
