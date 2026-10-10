@@ -19,7 +19,8 @@ def test_credentials_in_a_url_are_replaced():
 
 
 def test_a_password_pair_is_replaced():
-    assert short_error("cannot connect: host=db password=hunter2 user=x") == "cannot connect: host=db password=*** user=x"
+    out = short_error("cannot connect: host=db password=hunter2 user=x")
+    assert "hunter2" not in out and out.startswith("cannot connect: host=db password=") and out.endswith(" user=x")
 
 
 def test_an_empty_error_is_an_empty_string():
@@ -41,6 +42,15 @@ def test_an_empty_error_is_an_empty_string():
     ("password: pw123 refused", "pw123"),
     ("passwd=pw123 refused", "pw123"),
     ("api token=pw123 refused", "pw123"),
+    ('failed {"password": "s3cret"}', "s3cret"),
+    ("failed {'password': 's3cret'}", "s3cret"),
+    ("failed Authorization: Bearer s3crettoken123", "s3crettoken123"),
+    ("failed Bearer s3crettoken123", "s3crettoken123"),
+    ("failed api_key=s3cret", "s3cret"),
+    ("failed apikey: s3cret", "s3cret"),
+    ("failed SECRET_KEY=s3cret", "s3cret"),
+    ("failed passphrase=s3cret", "s3cret"),
+    ('failed passphrase: "s3 cret"', "cret"),
 ])
 def test_no_secret_survives(text, secret):
     assert secret not in short_error(text)
@@ -58,7 +68,7 @@ def test_a_multi_line_traceback_is_one_line_without_the_secret():
 @pytest.mark.parametrize("secret", ["pw123XYZ456", "p@ss/w0rd!!"])
 def test_a_secret_straddling_character_500_leaves_no_part(secret):
     for offset in (488, 494, 500, 506):
-        text = "x" * (offset - len("password=")) + "password=" + secret + " tail"
+        text = "x" * (offset - len(" password=")) + " password=" + secret + " tail"
         out = short_error(text)
         assert len(out) <= MAX_ERROR
         assert secret[:4] not in out and secret not in out

@@ -3,8 +3,8 @@ job_heartbeats; ingestion's /metrics turns the rows into job_last_success_timest
 job_last_error_timestamp_seconds (utils/job_metrics.py).
 
 A heartbeat never stops a job: a failed write is logged and the loop carries on. An error text keeps
-only its first line, at most MAX_ERROR characters, with URL credentials and password=... pairs
-replaced, so no secret reaches the database or a dashboard.
+only its first line, at most MAX_ERROR characters, with URL credentials (greedy, then utils/redaction.py)
+and passphrase=... pairs replaced, so no secret reaches the database or a dashboard.
 """
 import json
 import re
@@ -15,21 +15,27 @@ from typing import Optional
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.models.job_heartbeat import JobHeartbeat
+from src.ingestion.utils.redaction import redact
 
 JOBS = ("retention", "rollup", "weekly_summary")
 MAX_ERROR = 500
 # Userinfo of scheme://userinfo@host up to the LAST "@" before whitespace or a quote, so a
 # password holding "@" or "/" is removed whole.
 _URL_CREDENTIALS = re.compile(r"""(?<=://)[^\s"']*@""")
-# key=value / key: value secrets (db_password=, PGPASSWORD=, password='a b', passwd:, token=).
-_SECRET_PAIR = re.compile(r"""(?i)((?:pass(?:word|wd)?|pwd|secret|token)\s*[=:]\s*)("[^"]*"|'[^']*'|\S+)""")
+# Two cases utils/redaction.py does not mask: passphrase=..., and a bare "Bearer <token>" with no
+# Authorization header in front
+_PASSPHRASE = re.compile(r"""(?i)(passphrase[  ]{0,5}[=:][  ]{0,5})("[^"]*"|'[^']*'|\S+)""")
+
+_BEARER = re.compile(r"""(?i)\b(bearer\s+)[^\s"']+""")
 
 
 def short_error(text: str) -> str:
     lines = str(text).strip().splitlines()
     first = lines[0] if lines else ""
     first = _URL_CREDENTIALS.sub("***@", first)
-    first = _SECRET_PAIR.sub(r"\1***", first)
+    first = redact(first)[0]  # the platform's tested masking: Authorization, JSON pairs, tokens, ...
+    first = _PASSPHRASE.sub(r"\1***", first)
+    first = _BEARER.sub(r"\1***", first)
     return first[:MAX_ERROR]
 
 
