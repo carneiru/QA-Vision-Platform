@@ -2,6 +2,7 @@
 import pytest
 
 from src.ingestion.jobs.heartbeat import MAX_ERROR, short_error
+from src.ingestion.utils.redaction import _SECRET_NAMES
 
 
 def test_only_the_first_line_is_kept():
@@ -60,6 +61,34 @@ def test_no_secret_survives(text, secret):
     assert secret not in short_error(text)
 
 
+# Words of each name in redaction._SECRET_NAMES; a name added there without an entry here fails below
+_NAME_WORDS = {
+    "encryptionkey": ("encryption", "key"), "clientsecret": ("client", "secret"),
+    "credentials": ("credentials",), "privatekey": ("private", "key"), "signingkey": ("signing", "key"),
+    "secretkey": ("secret", "key"), "accesskey": ("access", "key"), "password": ("password",),
+    "passwd": ("passwd",), "apikey": ("api", "key"), "secret": ("secret",), "token": ("token",),
+    "pwd": ("pwd",), "passphrase": ("passphrase",),
+}
+
+
+def test_every_redaction_secret_name_has_its_words():
+    assert {name for name, _ in _SECRET_NAMES} <= set(_NAME_WORDS)
+
+
+def _glued_keys():
+    for name in sorted({name for name, _ in _SECRET_NAMES} | {"passphrase"}):
+        words = _NAME_WORDS[name]
+        yield from {name, "_".join(words), "-".join(words), ".".join(words),
+                    "".join(w.capitalize() for w in words), "_".join(words).upper()}
+
+
+@pytest.mark.parametrize("key", sorted(set(_glued_keys())))
+def test_a_key_glued_to_a_long_word_is_masked(key):
+    for text in ("x" * 70 + key + "=hunter2", "x" * 70 + key + ": hunter2", "x" * 70 + key + '="hun ter2"'):
+        out = short_error(text)
+        assert "hunter2" not in out and "ter2" not in out and out.startswith("x" * 70 + key)
+
+
 def test_a_user_only_url_keeps_its_host():
     assert short_error("conn postgresql://user@db:5432/x failed") == "conn postgresql://***@db:5432/x failed"
 
@@ -87,7 +116,11 @@ def test_a_10000_character_input_is_fast_and_leaks_nothing():
     for text in ("http://" * 1400 + " password=s3cret",
                  "password=s3cret " + "x" * 10000,
                  "a://" * 2500 + "u:s3cret",
-                 "x" * 9980 + " token=s3cret"):
+                 "x" * 9980 + " token=s3cret",
+                 "x" * 9980 + "secret_key=s3cret",
+                 "s_e_c_r_e_t_" * 900 + "access-key=s3cret",
+                 "p.a.s.s.w.o.r." * 800 + "private_key=s3cret",
+                 "client_secret" * 800 + "=s3cret"):
         started = time.monotonic()
         out = short_error(text)
         assert time.monotonic() - started < 2

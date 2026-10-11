@@ -3,8 +3,9 @@ job_heartbeats; ingestion's /metrics turns the rows into job_last_success_timest
 job_last_error_timestamp_seconds (utils/job_metrics.py).
 
 A heartbeat never stops a job: a failed write is logged and the loop carries on. An error text keeps
-only its first line, at most MAX_ERROR characters, with URL credentials (greedy, then utils/redaction.py)
-and passphrase=... pairs replaced, so no secret reaches the database or a dashboard.
+only its first line, at most MAX_ERROR characters, with URL credentials (greedy, then utils/redaction.py),
+glued secret keys, passphrase=... pairs and bare Bearer tokens replaced, so no secret reaches the
+database or a dashboard.
 """
 import json
 import re
@@ -15,17 +16,22 @@ from typing import Optional
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.models.job_heartbeat import JobHeartbeat
-from src.ingestion.utils.redaction import redact
+from src.ingestion.utils.redaction import _SECRET_NAMES, redact
 
 JOBS = ("retention", "rollup", "weekly_summary")
 MAX_ERROR = 500
 # Userinfo of scheme://userinfo@host up to the LAST "@" before whitespace or a quote, so a
 # password holding "@" or "/" is removed whole.
 _URL_CREDENTIALS = re.compile(r"""(?<=://)[^\s"']*@""")
-# Guards after redact() for what utils/redaction.py misses: passphrase, a key glued to a long word,
-# and a bare "Bearer <token>" with no Authorization header in front
+# Guards after redact() for what utils/redaction.py misses: a key glued to a long word (redact needs a
+# non-word character before the key), passphrase, and a bare "Bearer <token>" with no Authorization
+# header in front. The key names come from redaction's _SECRET_NAMES, so heartbeat and result masking
+# cannot drift; each normalised name ("secretkey") also matches secret_key, secret-key, SecretKey and
+# secret.key. Every quantifier is bounded or over a disjoint class, so no input backtracks badly.
+_GUARD_NAMES = sorted({name for name, _ in _SECRET_NAMES} | {"passphrase"}, key=lambda n: (-len(n), n))
 _SECRET_GUARD = re.compile(
-    r"""(?i)((?:password|passwd|pwd|secret|token|api_?key|passphrase)["']?[ \t]{0,5}[=:][ \t]{0,5})("[^"]*"|'[^']*'|[^\s"']+)"""
+    r"""(?i)((?:""" + "|".join(r"[_.\-]?".join(map(re.escape, name)) for name in _GUARD_NAMES)
+    + r""")["']?[ \t]{0,5}(?:=>|:=|=|:)[ \t]{0,5})("[^"]*"|'[^']*'|[^\s"']+)"""
 )
 
 _BEARER = re.compile(r"""(?i)\b(bearer\s+)("[^"]*"|'[^']*'|[^\s"']+)""")
