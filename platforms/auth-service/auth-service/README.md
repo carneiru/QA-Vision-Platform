@@ -279,6 +279,10 @@ src/
         ├── test_*py         # Unit and integration tests
 ```
 
+## Metrics
+
+`GET /metrics` (Prometheus text, inside the Docker network only; the gateway never routes it) serves the shared request metrics from `qeos_shared.metrics` — `api_requests_total`, `http_requests_duration_seconds`, `http_requests_in_flight`, `build_info` — and the process metrics. See the monitoring design, `docs/superpowers/specs/2026-10-10-monitoring-design.md`.
+
 ## Running Tests
 
 ```bash
