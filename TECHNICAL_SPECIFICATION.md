@@ -27,9 +27,10 @@ internal API. Services never call each other for page data; the dashboard
 joins (ADR-022, ADR-026). Outbound calls: GitHub (Run from QEOS), repository
 providers (verification), notification webhooks and SMTP. No event bus exists
 (Kafka is a blueprint target gated on the 1000+ events/s trigger). Every
-service serves Prometheus `/metrics` (never routed by the gateway); the
-monitoring stack that would scrape it is in progress
-(`docs/superpowers/specs/2026-10-10-monitoring-design.md`).
+service serves Prometheus `/metrics` (never routed by the gateway); ingestion also
+exposes job heartbeats (`job_last_success_timestamp_seconds{job}`, from the
+`job_heartbeats` table, migration 017). The monitoring stack that will scrape them is
+in progress (`docs/superpowers/specs/2026-10-10-monitoring-design.md`).
 
 ## 2. Services
 
