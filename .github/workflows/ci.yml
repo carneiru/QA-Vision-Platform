@@ -230,6 +230,16 @@ jobs:
         run: |
           qeos-collector upload "reports/*.xml" --environment collector-py${{ matrix.python }}
 
+  monitoring:
+    name: Monitoring configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # promtool check/test rules and check config, amtool on rendered Alertmanager files, dashboard lint
+      - name: Static checks
+        run: bash monitoring/check.sh
+
   gateway:
     name: Gateway and full stack
     runs-on: ubuntu-latest

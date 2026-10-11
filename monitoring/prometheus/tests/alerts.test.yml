@@ -1,0 +1,265 @@
+# promtool test rules monitoring/prometheus/tests/alerts.test.yml (monitoring/check.sh runs it).
+# One test group per alert behaviour, with synthetic series (spec §8).
+rule_files:
+  - ../recording.yml
+  - ../alerts.yml
+  - thresholds.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: recording rules publish the blueprint's PostgreSQL names
+    interval: 1m
+    input_series:
+      - series: 'pg_database_size_bytes{datname="ingestion_db",instance="postgres-exporter:9187",job="postgres"}'
+        values: '1000+0x5'
+      - series: 'pg_stat_activity_count{datname="ingestion_db",state="active",instance="postgres-exporter:9187",job="postgres"}'
+        values: '3+0x5'
+      - series: 'pg_stat_activity_count{datname="auth_db",state="active",instance="postgres-exporter:9187",job="postgres"}'
+        values: '2+0x5'
+      - series: 'pg_stat_activity_count{datname="auth_db",state="idle",instance="postgres-exporter:9187",job="postgres"}'
+        values: '4+0x5'
+    promql_expr_test:
+      - expr: postgresql_database_size_bytes
+        eval_time: 2m
+        exp_samples:
+          - labels: 'postgresql_database_size_bytes{datname="ingestion_db"}'
+            value: 1000
+      - expr: postgresql_connections
+        eval_time: 2m
+        exp_samples:
+          - labels: 'postgresql_connections{state="active"}'
+            value: 5
+          - labels: 'postgresql_connections{state="idle"}'
+            value: 4
+
+  - name: ServiceDown fires after two minutes down
+    interval: 1m
+    input_series:
+      - series: 'up{job="project",instance="project-service:8000"}'
+        values: '1 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 4m
+        alertname: ServiceDown
+        exp_alerts:
+          - exp_labels: {severity: critical, job: project, instance: "project-service:8000", service: project}
+            exp_annotations: {summary: "project is down (project-service:8000)"}
+
+  - name: High5xxRate needs a 5% share and at least 20 requests
+    interval: 1m
+    input_series:
+      - series: 'api_requests_total{service="project",endpoint="/x",method="GET",status_code="200"}'
+        values: '0+60x20'
+      - series: 'api_requests_total{service="project",endpoint="/x",method="GET",status_code="500"}'
+        values: '0+10x20'
+      # 33% failing, but only 15 requests in 5 minutes: no alert
+      - series: 'api_requests_total{service="auth",endpoint="/y",method="GET",status_code="200"}'
+        values: '0+2x20'
+      - series: 'api_requests_total{service="auth",endpoint="/y",method="GET",status_code="503"}'
+        values: '0+1x20'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: High5xxRate
+        exp_alerts:
+          - exp_labels: {severity: critical, service: project}
+            exp_annotations: {summary: "project: over 5% of requests answer 5xx"}
+
+  - name: SlowRequests uses 2 s, and 10 s for the report
+    interval: 1m
+    input_series:
+      # every request between 2 and 5 s: p95 = 4.85 s
+      - series: 'http_requests_duration_seconds_bucket{service="project",endpoint="/api/v1/projects/{project_id}",method="GET",le="1"}'
+        values: '0+0x20'
+      - series: 'http_requests_duration_seconds_bucket{service="project",endpoint="/api/v1/projects/{project_id}",method="GET",le="2"}'
+        values: '0+0x20'
+      - series: 'http_requests_duration_seconds_bucket{service="project",endpoint="/api/v1/projects/{project_id}",method="GET",le="5"}'
+        values: '0+60x20'
+      - series: 'http_requests_duration_seconds_bucket{service="project",endpoint="/api/v1/projects/{project_id}",method="GET",le="+Inf"}'
+        values: '0+60x20'
+      # the same times on the report stay under its 10 s limit
+      - series: 'http_requests_duration_seconds_bucket{service="ingestion",endpoint="/api/v1/projects/{project_id}/analytics/report",method="POST",le="1"}'
+        values: '0+0x20'
+      - series: 'http_requests_duration_seconds_bucket{service="ingestion",endpoint="/api/v1/projects/{project_id}/analytics/report",method="POST",le="2"}'
+        values: '0+0x20'
+      - series: 'http_requests_duration_seconds_bucket{service="ingestion",endpoint="/api/v1/projects/{project_id}/analytics/report",method="POST",le="5"}'
+        values: '0+60x20'
+      - series: 'http_requests_duration_seconds_bucket{service="ingestion",endpoint="/api/v1/projects/{project_id}/analytics/report",method="POST",le="+Inf"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: SlowRequests
+        exp_alerts:
+          - exp_labels: {severity: warning, service: project}
+            exp_annotations: {summary: "project: 95th percentile response time over its limit"}
+
+  - name: JobStale uses 2 d, 12 h and 1 h
+    interval: 1m
+    input_series:
+      # at eval_time 10m, time() = 600: rollup last succeeded 50,600 s ago (> 12 h)
+      - series: 'job_last_success_timestamp_seconds{job="rollup",instance="ingestion-service:8000"}'
+        values: '-50000+0x15'
+      # retention: 100,600 s ago, under 2 days
+      - series: 'job_last_success_timestamp_seconds{job="retention",instance="ingestion-service:8000"}'
+        values: '-100000+0x15'
+      # weekly_summary: 600 s ago, under 1 hour
+      - series: 'job_last_success_timestamp_seconds{job="weekly_summary",instance="ingestion-service:8000"}'
+        values: '0+0x15'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: JobStale
+        exp_alerts:
+          - exp_labels: {severity: warning, job: rollup, instance: "ingestion-service:8000"}
+            exp_annotations: {summary: "Job rollup has not succeeded for over twice its interval"}
+
+  - name: JobFailing after 30 minutes of an error newer than the last success
+    interval: 1m
+    input_series:
+      - series: 'job_last_error_timestamp_seconds{job="retention",instance="ingestion-service:8000"}'
+        values: '600+0x45'
+      - series: 'job_last_success_timestamp_seconds{job="retention",instance="ingestion-service:8000"}'
+        values: '0+0x45'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: JobFailing
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: JobFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, job: retention, instance: "ingestion-service:8000"}
+            exp_annotations: {summary: "Job retention failed on its last pass"}
+
+  - name: UploadsRejected over 25% with at least 10 uploads
+    interval: 1m
+    input_series:
+      - series: 'qav_ingest_rejected_total{reason="auth",instance="ingestion-service:8000",job="ingestion"}'
+        values: '0+2x40'
+      - series: 'qav_ingest_runs_total{instance="ingestion-service:8000",job="ingestion"}'
+        values: '0+2x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: UploadsRejected
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "Over 25% of collector uploads are rejected"}
+
+  - name: UploadsRejected ignores a handful of uploads
+    interval: 1m
+    input_series:
+      - series: 'qav_ingest_rejected_total{reason="auth",instance="ingestion-service:8000",job="ingestion"}'
+        values: '0+0.2x40'
+      - series: 'qav_ingest_runs_total{instance="ingestion-service:8000",job="ingestion"}'
+        values: '0+0.2x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: UploadsRejected
+        exp_alerts: []
+
+  - name: DiskFillingUp over 85%
+    interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{device="/dev/sda1",fstype="ext4",mountpoint="/",instance="node-exporter:9100",job="node"}'
+        values: '10+0x20'
+      - series: 'node_filesystem_size_bytes{device="/dev/sda1",fstype="ext4",mountpoint="/",instance="node-exporter:9100",job="node"}'
+        values: '100+0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: DiskFillingUp
+        exp_alerts:
+          - exp_labels: {severity: critical, device: /dev/sda1, fstype: ext4, mountpoint: /, instance: "node-exporter:9100", job: node}
+            exp_annotations: {summary: "Disk / is over 85% full or will fill within 24 hours"}
+
+  - name: DiskFillingUp predicted full within 24 hours
+    interval: 1m
+    input_series:
+      # 25% used at 30m, but losing 5 bytes a minute out of 750 left
+      - series: 'node_filesystem_avail_bytes{device="/dev/sda1",fstype="ext4",mountpoint="/",instance="node-exporter:9100",job="node"}'
+        values: '900-5x60'
+      - series: 'node_filesystem_size_bytes{device="/dev/sda1",fstype="ext4",mountpoint="/",instance="node-exporter:9100",job="node"}'
+        values: '1000+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: DiskFillingUp
+        exp_alerts:
+          - exp_labels: {severity: critical, device: /dev/sda1, fstype: ext4, mountpoint: /, instance: "node-exporter:9100", job: node}
+            exp_annotations: {summary: "Disk / is over 85% full or will fill within 24 hours"}
+
+  - name: MemoryPressure on the VM
+    interval: 1m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100",job="node"}'
+        values: '5+0x20'
+      - series: 'node_memory_MemTotal_bytes{instance="node-exporter:9100",job="node"}'
+        values: '100+0x20'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: MemoryPressure
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: MemoryPressure
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: "node-exporter:9100", job: node}
+            exp_annotations: {summary: "Less than 10% of the VM's memory is available"}
+
+  - name: MemoryPressure for a restarting container
+    interval: 1m
+    input_series:
+      - series: 'container_start_time_seconds{name="qa-vision-project-service-1",instance="cadvisor:8080",job="cadvisor"}'
+        values: '100 200 300 400 500 500 500'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: MemoryPressure
+        exp_alerts:
+          - exp_labels: {severity: warning, kind: container, name: qa-vision-project-service-1, instance: "cadvisor:8080", job: cadvisor}
+            exp_annotations: {summary: "Container qa-vision-project-service-1 restarted more than 3 times in 15 minutes"}
+
+  - name: PostgresDown after two minutes
+    interval: 1m
+    input_series:
+      - series: 'pg_up{instance="postgres-exporter:9187",job="postgres"}'
+        values: '1 0 0 0 0 0'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: PostgresDown
+        exp_alerts:
+          - exp_labels: {severity: critical, instance: "postgres-exporter:9187", job: postgres}
+            exp_annotations: {summary: "PostgreSQL is unreachable from the exporter"}
+
+  - name: PostgresTooManyConnections over 80% of max_connections
+    interval: 1m
+    input_series:
+      - series: 'pg_stat_activity_count{datname="ingestion_db",state="active",instance="postgres-exporter:9187",job="postgres"}'
+        values: '90+0x20'
+      - series: 'pg_settings_max_connections{instance="postgres-exporter:9187",job="postgres"}'
+        values: '100+0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PostgresTooManyConnections
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations: {summary: "PostgreSQL connections above 80% of max_connections"}
+
+  - name: PostgresDatabaseGrowing over POSTGRES_DB_SIZE_ALERT_GB
+    interval: 1m
+    input_series:
+      - series: 'pg_database_size_bytes{datname="ingestion_db",instance="postgres-exporter:9187",job="postgres"}'
+        values: '25000000000+0x20'
+      - series: 'pg_database_size_bytes{datname="auth_db",instance="postgres-exporter:9187",job="postgres"}'
+        values: '1000000+0x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PostgresDatabaseGrowing
+        exp_alerts:
+          - exp_labels: {severity: warning, datname: ingestion_db}
+            exp_annotations: {summary: "Database ingestion_db is larger than POSTGRES_DB_SIZE_ALERT_GB"}
+
+  - name: Watchdog always fires
+    interval: 1m
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: Watchdog
+        exp_alerts:
+          - exp_labels: {severity: none}
+            exp_annotations: {summary: "Always firing: proves that rules are evaluated and alerts delivered"}

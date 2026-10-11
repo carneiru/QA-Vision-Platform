@@ -1,0 +1,41 @@
+# Prometheus for the `monitoring` compose profile (spec §2). Scrape job names equal the services'
+# `service` label, so ServiceDown can name the service from `job`.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+rule_files:
+  - /etc/qeos/prometheus/recording.yml
+  - /etc/qeos/prometheus/alerts.yml
+  # Rendered by entrypoint.sh from POSTGRES_DB_SIZE_ALERT_GB (Ruling 9)
+  - /tmp/thresholds.yml
+
+scrape_configs:
+  - job_name: auth
+    static_configs: [{targets: ["auth-service:8000"]}]
+  - job_name: organization
+    static_configs: [{targets: ["organization-service:8000"]}]
+  - job_name: project
+    static_configs: [{targets: ["project-service:8000"]}]
+  - job_name: ingestion
+    # The job heartbeat gauges carry `job` = the loop job's name (Ruling 5); nothing else ingestion
+    # exposes has a job or instance label, so its other series keep job="ingestion"
+    honor_labels: true
+    static_configs: [{targets: ["ingestion-service:8000"]}]
+  - job_name: test-management
+    static_configs: [{targets: ["test-management-service:8000"]}]
+  - job_name: node
+    static_configs: [{targets: ["node-exporter:9100"]}]
+  - job_name: cadvisor
+    static_configs: [{targets: ["cadvisor:8080"]}]
+  - job_name: postgres
+    static_configs: [{targets: ["postgres-exporter:9187"]}]
+  - job_name: prometheus
+    static_configs: [{targets: ["localhost:9090"]}]
+  - job_name: alertmanager
+    static_configs: [{targets: ["alertmanager:9093"]}]

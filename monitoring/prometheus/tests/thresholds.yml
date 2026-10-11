@@ -1,0 +1,6 @@
+# What monitoring/prometheus/entrypoint.sh renders with POSTGRES_DB_SIZE_ALERT_GB=20 (Ruling 9); tests only
+groups:
+  - name: qeos-thresholds
+    rules:
+      - record: postgresql_database_size_alert_bytes
+        expr: vector(20 * 1e9)
