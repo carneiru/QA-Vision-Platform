@@ -47,3 +47,30 @@ def test_a_failing_heartbeat_read_leaves_the_job_series_out_and_metrics_still_an
     assert "job_last_success_timestamp_seconds" not in response.text
     assert "qav_ingest_runs_total" in response.text and "api_requests_total" in response.text
     assert metrics.REGISTRY.get_sample_value("job_heartbeat_read_errors_total") == before + 1
+
+
+def test_a_statement_timeout_is_a_read_error_and_metrics_answers_fast(client):
+    import time
+
+    def timing_out():
+        raise OperationalError("SELECT", {}, Exception("canceling statement due to statement timeout"))
+
+    before = metrics.REGISTRY.get_sample_value("job_heartbeat_read_errors_total")
+    good = main.HEARTBEATS.session_factory
+    main.HEARTBEATS.session_factory = timing_out
+    try:
+        start = time.monotonic()
+        response = client.get("/metrics")
+        elapsed = time.monotonic() - start
+    finally:
+        main.HEARTBEATS.session_factory = good
+    assert response.status_code == 200 and elapsed < 2
+    assert "job_last_success_timestamp_seconds" not in response.text
+    assert metrics.REGISTRY.get_sample_value("job_heartbeat_read_errors_total") == before + 1
+
+
+def test_the_collector_has_its_own_engine_not_the_apps_session_factory():
+    from src.ingestion.db.session import SessionLocal
+
+    assert main.HEARTBEATS.session_factory is not SessionLocal
+    assert main.HEARTBEATS.session_factory.kw["bind"] is not SessionLocal.kw["bind"]

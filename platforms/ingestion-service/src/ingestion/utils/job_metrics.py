@@ -9,15 +9,33 @@ job_heartbeat_read_errors_total goes up: /metrics still answers, so a database b
 ingestion look down. Prometheus scrapes ingestion with honor_labels: true, so the `job` label here
 names the loop job instead of becoming exported_job. The error text is never exposed.
 """
+import logging
 from datetime import datetime, timezone
 from typing import Callable, Iterator, Optional
 
 from prometheus_client.core import GaugeMetricFamily
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.jobs.heartbeat import JOBS
 from src.ingestion.models.job_heartbeat import JobHeartbeat
 from src.ingestion.utils import metrics
+
+logger = logging.getLogger(__name__)
+
+READ_BUDGET_SECONDS = 2  # connect, pool wait and statement each stay under this, well inside Prometheus's 10 s scrape_timeout
+
+
+def make_heartbeat_session_factory(database_url: str) -> sessionmaker:
+    """Sessions on a private one-connection engine, so hung requests elsewhere cannot starve a scrape."""
+    if database_url.startswith("postgresql"):
+        engine = create_engine(
+            database_url, connect_args={"connect_timeout": READ_BUDGET_SECONDS},
+            pool_size=1, max_overflow=0, pool_timeout=READ_BUDGET_SECONDS, pool_pre_ping=False,
+        )
+    else:
+        engine = create_engine(database_url, connect_args={"check_same_thread": False} if database_url.startswith("sqlite") else {})
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def _seconds(moment: Optional[datetime]) -> float:
@@ -38,8 +56,11 @@ class JobHeartbeatCollector:
     def collect(self) -> Iterator[GaugeMetricFamily]:
         try:
             with self.session_factory() as db:
+                if db.get_bind().dialect.name == "postgresql":
+                    db.execute(text(f"SET LOCAL statement_timeout = '{READ_BUDGET_SECONDS}s'"))
                 rows = {row.job: (row.last_success_at, row.last_error_at) for row in db.query(JobHeartbeat).all()}
-        except Exception:
+        except Exception as exc:
+            logger.warning("job heartbeat read failed: %s", type(exc).__name__)  # type only: a message can hold a DSN
             metrics.HEARTBEAT_READ_ERRORS.inc()
             return
         success = GaugeMetricFamily(
