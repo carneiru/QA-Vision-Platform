@@ -20,12 +20,14 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.ingestion.analytics.rollup import upsert_day
+from src.ingestion.jobs import heartbeat
 from src.ingestion.models import Run
 from src.ingestion.models.flaky_rollup import FlakyRollupDay
 
 WINDOW_DAYS = 90
 LOCK_ID = 7_351_002  # distinct from retention's lock
 DEFAULT_INTERVAL_HOURS = 6.0
+JOB = "rollup"
 
 
 def _log(record: dict, error: bool = False) -> None:
@@ -86,13 +88,16 @@ def run_once(*, session_factory: sessionmaker, lock_engine: Engine) -> bool:
         with _advisory_lock(lock_engine) as acquired:
             if not acquired:
                 _log({"event": "flaky_rollup", "skipped": "another copy holds the lock"})
-                return True
+                return True  # the copy holding the lock writes the heartbeat
             with session_factory() as db:
                 run_pass(db)
-        return True
     except Exception as exc:  # the loop must survive a bad pass
-        _log({"event": "flaky_rollup", "error": f"{type(exc).__name__}: {exc}"}, error=True)
+        message = f"{type(exc).__name__}: {exc}"
+        _log({"event": "flaky_rollup", "error": message}, error=True)
+        heartbeat.record_error(session_factory, JOB, message)
         return False
+    heartbeat.record_success(session_factory, JOB)
+    return True
 
 
 def main(

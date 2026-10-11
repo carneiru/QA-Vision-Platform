@@ -25,11 +25,13 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Query, Session, sessionmaker
 
 from src.ingestion.core.config import settings
+from src.ingestion.jobs import heartbeat
 from src.ingestion.models import ApiKey, Run, RunResult
 
 RETENTION_PATH = "/internal/v1/projects/retention"
 LOCK_ID = 7_351_001  # any fixed number; only this job takes it
 TIMEOUT_SECONDS = 10.0
+JOB = "retention"
 
 
 class RetentionError(Exception):
@@ -204,7 +206,7 @@ def run_once(*, dry_run: bool, now: Callable[[], datetime], session_factory: ses
         with _advisory_lock(lock_engine) as acquired:
             if not acquired:
                 _log({"event": "retention_skipped", "reason": "another pass is already running"})
-                return True
+                return True  # the copy holding the lock writes the heartbeat
             policies = fetch_policies(endpoint)
             with session_factory() as db:
                 summary = run_pass(
@@ -213,11 +215,15 @@ def run_once(*, dry_run: bool, now: Callable[[], datetime], session_factory: ses
                 )
     except RetentionError as exc:
         _log({"event": "retention_failed", "error": str(exc)}, error=True)
+        heartbeat.record_error(session_factory, JOB, str(exc), now())
         return False
     except Exception as exc:  # e.g. the database is down: report it; the loop tries again later
-        _log({"event": "retention_failed", "error": f"{type(exc).__name__}: {exc}"}, error=True)
+        message = f"{type(exc).__name__}: {exc}"
+        _log({"event": "retention_failed", "error": message}, error=True)
+        heartbeat.record_error(session_factory, JOB, message, now())
         return False
     _log(summary)
+    heartbeat.record_success(session_factory, JOB, now())
     return True
 
 

@@ -124,6 +124,9 @@ service runs it with `--loop`):
   reports `projects_held`. The field is required: an answer without it is untrustworthy.
 - Without a trustworthy answer (unreachable, not 200, unexpected body) it deletes nothing and
   exits 1. Projects missing from the answer are never touched.
+- Each loop job (`retention`, `rollup`, `weekly_summary`) records a heartbeat after every pass it
+  runs (last success and last error, with a scrubbed one-line error text) in `job_heartbeats`;
+  a pass skipped because another copy holds the advisory lock records nothing.
 
 ## Failure notifications
 

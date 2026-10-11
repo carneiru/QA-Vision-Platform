@@ -21,12 +21,14 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 from src.ingestion.core.config import settings
+from src.ingestion.jobs import heartbeat
 from src.ingestion.models.notification_channel import NotificationChannel
 from src.ingestion.service import weekly_summary
 from src.ingestion.service.notification_service import deliver, record
 
 LOCK_ID = 7_351_003  # distinct from retention's and rollup's locks
 DEFAULT_INTERVAL_MINUTES = 30.0
+JOB = "weekly_summary"
 
 
 def _log(record_: dict, error: bool = False) -> None:
@@ -91,12 +93,15 @@ def run_once(*, session_factory: sessionmaker, lock_engine: Engine) -> bool:
         with _advisory_lock(lock_engine) as acquired:
             if not acquired:
                 _log({"event": "weekly_summary", "skipped": "another copy holds the lock"})
-                return True
+                return True  # the copy holding the lock writes the heartbeat
             run_pass(session_factory)
-        return True
     except Exception as exc:  # the loop must survive a bad pass
-        _log({"event": "weekly_summary", "error": f"{type(exc).__name__}: {exc}"}, error=True)
+        message = f"{type(exc).__name__}: {exc}"
+        _log({"event": "weekly_summary", "error": message}, error=True)
+        heartbeat.record_error(session_factory, JOB, message)
         return False
+    heartbeat.record_success(session_factory, JOB)
+    return True
 
 
 def main(
