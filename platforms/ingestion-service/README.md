@@ -292,6 +292,11 @@ The flaky window goes up to 90 days. Flip counting recombines from the `flaky_da
 - `GET /health`; `GET /metrics` (Prometheus, inside the Docker network only — not routed by the
   gateway): `qav_ingest_runs_total`, `qav_ingest_results_total`, `qav_ingest_rejected_total{reason}`,
   `qav_ingest_duration_seconds` (the `qav_` prefix predates the QEOS rename and is kept so dashboards and alerts keep working).
+- Job heartbeats, read from `job_heartbeats` on every scrape: `job_last_success_timestamp_seconds{job}` and
+  `job_last_error_timestamp_seconds{job}` (Unix seconds) for `retention`, `rollup` and `weekly_summary`. `0` means
+  never: no successful (or no failed) pass has been recorded yet, so a job that has not succeeded yet looks stale.
+  If the database read fails, the job series are left out and `job_heartbeat_read_errors_total` increases while
+  `/metrics` keeps answering. Prometheus scrapes ingestion with `honor_labels: true` so `job` keeps the loop job's name.
 - Uploads never call another service; key management and reads need project-service (503 if it is down).
 
 ## Known limitations

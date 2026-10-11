@@ -37,6 +37,8 @@ def db():
 
 @pytest.fixture(scope="function")
 def client(db):
+    from src.ingestion.api.main import HEARTBEATS
+
     def override_get_db():
         try:
             yield db
@@ -44,9 +46,15 @@ def client(db):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
+    # /metrics reads job_heartbeats through its own sessions: point them at the test database
+    previous = HEARTBEATS.session_factory
+    HEARTBEATS.session_factory = TestingSessionLocal
+    try:
+        with TestClient(app) as c:
+            yield c
+    finally:
+        HEARTBEATS.session_factory = previous
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture

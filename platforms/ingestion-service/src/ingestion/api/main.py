@@ -6,7 +6,9 @@ from starlette.middleware.cors import CORSMiddleware
 
 from src.ingestion.api.v1.api import api_router
 from src.ingestion.core.config import settings
+from src.ingestion.db.session import SessionLocal
 from src.ingestion.utils import metrics
+from src.ingestion.utils.job_metrics import JobHeartbeatCollector
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -26,6 +28,8 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Ingestion's own registry, so the qav_* metrics keep their names on the same page (spec §3)
 install_metrics(app, service="ingestion", registry=metrics.REGISTRY)
+HEARTBEATS = JobHeartbeatCollector(SessionLocal)
+metrics.REGISTRY.register(HEARTBEATS)
 
 
 @app.exception_handler(RequestValidationError)
