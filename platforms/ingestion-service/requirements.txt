@@ -1,10 +1,10 @@
-fastapi==0.142.2
+fastapi==0.162.0
 uvicorn[standard]==0.54.0
-pydantic[email]==2.13.5
-pydantic-settings==2.15.0
-SQLAlchemy==2.1.4
+pydantic[email]==2.14.2
+pydantic-settings==2.16.2
+SQLAlchemy==2.1.6
 psycopg[binary]==3.3.6
-alembic==1.20.0
+alembic==1.20.1
 PyJWT==2.15.1
 python-dotenv==1.2.4
 httpx==0.28.1
@@ -13,8 +13,8 @@ prometheus-client==0.26.0
 # Linear-time regex engine for user-supplied masking patterns: no pattern can stall ingestion
 google-re2==1.1.20251105
 # IANA time zones for zoneinfo on systems without a zone database (Windows, slim images)
-tzdata==2026.5
-pytest==9.1.1
+tzdata==2026.6
+pytest==9.2.0
 # Relative path, resolved from this file's directory. The Dockerfile mirrors the repo
 # layout so this same path resolves inside the image.
 -e ../../shared
